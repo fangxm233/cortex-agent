@@ -7,19 +7,19 @@ import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useAllSessions } from '@/features/projects/useProjectSessions';
 import { useChatSession } from '@/features/session/chat/useChatSession';
 import { useComposerSend } from '@/features/session/chat/useComposerSend';
-import { runStatusLine } from '@/features/session/chat/run-status-line';
 import { useSessionSelection } from '@/features/session/composer/useSessionSelection';
 import { useDraftSelection } from '@/features/session/state/useDraftSelection';
 import type { PendingCreatedSession } from '@/features/session/state/selected-session';
 import { sessionSpanMs, sessionStatsView, type SessionStatsRow } from '@/features/session/list/session-stats';
 import { sessionDisplayTitle } from '@/features/session/metadata/session-display-title';
 import { useTeamContext } from '@/features/team/useTeamContext';
+import { teamRoster } from '@/features/team/worker-roster';
 import { attachmentType, type AttachmentUploadItem } from '@/features/attachments/types';
 import { normalizeMobilePath } from '../mobile-route-manifest';
 import { SAME_SCREEN_STATE } from '../MobileAnimatedOutlet';
 import { MChatView } from './MChatView';
 import {
-  buildMobileChatRows,
+  buildMobileChatRows, mobileRunStatus,
   type ChatHeaderStatus, type SelectionSheetRow, type PendingAttachmentVM,
 } from './m-chat-vm';
 import { useMobileInteractions, type MobileInteractionRouting } from './m-chat-interactions';
@@ -208,13 +208,15 @@ export function MChatScreen(): JSX.Element {
     rewindPending: chat.rewind.pending, interactionsBusy: !!chat.interactionActions.busy,
   });
   const sessionStatsRows = useSessionStatsRows(active);
-  // A pending interaction outranks everything; then the shared run line (browser start-up first).
-  const runLine = runStatusLine({
+  // A pending interaction outranks everything; then the phone's plain-words run line (browser
+  // start-up first).
+  const runLine = mobileRunStatus({
     isDraft, running: chat.running, backgroundRunning: chat.backgroundRunning,
     starting: chat.pendingUser.length > 0, turns: chat.turns, cost: active?.costUsd ?? null,
     turnClock: chat.turnClock, waitingOn: active?.waitingOn ?? 0,
     browserDevice: active?.browser?.device ?? draftBrowserDevice,
     turnProgressStarted: chat.liveTurns !== null || chat.streaming,
+    workers: teamRoster(team.workers).active.length, lastUsedAt: active?.lastUsedAt ?? null,
   }, vocab, lang);
   const status: ChatHeaderStatus = routing.headerStatus
     ?? { running: runLine.active, tone: runLine.active ? 'running' : 'idle', text: runLine.text, liveText: runLine.liveText };
@@ -236,7 +238,6 @@ export function MChatScreen(): JSX.Element {
       onOpenBoardSession={(id) => { if (id !== sessionId) navigate(`/m/session/${id}`); }}
       metadataSession={!isDraft && active ? { sessionId: active.sessionId, title, starred: active.starred } : null}
       status={status}
-      project={route.projectId ?? undefined}
       rows={rows}
       live={chat.running && !chat.backgroundRunning}
       backgroundRunning={chat.backgroundRunning}

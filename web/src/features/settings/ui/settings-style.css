@@ -10,9 +10,8 @@
   --settings-card-fill: var(--material-card-bg);
   --settings-control-fill: var(--material-control-bg);
   --settings-boundary: var(--proto-line-2);
-  --settings-control-boundary: var(--proto-faint);
-  /* Keep selected small text legible over tinted glass in both themes. */
-  --settings-selected-ink: color-mix(in srgb, var(--proto-accent) 80%, var(--proto-ink));
+  /* A hairline, like the cards': a field must not out-draw the chips and buttons beside it. */
+  --settings-control-boundary: var(--proto-line-4);
   --settings-panel-padding: 20px;
   --settings-nav-width: 196px;
   --r-card: var(--settings-card-radius);
@@ -101,11 +100,11 @@
 
 .settings-surface.settings-modal { outline: none; }
 .settings-surface .settings-nav { box-sizing: border-box; }
-.settings-surface .settings-nav-button { min-height: 34px; height: auto; padding-block: 6px; }
+.settings-surface .settings-nav-button { min-height: 30px; height: auto; padding-block: 5px; }
 .settings-surface .settings-nav-button:not(:disabled):hover { background: var(--proto-alt); }
 .settings-surface .settings-nav-button:focus-visible { outline-offset: -2px; }
 .settings-surface .settings-nav-label { white-space: normal; }
-.settings-surface .settings-nav-build { overflow-wrap: anywhere; }
+.settings-surface .settings-nav-build { overflow-wrap: normal; }
 .settings-surface .settings-content-frame { container: settings-content / inline-size; }
 .settings-surface .settings-panel-header { min-height: 56px; padding: 12px var(--settings-panel-padding); }
 .settings-surface .settings-panel-title { font-size: 16px; font-weight: 600; }

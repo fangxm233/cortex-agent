@@ -1,18 +1,56 @@
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import { useLang, useVocab } from '@/i18n';
 import { MENU_FOCUS, MENU_SURFACE } from '@/design/MenuChrome';
 import { IconButton } from '@/design/IconButton';
-import { ProjectFolderIcon } from './ProjectFolderIcon';
 import { RailSessionMenu } from './RailSessionMenu';
-import { StarredSessionGroup } from '@/features/session/list/StarredSessionGroup';
 import { NewProjectIcon, OverviewIcon, SortIcon } from './RailHeaderIcons';
 import type { RailProjectNode, RailSessionRow } from './rail-tree';
 import type { RailSortMode } from './rail-order';
 import { scheduleSubline, type ScheduleRow } from '@/features/session/list/schedule-rail';
 
-const mono = "'IBM Plex Mono',monospace";
 // Header and folder-row icon controls fit inside the row's fixed height.
-const ROW_ICON = 22;
+const ROW_ICON = 24;
+
+// One row grammar for every line in the tree: a 16px status/icon column, the label, then a
+// right-aligned meta slot, on a fixed 30px row. Nesting is only the left padding — a project's
+// column sits at 8px, its sessions and groups at 22px, and every deeper level 18px further in — so
+// a nested row keeps the same internal geometry one level deeper.
+const ROW_HEIGHT = 30;
+const PROJECT_PAD = 8;
+const SUB_PAD = 22;
+const NEST_STEP = 18;
+
+const ELLIPSIS: CSSProperties = { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+const META: CSSProperties = { fontSize: 12, color: 'var(--proto-faint)', fontVariantNumeric: 'tabular-nums', flex: 'none' };
+
+function rowStyle(pad: number): CSSProperties {
+  return {
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    height: ROW_HEIGHT,
+    boxSizing: 'border-box',
+    padding: `0 8px 0 ${pad}px`,
+    borderRadius: 'var(--r-chip)',
+    cursor: 'pointer',
+  };
+}
+
+// Selected is a gray tint with ink text; hover is a fainter tint. Neither uses the accent: in a list
+// this dense a coloured row reads as status, and status belongs to the dot alone.
+function rowBackground(selected: boolean, hovered: boolean): string {
+  if (selected) return 'var(--proto-gray)';
+  return hovered ? 'var(--proto-line-2)' : 'transparent';
+}
+
+function StatusColumn({ children }: { children?: ReactNode }): JSX.Element {
+  return (
+    <span style={{ width: 16, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--proto-faint)' }}>
+      {children}
+    </span>
+  );
+}
 
 function activateRow(event: KeyboardEvent, activate: () => void): void {
   if (event.target !== event.currentTarget) return;
@@ -21,11 +59,35 @@ function activateRow(event: KeyboardEvent, activate: () => void): void {
   activate();
 }
 
-// The three section-header glyphs share one optical box: 14px rendered, one 16 viewBox, content
-// bounded to y ∈ [3.4, 12.9], stroke 1.6. The sort glyph is a pair of opposed arrows rather than
-// stepped lines because stepped lines put their mass in the top half and read as sitting high next
-// to two vertically symmetric neighbours. Search is exported because the collapsed rail carries the
-// same action and must draw it with the same glyph.
+type RowStatus = 'awaiting' | 'running' | 'waiting';
+
+// Three states, in priority order. Amber is reserved everywhere in the UI for "blocked on YOU" — the
+// only dot that asks the user to do something — so it wins over running. A hollow, still ring means
+// "waiting on a machine": visible, but it must not compete with either live dot.
+function rowStatus(row: RailSessionRow): RowStatus | null {
+  if (row.awaitingInput) return 'awaiting';
+  if (row.running) return 'running';
+  if (row.waitingOn) return 'waiting';
+  return null;
+}
+
+const DOT_STYLE: Record<RowStatus, CSSProperties> = {
+  awaiting: {
+    width: 7, height: 7, background: 'var(--proto-amber)',
+    boxShadow: '0 0 0 3px color-mix(in srgb, var(--proto-amber) 22%, transparent)',
+  },
+  running: {
+    width: 7, height: 7, background: 'var(--proto-accent)',
+    boxShadow: '0 0 0 3px color-mix(in srgb, var(--proto-accent) 18%, transparent)',
+  },
+  waiting: { width: 8, height: 8, background: 'transparent', border: '1.5px solid var(--proto-faint)' },
+};
+
+// The section-header glyphs share one optical box: 14px rendered, one 16 viewBox, content bounded
+// to y ∈ [3.4, 12.9], stroke 1.6. The sort glyph is a pair of opposed arrows rather than stepped
+// lines because stepped lines put their mass in the top half and read as sitting high next to two
+// vertically symmetric neighbours. Search is exported because the collapsed rail carries the same
+// action and must draw it with the same glyph.
 export function SearchIcon({ size = 14 }: { size?: number } = {}): JSX.Element {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" aria-hidden="true">
@@ -43,11 +105,19 @@ function AddIcon({ size = 13 }: { size?: number }): JSX.Element {
   );
 }
 
-function ClockIcon({ size = 11 }: { size?: number }): JSX.Element {
+function ClockIcon({ size = 12 }: { size?: number }): JSX.Element {
   return (
-    <svg width={size} height={size} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden="true" style={{ flex: 'none' }}>
+    <svg width={size} height={size} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true" style={{ flex: 'none' }}>
       <circle cx="7" cy="7" r="5.6" />
       <path d="M7 4v3.2l2.2 1.3" />
+    </svg>
+  );
+}
+
+function StarIcon({ size = 12 }: { size?: number }): JSX.Element {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none' }}>
+      <path d="M8 2.2l1.75 3.6 3.95.55-2.87 2.77.7 3.93L8 11.2l-3.53 1.85.7-3.93L2.3 6.35l3.95-.55z" />
     </svg>
   );
 }
@@ -62,6 +132,25 @@ function CaretIcon({ open, size = 9 }: { open: boolean; size?: number }): JSX.El
       <path d="M4.5 2.5L8.5 6l-4 3.5" />
     </svg>
   );
+}
+
+// Two columns of dots: the conventional "this can be dragged" mark.
+function GripIcon(): JSX.Element {
+  return (
+    <svg width={6} height={10} viewBox="0 0 6 10" fill="currentColor" aria-hidden="true" style={{ flex: 'none' }}>
+      <circle cx="1.2" cy="1.2" r="1" /><circle cx="4.8" cy="1.2" r="1" />
+      <circle cx="1.2" cy="5" r="1" /><circle cx="4.8" cy="5" r="1" />
+      <circle cx="1.2" cy="8.8" r="1" /><circle cx="4.8" cy="8.8" r="1" />
+    </svg>
+  );
+}
+
+/** Whether the selected session is drawn as a row inside this (open) folder. */
+function showsSelection(node: RailProjectNode): boolean {
+  if (!node.expanded) return false;
+  const hit = (rows: RailSessionRow[]) =>
+    rows.some((r) => r.selected || (!!r.workersExpanded && (r.workers ?? []).some((w) => w.selected)));
+  return hit(node.sessions) || (node.starsExpanded && hit(node.starredSessions));
 }
 
 export interface RailTreeProps {
@@ -104,6 +193,12 @@ export function RailTree(props: RailTreeProps): JSX.Element {
   });
   const isHover = (key: string) => hover === key;
 
+  const statusText: Record<RowStatus, string> = {
+    awaiting: L.slAwaiting,
+    running: L.slRunning,
+    waiting: L.wbRowWaitingOn,
+  };
+
   // The filter field is a row BELOW the header, not a replacement for it: the section title and the
   // project count are what a filtered tree is being read against, so they have to stay on screen.
   const renderSearch = () => (
@@ -138,7 +233,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
             outline: 0,
             background: 'transparent',
             color: 'var(--proto-ink)',
-            fontSize: 12,
+            fontSize: 12.5,
             fontFamily: 'inherit',
           }}
         />
@@ -154,12 +249,13 @@ export function RailTree(props: RailTreeProps): JSX.Element {
     </div>
   );
 
+  // A small sentence-case heading with a plain count: hierarchy from weight and colour, not caps.
   const renderHeader = () => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 28, padding: '0 14px 4px', flex: 'none', boxSizing: 'content-box' }}>
-      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.07em', color: 'var(--proto-muted)' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 28, padding: '0 10px 4px 16px', flex: 'none', boxSizing: 'content-box' }}>
+      <span style={{ fontSize: 12, fontWeight: 550, color: 'var(--proto-muted)' }}>
         {L.wbProjects}
       </span>
-      <span style={{ font: `500 11px ${mono}`, color: 'var(--proto-muted)', marginLeft: 5, marginRight: 'auto' }}>
+      <span style={{ ...META, marginLeft: 6, marginRight: 'auto' }}>
         {props.projectCount}
       </span>
       <IconButton size={ROW_ICON} label={L.wbFilterSessions} onClick={props.onToggleSearch}><SearchIcon /></IconButton>
@@ -179,7 +275,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
             onClick={(e) => e.stopPropagation()}
             style={{
               position: 'absolute',
-              top: 25,
+              top: ROW_ICON + 3,
               right: 0,
               zIndex: 20,
               minWidth: 118,
@@ -203,11 +299,11 @@ export function RailTree(props: RailTreeProps): JSX.Element {
                   display: 'block',
                   padding: '6px 9px',
                   borderRadius: 6,
-                  fontSize: 12,
+                  fontSize: 12.5,
                   whiteSpace: 'nowrap',
                   cursor: 'pointer',
                   fontWeight: props.sort === mode ? 600 : 400,
-                  color: props.sort === mode ? 'var(--proto-accent)' : 'var(--proto-muted)',
+                  color: props.sort === mode ? 'var(--proto-ink)' : 'var(--proto-muted)',
                   background: isHover('sort:' + mode) ? 'var(--proto-gray)' : 'transparent',
                 }}
               >
@@ -221,12 +317,15 @@ export function RailTree(props: RailTreeProps): JSX.Element {
     </div>
   );
 
-  // `indent` is the title's left edge; the selection spine and the status dot ride 19px and 11px
-  // to its left, so a nested session keeps the same internal geometry one level deeper rather than
-  // re-deriving three magic numbers.
-  const renderSession = (row: RailSessionRow, indent = 32): JSX.Element => {
+  // `pad` is the row's left padding — where its 16px status column starts.
+  const renderSession = (row: RailSessionRow, pad = SUB_PAD): JSX.Element => {
     const key = 'sess:' + row.sessionId;
     const workers = row.workers ?? [];
+    const status = rowStatus(row);
+    // The dot is the only status mark on the row; its words live in the tooltip and in the dot's
+    // accessible name, never in the trailing slot, which is the age's alone.
+    const statusLabel = status ? statusText[status] : null;
+    const strong = row.awaitingInput || row.unread;
     const body = (
       <div
         key={row.sessionId}
@@ -237,67 +336,31 @@ export function RailTree(props: RailTreeProps): JSX.Element {
         aria-current={row.selected || undefined}
         className={MENU_FOCUS}
         onKeyDown={(event) => activateRow(event, () => props.onOpenSession(row))}
-        title={row.stamp ? `${row.title} · ${row.stamp}` : row.title}
+        title={[row.title, statusLabel, row.stamp].filter(Boolean).join(' · ')}
         onClick={() => props.onOpenSession(row)}
         style={{
-          position: 'relative',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          height: 30,
-          boxSizing: 'border-box',
-          // The folder row puts its project name at 6 + the glyph's 17 + the row's gap = 30; a
-          // session title sits a hair inside that, so the nesting reads without a second indent.
-          padding: `0 10px 0 ${indent}px`,
-          borderRadius: 'var(--r-chip)',
-          cursor: 'pointer',
-          background: row.selected
-            ? 'var(--proto-accent-bg)'
-            : isHover(key)
-              ? 'var(--proto-gray)'
-              : 'transparent',
+          ...rowStyle(pad),
+          background: rowBackground(row.selected, isHover(key)),
           opacity: row.inactive && !row.selected ? 0.55 : undefined,
         }}
       >
-        {row.selected && (
-          <span
-            aria-hidden="true"
-            style={{ position: 'absolute', left: indent - 19, top: 6, bottom: 6, width: 3, borderRadius: 2, background: 'var(--proto-accent)' }}
-          />
-        )}
-        {(row.running || row.awaitingInput || row.waitingOn) && (
-          // Absolute, in the gutter between the spine and the text: in flow it pushed the title of
-          // exactly the rows you are watching out of line with every other one.
-          // Three states, in priority order. A hollow, still ring means "waiting on a machine":
-          // visible, but it must not compete with amber, which is reserved everywhere in the UI for
-          // "blocked on YOU" — the only dot that asks the user to do something.
-          <span
-            data-rail-dot={row.running || row.awaitingInput ? 'live' : 'waiting'}
-            style={{
-              position: 'absolute',
-              left: indent - 11,
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              boxSizing: 'border-box',
-              ...(row.running || row.awaitingInput
-                ? {
-                  background: row.awaitingInput ? 'var(--proto-amber)' : 'var(--proto-accent)',
-                }
-                : { background: 'transparent', border: '1.5px solid var(--proto-muted-3)' }),
-            }}
-          />
-        )}
+        <StatusColumn>
+          {status && (
+            <span
+              role="img"
+              aria-label={statusLabel ?? undefined}
+              data-rail-dot={status === 'waiting' ? 'waiting' : 'live'}
+              style={{ display: 'block', borderRadius: '50%', boxSizing: 'border-box', flex: 'none', ...DOT_STYLE[status] }}
+            />
+          )}
+        </StatusColumn>
         <span
           style={{
+            ...ELLIPSIS,
             flex: 1,
-            minWidth: 0,
-            fontSize: 12.5,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            fontWeight: row.selected || row.unread ? 600 : 400,
-            color: row.selected || row.unread ? 'var(--proto-ink)' : 'var(--proto-muted)',
+            fontSize: 13,
+            fontWeight: strong ? 600 : row.selected ? 550 : 400,
+            color: strong || row.selected ? 'var(--proto-ink)' : 'var(--proto-ink-3)',
           }}
         >
           {row.title}
@@ -322,7 +385,8 @@ export function RailTree(props: RailTreeProps): JSX.Element {
               padding: '2px 3px',
               borderRadius: 4,
               cursor: 'pointer',
-              font: `500 11px ${mono}`,
+              fontSize: 12,
+              fontVariantNumeric: 'tabular-nums',
               color: 'var(--proto-muted)',
             }}
           >
@@ -337,10 +401,47 @@ export function RailTree(props: RailTreeProps): JSX.Element {
     return (
       <div key={row.sessionId} data-lead-group={row.sessionId}>
         {body}
-        {row.workersExpanded && workers.map((w) => renderSession(w, indent + 24))}
+        {row.workersExpanded && workers.map((w) => renderSession(w, pad + NEST_STEP))}
       </div>
     );
   };
+
+  // A folder's Stars and Scheduled groups: the same row as a session, with the group's glyph in the
+  // status column and its plain count after the label. The rows under it say it is open.
+  const renderGroupRow = ({ hoverKey, icon, label, count, expanded, emphasis, title, onToggle }: {
+    hoverKey: string;
+    icon: ReactNode;
+    label: string;
+    count: number;
+    expanded: boolean;
+    emphasis?: boolean;
+    title?: string;
+    onToggle: () => void;
+  }) => (
+    <button
+      type="button"
+      {...hp(hoverKey)}
+      aria-label={label}
+      aria-expanded={expanded}
+      title={title}
+      className={MENU_FOCUS}
+      onClick={() => onToggle()}
+      style={{
+        ...rowStyle(SUB_PAD),
+        width: '100%',
+        border: 0,
+        textAlign: 'left',
+        fontFamily: 'inherit',
+        background: rowBackground(false, isHover(hoverKey)),
+      }}
+    >
+      <StatusColumn>{icon}</StatusColumn>
+      <span style={{ ...ELLIPSIS, flex: 1, fontSize: 13, display: 'flex', alignItems: 'baseline', gap: 6 }}>
+        <span style={{ color: emphasis ? 'var(--proto-ink)' : 'var(--proto-muted)', fontWeight: emphasis ? 600 : 400 }}>{label}</span>
+        <span style={{ ...META, fontSize: 12.5 }}>{count}</span>
+      </span>
+    </button>
+  );
 
   const renderScheduleRow = (row: ScheduleRow) => {
     const key = 'sched:' + row.scheduleId;
@@ -356,30 +457,28 @@ export function RailTree(props: RailTreeProps): JSX.Element {
         key={key}
         {...hp(key)}
         data-schedule-row={row.scheduleId}
+        role="button"
+        tabIndex={0}
+        className={MENU_FOCUS}
         title={meta}
+        onKeyDown={(event) => activateRow(event, () => props.onScheduleRow(row))}
         onClick={() => props.onScheduleRow(row)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          minHeight: 26,
-          padding: '4px 8px 4px 40px',
-          borderRadius: 'var(--r-chip)',
-          cursor: 'pointer',
-          fontSize: 12.5,
-          color: row.unread ? 'var(--proto-ink)' : 'var(--proto-muted)',
-          fontWeight: row.unread ? 600 : 400,
-          background: isHover(key) ? 'var(--proto-gray)' : 'transparent',
-        }}
+        style={{ ...rowStyle(SUB_PAD + NEST_STEP), background: rowBackground(false, isHover(key)) }}
       >
-        <span style={{ color: row.unread ? 'var(--proto-accent)' : 'var(--proto-muted-3)', display: 'flex', flex: 'none' }}>
-          <ClockIcon />
-        </span>
-        <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <StatusColumn><ClockIcon /></StatusColumn>
+        <span
+          style={{
+            ...ELLIPSIS,
+            flex: 1,
+            fontSize: 13,
+            color: row.unread ? 'var(--proto-ink)' : 'var(--proto-ink-3)',
+            fontWeight: row.unread ? 600 : 400,
+          }}
+        >
           {row.title}
         </span>
-        <span style={{ font: `500 11px ${mono}`, color: 'var(--proto-muted)', flex: 'none' }}>
-          {row.kind === 'repeat' ? `×${row.runs.length}` : L.wbSchedOnce}
+        <span style={META}>
+          {row.kind === 'repeat' ? row.runs.length : L.wbSchedOnce}
         </span>
       </div>
     );
@@ -388,6 +487,10 @@ export function RailTree(props: RailTreeProps): JSX.Element {
   const renderFolder = (node: RailProjectNode) => {
     const key = 'proj:' + node.id;
     const hovered = isHover(key);
+    // The current folder takes the selected tint only while its selected session is not on screen
+    // as a row — a draft, or a selection folded away — because that is where the next message will
+    // land. Otherwise the session row carries the selection and the folder stays plain.
+    const tinted = node.current && !showsSelection(node);
     return (
       <div
         key={node.id}
@@ -427,91 +530,59 @@ export function RailTree(props: RailTreeProps): JSX.Element {
           onKeyDown={(event) => activateRow(event, () => props.onToggleProject(node.id))}
           onClick={() => props.onToggleProject(node.id)}
           style={{
-            // Transparent rows scroll with their sessions so text cannot overlap underneath.
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 7,
-            // Fixed, not padding-derived: hovering swaps the trailing age/hotkey for two 22px icon
-            // buttons, and a height that follows its content would make every row jump under the
-            // cursor. 32px clears the tallest thing the slot can hold.
-            height: 32,
-            boxSizing: 'border-box',
-            // 6 + the scroller's 8 puts the folder glyph on x=14, the same left margin the section
-            // header above it uses.
-            padding: '0 8px 0 6px',
-            borderRadius: 'var(--r-chip)',
-            cursor: 'pointer',
+            // Fixed height: hovering swaps the trailing age for two icon buttons, and a height that
+            // followed its content would make every row jump under the cursor.
+            ...rowStyle(PROJECT_PAD),
             opacity: dragId === node.id ? 0.45 : 1,
-            // Only drag-over needs a marker; the current project uses a light accent tint.
+            // Only drag-over needs a marker.
             boxShadow: overId === node.id
               ? 'inset 0 2px 0 0 var(--proto-accent)'
               : undefined,
-            background: node.current
-              ? 'var(--proto-accent-bg)'
-              : hovered
-                ? 'var(--proto-gray)'
-                : 'transparent',
+            background: rowBackground(tinted, hovered),
           }}
         >
-          {/* The folder glyph IS the drag handle. A separate grip column cost 17px of permanent
-              indent — on every row, forever — to advertise a gesture the whole row already accepts,
-              and it pushed the tree off the rail's 12px text margin. */}
-          <span
-            title={props.filter ? undefined : L.wbReorderProject}
-            style={{ display: 'flex', flex: 'none', cursor: props.filter ? 'pointer' : 'grab' }}
-          >
-            <ProjectFolderIcon open={node.expanded} current={node.current} dim={node.empty} />
-          </span>
+          {/* The whole row drags; the grip in its left padding is the affordance, shown on hover so
+              a resting tree carries no extra column. */}
+          {!props.filter && (
+            <span
+              aria-hidden="true"
+              title={L.wbReorderProject}
+              data-project-grip={node.id}
+              style={{
+                position: 'absolute', left: 0, top: 0, bottom: 0, width: PROJECT_PAD,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--proto-faint)', cursor: 'grab', opacity: hovered ? 1 : 0,
+              }}
+            >
+              <GripIcon />
+            </span>
+          )}
+          <StatusColumn><CaretIcon open={node.expanded} size={10} /></StatusColumn>
           <span
             title={node.id}
             style={{
+              ...ELLIPSIS,
               flex: 1,
-              minWidth: 0,
               fontSize: 13,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              fontWeight: node.current || node.attention > 0 ? 600 : 500,
-              color: node.current || node.attention > 0
-                ? 'var(--proto-ink)'
-                : node.empty
-                  ? 'var(--proto-muted-2)'
-                  : 'var(--proto-ink-2)',
+              fontWeight: 550,
+              color: node.empty ? 'var(--proto-muted-3)' : 'var(--proto-ink)',
             }}
           >
             {node.id}
           </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 'none' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 'none' }}>
             {node.matchCount !== null && (
-              <span
-                style={{
-                  font: `600 11px ${mono}`,
-                  color: 'var(--proto-accent)',
-                  background: 'var(--proto-accent-bg)',
-                  borderRadius: 4,
-                  padding: '1px 4px',
-                }}
-              >
-                {node.matchCount}
-              </span>
+              <span style={{ ...META, color: 'var(--proto-muted)' }}>{node.matchCount}</span>
             )}
             {node.attention > 0 && (
+              // A plain count, not a badge. Its colour only ever means one thing: amber = something
+              // is waiting on you; unread replies are news, so they stay muted.
               <span
                 data-project-attention-badge={node.id}
                 style={{
-                  minWidth: 16,
-                  height: 16,
-                  padding: '0 5px',
-                  boxSizing: 'border-box',
-                  borderRadius: 'var(--r-pill)',
-                  background:
-                    node.attentionTone === 'action' ? 'var(--proto-amber-bg)' : 'var(--proto-accent)',
-                  color: node.attentionTone === 'action' ? 'var(--proto-amber-fg)' : 'var(--ink-solid-fg)',
-                  font: `600 11px ${mono}`,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  ...META,
+                  fontWeight: 600,
+                  color: node.attentionTone === 'action' ? 'var(--proto-amber-text)' : 'var(--proto-muted)',
                 }}
               >
                 {node.attention}
@@ -540,25 +611,28 @@ export function RailTree(props: RailTreeProps): JSX.Element {
                   <AddIcon />
                 </IconButton>
               </span>
-            ) : node.idleAge !== null ? (
-              <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{node.idleAge}</span>
             ) : (
-              node.hotkey && <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{node.hotkey}</span>
+              node.idleAge !== null && <span style={META}>{node.idleAge}</span>
             )}
           </span>
         </div>
 
         {node.expanded && (
-          <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 1, padding: '3px 0 8px' }}>
-            {/* the guide line, not a chevron, is what says "these belong to that folder" */}
-            <span
-              aria-hidden="true"
-              style={{ position: 'absolute', left: 14, top: 0, bottom: 8, width: 1, background: 'var(--proto-line)', opacity: 0.55 }}
-            />
-            <StarredSessionGroup projectId={node.id} count={node.starredSessions.length}
-              expanded={node.starsExpanded} onToggle={() => props.onToggleStars(node.id)}>
-              {node.starredSessions.map((s) => renderSession(s, 40))}
-            </StarredSessionGroup>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1, padding: '1px 0 6px' }}>
+            {node.starredSessions.length > 0 && (
+              // Empty (including filtered-out) groups have no chrome.
+              <section data-starred-project={node.id}>
+                {renderGroupRow({
+                  hoverKey: 'stars:' + node.id,
+                  icon: <StarIcon />,
+                  label: L.chatStars,
+                  count: node.starredSessions.length,
+                  expanded: node.starsExpanded,
+                  onToggle: () => props.onToggleStars(node.id),
+                })}
+                {node.starsExpanded && node.starredSessions.map((s) => renderSession(s, SUB_PAD + NEST_STEP))}
+              </section>
+            )}
             {node.sessions.map((s) => renderSession(s))}
             {/* The cap has two directions and only ever one link: open the rest, or take it back.
                 Without the second the folder would stay uncapped for the rest of the visit. */}
@@ -571,65 +645,36 @@ export function RailTree(props: RailTreeProps): JSX.Element {
                   else props.onShowAll(node.id);
                 }}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  height: 26,
-                  boxSizing: 'border-box',
-                  padding: '0 10px 0 32px',
-                  borderRadius: 'var(--r-chip)',
-                  cursor: 'pointer',
-                  color: isHover('more:' + node.id) ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
-                  background: isHover('more:' + node.id) ? 'var(--proto-line-2)' : 'transparent',
+                  ...rowStyle(SUB_PAD),
+                  height: 28,
+                  color: isHover('more:' + node.id) ? 'var(--proto-ink)' : 'var(--proto-muted)',
+                  background: rowBackground(false, isHover('more:' + node.id)),
                 }}
               >
-                <span style={{ flex: 1, fontSize: 11.5 }}>
+                <StatusColumn />
+                <span style={{ flex: 1, fontSize: 12.5 }}>
                   {node.showingAll
                     ? L.wbShowFewerSessions
                     : L.wbShowAllSessions.replace('{n}', String(node.totalSessions))}
                 </span>
-                <span aria-hidden="true" style={{ font: `400 9.5px ${mono}`, color: 'var(--proto-faint)' }}>›</span>
+                <span aria-hidden="true" style={{ fontSize: 12, color: 'var(--proto-faint)' }}>›</span>
               </div>
             )}
             {node.schedules.length > 0 && (
               <>
-                <div
-                  {...hp('schedhead:' + node.id)}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    props.onToggleSchedules(node.id);
-                  }}
-                  style={{
-                    position: 'relative',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    height: 28,
-                    boxSizing: 'border-box',
-                    padding: '0 10px 0 32px',
-                    borderRadius: 'var(--r-chip)',
-                    cursor: 'pointer',
-                    background: isHover('schedhead:' + node.id) ? 'var(--proto-line-2)' : 'transparent',
-                  }}
-                >
-                  {/* Out of flow, so the label starts at the same x as the session rows around it. */}
-                  <span style={{ position: 'absolute', left: 18, display: 'flex', color: 'var(--proto-muted-3)' }}>
-                    <ClockIcon />
-                  </span>
-                  <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--proto-muted)' }}>
-                    {L.wbSchedGroup}
-                  </span>
-                  {node.scheduleUnread > 0 && !node.schedulesExpanded && (
-                    <span
-                      title={L.wbSchedUnread.replace('{n}', String(node.scheduleUnread))}
-                      aria-label={L.wbSchedUnread.replace('{n}', String(node.scheduleUnread))}
-                      style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-accent)', flex: 'none' }}
-                    />
-                  )}
-                  <span style={{ font: `500 11px ${mono}`, color: 'var(--proto-muted)', flex: 'none' }}>
-                    ×{node.schedules.length}
-                  </span>
-                </div>
+                {renderGroupRow({
+                  hoverKey: 'schedhead:' + node.id,
+                  icon: <ClockIcon />,
+                  label: L.wbSchedGroup,
+                  count: node.schedules.length,
+                  expanded: node.schedulesExpanded,
+                  // Unread runs behind a folded group bold its label, like an unread session's title.
+                  emphasis: node.scheduleUnread > 0 && !node.schedulesExpanded,
+                  title: node.scheduleUnread > 0
+                    ? L.wbSchedUnread.replace('{n}', String(node.scheduleUnread))
+                    : undefined,
+                  onToggle: () => props.onToggleSchedules(node.id),
+                })}
                 {node.schedulesExpanded && node.schedules.map(renderScheduleRow)}
               </>
             )}
@@ -645,7 +690,7 @@ export function RailTree(props: RailTreeProps): JSX.Element {
       {props.searchOpen && renderSearch()}
       <div data-zone="tree" style={{ flex: 1, minHeight: 0, overflowY: 'auto', scrollbarGutter: 'stable', padding: '0 4px 0 8px' }}>
         {props.nodes.length === 0 ? (
-          <div style={{ padding: '26px 16px', textAlign: 'center', color: 'var(--proto-muted)', fontSize: 12 }}>
+          <div style={{ padding: '26px 16px', textAlign: 'center', color: 'var(--proto-muted)', fontSize: 12.5 }}>
             {L.wbFilterNoMatch}
           </div>
         ) : (

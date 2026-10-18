@@ -75,8 +75,10 @@ function CopyButton({ text, action, copyKey, clipboard }: {
   );
 }
 
+// A step number is a quiet gray disc with an ink figure: the accent is for state (running, focus),
+// and the ink primary button beside it is already the one filled thing in the step.
 const STEP_BADGE =
-  'flex h-5 w-5 flex-none items-center justify-center rounded-full bg-state-run text-[11px] font-semibold text-[var(--accent-fg)]';
+  'flex h-5 w-5 flex-none items-center justify-center rounded-full bg-proto-gray text-[11px] font-semibold tabular-nums text-proto-ink';
 
 function Step({ index, children, data }: { index: number; children: ReactNode; data: string }) {
   return (
@@ -136,7 +138,7 @@ function DeviceCodeNotice({ notice, provider }: {
   return (
     <div data-auth-notice="device_code" className="min-w-0 space-y-1.5g">
       <p className="text-state-ink">{L.authLoginDeviceStep}</p>
-      <div className="flex min-w-0 flex-wrap items-center gap-1.5g rounded-[var(--r-card)] border border-dashed border-proto-accent-border bg-proto-accent-bg px-2g py-1.5g">
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5g rounded-[var(--r-card)] border border-dashed border-proto-line-3 bg-proto-alt px-2g py-1.5g">
         <span data-auth-device-code className="min-w-0 flex-1 break-all font-mono text-xl font-semibold tracking-wider text-state-ink">
           {notice.userCode}
         </span>

@@ -2,8 +2,6 @@ import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';
 import { SCard, SCardHeader, SPill, SRow } from '@/features/settings/ui/settings-ui';
 
-const MONO = "'IBM Plex Mono',monospace";
-
 // A green/gray "configured" pill derived HONESTLY from env presence (the prototype's
 // "connected · socket mode" is live runtime state the contract does not expose).
 export function PresencePill({ present }: { present: boolean }) {
@@ -46,7 +44,7 @@ function ServerRows({ servers }: { servers: string[] }) {
     <>
       {servers.map((name, index) => (
         <div key={name} style={index < servers.length - 1 ? { borderBottom: '1px solid var(--proto-line-2)' } : undefined}>
-          <SRow title={<span style={{ font: `600 13px ${MONO}`, overflowWrap: 'anywhere' }}>{name}</span>} />
+          <SRow title={<span style={{ overflowWrap: 'anywhere' }}>{name}</span>} />
         </div>
       ))}
     </>

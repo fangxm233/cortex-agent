@@ -13,8 +13,10 @@ describe('Shared presentation', () => {
   it('pairs filled buttons with semantic foregrounds without suppressing keyboard outlines', () => {
     const primary = create(<Button variant="primary">Save</Button>).root.findByType('button');
     const danger = create(<Button variant="danger">Delete</Button>).root.findByType('button');
-    expect(classes(primary)).toContain('text-[var(--accent-fg)]');
-    expect(classes(primary)).toContain('hover:bg-proto-accent-strong');
+    // Primary is ink, not accent: the accent is reserved for state.
+    expect(classes(primary)).toContain('[background:var(--ink-solid-bg)]');
+    expect(classes(primary)).toContain('text-[var(--ink-solid-fg)]');
+    expect(classes(primary)).not.toContain('accent');
     expect(classes(danger)).toContain('text-[var(--ink-solid-fg)]');
     expect(classes(primary)).not.toContain('outline-none');
     expect(primary.props.type).toBe('button');

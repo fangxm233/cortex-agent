@@ -10,7 +10,7 @@ import { findInteraction, planCardModel } from '@/features/session/interaction/i
 import { useInteractionActions } from '@/features/session/interaction/useInteractionActions';
 import { useSessionMessageLiveSync } from '@/features/session/live/useSessionMessageLiveSync';
 import { useTranscriptQuery } from '@/features/session/transcript/useTranscriptQuery';
-import { MC, MONO } from '@/mobile/ui/kit';
+import { MC } from '@/mobile/ui/kit';
 import { MPlanReadView } from './MPlanReadView';
 
 /** Router state the chat screen reads to arm 5a reject mode on return. */
@@ -35,10 +35,10 @@ export function MPlanReadScreen(): JSX.Element {
   if (!hit) {
     return (
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-        <div style={{ font: `400 11px ${MONO}`, color: MC.faint }}>
+        <div style={{ fontSize: 13, color: MC.muted }}>
           {transcriptQuery.isPending ? '…' : L.ixPlanNotFound}
         </div>
-        <button type="button" onClick={onBack} style={{ border: `1px solid ${MC.hairline}`, background: 'var(--proto-card)', borderRadius: 'var(--r-pill)', padding: '7px 16px', fontSize: 12.5, fontWeight: 600, color: MC.ink, cursor: 'pointer' }}>
+        <button type="button" onClick={onBack} style={{ border: '1px solid var(--proto-line-3)', background: 'var(--material-control-bg)', borderRadius: 'var(--r-control)', minHeight: 44, padding: '0 16px', fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 600, color: MC.ink, cursor: 'pointer' }}>
           {L.ixBackToChat}
         </button>
       </div>

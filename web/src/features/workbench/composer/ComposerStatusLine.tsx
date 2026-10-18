@@ -1,8 +1,6 @@
 import { MENU_FOCUS } from '@/design/MenuChrome';
 import { useNowTick } from '@/lib/useNowTick';
 
-const MONO = "'IBM Plex Mono',monospace";
-
 export interface ComposerStatusLineProps {
   running: boolean;
   text: string;
@@ -16,10 +14,11 @@ export interface ComposerStatusLineProps {
   onOpenSessionStats?: () => void;
 }
 
-// TWO segments, ONE colour. The first answers "what is happening now" (current turn, last run), the
-// second "what has this whole conversation cost". They are told apart by the divider and the
-// `会话`/`session` prefix — deliberately NOT by dimming the second one, which only made the number
-// hard to read. Only the divider glyph itself is a structural colour.
+// TWO segments, ONE colour. The first answers "what is happening now" (current turn, last run) and
+// sits at the start of the line, under the input; the second, "what has this whole conversation
+// cost", sits at the far end. Position and the `会话`/`session` prefix tell them apart — deliberately
+// NOT dimming the second one, which only made the number hard to read, and no divider glyph either.
+// The only colour on the line is the dot, which takes the accent while a turn runs.
 export function ComposerStatusLine({
   running, text, liveText, sessionText, onOpenSessionStats,
 }: ComposerStatusLineProps): JSX.Element {
@@ -27,42 +26,49 @@ export function ComposerStatusLine({
   const shownText = liveText ? liveText(now) : text;
   const clickable = !!sessionText && !!onOpenSessionStats;
   return (
-    <div data-composer-status-line="true" style={{ display: 'flex', alignItems: 'center', gap: 8, font: `500 11px ${MONO}`, color: 'var(--proto-muted)', padding: '9px 4px 0', height: 16, minWidth: 0 }}>
+    <div
+      data-composer-status-line="true"
+      style={{
+        display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, height: 16, padding: '8px 4px 0',
+        font: '400 12px/16px var(--font-ui)', fontVariantNumeric: 'tabular-nums', color: 'var(--proto-faint)',
+      }}
+    >
       {/* The live segment never yields width: a truncated "running · 2m 4s" is worse than a
           truncated total, so the totals segment is the one allowed to shrink. */}
       <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 'none' }}>
-        <span style={{ width: 7, height: 7, borderRadius: '50%', background: running ? 'var(--proto-accent)' : 'var(--proto-line-3)', transform: 'translateY(0.5px)', flex: 'none' }} />
+        <span
+          data-composer-status-dot={running ? 'running' : 'idle'}
+          style={{ width: 6, height: 6, borderRadius: '50%', background: running ? 'var(--proto-accent)' : 'var(--proto-line-3)', flex: 'none' }}
+        />
         <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{shownText}</span>
       </span>
       {sessionText && (
-        <>
-          <span aria-hidden="true" style={{ color: 'var(--proto-line-3)', flex: 'none' }}>│</span>
-          <span
-            className={MENU_FOCUS}
-            data-composer-session-totals="true"
-            role={clickable ? 'button' : undefined}
-            tabIndex={clickable ? 0 : undefined}
-            onClick={clickable ? onOpenSessionStats : undefined}
-            onKeyDown={clickable
-              ? (event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  onOpenSessionStats?.();
-                }
+        <span
+          className={`${MENU_FOCUS}${clickable ? ' hover:text-proto-ink-3' : ''}`}
+          data-composer-session-totals="true"
+          role={clickable ? 'button' : undefined}
+          tabIndex={clickable ? 0 : undefined}
+          onClick={clickable ? onOpenSessionStats : undefined}
+          onKeyDown={clickable
+            ? (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                onOpenSessionStats?.();
               }
-              : undefined}
-            style={{
-              color: 'inherit',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              minWidth: 0,
-              cursor: clickable ? 'pointer' : undefined,
-            }}
-          >
-            {sessionText}
-          </span>
-        </>
+            }
+            : undefined}
+          style={{
+            marginLeft: 'auto',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            minWidth: 0,
+            borderRadius: 4,
+            cursor: clickable ? 'pointer' : undefined,
+          }}
+        >
+          {sessionText}
+        </span>
       )}
     </div>
   );

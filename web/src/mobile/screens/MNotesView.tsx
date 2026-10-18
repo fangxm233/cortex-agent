@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { useVocabOptional, type Vocab } from '@/i18n';
-import { MScreen, MDrillHeader, MScrollBody, MC, MONO } from '@/mobile/ui/kit';
+import { MScreen, MDrillHeader, MScrollBody, MC, M_NUM } from '@/mobile/ui/kit';
 import type { NoteRowVm } from '@/features/notes/notes-vm';
 import type { MNotesVm } from './m-notes-vm';
 import { DELETE_REVEAL_PX, noteSwipeOffset, resolveNoteGesture, shouldSuppressNoteClick } from './m-notes-gestures';
@@ -68,10 +68,10 @@ function EditNote({ row, copy, busy, onSave, onCancel }: { row: NoteRowVm; copy:
     onCancel();
   };
   return (
-    <div style={{ border: `1px solid ${MC.runBorder}`, background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)', borderRadius: 'var(--r-card)', padding: 13 }}>
+    <div style={{ border: `1px solid ${MC.hairline}`, background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)', borderRadius: 'var(--r-card)', padding: 13 }}>
       <input value={text} onChange={(event) => setText(event.target.value)} autoFocus style={{ width: '100%', boxSizing: 'border-box', height: 40, borderRadius: 'var(--r-control)', border: `1.5px solid ${MC.hairline}`, padding: '0 12px', fontSize: 16, color: MC.ink, background: 'var(--material-inset-bg)' }} />
       <div style={{ display: 'flex', gap: 8, marginTop: 9 }}>
-        <button type="button" disabled={busy} onClick={() => void save()} style={{ flex: 1, height: 40, border: 0, borderRadius: 'var(--r-control)', background: MC.run, color: MC.inkSolidFg, fontSize: 13, fontWeight: 600 }}>{copy.noteSave}</button>
+        <button type="button" disabled={busy} onClick={() => void save()} style={{ flex: 1, height: 40, border: 0, borderRadius: 'var(--r-control)', background: MC.inkSolid, color: MC.inkSolidFg, fontSize: 14, fontWeight: 600 }}>{copy.noteSave}</button>
         <button type="button" disabled={busy} onClick={onCancel} style={{ width: 76, height: 40, border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-control)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.ink, fontSize: 13, fontWeight: 600 }}>{copy.cancel}</button>
       </div>
     </div>
@@ -81,7 +81,7 @@ function EditNote({ row, copy, busy, onSave, onCancel }: { row: NoteRowVm; copy:
 function MobileRowActions({ row, copy, busy, actions, onEdit }: { row: NoteRowVm; copy: Vocab; busy: boolean; actions: MNotesActions; onEdit: () => void }) {
   return (
     <div style={{ display: 'flex', gap: 8, marginTop: 11 }}>
-      <button type="button" disabled={busy} onClick={() => actions.onHandoff(row.text)} style={{ flex: 1, height: 40, border: 0, borderRadius: 'var(--r-control)', background: MC.run, color: MC.inkSolidFg, fontSize: 13, fontWeight: 600 }}>{copy.noteHandoff}</button>
+      <button type="button" disabled={busy} onClick={() => actions.onHandoff(row.text)} style={{ flex: 1, height: 40, border: 0, borderRadius: 'var(--r-control)', background: MC.inkSolid, color: MC.inkSolidFg, fontSize: 14, fontWeight: 600 }}>{copy.noteHandoff}</button>
       <button type="button" disabled={busy} onClick={onEdit} style={{ width: 76, height: 40, borderRadius: 'var(--r-control)', border: `1.5px solid ${MC.hairline}`, background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.ink, fontSize: 13, fontWeight: 600 }}>{copy.noteEdit}</button>
     </div>
   );
@@ -98,12 +98,12 @@ function ActiveRow({ row, copy, busy, actionOpen, swipeOpen, actions, onActions,
     <div data-note-click={row.id} data-note-swipe={row.id} style={{ borderRadius: 'var(--r-card)', overflow: 'hidden', background: 'var(--proto-danger)', position: 'relative' }}>
       <button type="button" disabled={busy} onClick={() => void actions.onDelete(row.id)} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 78, border: 0, background: 'var(--proto-danger)', color: 'var(--ink-solid-fg)', fontSize: 13, fontWeight: 600 }}>{copy.delete}</button>
       {/* Opaque base occludes the permanent red swipe-delete layer. */}
-      <div {...gestureHandlers} style={{ transform: `translateX(${offset}px)`, transition: offset === 0 || swipeOpen ? 'transform 180ms ease' : 'none', touchAction: 'pan-y', border: `1px solid ${actionOpen ? MC.runBorder : MC.divider}`, background: MC.card, boxShadow: 'var(--material-card-shadow)', borderRadius: 'var(--r-card)', padding: '12px 14px', position: 'relative' }}>
+      <div {...gestureHandlers} style={{ transform: `translateX(${offset}px)`, transition: offset === 0 || swipeOpen ? 'transform 180ms ease' : 'none', touchAction: 'pan-y', border: `1px solid ${actionOpen ? 'var(--proto-line-3)' : MC.divider}`, background: MC.card, boxShadow: 'var(--material-card-shadow)', borderRadius: 'var(--r-card)', padding: '12px 14px', position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
           <NoteCircle completed={false} busy={busy} onClick={() => void actions.onSetCompleted(row.id, true)} />
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: MC.ink, lineHeight: 1.4 }}>{row.text}</div>
-            <div style={{ font: `400 11px ${MONO}`, color: MC.muted, marginTop: 4 }}>{row.timeLabel}</div>
+            <div style={{ fontSize: 12, color: MC.muted, marginTop: 4, ...M_NUM }}>{row.timeLabel}</div>
           </div>
         </div>
         {actionOpen && <MobileRowActions row={row} copy={copy} busy={busy} actions={actions} onEdit={onEdit} />}
@@ -117,7 +117,7 @@ function CompletedRow({ row, busy, onReopen }: { row: NoteRowVm; busy: boolean; 
     <div style={{ border: `1px solid ${MC.hairline}`, background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)', borderRadius: 'var(--r-card)', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
       <NoteCircle completed busy={busy} onClick={onReopen} />
       <span style={{ fontSize: 14, color: MC.muted, textDecoration: 'line-through', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.text}</span>
-      <span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: MC.muted, flex: 'none' }}>{row.timeLabel}</span>
+      <span style={{ marginLeft: 'auto', fontSize: 12, color: MC.muted, flex: 'none', ...M_NUM }}>{row.timeLabel}</span>
     </div>
   );
 }
@@ -137,7 +137,7 @@ function FixedComposer({ copy, busy, onAdd }: { copy: Vocab; busy: boolean; onAd
         <span style={{ width: 16, height: 16, borderRadius: '50%', border: `1.5px solid ${MC.hairline}`, boxSizing: 'border-box' }} />
         <input value={text} onChange={(event) => setText(event.target.value)} placeholder={copy.noteInputPlaceholder} aria-label={copy.noteInputPlaceholder} style={{ flex: 1, minWidth: 0, border: 0, outline: 0, background: 'transparent', fontSize: 16, color: MC.ink }} />
       </div>
-      <button type="submit" disabled={busy || !text.trim()} style={{ width: 44, height: 44, borderRadius: 'var(--r-card)', border: 0, background: MC.run, color: MC.inkSolidFg, fontSize: 17, opacity: busy || !text.trim() ? 0.45 : 1 }}>↑</button>
+      <button type="submit" disabled={busy || !text.trim()} style={{ width: 44, height: 44, borderRadius: '50%', border: 0, background: busy || !text.trim() ? 'var(--proto-line-3)' : MC.inkSolid, color: MC.inkSolidFg, fontSize: 17 }}>↑</button>
     </form>
   );
 }
@@ -159,7 +159,7 @@ export function MNotesView(props: MNotesViewProps) {
   return (
     <MScreen
       label="26c notes"
-      header={<MDrillHeader onBack={props.onBack}><span style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>{copy.noteTitle}</span><span style={{ font: `600 11px ${MONO}`, color: MC.sub, background: MC.hairline, padding: '2px 8px', borderRadius: 'var(--r-pill)' }}>{props.vm.activeCount}</span></MDrillHeader>}
+      header={<MDrillHeader onBack={props.onBack}><span style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>{copy.noteTitle}</span><span style={{ fontSize: 14, color: MC.muted, ...M_NUM }}>{props.vm.activeCount}</span></MDrillHeader>}
       footer={<FixedComposer copy={copy} busy={props.busy} onAdd={props.onAdd} />}
     >
       <MScrollBody gap={9}>
@@ -167,8 +167,8 @@ export function MNotesView(props: MNotesViewProps) {
           ? <EditNote key={row.id} row={row} copy={copy} busy={props.busy} onSave={(text) => props.onUpdate(row.id, text)} onCancel={() => setEditingId(null)} />
           : <ActiveRow key={row.id} row={row} copy={copy} busy={props.busy} actionOpen={actionId === row.id} swipeOpen={swipeId === row.id} actions={actions} onActions={setActionId} onSwipe={setSwipeId} onEdit={() => setEditingId(row.id)} />)}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 4px 0' }}>
-          <button type="button" onClick={() => setCompletedOpen((value) => !value)} style={{ border: 0, padding: 0, background: 'transparent', fontSize: 11, fontWeight: 700, letterSpacing: '.06em', color: MC.muted }}>{copy.noteCompleted} · {props.vm.completedCount} {completedOpen ? '▾' : '▸'}</button>
-          {props.vm.completedCount > 0 && <button type="button" disabled={props.busy} onClick={() => void props.onClearCompleted()} style={{ marginLeft: 'auto', border: 0, background: 'transparent', color: `color-mix(in srgb, var(--proto-danger), ${MC.ink} 15%)`, fontSize: 11, fontWeight: 600 }}>{copy.noteClear}</button>}
+          <button type="button" onClick={() => setCompletedOpen((value) => !value)} style={{ border: 0, padding: 0, background: 'transparent', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: MC.muted, ...M_NUM }}>{copy.noteCompleted} · {props.vm.completedCount} {completedOpen ? '▾' : '▸'}</button>
+          {props.vm.completedCount > 0 && <button type="button" disabled={props.busy} onClick={() => void props.onClearCompleted()} style={{ marginLeft: 'auto', border: 0, background: 'transparent', color: `color-mix(in srgb, var(--proto-danger), ${MC.ink} 15%)`, fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600 }}>{copy.noteClear}</button>}
         </div>
         {completedOpen && props.vm.completed.map((row) => <CompletedRow key={row.id} row={row} busy={props.busy} onReopen={() => void props.onSetCompleted(row.id, false)} />)}
       </MScrollBody>

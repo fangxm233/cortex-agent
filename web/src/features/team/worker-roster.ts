@@ -74,6 +74,16 @@ export function workerStatusText(s: SessionInfo, now: number, L: Vocab, lang: Ti
   }
 }
 
+/** The row's trailing meta: only the "for how long" of `workerStatusText`, since the dot already
+ *  says the state. Null where the status text carries no span (needs you, waiting, a background
+ *  hold, or a record with no timestamp) — the row then shows nothing there. */
+export function workerAgeText(s: SessionInfo, now: number, lang: TimeLang): string | null {
+  const state = workerState(s);
+  if (state === 'you' || state === 'waiting' || (state === 'running' && s.backgroundRunning)) return null;
+  const at = Date.parse(s.lastUsedAt);
+  return Number.isNaN(at) ? null : formatSpan(now - at, lang);
+}
+
 /** The row's second line: the question it is blocked on, its current task while it runs, the
  *  lead's brief, then a name the user gave it. Null when none of these is known. */
 export function workerDoing(s: SessionInfo, question: string | null): string | null {

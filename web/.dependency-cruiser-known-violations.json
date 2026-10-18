@@ -86,23 +86,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/overview/OverviewView.tsx",
-    "to": "src/lib/trpc.ts",
-    "unresolvedTo": "@/lib/trpc",
-    "dependencyTypes": [
-      "aliased",
-      "aliased-tsconfig",
-      "aliased-tsconfig-paths",
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "components-not-direct-trpc"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/provider-setup/ProviderSetupPage.tsx",
     "to": "src/lib/trpc.ts",
     "unresolvedTo": "@/lib/trpc",

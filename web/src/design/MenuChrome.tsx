@@ -14,9 +14,18 @@ export const MENU_SURFACE: CSSProperties = {
   WebkitBackdropFilter: 'var(--glass-filter)',
 };
 
+/** The code face. Only for things a person would type or paste — paths, commands, ids, diffs —
+ *  never for labels, counts, names or times, which stay in the UI face. */
 export const MONO = "'IBM Plex Mono',monospace";
 export const MENU_FOCUS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--proto-accent)]';
 export const MENU_BUTTON_STYLE = { width: '100%', border: 0, textAlign: 'left', fontFamily: 'inherit', borderRadius: 'var(--r-chip)' } as const;
+
+/** How far a menu's rows sit in from the card's edges. The card pads its list by this much, so a
+ *  row's hover or selected tint is a rounded inset shape rather than a band touching the border,
+ *  and dividers stop short of the edges the same way. Rows then pad their text by MENU_ROW_PAD_X,
+ *  which lines a row's label up with section titles and notes. */
+export const MENU_INSET = 6;
+export const MENU_ROW_PAD_X = 10;
 
 /** Hover lives in the menu that owns the rows, so only one row anywhere is lit at a time. */
 export interface HoverProps {
@@ -26,15 +35,15 @@ export interface HoverProps {
 
 export function rowBackground(id: string, hover: string | null, active: boolean): string {
   if (hover === id) return 'var(--proto-gray)';
-  return active ? 'var(--proto-accent-bg)' : 'transparent';
+  return active ? 'var(--proto-line-2)' : 'transparent';
 }
 
-/** A section heading: what the rows under it are choosing between. */
+/** A section heading: what the rows under it are choosing between. Sentence case in the UI face —
+ *  an uppercase mono label reads as a code token, not as a heading. */
 export function SectionTitle({ text }: { text: string }): JSX.Element {
   return (
     <div style={{
-      font: `600 11px ${MONO}`, letterSpacing: '0.05em', textTransform: 'uppercase',
-      color: 'var(--proto-muted)', padding: '6px 8px 3px',
+      font: '550 12px/1.4 var(--font-ui)', color: 'var(--proto-muted)', padding: `6px ${MENU_ROW_PAD_X}px 3px`,
     }}>
       {text}
     </div>
@@ -45,7 +54,7 @@ export function SectionTitle({ text }: { text: string }): JSX.Element {
 export function Note({ text }: { text: string }): JSX.Element {
   return (
     <div style={{
-      font: `400 11px ${MONO}`, color: 'var(--proto-muted)', padding: '5px 8px 6px', lineHeight: 1.5,
+      font: '400 12px/1.5 var(--font-ui)', color: 'var(--proto-muted)', padding: `5px ${MENU_ROW_PAD_X}px 6px`,
     }}>
       {text}
     </div>
@@ -81,15 +90,15 @@ export function MenuRow({
       data-disabled={disabled ? 'true' : undefined}
       style={{
         ...MENU_BUTTON_STYLE,
-        display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px',
+        display: 'flex', alignItems: 'center', gap: 6, padding: `7px ${MENU_ROW_PAD_X}px`,
         cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.45 : 1,
         background: rowBackground(id, hover, active),
       }}
     >
-      <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-ink)' }}>{label}</span>
-      {sub ? <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>{sub}</span> : null}
+      <span style={{ font: '500 13px var(--font-ui)', color: 'var(--proto-ink)' }}>{label}</span>
+      {sub ? <span style={{ font: '400 12.5px var(--font-ui)', color: 'var(--proto-muted)' }}>{sub}</span> : null}
       {active && (
-        <span style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontSize: 11, fontWeight: 700 }}>✓</span>
+        <span style={{ marginLeft: 'auto', color: 'var(--proto-ink)', fontSize: 12, fontWeight: 700 }}>✓</span>
       )}
     </button>
   );
@@ -119,7 +128,7 @@ export function MenuCard({ kind, level, minWidth = 244, placement = 'above', ali
       border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)',
       zIndex: 59, minWidth, overflow: 'hidden',
     }}>
-      <div data-menu-scroll style={{ maxHeight: 420, overflowY: 'auto' }}>{children}</div>
+      <div data-menu-scroll style={{ maxHeight: 420, overflowY: 'auto', padding: MENU_INSET }}>{children}</div>
     </div>
   );
 }

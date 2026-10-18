@@ -66,6 +66,10 @@ describe('ApprovalCenterModal', () => {
     expect(preventDefault).toHaveBeenCalledOnce();
     const close = renderer.root.findByProps({ 'aria-label': 'cmClose' });
     expect(close.type).toBe('button');
+    // Status is a dot and its word, not a filled badge.
+    const status = renderer.root.findByProps({ 'data-approval-status': '' });
+    expect(status.props.style.background).toBeUndefined();
+    expect(status.findAllByProps({ 'aria-hidden': 'true' })[0].props.style.background).toBe('var(--proto-amber)');
     act(() => renderer.unmount());
   });
 

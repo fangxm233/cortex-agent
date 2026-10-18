@@ -40,13 +40,15 @@ import {
 const MONO = "'IBM Plex Mono',monospace";
 
 const MOUNT_TONE: Record<HookMountTarget, SPillTone> = {
-  claude: 'accent',
+  claude: 'strong',
   pi: 'success',
   server: 'amber',
 };
 
+// Fact sheets are labels and values in the UI face; the values that are literal config (an event
+// name, a matcher, a command, a tool name) are set in the code face one by one.
 const FACTS_STYLE: CSSProperties = {
-  font: `400 12px/1.7 ${MONO}`, color: 'var(--proto-muted)',
+  fontSize: 12.5, lineHeight: 1.7, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted)',
 };
 
 // ── small presentational atoms ────────────────────────────────────────────────────────────────
@@ -73,18 +75,19 @@ function Mono({ children }: { children: ReactNode }) {
 
 function declarationRows(hook: HookDetail, L: Vocab): { k: string; v: ReactNode }[] {
   const rows: { k: string; v: ReactNode }[] = [
-    { k: L.hkFieldEvent, v: hook.event },
+    { k: L.hkFieldEvent, v: <Mono>{hook.event}</Mono> },
     {
       k: matcherKindForEvent(hook.event) === 'filters' ? L.hkFieldFilters : L.hkFieldMatcher,
-      v: hook.matcherFilters ? JSON.stringify(hook.matcherFilters) : hook.matcher ?? L.hkNoMatcher,
+      v: hook.matcherFilters ? <Mono>{JSON.stringify(hook.matcherFilters)}</Mono>
+        : hook.matcher ? <Mono>{hook.matcher}</Mono> : L.hkNoMatcher,
     },
     {
       k: hook.run.command !== null ? L.hkFieldCommand : L.hkFieldScript,
-      v: hook.run.command ?? hook.run.script ?? '—',
+      v: hook.run.command ?? hook.run.script ? <Mono>{hook.run.command ?? hook.run.script}</Mono> : '—',
     },
     { k: L.hkFieldTimeout, v: hook.run.timeoutSec == null ? '—' : `${hook.run.timeoutSec}s` },
     { k: L.hkFieldBackends, v: hook.scope?.backends?.join(' · ') ?? L.hkUnscoped },
-    { k: L.hkFieldRequiresTool, v: hook.scope?.requiresTool ?? '—' },
+    { k: L.hkFieldRequiresTool, v: hook.scope?.requiresTool ? <Mono>{hook.scope.requiresTool}</Mono> : '—' },
     { k: L.hkFieldResult, v: hook.result ?? 'none' },
   ];
   return rows;
@@ -116,7 +119,7 @@ function TestStream({ label, text, tone }: { label: string; text: string; tone?:
     : tone === 'danger' ? 'var(--proto-danger)' : 'var(--proto-ink-2)';
   return (
     <div style={{ borderTop: '1px solid var(--proto-line-2)', padding: '8px 12px', background: 'var(--proto-card)' }}>
-      <div style={{ font: `600 12px ${MONO}`, color: 'var(--proto-muted-3)', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-muted-3)', marginBottom: 4 }}>{label}</div>
       <pre style={{
         margin: 0, font: `400 12px/1.65 ${MONO}`, color, whiteSpace: 'pre-wrap',
         wordBreak: 'break-word', maxHeight: 130, overflow: 'auto',
@@ -133,7 +136,8 @@ function TestResult({ result }: { result: HooksTestReturn }) {
     <div data-hook-test-result="" style={RESULT_CARD_STYLE}>
       <div style={{
         display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 12px',
-        background: 'var(--material-inset-bg)', overflowWrap: 'anywhere', font: `500 12px ${MONO}`, color: 'var(--proto-muted)',
+        background: 'var(--material-inset-bg)', overflowWrap: 'anywhere', fontSize: 12, fontWeight: 500,
+        fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted)',
       }}>
         <span
           data-hook-test-exit={result.exitCode === null ? '' : String(result.exitCode)}
@@ -214,7 +218,7 @@ function TestRunner({ hook, payload, result, pending, onPayloadChange, onRun, on
         error={payload.trim() !== '' && !isPayloadParseable(payload)}
       />
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 12 }}>
-        <SButton data-action="run-test" tone="accent" disabled={!runnable} onClick={onRun}>
+        <SButton data-action="run-test" tone="primary" disabled={!runnable} onClick={onRun}>
           {L.hkTestRun}
         </SButton>
         <span style={{ font: `400 12px ${MONO}`, color: 'var(--proto-muted-3)', minWidth: 0, overflowWrap: 'anywhere' }}>
@@ -392,7 +396,7 @@ function DetailFooter(props: HookDetailPaneProps & {
         </SButton>
       ) : null}
       {props.creating || props.editing ? (
-        <SButton data-action="save" tone="accent" disabled={!props.savable} onClick={props.onSave}>
+        <SButton data-action="save" tone="primary" disabled={!props.savable} onClick={props.onSave}>
           {L.hkSave}
         </SButton>
       ) : null}

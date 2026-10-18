@@ -10,7 +10,7 @@ import { useWorkspaceObjectUrl } from '@/features/media/useWorkspaceObjectUrl';
 import { VideoThumb } from '@/features/media/VideoThumb';
 import type { AttachmentMeta as Attachment } from '@/features/attachments/types';
 import { useVocabOptional } from '@/i18n';
-import { MC, MONO } from '@/mobile/ui/kit';
+import { MC } from '@/mobile/ui/kit';
 import type { PendingAttachmentVM } from './m-chat-vm';
 
 const STRIPES = 'repeating-linear-gradient(45deg,var(--proto-line) 0 6px,var(--proto-rail) 6px 12px)';
@@ -22,9 +22,9 @@ function ViewTile({ attachment }: { attachment: Attachment }): JSX.Element {
   return (
     <div style={{ width: '100%', border: `1px solid ${MC.hairline}`, background: 'var(--proto-card)', borderRadius: 'var(--r-card)', overflow: 'hidden', boxSizing: 'border-box' }}>
       <div role="button" onClick={() => openDoc(item)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px', borderBottom: `1px solid ${MC.hairline}`, background: 'var(--material-control-bg)', cursor: 'pointer' }}>
-        <span style={{ font: `700 11px ${MONO}`, letterSpacing: '.06em', color: 'var(--proto-accent)', background: 'var(--proto-accent-bg)', border: '1px solid var(--proto-accent-border)', borderRadius: 4, padding: '2px 5px', flex: 'none' }}>{vocab.wbViewBadge}</span>
-        <span style={{ font: `500 11px ${MONO}`, color: MC.body, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{attachment.name}</span>
-        <span style={{ font: `500 11px ${MONO}`, color: 'var(--proto-accent)', flex: 'none' }}>↗</span>
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: MC.muted, background: 'var(--proto-gray)', borderRadius: 6, padding: '1px 6px', flex: 'none' }}>{vocab.wbViewBadge}</span>
+        <span style={{ fontSize: 13, color: MC.body, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{attachment.name}</span>
+        <span style={{ fontSize: 13, color: MC.muted, flex: 'none' }}>↗</span>
       </div>
       <HtmlBody item={item} mode="inline" />
     </div>
@@ -41,7 +41,7 @@ function MediaTileBody({ attachment, url, kind }: {
       {url && kind === 'image' && <img src={url} alt={attachment.name} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
       {url && kind === 'video' && <VideoThumb src={url} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
       {kind === 'video' && <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 26, height: 26, borderRadius: '50%', background: 'var(--media-control-bg-dark)', color: 'var(--ink-solid-fg)', fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: 2, boxSizing: 'border-box' }}>▶</span>}
-      <span style={{ position: 'absolute', left: 7, bottom: 6, maxWidth: (attachment.type === 'video' ? 104 : 74) - 14, font: `500 11px ${MONO}`, color: MC.muted, background: 'var(--media-label-bg)', padding: '1px 5px', borderRadius: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', boxSizing: 'border-box' }}>{attachment.name}</span>
+      <span style={{ position: 'absolute', left: 7, bottom: 6, maxWidth: (attachment.type === 'video' ? 104 : 74) - 14, fontSize: 11, color: MC.muted, background: 'var(--media-label-bg)', padding: '1px 5px', borderRadius: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', boxSizing: 'border-box' }}>{attachment.name}</span>
     </>
   );
 }
@@ -71,7 +71,7 @@ function FileTile({ attachment }: { attachment: Attachment }): JSX.Element {
   return (
     <div role="button" onClick={onTap} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-chip)', padding: '6px 10px', minHeight: 44, boxSizing: 'border-box', minWidth: 0, maxWidth: '100%', cursor: 'pointer' }}>
       <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke={MC.muted} strokeWidth="1.5"><path d="M3 1.5h5.5L11.5 4v8.5h-8.5z" /><path d="M8.5 1.5V4H11" /></svg>
-      <span style={{ font: `500 11px ${MONO}`, color: MC.body, minWidth: 0, overflowWrap: 'anywhere' }}>{attachment.name}</span>
+      <span style={{ fontSize: 13, color: MC.body, minWidth: 0, overflowWrap: 'anywhere' }}>{attachment.name}</span>
     </div>
   );
 }
@@ -118,12 +118,12 @@ function UploadStatus({ attachment, onRetry }: {
   onRetry: () => void;
 }): JSX.Element | null {
   const vocab = useVocabOptional();
-  if (attachment.status === 'queued') return <span style={{ font: `500 11px ${MONO}`, color: MC.muted }}>{vocab.cmQueued}</span>;
+  if (attachment.status === 'queued') return <span style={{ fontSize: 12, color: MC.muted }}>{vocab.cmQueued}</span>;
   if (attachment.status === 'uploading') {
-    return <><div style={{ width: 34, height: 4, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-2)', overflow: 'hidden' }}><div style={{ width: `${attachment.progress}%`, height: '100%', background: MC.run }} /></div><span style={{ font: `400 11px ${MONO}`, color: MC.run }}>{attachment.progress}%</span></>;
+    return <><div style={{ width: 34, height: 4, borderRadius: 'var(--r-pill)', background: 'var(--proto-line-2)', overflow: 'hidden' }}><div style={{ width: `${attachment.progress}%`, height: '100%', background: MC.run }} /></div><span style={{ fontSize: 12, color: MC.muted, fontVariantNumeric: 'tabular-nums' }}>{attachment.progress}%</span></>;
   }
   if (attachment.status === 'done') return <span style={{ fontSize: 11, color: MC.done, fontWeight: 700 }}>✓</span>;
-  if (attachment.status === 'error') return <span role="button" onClick={onRetry} style={{ font: `600 11px ${MONO}`, color: MC.fail, cursor: 'pointer' }}>{vocab.cmRetry}</span>;
+  if (attachment.status === 'error') return <span role="button" onClick={onRetry} style={{ fontSize: 12, fontWeight: 600, color: MC.fail, cursor: 'pointer' }}>{vocab.cmRetry}</span>;
   return null;
 }
 
@@ -134,9 +134,9 @@ function ComposerChip({ attachment, onRetry, onRemove }: {
 }): JSX.Element {
   const uploading = attachment.status === 'uploading';
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: uploading ? 7 : 6, background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', border: `1px solid ${uploading ? MC.runBorder : MC.hairline}`, borderRadius: 'var(--r-chip)', padding: '5px 9px', flex: 'none', maxWidth: '100%', boxSizing: 'border-box' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: uploading ? 7 : 6, background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-chip)', padding: '5px 9px', flex: 'none', maxWidth: '100%', boxSizing: 'border-box' }}>
       <ComposerPreview attachment={attachment} />
-      <span style={{ font: `500 11px ${MONO}`, color: MC.body, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{attachment.name}</span>
+      <span style={{ fontSize: 12.5, color: MC.body, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{attachment.name}</span>
       <UploadStatus attachment={attachment} onRetry={onRetry} />
       <span onClick={onRemove} style={{ color: MC.muted, fontSize: 11, cursor: 'pointer' }}>✕</span>
     </div>

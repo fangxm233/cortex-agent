@@ -16,7 +16,8 @@ const playStyle: CSSProperties = {
 const nameStyle: CSSProperties = {
   position: 'absolute', left: 8, bottom: 7, maxWidth: 'calc(100% - 16px)',
   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-  font: "500 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)',
+  // A file name is a label, not code.
+  font: '500 11px var(--font-ui)', color: 'var(--proto-muted)',
   background: 'var(--media-label-bg)', padding: '1.5px 5px', borderRadius: 'var(--r-chip)',
 };
 

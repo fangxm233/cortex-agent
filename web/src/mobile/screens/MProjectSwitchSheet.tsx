@@ -16,7 +16,7 @@ export function MProjectSwitchSheetView({ current, others, onPick, onNewProject,
   const copy = useVocabOptional();
   return (
     <MBottomSheet onClose={onClose}>
-      <div style={{ padding: '0 2px 8px', fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>
+      <div style={{ padding: '0 2px 8px', fontSize: 17, fontWeight: 650, color: MC.ink }}>
         {copy.projSwitch}
       </div>
       <MGroup inset={58}>

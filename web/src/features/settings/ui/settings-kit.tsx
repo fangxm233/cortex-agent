@@ -6,6 +6,8 @@ export function settingsClassName(base: string, extra: unknown): string {
   return typeof extra === 'string' ? `${base} ${extra}` : base;
 }
 
+// The code face. Only for things a person would type or paste — paths, URLs, commands, env names —
+// never for labels, counts, versions or money, which stay in the UI face with tabular figures.
 const MONO = "'IBM Plex Mono',monospace";
 
 // ── Header actions ──────────────────────────────────────────────────────────
@@ -82,11 +84,11 @@ export function SRow({ title, desc, control, align = 'center', children, classNa
 
 // ── Section heading ─────────────────────────────────────────────────────────
 const SECTION_LABEL_STYLE: CSSProperties = {
-  fontSize: 12, fontWeight: 600, letterSpacing: '.02em',
-  color: 'var(--proto-muted)',
+  fontSize: 12.5, fontWeight: 600, color: 'var(--proto-muted)',
 };
 
-/** The uppercase label above a card, with an optional trailing action. */
+/** The sentence-case label above a card, with an optional trailing action. Hierarchy comes from
+ *  weight and colour; an uppercase tracked label would read as a code token. */
 export function SSection({ label, action, children }: {
   label: ReactNode;
   action?: ReactNode;
@@ -115,27 +117,26 @@ const SEG_TRACK_STYLE: CSSProperties = {
   background: 'var(--material-inset-bg)', border: '1px solid var(--proto-line-2)', flex: 'none',
 };
 
-function segOptionStyle(active: boolean, mono: boolean, inert: boolean): CSSProperties {
+function segOptionStyle(active: boolean, inert: boolean): CSSProperties {
   return {
     minHeight: 'var(--settings-control-height, 34px)', padding: '4px 10px', border: 0, borderRadius: 6,
-    font: mono ? `500 12px ${MONO}` : undefined,
-    fontFamily: mono ? undefined : 'inherit',
-    fontSize: mono ? undefined : 13, fontWeight: mono ? undefined : 600,
-    background: active ? 'var(--material-control-bg)' : 'transparent',
-    boxShadow: active ? 'var(--material-control-shadow)' : 'none',
+    fontFamily: 'inherit', fontSize: 13, fontWeight: active ? 550 : 400,
+    // The theme's raised-segment pair: lifted to the control surface in light, lightened in dark.
+    background: active ? 'var(--segment-active-bg)' : 'transparent',
+    boxShadow: active ? 'var(--segment-active-shadow)' : 'none',
     color: active ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     cursor: inert ? 'default' : 'pointer', transition: 'background .12s, color .12s',
   };
 }
 
-/** The sheet's one segmented control: a recessed track holding a raised active option. */
-export function SSegmented<T extends string>({ value, options, onChange, dataAttr, mono, ariaLabel }: {
+/** The sheet's one segmented control: a recessed track holding a raised active option. Options are
+ *  words in the UI face; the active one is lifted, not tinted. */
+export function SSegmented<T extends string>({ value, options, onChange, dataAttr, ariaLabel }: {
   value: T;
   options: SegmentOption<T>[];
   onChange?: (value: T) => void;
   dataAttr?: string;
-  mono?: boolean;
   ariaLabel?: string;
 }) {
   return (
@@ -145,7 +146,7 @@ export function SSegmented<T extends string>({ value, options, onChange, dataAtt
           className="settings-segment" key={option.id} type="button" aria-pressed={option.id === value} title={option.title}
           {...(dataAttr ? { [dataAttr]: option.id } : {})}
           onClick={onChange ? () => onChange(option.id) : undefined}
-          style={segOptionStyle(option.id === value, Boolean(mono), !onChange)}
+          style={segOptionStyle(option.id === value, !onChange)}
         >
           {option.label}
         </button>
@@ -155,28 +156,28 @@ export function SSegmented<T extends string>({ value, options, onChange, dataAtt
 }
 
 // ── Chips and pills ─────────────────────────────────────────────────────────
-export type SPillTone = 'accent' | 'amber' | 'success' | 'danger' | 'neutral';
+export type SPillTone = 'strong' | 'amber' | 'success' | 'danger' | 'neutral';
 
+// `strong` marks the one that is current (the default model, the account in use, a built-in): the
+// neutral tint with ink text — a stronger word, not an accent block. Colour stays for status.
 const PILL_TONE: Record<SPillTone, CSSProperties> = {
-  accent: { background: 'var(--proto-accent-bg)', color: 'var(--pill-running-fg)' },
+  strong: { background: 'var(--proto-gray)', color: 'var(--proto-ink-3)' },
   amber: { background: 'var(--proto-amber-bg)', color: 'var(--proto-amber-fg)' },
   success: { background: 'var(--proto-success-bg)', color: 'color-mix(in srgb, var(--proto-success) 85%, var(--proto-ink))' },
   danger: { background: 'var(--proto-danger-bg)', color: 'var(--proto-danger)' },
   neutral: { background: 'var(--proto-gray)', color: 'var(--proto-muted)' },
 };
 
-/** The one badge shape in settings: a soft tinted capsule, never outlined. */
-export function SPill({ tone = 'neutral', mono, children, ...rest }: {
+/** The one badge shape in settings: a soft tinted capsule, never outlined, in the UI face. */
+export function SPill({ tone = 'neutral', children, ...rest }: {
   tone?: SPillTone;
-  mono?: boolean;
   children: ReactNode;
 } & Record<string, unknown>) {
   return (
     <span {...rest} style={{
       display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none',
-      font: mono ? `600 9.5px ${MONO}` : undefined,
-      fontSize: mono ? undefined : 10, fontWeight: mono ? undefined : 600,
-      lineHeight: 1.5, padding: '1.5px 7px', borderRadius: 'var(--r-pill)',
+      fontSize: 11, fontWeight: 550, fontVariantNumeric: 'tabular-nums',
+      lineHeight: 1.5, padding: '1px 7px', borderRadius: 'var(--r-pill)',
       whiteSpace: 'nowrap', ...PILL_TONE[tone],
     }}>
       {children}
@@ -184,29 +185,27 @@ export function SPill({ tone = 'neutral', mono, children, ...rest }: {
   );
 }
 
-/** A count badge for the nav and for tab strips. */
-export function SCount({ children, tone = 'amber' }: { children: ReactNode; tone?: 'amber' | 'accent' }) {
+/** A count beside a heading or a tab: a plain number, not a filled badge. `amber` is for a count
+ *  of things that need the user (issues to fix); `quiet` is a plain tally. */
+export function SCount({ children, tone = 'amber' }: { children: ReactNode; tone?: 'amber' | 'quiet' }) {
   return (
     <span style={{
-      minWidth: 16, height: 16, padding: '0 5px', boxSizing: 'border-box',
-      borderRadius: 'var(--r-pill)', font: `600 9.5px ${MONO}`, lineHeight: 1,
-      background: tone === 'amber' ? 'var(--proto-amber-bg)' : 'var(--proto-accent)',
-      color: tone === 'amber' ? 'var(--proto-amber-fg)' : 'var(--accent-fg)',
-      display: 'inline-flex', alignItems: 'center',
-      justifyContent: 'center', flex: 'none',
+      fontSize: 12, fontWeight: tone === 'amber' ? 600 : 500, fontVariantNumeric: 'tabular-nums', lineHeight: 1,
+      color: tone === 'amber' ? 'var(--proto-amber-fg)' : 'var(--proto-muted-3)', flex: 'none',
     }}>
       {children}
     </span>
   );
 }
 
+// A pressed chip is the gray selected tint with ink text, the same as a selected row.
 function chipStyle(active: boolean, disabled: boolean): CSSProperties {
   return {
     minHeight: 'var(--settings-control-height, 34px)', padding: '4px 10px', border: 0, borderRadius: 'var(--settings-control-radius, 8px)',
-    fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
-    background: active ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)',
-    boxShadow: 'var(--material-control-shadow)',
-    color: active ? 'var(--settings-selected-ink, var(--proto-accent))' : 'var(--proto-muted)',
+    fontFamily: 'inherit', fontSize: 13, fontWeight: active ? 600 : 500,
+    background: active ? 'var(--proto-gray)' : 'var(--material-control-bg)',
+    boxShadow: active ? 'inset 0 0 0 1px var(--proto-line-3)' : 'var(--material-control-shadow)',
+    color: active ? 'var(--proto-ink)' : 'var(--proto-muted)',
     display: 'inline-flex', alignItems: 'center', gap: 5,
     cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1,
   };
@@ -237,7 +236,7 @@ export function SSelectChip({ children, onClick, disabled, className, ...rest }:
   return (
     <button {...rest} className={settingsClassName('settings-select-chip', className)} type="button" disabled={disabled} onClick={onClick} style={{
       display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 'var(--settings-control-height, 34px)',
-      padding: '4px 10px', border: '1px solid var(--settings-control-boundary, var(--proto-faint))', borderRadius: 'var(--settings-control-radius, 8px)',
+      padding: '4px 10px', border: '1px solid var(--settings-control-boundary, var(--proto-line-4))', borderRadius: 'var(--settings-control-radius, 8px)',
       background: 'var(--settings-control-fill, var(--material-control-bg))', boxShadow: 'var(--material-control-shadow)',
       fontFamily: 'inherit', fontSize: 13, color: 'var(--proto-ink)', flex: 'none',
       cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.6 : 1,
@@ -342,11 +341,14 @@ export function SMeter({ percent, tone = 'var(--proto-accent)', height = 6, mark
 }
 
 // ── Entity row ──────────────────────────────────────────────────────────────
-/** A standalone card for one entity in a list: status dot, name over mono meta, trailing controls. */
-export function SEntityRow({ dot, name, meta, trailing, dim, onClick, className, ...rest }: {
+/** A standalone card for one entity in a list: status dot, name over a meta line, trailing controls.
+ *  The meta line is UI face with tabular figures; `metaCode` sets it in the code face for a line
+ *  that is literal config (an API id, a URL), and a caller can wrap a single path in `SCode`. */
+export function SEntityRow({ dot, name, meta, metaCode, trailing, dim, onClick, className, ...rest }: {
   dot?: ReactNode;
   name: ReactNode;
   meta?: ReactNode;
+  metaCode?: boolean;
   trailing?: ReactNode;
   dim?: boolean;
   onClick?: () => void;
@@ -361,7 +363,8 @@ export function SEntityRow({ dot, name, meta, trailing, dim, onClick, className,
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>{name}</div>
         {meta != null && (
-          <div style={{ font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)', marginTop: 4, overflowWrap: 'anywhere' }}>
+          <div style={{ fontSize: 12, fontFamily: metaCode ? MONO : undefined, fontVariantNumeric: 'tabular-nums',
+            color: 'var(--proto-muted-2)', marginTop: 4, overflowWrap: 'anywhere' }}>
             {meta}
           </div>
         )}
@@ -369,6 +372,11 @@ export function SEntityRow({ dot, name, meta, trailing, dim, onClick, className,
       {trailing}
     </div>
   );
+}
+
+/** An inline run of code (a path, a command) inside a UI-face line. */
+export function SCode({ children }: { children: ReactNode }) {
+  return <span style={{ fontFamily: MONO }}>{children}</span>;
 }
 
 /** The 13px/600 name an entity row leads with. */
@@ -390,7 +398,7 @@ export function SStat({ value, caption, action, percent, tone, marker, footnote 
   return (
     <div className="settings-stat" style={{ ...GROUP_STYLE, padding: '12px 16px' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 8 }}>
-        <span style={{ font: `500 20px ${MONO}`, color: 'var(--proto-ink)' }}>{value}</span>
+        <span style={{ fontSize: 20, fontWeight: 550, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-ink)' }}>{value}</span>
         {caption != null && <span style={{ fontSize: 12, color: 'var(--proto-muted-2)' }}>{caption}</span>}
         {action != null && <span style={{ marginLeft: 'auto' }}>{action}</span>}
       </div>

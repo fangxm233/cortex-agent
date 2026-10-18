@@ -1,9 +1,11 @@
+/* The strip sits on the pane's own glass like the chat header beside it: no band of its own, one
+   hairline under it. Tabs are plain muted text until selected; the selected tab alone is raised. */
 .dock-strip {
   height: 50px;
   flex: none;
   display: flex;
   align-items: stretch;
-  background: var(--material-card-bg);
+  background: transparent;
   border-bottom: 1px solid var(--proto-line);
 }
 .dock-tab-scroll {
@@ -11,47 +13,63 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 8px;
+  gap: 4px;
+  padding: 0 8px 0 10px;
   overflow-x: auto;
   overflow-y: hidden;
   position: relative;
 }
-.dock-tab-actions { flex: none; display: flex; align-items: center; gap: 6px; padding: 0 8px 0 0; }
+.dock-tab-actions { flex: none; display: flex; align-items: center; gap: 4px; padding: 0 10px 0 0; }
 .dock-tab-item {
   display: flex;
   align-items: center;
   flex: none;
-  min-width: 96px;
-  max-width: 210px;
-  height: 32px;
-  border: 1px solid var(--proto-line);
-  border-radius: var(--r-control);
+  min-width: 0;
+  max-width: 240px;
+  height: 30px;
+  border-radius: var(--r-chip);
   position: relative;
   cursor: grab;
   overflow: hidden;
-  background: var(--material-inset-bg);
+  background: transparent;
+  transition: background-color 140ms ease;
 }
+.dock-tab-item:hover:not([data-selected='true']) { background: var(--proto-line-2); }
 .dock-tab-item[data-selected='true'] {
   background: var(--material-control-bg);
-  border-color: var(--proto-accent);
-  box-shadow: var(--material-control-shadow);
+  box-shadow: 0 0 0 1px var(--proto-line), var(--material-control-shadow);
 }
 .dock-tab-select {
   display: flex;
   align-items: center;
+  gap: 7px;
   min-width: 0;
   height: 100%;
   flex: 1;
-  padding: 0 2px 0 7px;
+  padding: 0 4px 0 10px;
   border: none;
   background: transparent;
   color: var(--proto-muted);
-  font: 500 11px 'IBM Plex Mono', monospace;
+  font: 400 13px var(--font-ui);
   cursor: inherit;
   text-align: left;
 }
-.dock-tab-select[aria-pressed='true'] { color: var(--proto-ink); }
+.dock-tab-select[aria-pressed='true'] { color: var(--proto-ink); font-weight: 550; }
+.dock-tab-select:hover:not([aria-pressed='true']) { color: var(--proto-ink-2); }
+.dock-tab-icon { display: inline-flex; flex: none; color: var(--proto-muted); }
+.dock-tab-where {
+  flex: none;
+  margin-left: -2px;
+  color: var(--proto-faint);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* A bare port reads straight on from an untitled tab's host: `localhost:8080`. */
+.dock-tab-where[data-attached='true'] { margin-left: -7px; }
+
+/* The strip's icon buttons (+, the dock close) and each tab's ✕: transparent, a muted glyph, a gray
+   tint on hover. */
 .dock-control {
   width: 28px;
   height: 28px;
@@ -59,29 +77,35 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--proto-line);
-  border-radius: var(--r-control);
-  background: var(--material-control-bg);
-  box-shadow: var(--material-control-shadow);
+  border: 0;
+  border-radius: var(--r-chip);
+  background: transparent;
   color: var(--proto-muted);
-  font: 500 16px 'IBM Plex Mono', monospace;
   padding: 0;
   cursor: pointer;
   user-select: none;
 }
 .dock-tab-close {
-  width: 24px;
-  height: 100%;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  font-size: 13px;
+  width: 20px;
+  height: 20px;
+  margin-right: 5px;
+  border-radius: 6px;
+  color: var(--proto-faint);
 }
-:is(.dock-control, .dock-tab-select) { transition: background-color 140ms ease, color 140ms ease; }
-:is(.dock-control, .dock-tab-select):hover:not(:disabled) { background: var(--proto-accent-bg); color: var(--proto-accent); }
+/* An unselected tab is just its name: its ✕ floats over the label's end, out of sight until the tab
+   is hovered or holds focus, so the strip keeps no empty slot for it (the label fades out beneath
+   it meanwhile). It stays in the tab order. */
+.dock-tab-item:not([data-selected='true']) .dock-tab-select { padding-right: 10px; }
+.dock-tab-item:not([data-selected='true']) .dock-tab-close { position: absolute; right: 4px; top: 5px; margin: 0; }
+.dock-tab-item:not([data-selected='true']):not(:hover):not(:focus-within) .dock-tab-close { opacity: 0; pointer-events: none; }
+.dock-tab-item:not([data-selected='true']):is(:hover, :focus-within) .dock-tab-select {
+  -webkit-mask-image: linear-gradient(to left, transparent 26px, #000 44px);
+  mask-image: linear-gradient(to left, transparent 26px, #000 44px);
+}
+.dock-control { transition: background-color 140ms ease, color 140ms ease, opacity 140ms ease; }
+.dock-control:hover:not(:disabled) { background: var(--proto-line-2); color: var(--proto-ink); }
 :is(.dock-control, .dock-tab-select):focus-visible { outline: 2px solid var(--proto-accent); outline-offset: -2px; }
 .dock-control:disabled { opacity: 0.4; cursor: default; }
 @media (prefers-reduced-motion: reduce) {
-  :is(.dock-control, .dock-tab-select) { transition: none; }
+  :is(.dock-control, .dock-tab-select, .dock-tab-item) { transition: none; }
 }

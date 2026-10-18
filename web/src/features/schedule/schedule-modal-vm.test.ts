@@ -7,6 +7,8 @@ import {
   validateScheduleForm,
   editableScheduleFields,
   computeNextRun,
+  nextRunDay,
+  nextRunParts,
   scheduleModelOptions,
   scheduleModelPatch,
   scheduleThinkingOptions,
@@ -172,6 +174,21 @@ describe('computeNextRun', () => {
     const now = new Date(2026, 6, 7, 8, 0, 0);
     expect(computeNextRun(form({ type: 'interval', intervalValue: 30, intervalUnit: 'min' }), now).getTime() - now.getTime()).toBe(30 * 60_000);
     expect(computeNextRun(form({ type: 'once', delayValue: 2, delayUnit: 'hr' }), now).getTime() - now.getTime()).toBe(2 * 3_600_000);
+  });
+});
+
+describe('nextRunDay', () => {
+  const now = new Date(2026, 9, 18, 17, 0, 0);
+  it('names today and tomorrow, then falls back to the calendar date', () => {
+    expect(nextRunDay(new Date(2026, 9, 18, 23, 0), now, 'en')).toBe('Today');
+    expect(nextRunDay(new Date(2026, 9, 19, 9, 0), now, 'zh')).toBe('明天');
+    expect(nextRunDay(new Date(2026, 9, 21, 9, 0), now, 'en')).toBe('Oct 21');
+    expect(nextRunDay(new Date(2026, 10, 2, 9, 0), now, 'zh')).toBe('11月2日');
+  });
+  it('rolls a passed daily time into tomorrow in the footer parts', () => {
+    expect(nextRunParts(form({ type: 'daily', time: '09:00' }), now, 'en')).toEqual({
+      day: 'Tomorrow', clock: '09:00', delta: '16h',
+    });
   });
 });
 

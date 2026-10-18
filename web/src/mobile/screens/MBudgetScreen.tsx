@@ -15,7 +15,7 @@ import {
 import {
   useBudgetSpend, useConfigSnapshot, useProjectList,
 } from '@/features/settings/controllers/useConfigSnapshot';
-import { MButton, MC, MONO } from '@/mobile/ui/kit';
+import { MButton, MC } from '@/mobile/ui/kit';
 import {
   MSettingsCard, MSettingsField, MSettingsQueryPage, MSettingsSelect,
 } from './MSettingsControls';
@@ -41,7 +41,7 @@ function BudgetLimitsEditor(props: {
       onChange={(event) => setDaily(event.target.value)} />
     <MSettingsField label={L.stMonthly} inputMode="decimal" value={monthly}
       onChange={(event) => setMonthly(event.target.value)} />
-    <MButton compact variant="accent-outline" disabled={!value || clean || props.pending}
+    <MButton compact variant="outline" disabled={!value || clean || props.pending}
       onClick={() => { if (value) props.onSave(value); }}>{L.stApply}</MButton>
   </div>;
 }
@@ -50,9 +50,9 @@ function SpendCard(props: { today: number; month: number; daily: number | null; 
   const L = useVocab();
   return <MSettingsCard title={L.stCurrentSpend}>
     <div style={{ padding: '11px 13px' }}>
-      <div style={{ font: `600 15px ${MONO}`, color: MC.ink }}>{formatBudgetUsd(props.today)} / {formatBudgetUsd(props.daily)}</div>
+      <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink, fontVariantNumeric: 'tabular-nums' }}>{formatBudgetUsd(props.today)} / {formatBudgetUsd(props.daily)}</div>
       <SpendBar value={props.today} limit={props.daily} />
-      <div style={{ font: `600 12px ${MONO}`, color: MC.sub, marginTop: 12 }}>{formatBudgetUsd(props.month)} / {formatBudgetUsd(props.monthly)}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: MC.sub, marginTop: 12, fontVariantNumeric: 'tabular-nums' }}>{formatBudgetUsd(props.month)} / {formatBudgetUsd(props.monthly)}</div>
       <SpendBar value={props.month} limit={props.monthly} />
     </div>
   </MSettingsCard>;

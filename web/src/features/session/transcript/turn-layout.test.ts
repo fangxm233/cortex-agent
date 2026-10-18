@@ -69,6 +69,13 @@ describe('layoutTurns', () => {
     expect(shape(layoutTurns([user('go'), thought(), thought(), say('ok')]))).toEqual(['row:0:opener', 'row:1:plain', 'row:2:plain', 'row:3:answer']);
   });
 
+  it('opens the working line on the first tool run of a live turn', () => {
+    const rows = [user('go'), tools(1)];
+    expect(shape(layoutTurns(rows, { live: true }))).toEqual(['row:0:opener', 'work:1:live']);
+    // Once the turn settles, the lone run is a plain line again.
+    expect(shape(layoutTurns(rows))).toEqual(['row:0:opener', 'row:1:plain']);
+  });
+
   it('opens a segment when a signal wakes the agent, not when work resumes', () => {
     const rows = [
       user('train it'), tools(2), say('Started; waiting for the signal.'),

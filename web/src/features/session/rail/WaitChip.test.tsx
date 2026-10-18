@@ -5,6 +5,9 @@ import type { WaitpointInfo } from '@cortex-agent/ui-contract';
 import type { SessionWaitpoints } from '@/features/session/live/useSessionWaitpoints';
 import { currentDialog, dismissDialog, settleDialog } from '@/design/dialog-store';
 import { ActivityStrip } from './ActivityStrip';
+import { WaitChip } from './WaitChip';
+import { waitRailViewModel } from './wait-rail-vm';
+import { pickVocab } from '@/i18n';
 
 const state = vi.hoisted(() => ({
   waitpoints: [] as WaitpointInfo[],
@@ -77,6 +80,18 @@ describe('wait capsule', () => {
     expect(chip(r).props['aria-expanded']).toBe(false);
     expect(chip(r).props['aria-label']).toContain('Waiting on: train-arm2 · 0/1 received');
     expect(r.root.findAllByType('details')).toHaveLength(0);
+  });
+
+  it('on a short row says only what it waits on, leaving the numbers to its label and popover', () => {
+    state.waitpoints = [wp()];
+    const vm = waitRailViewModel(state.waitpoints, T0, pickVocab('zh'), 'zh')!;
+    let r!: ReactTestRenderer;
+    act(() => { r = create(<WaitChip vm={vm} lang="zh" brief onToggle={vi.fn()} />); });
+    expect(textContent(chip(r))).toBe('等待 train-arm2');
+    expect(r.root.findAllByProps({ className: 'wait-rail-metrics' })).toHaveLength(0);
+    expect(chip(r).props['aria-label']).toContain('0/1 已回报');
+    // It yields width before the task capsule's label does.
+    expect(chip(r).props.style.flex).toBe('0 4 auto');
   });
 
   it('opens structured reports with initially closed intent and raw signal details', () => {

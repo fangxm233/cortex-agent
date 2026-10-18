@@ -1,8 +1,8 @@
 import { useState, type CSSProperties } from 'react';
 import { useDockIntake } from '@/design/dock-intake';
-import { MENU_FOCUS, MONO } from '@/design/MenuChrome';
+import { MENU_FOCUS } from '@/design/MenuChrome';
 import { fmt, useVocab } from '@/i18n';
-import { ActivityChip, CHIP_COUNT } from '@/features/session/rail/ActivityChip';
+import { ActivityChip, CHIP_COUNT, capsuleStyle, useHeaderCapsuleFit } from '@/features/session/rail/ActivityChip';
 import { BoardIcon } from './BoardIcon';
 import { BOARD_FLAG_COLOR, boardFlagTone, boardSummary } from './board-summary';
 import { useBoardLive } from './useBoard';
@@ -11,31 +11,36 @@ import { useBoardLive } from './useBoard';
 // phone's activity strip. Both name what waits on the user and open the board; who is doing what
 // lives on the board itself.
 
-const PENDING: CSSProperties = { flex: 'none', font: `500 11px ${MONO}`, color: 'var(--proto-amber-fg)' };
+const PENDING: CSSProperties = { flex: 'none', fontWeight: 550, color: 'var(--proto-amber-fg)' };
 
-/** Desktop: the board's flag and title, plus how many wait on the user. */
+/** Desktop: the board's flag and title, plus how many wait on the user. The header's shared capsule:
+ *  a quiet flag at rest; once something waits on the user the flag and the count turn amber, while
+ *  the capsule itself keeps its hairline and fill. When the header runs short it folds to the flag
+ *  and the bare amber count; the title and the full count stay in its tooltip and label. */
 export function BoardCapsule({ boardId, onOpen }: { boardId: string; onOpen: () => void }): JSX.Element | null {
   const L = useVocab();
+  const compact = useHeaderCapsuleFit().board === 'compact';
   const { board, sessions } = useBoardLive(boardId);
   const [hover, setHover] = useState(false);
   if (!board) return null;
   const { pending } = boardSummary(sessions);
   const tone = boardFlagTone(pending.length);
   const ask = tone === 'ask';
+  const waiting = ask ? fmt(L.boardNeedsYou, { n: pending.length }) : null;
   return (
-    <button type="button" data-board-capsule={boardId} data-board-flag={tone} className={MENU_FOCUS}
-      aria-label={`${L.boardOpen} · ${board.title}`} title={`${L.boardTitle} · ${board.title}`} onClick={onOpen}
+    <button type="button" data-board-capsule={boardId} data-board-flag={tone} data-compact={compact ? 'true' : undefined}
+      className={MENU_FOCUS} onClick={onOpen}
+      aria-label={[`${L.boardOpen} · ${board.title}`, waiting].filter(Boolean).join(' · ')}
+      title={[`${L.boardTitle} · ${board.title}`, waiting].filter(Boolean).join(' · ')}
       onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6, height: 28, maxWidth: 260, padding: '0 9px',
-        marginRight: 4, border: 0, borderRadius: 'var(--r-chip)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5,
-        color: 'var(--proto-ink-2)', whiteSpace: 'nowrap',
-        background: ask ? 'var(--proto-amber-bg)' : hover ? 'var(--proto-card)' : 'color-mix(in srgb, var(--proto-card) 60%, transparent)',
-        boxShadow: `0 0 0 1px ${ask ? 'var(--proto-amber-border)' : 'var(--proto-line)'}`,
-      }}>
-      <BoardIcon size={12} stroke={BOARD_FLAG_COLOR[tone]} />
-      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{board.title}</span>
-      {ask && <span data-board-pending-count={pending.length} style={PENDING}>{fmt(L.boardNeedsYou, { n: pending.length })}</span>}
+      style={{ ...capsuleStyle({ lit: hover }), maxWidth: 260, minWidth: 0, ...(compact ? { padding: '0 10px' } : null) }}>
+      <BoardIcon size={13} stroke={ask ? BOARD_FLAG_COLOR.ask : 'var(--proto-muted)'} />
+      {!compact && <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{board.title}</span>}
+      {ask && (
+        <span data-board-pending-count={pending.length} style={PENDING}>
+          {compact ? pending.length : waiting}
+        </span>
+      )}
     </button>
   );
 }

@@ -46,7 +46,7 @@ function AttachMenuItem(props: AttachMenuItemProps): JSX.Element {
   return (
     <div data-plus-item={props.itemKey} data-editable={reportsOnly ? (props.onTap ? 'true' : 'false') : undefined} onClick={tap} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 14px', borderBottom: props.last ? undefined : '1px solid var(--proto-line-2)', cursor: props.onTap ? 'pointer' : 'default', opacity: props.onTap ? 1 : 0.6 }}>
       {props.icon}<span style={{ fontSize: 13, color: MC.ink, minWidth: 0, overflowWrap: 'anywhere' }}>{props.label}</span>
-      {props.value != null && <span style={{ marginLeft: 'auto', font: `500 11px ${MONO}`, color: MC.run, minWidth: 0, maxWidth: '55%', overflowWrap: 'anywhere', textAlign: 'right' }}>{props.value}</span>}
+      {props.value != null && <span style={{ marginLeft: 'auto', fontSize: 12, color: MC.muted, minWidth: 0, maxWidth: '55%', overflowWrap: 'anywhere', textAlign: 'right' }}>{props.value}</span>}
     </div>
   );
 }
@@ -104,38 +104,39 @@ export function ComposerAbove({ props, overlay }: { props: MChatViewProps; overl
   );
 }
 
-/** The quiet outline both toolbar capsules wear. Chips sit on a glass card now, so an opaque fill
- *  would punch a hole through the blur behind them. */
+/** The quiet fill both toolbar chips wear: an alpha ink tint, never an opaque fill (the chips sit on
+ *  the composer's glass card, and an opaque patch would punch a hole through the blur behind it). */
 const composerChipStyle: CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 5, border: '1px solid var(--proto-line-3)',
-  background: 'transparent', borderRadius: 'var(--r-pill)', height: 34, padding: '0 12px',
+  display: 'flex', alignItems: 'center', gap: 5, border: 0,
+  background: 'var(--proto-gray)', borderRadius: 'var(--r-control)', height: 32, padding: '0 11px',
   boxSizing: 'border-box', minWidth: 0, overflow: 'hidden', cursor: 'pointer',
+  fontFamily: 'var(--font-ui)', fontSize: 13.5, color: 'var(--proto-ink-3)',
 };
 
-/** Model and thinking level share one capsule with no separator between them — on a phone the
- *  toolbar has no room for punctuation, so ink weight does the separating: the model in the body
- *  tier, the level a step fainter beside it. The level is also what goes first when the row runs out
- *  of width (it shrinks far faster than the model name), since the model is the fact worth keeping
- *  on screen. */
+const CHIP_LABEL: CSSProperties = { minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
+
+/** Model and thinking level share one chip: the model in the chip's ink, the level a step fainter
+ *  after it. The level is also what goes first when the row runs out of width (it shrinks far faster
+ *  than the model name), since the model is the fact worth keeping on screen. */
 function SelectionChip({ label, sub, onClick }: { label: string; sub?: string | null; onClick: () => void }): JSX.Element {
   return (
     <button type="button" data-chip="selection" aria-label={sub ? `${label} · ${sub}` : label} onClick={onClick} style={{ ...composerChipStyle, flex: '0 1 auto' }}>
-      <span style={{ flex: '0 1 auto', minWidth: 0, font: `500 11.5px ${MONO}`, color: MC.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+      <span style={{ ...CHIP_LABEL, flex: '0 1 auto' }}>{label}</span>
       {sub ? (
-        <span data-chip-sub style={{ flex: '0 12 auto', minWidth: 0, font: `500 11.5px ${MONO}`, color: MC.muted, whiteSpace: 'nowrap', overflow: 'hidden' }}>{sub}</span>
+        <span data-chip-sub style={{ ...CHIP_LABEL, flex: '0 12 auto', color: MC.muted, textOverflow: 'clip' }}>· {sub}</span>
       ) : null}
     </button>
   );
 }
 
-/** The environment capsule, immediately left of the engine one: where the turn runs, before what
- *  runs it. It names the agent outright — the environment decides whether the session has the
- *  skills and rules for the job at all, which is worth a glance rather than a sheet visit. A step
- *  fainter while the conversation is only following the host's default, so a name it chose for
- *  itself reads differently from a name it merely fell back to. It also yields width first: of the
- *  two capsules the model is the one that must stay legible on a phone. */
+/** The environment chip, immediately left of the engine one: where the turn runs, before what runs
+ *  it. It names the agent outright — the environment decides whether the session has the skills and
+ *  rules for the job at all, which is worth a glance rather than a sheet visit. A step fainter while
+ *  the conversation is only following the host's default, so a name it chose for itself reads
+ *  differently from a name it merely fell back to. It also yields width first: of the two chips the
+ *  model is the one that must stay legible on a phone. */
 function AgentChip({ axis, label, followingDefault, onClick }: {
-  /** What the capsule IS, for the screen reader — the name alone would not say. */
+  /** What the chip IS, for the screen reader — the name alone would not say. */
   axis: string;
   label: string;
   followingDefault: boolean;
@@ -148,25 +149,21 @@ function AgentChip({ axis, label, followingDefault, onClick }: {
       data-agent-following-default={followingDefault ? 'true' : 'false'}
       aria-label={`${axis} · ${label}`}
       onClick={onClick}
-      style={{ ...composerChipStyle, flex: '0 3 auto' }}
+      style={{ ...composerChipStyle, flex: '0 3 auto', color: followingDefault ? MC.muted : composerChipStyle.color }}
     >
-      <span style={{
-        minWidth: 0, font: `500 11.5px ${MONO}`, color: followingDefault ? MC.muted : MC.muted,
-        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-      }}>
-        {label}
-      </span>
+      <span style={CHIP_LABEL}>{label}</span>
     </button>
   );
 }
 
-/** Browser reports as a bare icon key, the size of ＋. The phone toolbar cannot seat a named capsule
+/** Browser reports as a bare icon key, the size of ＋. The phone toolbar cannot seat a named chip
  *  next to the model chip and the send keys, and the model is the one that must stay legible — so the
- *  device name moves into the sheet the key opens (and into its aria-label/tooltip), while the lit
- *  key alone says the mode is on. */
+ *  device name moves into the sheet the key opens (and into its aria-label/tooltip). The key is only
+ *  there while browsing is on, so its presence says the mode is on; it takes the same quiet fill as
+ *  ＋ rather than the accent. */
 const modeChipStyle: CSSProperties = {
   flex: 'none', width: 34, height: 34, padding: 0, boxSizing: 'border-box', borderRadius: '50%',
-  border: `1.5px solid ${MC.runBorder}`, background: MC.runBg, color: MC.run,
+  border: 0, background: 'var(--proto-gray)', color: 'var(--proto-ink-2)',
   display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 0,
 };
 
@@ -191,8 +188,8 @@ export function BrowserChip({ device, label, onClick }: {
 export function ComposerLeading({ onClick }: { onClick: () => void }): JSX.Element {
   const vocab = useVocabOptional();
   return (
-    <button type="button" aria-label={vocab.cmAttach} onClick={onClick} style={{ flex: 'none', width: 34, height: 34, borderRadius: '50%', border: '1px solid var(--proto-line-3)', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', color: MC.sub, lineHeight: 0, cursor: 'pointer', padding: 0 }}>
-      <PlusGlyph size={15} />
+    <button type="button" aria-label={vocab.cmAttach} onClick={onClick} style={{ flex: 'none', width: 34, height: 34, borderRadius: '50%', border: 0, background: 'var(--proto-gray)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', color: MC.sub, lineHeight: 0, cursor: 'pointer', padding: 0 }}>
+      <PlusGlyph size={15} strokeWidth={1.8} />
     </button>
   );
 }
@@ -211,9 +208,7 @@ export function ComposerKeys({ browser, overlay }: Pick<MChatViewProps, 'browser
   );
 }
 
-/** The right-hand end of the composer toolbar. Context usage used to sit here too; it moved to the
- *  header, next to ⋯ — it reports on the session rather than on the message being written, and the
- *  width it took was width the engine chip needed once the browser key joined the row. */
+/** The chips at the right of the composer toolbar, ahead of context usage and the send keys. */
 export function ComposerTools({ selection, view }: {
   selection: MChatSelection;
   view: MChatSelectionView;
@@ -270,7 +265,7 @@ export function MobileSlashMenu({ suggestions, onPick }: {
 }): JSX.Element {
   return (
     <div data-mobile-slash-menu style={{ margin: '0 0 7px', maxHeight: 264, overflowY: 'auto', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', background: 'var(--material-inset-bg)', boxShadow: 'var(--material-control-shadow)' }}>
-      {suggestions.map((suggestion) => <div key={suggestion.command} data-mobile-slash-command={suggestion.command} onClick={() => { if (!suggestion.disabled) onPick(suggestion); }} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, padding: '0 12px', borderBottom: `1px solid ${MC.divider}`, opacity: suggestion.disabled ? 0.45 : 1, cursor: suggestion.disabled ? 'default' : 'pointer' }}><span style={{ flex: 'none', font: `600 11.5px ${MONO}`, color: MC.run }}>{suggestion.command}</span><span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, color: MC.muted }}>{suggestion.description}</span></div>)}
+      {suggestions.map((suggestion) => <div key={suggestion.command} data-mobile-slash-command={suggestion.command} onClick={() => { if (!suggestion.disabled) onPick(suggestion); }} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, padding: '0 12px', borderBottom: `1px solid ${MC.divider}`, opacity: suggestion.disabled ? 0.45 : 1, cursor: suggestion.disabled ? 'default' : 'pointer' }}><span style={{ flex: 'none', font: `600 12px ${MONO}`, color: MC.ink }}>{suggestion.command}</span><span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5, color: MC.muted }}>{suggestion.description}</span></div>)}
     </div>
   );
 }

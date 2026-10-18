@@ -19,16 +19,17 @@ const APPLIES_KEYS: Record<MHookDetailVm['appliesAt'], keyof Vocab> = {
 const NONE = '—';
 
 const ID_STYLE: React.CSSProperties = { font: `600 12.5px ${MONO}`, color: MC.ink, overflowWrap: 'anywhere' };
-const META_STYLE: React.CSSProperties = { font: `400 12px ${MONO}`, color: MC.muted, marginTop: 3, overflowWrap: 'anywhere' };
+const META_STYLE: React.CSSProperties = { fontSize: 12.5, color: MC.muted, marginTop: 3, overflowWrap: 'anywhere' };
 
 // ── mount targets (plan §4.1): where the declaration actually installs once compiled ────────
+// Quiet gray tags: a mount target is a fact about the hook, not a running state.
 function MountBadges({ targets }: { targets: MHookRow['mountsOn'] }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
       {targets.map((t) => (
-        <MPill key={t} tone="running">
+        <span key={t} style={{ fontSize: 12, fontWeight: 500, color: MC.sub, background: 'var(--proto-gray)', padding: '1px 7px', borderRadius: 6 }}>
           {t}
-        </MPill>
+        </span>
       ))}
     </div>
   );
@@ -87,7 +88,7 @@ function GroupSection({
 }
 
 // ── declaration sheet ───────────────────────────────────────────────────────────
-function FieldRow({ label, children, divider = true }: { label: string; children: ReactNode; divider?: boolean }) {
+function FieldRow({ label, children, code = false, divider = true }: { label: string; children: ReactNode; code?: boolean; divider?: boolean }) {
   return (
     <div
       style={{
@@ -99,11 +100,18 @@ function FieldRow({ label, children, divider = true }: { label: string; children
       }}
     >
       <span style={{ fontSize: 13, color: MC.muted, flex: '0 1 92px' }}>{label}</span>
-      <span style={{ font: `500 13px ${MONO}`, color: MC.ink, minWidth: 0, flex: 1, overflowWrap: 'anywhere' }}>
+      <span style={{ ...(code ? { font: `500 12.5px ${MONO}` } : { fontSize: 13.5 }), color: MC.ink, minWidth: 0, flex: 1, overflowWrap: 'anywhere' }}>
         {children}
       </span>
     </div>
   );
+}
+
+interface DeclarationRow {
+  label: string;
+  value: ReactNode;
+  /** Code — an event name, a pattern, a command, a path — takes the code face; words do not. */
+  code?: boolean;
 }
 
 /**
@@ -111,13 +119,14 @@ function FieldRow({ label, children, divider = true }: { label: string; children
  * always shown — a gap there is real information. Optional declaration fields are shown only when the
  * entry actually declares them, so a sparse entry does not read as a column of dashes.
  */
-function declarationRows(detail: MHookDetailVm, L: Vocab): { label: string; value: ReactNode }[] {
-  const rows: { label: string; value: ReactNode }[] = [{ label: L.hookFieldEvent, value: detail.event }];
+function declarationRows(detail: MHookDetailVm, L: Vocab): DeclarationRow[] {
+  const rows: DeclarationRow[] = [{ label: L.hookFieldEvent, value: detail.event, code: true }];
 
-  if (detail.matcher?.kind === 'regex') rows.push({ label: L.hookFieldMatcher, value: detail.matcher.value });
+  if (detail.matcher?.kind === 'regex') rows.push({ label: L.hookFieldMatcher, value: detail.matcher.value, code: true });
   if (detail.matcher?.kind === 'filters') {
     rows.push({
       label: L.hookFieldFilters,
+      code: true,
       value: (
         <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {detail.matcher.entries.map((e) => (
@@ -134,6 +143,7 @@ function declarationRows(detail: MHookDetailVm, L: Vocab): { label: string; valu
   else {
     rows.push({
       label: detail.run.kind === 'script' ? L.hookFieldScript : L.hookFieldCommand,
+      code: true,
       value: (
         <>
           {detail.run.value}
@@ -151,7 +161,7 @@ function declarationRows(detail: MHookDetailVm, L: Vocab): { label: string; valu
   }
 
   if (detail.backends !== null) rows.push({ label: L.hookFieldBackends, value: detail.backends.join(', ') });
-  if (detail.requiresTool !== null) rows.push({ label: L.hookFieldRequiresTool, value: detail.requiresTool });
+  if (detail.requiresTool !== null) rows.push({ label: L.hookFieldRequiresTool, value: detail.requiresTool, code: true });
   if (detail.result !== null) rows.push({ label: L.hookFieldResult, value: detail.result });
   if (detail.blocking !== null) {
     rows.push({
@@ -164,7 +174,7 @@ function declarationRows(detail: MHookDetailVm, L: Vocab): { label: string; valu
   rows.push({ label: L.hookFieldApplies, value: L[APPLIES_KEYS[detail.appliesAt]] });
   rows.push({ label: L.hookFieldSource, value: detail.source === 'builtin' ? L.hkSourceBuiltin : L.hkSourceUser });
   if (detail.version !== null) rows.push({ label: L.hookFieldVersion, value: detail.version });
-  if (detail.fileName !== null) rows.push({ label: L.hookFieldFile, value: detail.fileName });
+  if (detail.fileName !== null) rows.push({ label: L.hookFieldFile, value: detail.fileName, code: true });
   rows.push({ label: L.hookFieldOrder, value: String(detail.order) });
 
   return rows;
@@ -175,7 +185,7 @@ function DeclarationSheet({ row, L, onClose }: { row: MHookRow; L: Vocab; onClos
   return (
     <MBottomSheet onClose={onClose}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px 10px' }}>
-        <span style={{ font: `700 15px ${MONO}`, color: MC.ink, minWidth: 0, overflowWrap: 'anywhere' }}>
+        <span style={{ font: `600 15px ${MONO}`, color: MC.ink, minWidth: 0, overflowWrap: 'anywhere' }}>
           {row.id}
         </span>
         <span style={{ marginLeft: 'auto', flex: 'none' }}>
@@ -191,7 +201,7 @@ function DeclarationSheet({ row, L, onClose }: { row: MHookRow; L: Vocab; onClos
         }}
       >
         {rows.map((r, i) => (
-          <FieldRow key={r.label} label={r.label} divider={i < rows.length - 1}>
+          <FieldRow key={r.label} label={r.label} code={r.code} divider={i < rows.length - 1}>
             {r.value}
           </FieldRow>
         ))}
@@ -203,7 +213,7 @@ function DeclarationSheet({ row, L, onClose }: { row: MHookRow; L: Vocab; onClos
 /** Header count beside the page title: enabled declarations out of all of them. */
 export function MHooksCount({ vm }: { vm: MHooksVm }) {
   const L = useVocab();
-  return <span style={{ font: `500 12px ${MONO}`, color: MC.muted }}>
+  return <span style={{ fontSize: 13, color: MC.muted, fontVariantNumeric: 'tabular-nums' }}>
     {vm.enabledCount}/{vm.total} {L.hookEnabledWord}
   </span>;
 }

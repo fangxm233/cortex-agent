@@ -2,6 +2,7 @@ import { useCallback, useState, type CSSProperties } from 'react';
 import type { TodoSnapshot } from '@cortex-agent/ui-contract';
 import { MENU_SURFACE, useDismissMenu } from '@/design/MenuChrome';
 import { pickVocab } from '@/i18n';
+import { useFitLevel } from '@/lib/useFitLevel';
 import type { SessionWaitpoints } from '@/features/session/live/useSessionWaitpoints';
 import { todoStripViewModel } from './todo-vm';
 import { waitRailViewModel, type WaitRailLanguage } from './wait-rail-vm';
@@ -10,8 +11,24 @@ import { WaitChip, WaitPanel } from './WaitChip';
 
 // Desktop: the task list and the waitpoints share one line above the composer, each a capsule. A
 // capsule opens its detail as a popover rising over the transcript, so the composer never moves.
+// On a narrow pane the task keeps its label: the wait capsule yields width first, and once any
+// label would truncate it folds to "waiting on <label>", its numbers moving to tooltip and popover.
 
 type Open = 'todo' | 'wait' | null;
+
+/** A capsule's text is cut off (its scroll width exceeds its box). */
+function stripTruncates(strip: HTMLDivElement): boolean {
+  return Array.from(strip.querySelectorAll<HTMLElement>('[data-activity-chip] span')).some(labelOverflows);
+}
+
+/** `scrollWidth` rounds to whole pixels, so a label less than a pixel too wide still draws its
+ *  ellipsis without tripping it; the text's own box says whether it was cut. */
+function labelOverflows(span: HTMLElement): boolean {
+  if (span.scrollWidth > span.clientWidth) return true;
+  const range = document.createRange();
+  range.selectNodeContents(span);
+  return range.getBoundingClientRect().width > span.getBoundingClientRect().width + 0.01;
+}
 
 const STRIP: CSSProperties = { position: 'relative', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, marginBottom: 8 };
 const POPOVER: CSSProperties = {
@@ -33,12 +50,13 @@ export function ActivityStrip({ todos, running, waitpoints, lang }: {
   useDismissMenu(open !== null, close, close);
   const todo = todoStripViewModel(todos, running);
   const wait = waitpoints ? waitRailViewModel(waitpoints.waitpoints, Date.now(), pickVocab(lang), lang) : null;
+  const { ref, level } = useFitLevel<HTMLDivElement>(1, stripTruncates, `${todo?.activeLabel ?? ''}\n${wait?.headline ?? ''}`);
   if (!todo && !wait) return null;
   const toggle = (which: Exclude<Open, null>) => () => setOpen((current) => (current === which ? null : which));
   return (
-    <div data-activity-strip="" style={STRIP}>
+    <div ref={ref} data-activity-strip="" data-fit-level={level} style={STRIP}>
       {todo && <TodoChip vm={todo} expanded={open === 'todo'} onToggle={toggle('todo')} />}
-      {wait && <WaitChip vm={wait} lang={lang} expanded={open === 'wait'} onToggle={toggle('wait')} />}
+      {wait && <WaitChip vm={wait} lang={lang} brief={level >= 1} expanded={open === 'wait'} onToggle={toggle('wait')} />}
       {open === 'todo' && todo && (
         <div data-activity-popover="todo" onClick={(event) => event.stopPropagation()} style={POPOVER}><TodoList vm={todo} /></div>
       )}

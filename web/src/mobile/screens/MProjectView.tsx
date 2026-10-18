@@ -120,8 +120,8 @@ function CurrentHead({ current, copy }: { current: MProjectCurrent; copy: Vocab 
       <Initials text={current.initials} accent large />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, minWidth: 0, overflowWrap: 'anywhere' }}>{current.id}</span>
-          <span style={{ fontSize: 11, fontWeight: 650, padding: '1px 7px', borderRadius: 'var(--r-pill)', background: MC.runBg, color: MC.run, flex: 'none' }}>
+          <span style={{ fontSize: 17, fontWeight: 650, color: MC.ink, minWidth: 0, overflowWrap: 'anywhere' }}>{current.id}</span>
+          <span style={{ fontSize: 12, fontWeight: 500, padding: '1px 7px', borderRadius: 6, background: 'var(--proto-gray)', color: MC.muted, flex: 'none' }}>
             {copy.projCurrent}
           </span>
         </div>

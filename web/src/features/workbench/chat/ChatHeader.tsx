@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { MENU_FOCUS } from '@/design/MenuChrome';
 import { IconButton } from '@/design/IconButton';
 import { useVocab } from '@/i18n';
@@ -8,17 +8,8 @@ import { SessionIdModal } from './SessionIdModal';
 import { useNotes } from '@/features/notes/NotesProvider';
 import { NotesGlyph } from '@/features/notes/NotesGlyph';
 import { useDockIntake } from '@/design/dock-intake';
-
-const MONO = "'IBM Plex Mono',monospace";
-
-function FolderGlyph(): JSX.Element {
-  return (
-    <svg width="11" height="11" viewBox="0 0 16 16" fill="none" style={{ flex: 'none' }} aria-hidden="true">
-      <path d="M1.6 12.2V4.4a1.3 1.3 0 0 1 1.3-1.3h2.7l1.3 1.5h5.5a1.3 1.3 0 0 1 1.3 1.3v1.2" stroke="var(--proto-accent)" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M2.9 13h8.8a1.2 1.2 0 0 0 1.13-.79l1.4-3.9A.6.6 0 0 0 13.66 7.5H5.1a1.2 1.2 0 0 0-1.13.79l-1.63 4.5A.5.5 0 0 0 2.9 13z" fill="var(--proto-accent)" />
-    </svg>
-  );
-}
+import { useFitLevel } from '@/lib/useFitLevel';
+import { HeaderCapsuleFitContext, type HeaderCapsuleFit } from '@/features/session/rail/ActivityChip';
 
 function GlobeGlyph(): JSX.Element {
   return (
@@ -39,7 +30,7 @@ function BrowserIconButton(): JSX.Element | null {
     <IconButton
       data-browser-button=""
       size={28}
-      tone="accent"
+      tone="neutral"
       active={active && activeKind === 'web'}
       aria-pressed={active && activeKind === 'web'}
       label={L.wbOpenWebPage}
@@ -80,7 +71,7 @@ function ParentCrumb({ parent }: { parent: ChatHeaderParent }): JSX.Element {
         background: 'transparent',
         cursor: 'pointer',
         fontFamily: 'inherit',
-        fontSize: 13.5,
+        fontSize: 13,
         color: hover ? 'var(--proto-ink)' : 'var(--proto-muted)',
       }}
     >
@@ -89,6 +80,25 @@ function ParentCrumb({ parent }: { parent: ChatHeaderParent }): JSX.Element {
       <span aria-hidden="true" style={{ flex: 'none', color: 'var(--proto-muted-3)' }}>/</span>
     </button>
   );
+}
+
+// The header folds as its pane narrows, one step at a time and only as far as it must (useFitLevel):
+// the title first gives up width down to TITLE_MIN, then
+//   1 · the project crumb goes,
+//   2 · the board capsule folds to its flag and amber count,
+//   3 · the team capsule folds to its dots and a worker count,
+//   4 · the title may shrink below TITLE_MIN,
+//   5 · the capsules go (the last resort of a pane narrower than any header).
+// Globe, notes and ⋯ never fold: they are how the header is used, so they always stay in the pane.
+const TITLE_MIN = 140;
+const FIT_MAX = 5;
+
+/** The row no longer fits when the action cluster's right edge runs past the header's content box. */
+function headerOverflows(header: HTMLDivElement): boolean {
+  const actions = header.querySelector<HTMLElement>('[data-header-actions]');
+  if (!actions) return false;
+  const padRight = parseFloat(getComputedStyle(header).paddingRight) || 0;
+  return actions.getBoundingClientRect().right > header.getBoundingClientRect().right - padRight + 0.5;
 }
 
 export function ChatHeader({
@@ -103,7 +113,7 @@ export function ChatHeader({
 }: {
   title: string;
   running: boolean;
-  /** The session's project, already resolved by CenterChat. Null ⇒ no chip. */
+  /** The session's project, already resolved by CenterChat. Null ⇒ no crumb. */
   projectName: string | null;
   backendSessionId: string | null;
   metadataSession: MetadataSession | null;
@@ -116,17 +126,28 @@ export function ChatHeader({
   const L = useVocab();
   const notes = useNotes();
   const [sessionIdOpen, setSessionIdOpen] = useState(false);
+  const { ref, level } = useFitLevel<HTMLDivElement>(FIT_MAX, headerOverflows,
+    [title, projectName ?? '', parent?.title ?? '', team ? 't' : '', board ? 'b' : ''].join('\n'));
+  const fit = useMemo<HeaderCapsuleFit>(() => ({
+    board: level >= 2 ? 'compact' : 'full',
+    team: level >= 3 ? 'compact' : 'full',
+  }), [level]);
 
   return (
     <div
+      ref={ref}
+      data-chat-header=""
+      data-fit-level={level}
       style={{
         height: 50,
         flex: 'none',
+        minWidth: 0,
+        boxSizing: 'border-box',
         borderBottom: '1px solid var(--proto-line)',
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
-        padding: '0 20px',
+        gap: 8,
+        padding: '0 14px 0 20px',
       }}
     >
       {running && (
@@ -141,13 +162,30 @@ export function ChatHeader({
           }}
         />
       )}
+      {/* "project /" leads the title as plain muted text, the way the lead crumb does for a worker. */}
+      {projectName && level < 1 && (
+        <span
+          data-project-crumb=""
+          title={`${L.project} · ${projectName}`}
+          style={{
+            flex: 'none', maxWidth: 180, fontSize: 13, color: 'var(--proto-muted)',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}
+        >
+          {projectName}
+          <span aria-hidden="true" style={{ color: 'var(--proto-muted-3)' }}>{' /'}</span>
+        </span>
+      )}
       {parent && <ParentCrumb parent={parent} />}
       <div
+        title={title}
         style={{
-          fontSize: 13.5,
+          fontSize: 15,
           fontWeight: 600,
           color: 'var(--proto-ink)',
-          maxWidth: 280,
+          flex: '0 1 auto',
+          minWidth: level >= 4 ? 0 : TITLE_MIN,
+          maxWidth: 360,
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
@@ -155,67 +193,60 @@ export function ChatHeader({
       >
         {title}
       </div>
-      {projectName && (
-        <span
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            font: `500 11px ${MONO}`,
-            color: 'var(--proto-muted)',
-            background: 'var(--proto-line-2)',
-            borderRadius: 'var(--r-chip)',
-            padding: '2px 7px',
-            flex: 'none',
-          }}
-        >
-          <FolderGlyph />
-          {projectName}
-        </span>
-      )}
-      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, color: 'var(--proto-muted)' }}>
-        {team}
-        {board}
-        <BrowserIconButton />
-        <span style={{ position: 'relative', display: 'inline-flex' }}>
-          <IconButton
-            data-notes-button=""
-            size={28}
-            tone="accent"
-            active={notes.isOpen}
-            aria-pressed={notes.isOpen}
-            label={`${L.noteTitle} · ⌘⇧N`}
-            onClick={() => notes.isOpen ? notes.close() : notes.open()}
-          >
-            <NotesGlyph />
-          </IconButton>
-          {/* The button lost its label in this row, but not its count: a badge keeps the number on
-              screen rather than demoting it into a tooltip nobody hovers. */}
-          {notes.vm.activeCount > 0 && (
-            <span
-              aria-hidden="true"
-              style={{
-                position: 'absolute',
-                top: -3,
-                right: -3,
-                minWidth: 16,
-                height: 16,
-                padding: '0 3px',
-                boxSizing: 'border-box',
-                borderRadius: 'var(--r-pill)',
-                font: `600 11px ${MONO}`,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'var(--proto-accent)',
-                color: 'var(--ink-solid-fg)',
-              }}
+      <div data-header-actions="" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flex: 'none', color: 'var(--proto-muted)' }}>
+        {level < 5 && (
+          <HeaderCapsuleFitContext.Provider value={fit}>
+            {team}
+            {board}
+          </HeaderCapsuleFitContext.Provider>
+        )}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, flex: 'none' }}>
+          <BrowserIconButton />
+          <span style={{ position: 'relative', display: 'inline-flex' }}>
+            <IconButton
+              data-notes-button=""
+              size={28}
+              tone="neutral"
+              active={notes.isOpen}
+              aria-pressed={notes.isOpen}
+              label={`${L.noteTitle} · ⌘⇧N`}
+              onClick={() => notes.isOpen ? notes.close() : notes.open()}
             >
-              {notes.vm.activeCount}
-            </span>
-          )}
+              <NotesGlyph />
+            </IconButton>
+            {/* The button lost its label in this row, but not its count: a quiet number on the
+                button's corner keeps it on screen rather than demoting it into a tooltip nobody
+                hovers. A plain figure on the card, not a filled accent badge — a note is not an alert. */}
+            {notes.vm.activeCount > 0 && (
+              <span
+                aria-hidden="true"
+                data-notes-count=""
+                style={{
+                  position: 'absolute',
+                  top: -2,
+                  right: -4,
+                  minWidth: 15,
+                  height: 15,
+                  padding: '0 3px',
+                  boxSizing: 'border-box',
+                  borderRadius: 'var(--r-pill)',
+                  font: '550 10.5px/1 var(--font-ui)',
+                  fontVariantNumeric: 'tabular-nums',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'var(--proto-card)',
+                  boxShadow: '0 0 0 1px var(--proto-line-3)',
+                  color: 'var(--proto-ink-2)',
+                  pointerEvents: 'none',
+                }}
+              >
+                {notes.vm.activeCount}
+              </span>
+            )}
+          </span>
+          <ChatSessionMenu session={metadataSession} onSessionId={() => setSessionIdOpen(true)} />
         </span>
-        <ChatSessionMenu session={metadataSession} onSessionId={() => setSessionIdOpen(true)} />
       </div>
       {sessionIdOpen ? (
         <SessionIdModal

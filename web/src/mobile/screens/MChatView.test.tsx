@@ -47,8 +47,8 @@ vi.mock('@/mobile/ui/kit', async () => ({
   MBottomSheet: ({ children, onClose }: any) => <div data-bottom-sheet="" data-close={onClose}>{children}</div>,
 }));
 vi.mock('@/features/team/useWorkerQuestions', () => ({ useWorkerQuestions: () => ({}) }));
-vi.mock('@/features/board/BoardCapsule', () => ({
-  BoardChip: ({ boardId, onOpen }: { boardId: string; onOpen: () => void }) => <button data-board-chip={boardId} onClick={onOpen} />,
+vi.mock('@/features/board/useBoard', () => ({
+  useBoardLive: (boardId: string) => ({ board: { id: boardId, title: 'Survey' }, sessions: [], decisions: [], missing: false }),
 }));
 vi.mock('@/features/board/BoardChatRows', () => ({
   BoardActionChatRow: ({ action, onOpen, touch }: { action: { boardId: string }; onOpen: (id: string) => void; touch?: boolean }) =>
@@ -164,7 +164,7 @@ describe('MChatView floating composer clearance', () => {
       }
       const header = renderer.root.findByProps({ 'data-chat-header': 'true' });
       expect(header.props.style.maskImage).toBeUndefined();
-      expect(header.props.style.height).toBe(52);
+      expect(header.props.style.height).toBe(56);
       expect(renderer.root.findByProps({ 'data-chat-header-stack': '' }).props.style.top)
         .toBe('calc(8px + env(safe-area-inset-top))');
       expect(renderer.root.findByProps({ 'data-composer-shell': true }).props.style.bottom)
@@ -269,6 +269,26 @@ describe('MChatStream assistant turn copy', () => {
     expect(writeText).toHaveBeenCalledWith('part one\n\npart two');
     vi.unstubAllGlobals();
   });
+
+  it('offers no copy under the turn still being written, and offers it once the turn ends', () => {
+    const rows: ChatRow[] = [
+      { kind: 'user', text: 'first' },
+      { kind: 'assistant', text: 'done answer', streaming: false },
+      { kind: 'user', text: 'second' },
+      { kind: 'tools', count: 1, calls: [{ kind: 'read', input: 'a.md' }] },
+      { kind: 'assistant', text: 'merging now', streaming: false },
+      { kind: 'tools', count: 2, calls: [{ kind: 'bash', input: 'pwd' }, { kind: 'bash', input: 'ls' }] },
+    ];
+    const copies = (live: boolean) => {
+      let renderer!: ReactTestRenderer;
+      act(() => { renderer = create(<LangProvider><MChatStream rows={rows} group live={live} /></LangProvider>); });
+      const n = renderer.root.findAllByProps({ 'data-assistant-turn-copy': 'true' }).length;
+      act(() => renderer.unmount());
+      return n;
+    };
+    expect(copies(true)).toBe(1);
+    expect(copies(false)).toBe(2);
+  });
 });
 
 describe('MChatStream window', () => {
@@ -370,21 +390,34 @@ describe('MChatStream subagent prompt', () => {
   });
 });
 
-// The header status line carries the project the session belongs to, not just the run state — on a
-// phone the drill screen is the only place that fact is visible at all.
+// The header's second line says what the session is doing in plain words, in the UI face — no
+// project prefix, no code face — and turns amber with the dot while the session waits on the user.
 describe('MChatView header status line', () => {
   const line = (html: string): string =>
     html.match(/<div data-chat-status-line="true"[^>]*>([^<]*)</)?.[1] ?? '';
+  const lineTag = (html: string): string =>
+    html.match(/<div data-chat-status-line="true"[^>]*>/)?.[0] ?? '';
 
-  it('prefixes the status with the project when one is known', () => {
+  it('prints the status alone, in the UI face', () => {
     const html = renderToStaticMarkup(
-      <MChatView {...baseProps} project="cortex-agent" rows={[]}
-        status={{ running: true, tone: 'running', text: 'running 2m' }} />,
+      <MChatView {...baseProps} rows={[]}
+        status={{ running: true, tone: 'running', text: 'Running · 2m' }} />,
     );
-    expect(line(html)).toBe('cortex-agent · running 2m');
+    expect(line(html)).toBe('Running · 2m');
+    expect(lineTag(html)).not.toContain('Plex Mono');
+    expect(html).toContain('data-chat-status-dot="running"');
   });
 
-  it('falls back to the bare status with no project', () => {
+  it('turns the line and the dot amber while the session waits on the user', () => {
+    const html = renderToStaticMarkup(
+      <MChatView {...baseProps} rows={[]}
+        status={{ running: false, tone: 'waiting', text: 'Plan waiting for your approval' }} />,
+    );
+    expect(lineTag(html)).toContain('color:var(--proto-amber-fg)');
+    expect(html).toMatch(/data-chat-status-dot="waiting" style="[^"]*background:var\(--proto-amber\)/);
+  });
+
+  it('prints an idle status as given', () => {
     const html = renderToStaticMarkup(
       <MChatView {...baseProps} rows={[]} status={{ running: false, tone: 'idle', text: 'idle' }} />,
     );
@@ -446,6 +479,8 @@ describe('MChatView team context', () => {
     expect(stack(r).findAll((n) => n.props['data-activity-chip'] !== undefined)).toHaveLength(0);
     expect(r.root.findByProps({ 'data-activity-strip': '' }).findAll((n) => n.props['data-activity-chip'] === 'team')).toHaveLength(1);
     expect(row.props['aria-label']).toContain('2 workers');
+    // The capsule says how many in words, not a bare dot stack and number.
+    expect(row.findAllByType('span').map((n) => n.children.join(''))).toContain('2 workers');
     expect(r.root.findAll((n) => n.props['data-team-sheet'] !== undefined)).toHaveLength(0);
     act(() => row.props.onClick({ stopPropagation: vi.fn() }));
     const sheet = r.root.findByProps({ 'data-team-sheet': '' });
@@ -501,6 +536,10 @@ describe('MChatView overlays', () => {
     const r = mount({ todos, waitpoints });
     const chip = (kind: string) => r.root.findByProps({ 'data-activity-chip': kind });
     expect(chip('wait').props['aria-label']).toContain('eval-job');
+    // Each capsule names itself: the task list as "Tasks 1/1", the wait by what it waits on.
+    const text = (kind: string) => chip(kind).findAllByType('span').map((n) => n.children.join(''));
+    expect(text('todo')).toContain('Tasks 1/1');
+    expect(text('wait')).toContain('eval-job');
     act(() => chip('todo').props.onClick({ stopPropagation: vi.fn() }));
     expect(sheets(r)).toHaveLength(1);
     expect(sheets(r)[0].findAll((n) => n.props['data-todo-list'] !== undefined)).toHaveLength(1);
@@ -639,14 +678,17 @@ describe('MChatView board capsule', () => {
     act(() => { renderer = create(<LangProvider><MChatView {...baseProps} rows={[]} status={status} sessionId="s1" {...extra} /></LangProvider>); });
     return renderer;
   };
-  const bars = (r: ReactTestRenderer) => r.root.findAll((n) => n.type === 'button' && n.props['data-board-chip'] !== undefined);
+  const bars = (r: ReactTestRenderer) => r.root.findAll((n) => n.type === 'button' && n.props['data-activity-chip'] === 'board');
 
-  it('sits in the activity strip of a bound session and opens the full-screen board', () => {
+  it('sits in the activity strip of a bound session, named in words, and opens the full-screen board', () => {
     const r = mount({ boardId: 'b1' });
     const stack = r.root.findByProps({ 'data-chat-header-stack': '' });
-    expect(stack.findAll((n) => n.props['data-board-chip'] !== undefined)).toHaveLength(0);
-    expect(r.root.findByProps({ 'data-activity-strip': '' }).findAll((n) => n.type === 'button' && n.props['data-board-chip'] === 'b1')).toHaveLength(1);
-    act(() => bars(r)[0]!.props.onClick());
+    expect(stack.findAll((n) => n.props['data-activity-chip'] === 'board')).toHaveLength(0);
+    const chips = r.root.findByProps({ 'data-activity-strip': '' }).findAll((n) => n.type === 'button' && n.props['data-activity-chip'] === 'board');
+    expect(chips).toHaveLength(1);
+    expect(chips[0].props['aria-label']).toBe('Open board · Survey');
+    expect(chips[0].findAllByType('span').map((n) => n.children.join(''))).toContain('Board');
+    act(() => bars(r)[0]!.props.onClick({ stopPropagation: () => {} }));
     expect(r.root.findAll((n) => n.props['data-board-sheet'] === 'b1')).toHaveLength(1);
     act(() => r.unmount());
   });

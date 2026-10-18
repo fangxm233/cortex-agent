@@ -1,19 +1,11 @@
-// Command palette chrome and its row kind tags.
+// Command palette chrome and the kind words a search can name.
 export const paletteEn = {
   palLabel: 'Command palette',
-  palClose: 'Close command palette',
-  palKindCommand: 'command',
   palKindSession: 'session',
-  palKindPage: 'page',
-  palKindModal: 'modal',
 };
 export const paletteZh: Record<keyof typeof paletteEn, string> = {
   palLabel: '命令面板',
-  palClose: '关闭命令面板',
-  palKindCommand: '命令',
   palKindSession: '会话',
-  palKindPage: '页面',
-  palKindModal: '弹窗',
 };
 
 // Workbench chrome: chat header, rail menus, run list, composer chips.
@@ -23,9 +15,9 @@ export const workbenchEn = {
   wbSessionsFailed: 'Failed to load conversations',
   wbAttachQueued: 'queued',
   wbAttachRetry: 'retry',
-  wbRunCaption: 'RUN',
-  wbFiredCaption: 'FIRED',
-  wbCostCaption: 'COST',
+  wbRunCaption: 'Run',
+  wbFiredCaption: 'Fired',
+  wbCostCaption: 'Cost',
   wbRailResize: 'Drag to resize the sidebar, double-click to reset',
 };
 export const workbenchZh: Record<keyof typeof workbenchEn, string> = {
@@ -42,10 +34,10 @@ export const workbenchZh: Record<keyof typeof workbenchEn, string> = {
 
 // Approval center (desktop overlay) and the mobile approval queue.
 export const approvalsEn = {
-  apprPillPending: '● pending',
-  apprPillApproved: '✓ approved',
-  apprPillRejected: '✕ rejected',
-  apprPillFailed: 'failed',
+  apprPillPending: 'Pending',
+  apprPillApproved: 'Approved',
+  apprPillRejected: 'Rejected',
+  apprPillFailed: 'Failed',
   apprPendingOne: '{n} approval pending',
   apprPendingMany: '{n} approvals pending',
   apprQueuedAt: 'queued {date}',
@@ -59,9 +51,9 @@ export const approvalsEn = {
   apprGlobalGroup: 'GLOBAL',
 };
 export const approvalsZh: Record<keyof typeof approvalsEn, string> = {
-  apprPillPending: '● 待审批',
-  apprPillApproved: '✓ 已批准',
-  apprPillRejected: '✕ 已拒绝',
+  apprPillPending: '待审批',
+  apprPillApproved: '已批准',
+  apprPillRejected: '已拒绝',
   apprPillFailed: '失败',
   apprPendingOne: '{n} 条待审批',
   apprPendingMany: '{n} 条待审批',

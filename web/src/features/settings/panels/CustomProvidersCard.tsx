@@ -70,9 +70,10 @@ function ProviderRow({ provider, ...actions }: {
         </>
       )}
       meta={providerMeta(provider)}
+      metaCode
       trailing={(
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, minWidth: 0, maxWidth: '100%' }}>
-          <SPill tone="neutral" mono>{provider.hasApiKey ? L.cpvKeyStored : L.cpvNoKey}</SPill>
+          <SPill tone="neutral">{provider.hasApiKey ? L.cpvKeyStored : L.cpvNoKey}</SPill>
           <ProviderActions {...actions} />
         </div>
       )}
@@ -181,7 +182,7 @@ function EditorCard({ controller, draft }: { controller: Controller; draft: Cust
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
           <SButton tone="neutral" data-cpv-action="cancel" disabled={controller.savePending}
             onClick={controller.closeDraft}>{L.cpvCancel}</SButton>
-          <SButton tone="accent" data-cpv-action="save"
+          <SButton tone="primary" data-cpv-action="save"
             disabled={controller.savePending || !isCustomProviderFormValid(controller.errors)}
             onClick={controller.save}>{L.cpvSave}</SButton>
         </div>
@@ -216,7 +217,7 @@ export function CustomProvidersCard() {
   const label = (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
       {L.cpvTitle}
-      <SCount tone="accent">{controller.providers.length}</SCount>
+      <SCount tone="quiet">{controller.providers.length}</SCount>
     </span>
   );
   const add = (

@@ -4,6 +4,7 @@ import { promptDialog, useToast } from '@/design';
 import { useMachinesResource } from '@/features/machines/useMachinesResource';
 import { useVocab } from '@/i18n';
 import {
+  SCode,
   SCount,
   SDot,
   SEntityName,
@@ -20,7 +21,10 @@ function MachineEntity({ machine }: { machine: MachineInfo }) {
   return <SEntityRow
     dot={<SDot color={ssh ? 'var(--proto-success)' : 'var(--proto-line-3)'} />}
     name={<SEntityName>{machine.name}</SEntityName>}
-    meta={`${machine.cortexPath ?? '—'} · ${machine.os === 'windows' ? L.stWinOs : L.stUnixOs} · ${L.mGpu} ${machine.gpuCount ?? '—'}`}
+    meta={<>
+      {machine.cortexPath ? <SCode>{machine.cortexPath}</SCode> : '—'}
+      {` · ${machine.os === 'windows' ? L.stWinOs : L.stUnixOs} · ${L.mGpu} ${machine.gpuCount ?? '—'}`}
+    </>}
     trailing={<SPill tone={ssh ? 'success' : 'neutral'}>{ssh ? L.stConfigured : L.stMachineLocal}</SPill>} />;
 }
 
@@ -35,7 +39,7 @@ function AddMachineAction({ disabled, onAdd }: { disabled: boolean; onAdd: () =>
 function MachinesHeading({ count }: { count: number }) {
   const L = useVocab();
   return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-    {L.machines}<SCount tone="accent">{count}</SCount>
+    {L.machines}<SCount tone="quiet">{count}</SCount>
   </span>;
 }
 

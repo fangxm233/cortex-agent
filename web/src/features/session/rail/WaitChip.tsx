@@ -147,12 +147,14 @@ function worstTone(vm: WaitRailViewModel): WaitRailBadge['tone'] | null {
   return tones.length > 0 ? 'warn' : null;
 }
 
-/** Desktop names what it waits on and how far along; the phone keeps only the count. A failure, a
- *  rate limit or a stuck delivery adds one dot rather than a line of its own. */
-export function WaitChip({ vm, lang, compact = false, floating, expanded, onToggle }: {
+/** Desktop names what it waits on and how far along; on a short row (`brief`) it says only "waiting
+ *  on <label>" and leaves the progress and expiry to its tooltip and popover; the phone keeps only
+ *  the count. A failure, a rate limit or a stuck delivery adds one dot rather than a line of its own. */
+export function WaitChip({ vm, lang, compact = false, brief = false, floating, expanded, onToggle }: {
   vm: WaitRailViewModel;
   lang: WaitRailLanguage;
   compact?: boolean;
+  brief?: boolean;
   floating?: boolean;
   expanded?: boolean;
   onToggle: () => void;
@@ -163,12 +165,12 @@ export function WaitChip({ vm, lang, compact = false, floating, expanded, onTogg
   const label = [`${copy.waitTitle}: ${vm.headline}`, single?.progress, single?.ttl, ...vm.rows.flatMap((r) => r.badges.map((b) => b.text))]
     .filter(Boolean).join(' · ');
   return (
-    <ActivityChip data="wait" label={label} floating={floating} expanded={expanded} onClick={onToggle} grow={!compact}>
+    <ActivityChip data="wait" label={label} floating={floating} expanded={expanded} onClick={onToggle} grow={compact ? false : 4}>
       <span className="wait-rail-ring" aria-hidden="true" />
       {compact
         ? <span style={CHIP_COUNT}>{vm.rows.length}</span>
-        : <span style={CHIP_TEXT}>{vm.headline}</span>}
-      {!compact && single && <span className="wait-rail-metrics"><span className="wait-rail-received">{single.progress}</span>
+        : <span style={CHIP_TEXT}>{brief ? fmt(copy.waitShort, { label: vm.headline }) : vm.headline}</span>}
+      {!compact && !brief && single && <span className="wait-rail-metrics"><span className="wait-rail-received">{single.progress}</span>
         <span className="wait-rail-ttl" data-urgent={single.urgent}>{single.ttl}</span></span>}
       {tone && <span className="wait-rail-alert" data-tone={tone} data-wait-alert={tone} aria-hidden="true" />}
     </ActivityChip>

@@ -15,12 +15,14 @@ import type {
 import { resetAttemptFor, resetOutcomeView, usagePolicyTargetKey } from '@/features/usage';
 import { policyActionState, usePolicyThresholdDraft } from '@/features/usage/usage-policy-controls';
 import { fmt, useVocab, type Vocab } from '@/i18n';
-import { MButton, MC, MONO } from '@/mobile/ui/kit';
+import { MButton, MC } from '@/mobile/ui/kit';
 import { MSettingsSurfaceCard as MCard, MSettingsHeader as MDrillHeader,
   MSettingsFrame as MScreen, MSettingsBody as MScrollBody, MSettingsToggle } from './MSettingsControls';
 
 const META: CSSProperties = { fontSize: 12, color: MC.muted };
 const LABEL: CSSProperties = { fontSize: 13, fontWeight: 600, color: MC.muted };
+/** Money is a figure, not code: the UI face with aligned digits. */
+const SPEND: CSSProperties = { fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums' };
 const POLICY_INPUT: CSSProperties = {
   width: '100%',
   borderRadius: 'var(--r-chip)',
@@ -84,7 +86,7 @@ function PolicyThresholdInput(props: {
         onKeyDown={(event) => { if (event.key === 'Enter') props.onSubmit(); }}
         style={{ ...POLICY_INPUT, opacity: props.disabled ? 0.55 : 1 }}
       />
-      <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', font: `500 12px ${MONO}`, color: MC.muted }}>%</span>
+      <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: MC.muted }}>%</span>
     </div>
   );
 }
@@ -107,7 +109,7 @@ function saveThreshold(props: PolicyThresholdButtonsProps): void {
 function PolicySaveButton(props: PolicyThresholdButtonsProps) {
   return (
     <MButton
-      compact variant="accent-outline" data-usage-threshold-save={usagePolicyTargetKey(props.policy.target)}
+      compact variant="outline" data-usage-threshold-save={usagePolicyTargetKey(props.policy.target)}
       disabled={props.saveDisabled} onClick={() => saveThreshold(props)}
     >
       {props.pending ? props.L.usagePolicySaving : props.L.usagePolicySave}
@@ -247,7 +249,7 @@ function WindowRow(props: WindowRowProps) {
     <div data-usage-window={props.window.type} style={{ padding: '9px 0', borderTop: `1px solid ${MC.divider}` }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: MC.sub }}>{props.window.label}</span>
-        <span style={{ marginLeft: 'auto', font: `600 13px ${MONO}`, color: MC.ink }}>{props.window.utilizationLabel ?? props.L.usageUnavailable}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 14, fontWeight: 600, color: MC.ink, fontVariantNumeric: 'tabular-nums' }}>{props.window.utilizationLabel ?? props.L.usageUnavailable}</span>
       </div>
       <WindowMeter window={props.window} />
       {props.window.policy
@@ -330,7 +332,7 @@ function ResetRow({ resets, reset, L }: { resets: UsageResetsView; reset: UsageR
         <span style={META}>{resetSummary(resets, L)}</span>
         {provider !== null && resets.available > 0 && !confirming
           ? (
-            <MButton compact variant="accent-outline" data-usage-reset-use disabled={reset.isRedeeming}
+            <MButton compact variant="outline" data-usage-reset-use disabled={reset.isRedeeming}
               onClick={() => setConfirming(true)} style={{ marginLeft: 'auto', height: 32 }}>
               {attempt.isRedeeming ? L.usageResetUsing : L.usageResetUse}
             </MButton>
@@ -383,10 +385,10 @@ function SpendBlock({ provider, L }: { provider: ProviderUsageView; L: Vocab }) 
     <section data-usage-spend={provider.provider} style={{ borderTop: `1px solid ${MC.divider}`, padding: '10px 13px' }}>
       <div style={LABEL}>{L.usageMobileGatewaySpend}</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 8 }}>
-        <span style={{ font: `600 12px ${MONO}` }}>{provider.spend.today} <small>{L.usageMobileToday}</small></span>
-        <span style={{ font: `600 12px ${MONO}` }}>{provider.spend.month} <small>{L.usageMobileMonth}</small></span>
+        <span style={SPEND}>{provider.spend.today} <small>{L.usageMobileToday}</small></span>
+        <span style={SPEND}>{provider.spend.month} <small>{L.usageMobileMonth}</small></span>
         {provider.spend.all !== null && (
-          <span style={{ font: `600 12px ${MONO}` }}>{provider.spend.all} <small>{L.usageMobileAllTime}</small></span>
+          <span style={SPEND}>{provider.spend.all} <small>{L.usageMobileAllTime}</small></span>
         )}
       </div>
     </section>
@@ -436,7 +438,7 @@ function RefreshButton({ L, pending, onRefresh }: { L: Vocab; pending: boolean; 
       data-usage-refresh
       aria-busy={pending}
       onClick={onRefresh}
-      style={{ border: 0, borderRadius: 'var(--r-chip)', padding: '7px 10px', background: MC.runBg, color: MC.run, fontSize: 10.5, fontWeight: 650 }}
+      style={{ border: '1px solid var(--proto-line-3)', borderRadius: 'var(--r-chip)', padding: '6px 11px', background: 'var(--material-control-bg)', color: MC.ink, fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600 }}
     >
       {pending ? L.usageRefreshing : L.usageRefresh}
     </button>

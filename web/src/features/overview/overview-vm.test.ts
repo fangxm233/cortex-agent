@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { ExecutionInfo } from '@cortex-agent/ui-contract';
+import type { BoardDecisionEntry, BoardInfo, ExecutionInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import {
   execDurationMs,
   budgetPercent,
@@ -7,9 +7,21 @@ import {
   whereItGoesRows,
   nextRunLabel,
   lastRunLabel,
-  execStatusPill,
   execSummary,
+  execRows,
+  clockOrDayLabel,
+  groupSessions,
+  railDotState,
+  needsYouReason,
+  pendingDecisionRows,
+  recentMemoryFiles,
+  triggerLabel,
+  triggerSlots,
+  forecastOverBudget,
+  seriesDayLabel,
 } from './overview-vm';
+import { deriveMemoryTreeFacts } from '@/features/memory/memory-tree';
+import { buildRailTree } from '@/features/workbench/rail/rail-tree';
 import { en, zh } from '@/i18n';
 
 const exec = (p: Partial<ExecutionInfo>): ExecutionInfo => ({
@@ -124,10 +136,218 @@ describe('schedule run labels', () => {
 });
 
 describe('execution row copy', () => {
-  it('follows the UI language for the status pill and summary', () => {
-    expect(execStatusPill('completed', en).text).toBe('done');
-    expect(execStatusPill('completed', zh).text).toBe('完成');
+  it('falls back to the short session id, in the UI language', () => {
     expect(execSummary(exec({ sessionId: 's-1' }), zh)).toBe('会话 s-1');
+    expect(execSummary(exec({ sessionId: 'abcdef12-3456-7890-abcd-ef1234567890' }), en)).toBe('session abcdef12');
     expect(execSummary(exec({}), zh)).toBe('本地执行');
+  });
+});
+
+const session = (p: Partial<SessionInfo>): SessionInfo => ({
+  sessionId: 'sess',
+  projectId: 'proj',
+  label: null,
+  origin: 'direct',
+  teamLeadId: null,
+  running: false,
+  backgroundRunning: false,
+  awaitingInput: false,
+  waitingOn: 0,
+  createdAt: '2026-07-06T00:00:00.000Z',
+  lastUsedAt: '2026-07-06T00:00:00.000Z',
+  ...p,
+} as SessionInfo);
+
+describe('execRows', () => {
+  const now = Date.parse('2026-07-06T12:00:00');
+  const byId = new Map([
+    ['lead', session({ sessionId: 'lead', label: 'Optimizer study' })],
+    ['w1', session({ sessionId: 'w1', label: 'adam-sweep', teamLeadId: 'lead' })],
+    ['sch', session({ sessionId: 'sch', label: 'Daily check', origin: 'scheduled' })],
+  ]);
+
+  it('names each run by its session title and tags workers and schedules', () => {
+    const rows = execRows([
+      exec({ id: 'e1', sessionId: 'lead', status: 'completed', durationMs: 121_000, cost: 0.33 }),
+      exec({ id: 'e2', sessionId: 'w1', status: 'completed' }),
+      exec({ id: 'e3', sessionId: 'sch', status: 'completed' }),
+      exec({ id: 'e4', sessionId: 'abcdef12-0000', status: 'failed' }),
+    ], byId, now, 'en', en);
+    expect(rows.map((r) => r.title)).toEqual(['Optimizer study', 'adam-sweep', 'Daily check', 'session abcdef12']);
+    expect(rows.map((r) => r.tag)).toEqual([null, en.ovTagWorker, en.wbSchedGroup, null]);
+    expect(rows[0]).toMatchObject({ duration: 121_000, cost: '$0.33', statusWord: 'done' });
+  });
+
+  it('marks done, failed, scheduled, running and stopped runs', () => {
+    const rows = execRows([
+      exec({ sessionId: 'lead', status: 'completed' }),
+      exec({ sessionId: 'sch', status: 'completed' }),
+      exec({ sessionId: 'sch', status: 'failed' }),
+      exec({ sessionId: 'lead', status: 'running' }),
+      exec({ sessionId: 'lead', status: 'cancelled' }),
+    ], byId, now, 'en', en);
+    expect(rows.map((r) => r.mark)).toEqual(['done', 'scheduled', 'failed', 'running', 'stopped']);
+  });
+});
+
+describe('clockOrDayLabel', () => {
+  const now = Date.parse('2026-07-06T18:00:00');
+  it('shows the clock today and the day otherwise', () => {
+    expect(clockOrDayLabel('2026-07-06T16:31:00', now, 'en')).toBe('16:31');
+    expect(clockOrDayLabel('2026-07-05T16:31:00', now, 'zh')).toBe('昨天');
+    expect(clockOrDayLabel('2026-06-24T09:00:00', now, 'en')).toBe('Jun 24');
+    expect(clockOrDayLabel('', now, 'en')).toBe('—');
+  });
+});
+
+describe('groupSessions', () => {
+  it('splits blocked-on-you from running and waiting, and leaves idle sessions out', () => {
+    const groups = groupSessions([
+      session({ sessionId: 'idle', label: 'Idle' }),
+      session({ sessionId: 'wait', label: 'Waits', waitingOn: 2, lastUsedAt: '2026-07-06T03:00:00.000Z' }),
+      session({ sessionId: 'ask', label: 'Asks', awaitingInput: true, running: true }),
+      session({ sessionId: 'run', label: 'Runs', running: true, lastUsedAt: '2026-07-06T01:00:00.000Z',
+        todos: { items: [], total: 5, completed: 3, activeLabel: 'Running seed 4/5', updatedAt: 0 } }),
+      session({ sessionId: 'bg', label: 'Background', running: true, backgroundRunning: true, lastUsedAt: '2026-07-06T02:00:00.000Z' }),
+    ], en);
+    expect(groups.needsYou.map((r) => r.sessionId)).toEqual(['ask']);
+    expect(groups.inProgress.map((r) => r.sessionId)).toEqual(['bg', 'run', 'wait']);
+    expect(groups.inProgress.map((r) => r.doing)).toEqual([en.pillBackground, 'Running seed 4/5', 'Waiting on 2 signals']);
+  });
+
+  it('rolls a lead up from its running worker in team mode, as the rail does', () => {
+    const now = Date.parse('2026-07-06T12:00:00Z');
+    const lead = session({ sessionId: 'lead', label: 'Plan', waitingOn: 1, lastUsedAt: '2026-07-06T11:51:00Z' });
+    const worker = session({ sessionId: 'w', label: 'sweep', teamLeadId: 'lead', running: true, lastUsedAt: '2026-07-06T11:49:00Z' });
+    const team = groupSessions([lead, worker], en, true, now).inProgress;
+    expect(team.map((r) => [r.sessionId, r.state])).toEqual([['lead', 'running'], ['w', 'running']]);
+    // The row says why it is lit: its team, not the signal it also waits on.
+    expect(team[0].doing).toBe('1 worker · 1 running');
+    // Team mode off: the rail draws the lead flat, with its own ring.
+    const flat = groupSessions([lead, worker], en, false, now).inProgress;
+    expect(flat.map((r) => [r.sessionId, r.state])).toEqual([['w', 'running'], ['lead', 'waiting']]);
+    expect(flat[1].doing).toBe('Waiting on 1 signal');
+  });
+
+  it('draws every session with the dot the rail tree gives it', () => {
+    const now = Date.parse('2026-07-06T12:00:00Z');
+    const at = (m: number) => new Date(now - m * 60_000).toISOString();
+    const sessions = [
+      session({ sessionId: 'ask', label: 'Asks', awaitingInput: true, running: true, lastUsedAt: at(12) }),
+      session({ sessionId: 'lead', label: 'Plan', waitingOn: 1, lastUsedAt: at(9) }),
+      session({ sessionId: 'w1', label: 'sweep 1', teamLeadId: 'lead', running: true, lastUsedAt: at(11) }),
+      session({ sessionId: 'w2', label: 'sweep 2', teamLeadId: 'lead', waitingOn: 1, lastUsedAt: at(30) }),
+      session({ sessionId: 'lead2', label: 'Quiet lead', lastUsedAt: at(40) }),
+      session({ sessionId: 'w3', label: 'sweep 3', teamLeadId: 'lead2', waitingOn: 2, lastUsedAt: at(45) }),
+      session({ sessionId: 'star', label: 'Starred lead', starred: true, lastUsedAt: at(50) }),
+      session({ sessionId: 'w4', label: 'orphaned by the star', teamLeadId: 'star', running: true, lastUsedAt: at(55) }),
+      session({ sessionId: 'idle', label: 'Idle', lastUsedAt: at(60) }),
+    ];
+    const tree = buildRailTree({
+      projects: [{ id: 'proj', kind: 'research', contextDir: '/ctx', hasMission: true, conduits: {} }],
+      directSessions: sessions, scheduledSessions: [], schedules: [],
+      selectedSessionId: null, fallbackProjectId: null,
+      expanded: new Set(['proj']), schedulesExpanded: new Set(), showAll: new Set(['proj']),
+      teamEnabled: true, expandedLeads: new Set(['lead', 'lead2']),
+      filter: '', sort: 'activity', manualOrder: [], dragged: false, now, lang: 'en',
+    });
+    const node = tree.projects[0];
+    const railRows = [...node.starredSessions, ...node.sessions.flatMap((r) => [r, ...(r.workers ?? [])])];
+    const groups = groupSessions(sessions, en, true, now);
+    const ours = new Map([...groups.needsYou, ...groups.inProgress].map((r) => [r.sessionId, r.state]));
+    expect(railRows).toHaveLength(sessions.length);
+    for (const row of railRows) expect([row.sessionId, ours.get(row.sessionId) ?? null]).toEqual([row.sessionId, railDotState(row)]);
+    expect(ours.get('lead2')).toBe('waiting');
+    expect(ours.get('star')).toBeUndefined();
+  });
+
+  it('lists a session once even when both origins return it', () => {
+    const s = session({ sessionId: 'dup', running: true });
+    expect(groupSessions([s, s], en).inProgress).toHaveLength(1);
+  });
+
+  it('says how many signals a waiting session waits on', () => {
+    const [row] = groupSessions([session({ waitingOn: 1 })], zh).inProgress;
+    expect(row.doing).toBe('等待 1 个信号');
+  });
+});
+
+describe('needsYouReason', () => {
+  const now = Date.parse('2026-07-06T12:12:00Z');
+  it('joins the question and the age, dropping what is unknown', () => {
+    const at = Date.parse('2026-07-06T12:00:00Z');
+    expect(needsYouReason('Asks: 500 or 1000 steps?', at, now, 'en')).toBe('Asks: 500 or 1000 steps? · 12m ago');
+    expect(needsYouReason(undefined, at, now, 'zh')).toBe('12分钟前');
+    expect(needsYouReason(undefined, 0, now, 'en')).toBe('');
+  });
+});
+
+describe('pendingDecisionRows', () => {
+  const board = (id: string, title: string) => ({ id, title, projectId: 'proj', slug: id } as BoardInfo);
+  const decision = (ts: string, actions: BoardDecisionEntry['item']['actions'] = []): BoardDecisionEntry => ({
+    ts,
+    sessionId: 'lead',
+    item: { id: ts, title: 't', decision: 'd', context: '', reasoning: '', actions },
+  });
+
+  it('counts unanswered decisions per board, newest board first', () => {
+    const rows = pendingDecisionRows([board('a', 'Alpha'), board('b', 'Beta'), board('c', 'Gamma')], [
+      [decision('2026-07-06T10:00:00Z'), decision('2026-07-06T11:00:00Z', [{ action: 'approve', ts: '2026-07-06T11:05:00Z' }])],
+      [decision('2026-07-06T09:00:00Z'), decision('2026-07-06T12:00:00Z'), decision('2026-07-06T08:00:00Z', [{ action: 'explain', ts: 'x' }])],
+      undefined,
+    ]);
+    expect(rows).toEqual([
+      { boardId: 'b', boardTitle: 'Beta', pending: 2, latestTs: '2026-07-06T12:00:00Z' },
+      { boardId: 'a', boardTitle: 'Alpha', pending: 1, latestTs: '2026-07-06T10:00:00Z' },
+    ]);
+  });
+});
+
+describe('recentMemoryFiles', () => {
+  it('takes the most recently modified files across the top level and memory dirs', () => {
+    const facts = deriveMemoryTreeFacts({
+      projectId: 'proj',
+      files: [
+        { name: 'STATUS.md', sizeBytes: 1, modifiedAt: '2026-07-01T00:00:00Z' },
+        { name: 'mission.md', sizeBytes: 1, modifiedAt: '2026-07-05T00:00:00Z' },
+      ],
+      dirs: [{
+        name: 'experiments',
+        entryCount: 2,
+        entries: [
+          { name: 'EXP-003.md', sizeBytes: 1, modifiedAt: '2026-07-06T00:00:00Z' },
+          { name: 'EXP-001.md', sizeBytes: 1, modifiedAt: '2026-06-01T00:00:00Z' },
+        ],
+      }],
+    });
+    expect(recentMemoryFiles(facts, 2)).toEqual([
+      { path: 'experiments/EXP-003.md', name: 'EXP-003.md', modifiedAt: '2026-07-06T00:00:00Z' },
+      { path: 'mission.md', name: 'mission.md', modifiedAt: '2026-07-05T00:00:00Z' },
+    ]);
+    expect(recentMemoryFiles(deriveMemoryTreeFacts(undefined))).toEqual([]);
+  });
+});
+
+describe('spend helpers', () => {
+  it('names the known triggers and keeps their colour whatever the ranking', () => {
+    expect([triggerLabel('user', zh), triggerLabel('scheduled', en), triggerLabel('hook:onNew', en)])
+      .toEqual(['对话', en.wbSchedGroup, 'hook:onNew']);
+    const rows = [
+      { label: 'scheduled', cost: 3, pct: 50 },
+      { label: 'subagent', cost: 2, pct: 30 },
+      { label: 'user', cost: 1, pct: 10 },
+      { label: 'edit-retry', cost: 1, pct: 10 },
+    ];
+    expect(triggerSlots(rows, 4)).toEqual([1, 2, 0, 3]);
+  });
+  it('flags a forecast past the daily budget only when there is a budget', () => {
+    expect(forecastOverBudget(12, 10)).toBe(true);
+    expect(forecastOverBudget(8, 10)).toBe(false);
+    expect(forecastOverBudget(12, 0)).toBe(false);
+  });
+  it('labels a series day in local time', () => {
+    const now = Date.parse('2026-10-18T12:00:00');
+    expect(seriesDayLabel('2026-10-05', now, 'zh')).toBe('10月5日');
+    expect(seriesDayLabel('2026-10-05', now, 'en')).toBe('Oct 5');
   });
 });

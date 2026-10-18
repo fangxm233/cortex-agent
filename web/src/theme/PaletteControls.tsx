@@ -38,6 +38,8 @@ function PresetSwatch({ preset }: { preset: PalettePreset }) {
     borderRadius: '50%', flex: 'none', boxShadow: '0 0 0 1px var(--proto-line-3)' }} />;
 }
 
+// A picked preset is the gray selected tint with ink text and a firmer ring, the same selection
+// grammar as a settings chip or a row — the accent is for state, and "this one" is not a state.
 function PresetChip({ preset, label, active, onPick }: {
   preset: PalettePreset;
   label: string;
@@ -53,9 +55,9 @@ function PresetChip({ preset, label, active, onPick }: {
       style={{
         display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', border: 0,
         padding: '4px 9px 4px 5px', borderRadius: 'var(--r-control)', minHeight: 'var(--settings-control-height, 34px)', font: 'inherit', fontSize: 12, fontWeight: 600,
-        background: active ? 'var(--proto-accent-bg)' : 'var(--proto-gray)',
-        boxShadow: `0 0 0 1px ${active ? 'var(--proto-accent-border)' : 'var(--proto-line-2)'}`,
-        color: active ? 'color-mix(in srgb, var(--proto-accent), var(--proto-ink) 15%)' : 'var(--proto-muted)',
+        background: active ? 'var(--proto-gray)' : 'var(--material-control-bg)',
+        boxShadow: `0 0 0 1px ${active ? 'var(--proto-ink-3)' : 'var(--proto-line-2)'}`,
+        color: active ? 'var(--proto-ink)' : 'var(--proto-muted)',
       }}
     >
       <PresetSwatch preset={preset} />

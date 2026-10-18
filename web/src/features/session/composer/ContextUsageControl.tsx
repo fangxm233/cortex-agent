@@ -50,11 +50,29 @@ export interface ContextUsageRingProps extends Omit<ButtonHTMLAttributes<HTMLBut
 
 const TRIGGER_STYLE: CSSProperties = { borderRadius: 'var(--r-pill)', border: 0, background: 'transparent', padding: 0, display: 'inline-flex', alignItems: 'center', color: 'var(--proto-muted)', cursor: 'pointer', flex: 'none' };
 
+/** The filled share of the gauge as a pie wedge from twelve o'clock, clockwise; null when empty. A
+ *  full context is the whole disc (an arc of 360° has no path). */
+export function contextWedgePath(progress: number | null, center: number, radius: number): string | null {
+  if (progress == null || progress <= 0) return null;
+  const share = Math.min(progress, 100) / 100;
+  if (share >= 1) {
+    return `M ${center} ${center - radius} A ${radius} ${radius} 0 1 1 ${center} ${center + radius} A ${radius} ${radius} 0 1 1 ${center} ${center - radius} Z`;
+  }
+  const angle = share * 2 * Math.PI;
+  const x = center + radius * Math.sin(angle);
+  const y = center - radius * Math.cos(angle);
+  const large = share > 0.5 ? 1 : 0;
+  const fixed = (n: number): string => n.toFixed(2);
+  return `M ${center} ${center} L ${center} ${fixed(center - radius)} A ${radius} ${radius} 0 ${large} 1 ${fixed(x)} ${fixed(y)} Z`;
+}
+
 /** Compact circular usage gauge — the toolbar form of context usage: the desktop composer row, and
- *  on mobile the chat header beside ⋯. The percent lives in the tooltip/aria label rather than
- *  beside the ring, so the control stays icon-sized. Callers may restyle it through `style`
- *  (mobile makes it a 36px bare key on the floating header) — it is the button itself, so do not
- *  wrap it in one. */
+ *  on mobile the composer's action row beside Send. The percent lives in the tooltip/aria label
+ *  rather than beside the ring, so the control stays icon-sized. It is drawn as a pie: a hairline
+ *  ring on a faint disc with a filled wedge of muted ink. A stroked arc would read as a loading
+ *  spinner sitting next to Send and Stop; a filled share reads as a gauge. Muted, not accent: how
+ *  full the context is is reference, not a state the accent should announce. Callers may restyle
+ *  it through `style` — it is the button itself, so do not wrap it in one. */
 export const ContextUsageRing = forwardRef<HTMLButtonElement, ContextUsageRingProps>(function ContextUsageRing(
   { usage, variant, style, className, ...buttonProps },
   ref,
@@ -62,37 +80,25 @@ export const ContextUsageRing = forwardRef<HTMLButtonElement, ContextUsageRingPr
   const L = useVocabOptional();
   const vm = contextUsageViewModel(usage);
   const size = variant === 'desktop' ? 20 : 22;
-  const stroke = 2.5;
-  const r = (size - stroke) / 2;
-  const circumference = 2 * Math.PI * r;
-  const filled = circumference * ((vm.progress ?? 0) / 100);
-  const label = `${L.chatCtxUsage}: ${vm.percentLabel}`;
+  const center = size / 2;
+  const wedge = contextWedgePath(vm.progress, center, center - 3.5);
+  // Named as context, not bare "usage": beside the top bar's usage (spend) button the bare word
+  // reads as money.
+  const label = `${L.chatCtxTitle}: ${vm.percentLabel}`;
   return (
     <button {...buttonProps} ref={ref} className={`${MENU_FOCUS} ${className ?? ''}`} type="button" data-context-usage-ring={variant} data-context-usage-presentation={variant === 'mobile' ? 'sheet-trigger' : 'modal-trigger'} aria-label={label} title={label} style={{ ...TRIGGER_STYLE, ...style }}>
       <span
         data-context-usage-track={variant}
         role="progressbar"
-        aria-label={L.chatCtxUsage}
+        aria-label={L.chatCtxTitle}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={vm.progress ?? undefined}
         style={{ display: 'inline-flex' }}
       >
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--proto-line-3)" strokeWidth={stroke} />
-          {vm.progress != null && vm.progress > 0 && (
-            <circle
-              cx={size / 2}
-              cy={size / 2}
-              r={r}
-              fill="none"
-              stroke="var(--proto-accent)"
-              strokeWidth={stroke}
-              strokeLinecap="round"
-              strokeDasharray={`${filled} ${circumference}`}
-              transform={`rotate(-90 ${size / 2} ${size / 2})`}
-            />
-          )}
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+          <circle cx={center} cy={center} r={center - 1} fill="var(--proto-gray)" stroke="var(--proto-line-3)" strokeWidth={1.25} />
+          {wedge && <path data-context-usage-wedge="" d={wedge} fill="var(--proto-muted)" />}
         </svg>
       </span>
     </button>
@@ -144,7 +150,7 @@ export function ContextUsageDetails({ usage }: { usage: SessionContextUsage | nu
       {rows.map(([label, value]) => (
         <div key={label} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 20, borderBottom: '1px solid var(--proto-line-2)', paddingBottom: 8 }}>
           <span style={{ color: 'var(--proto-muted)' }}>{label}</span>
-          <span style={{ font: "600 12px 'IBM Plex Mono', ui-monospace, Menlo, monospace", color: 'var(--proto-ink)', textAlign: 'right' }}>{value}</span>
+          <span style={{ fontWeight: 550, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-ink)', textAlign: 'right' }}>{value}</span>
         </div>
       ))}
       {note ? (

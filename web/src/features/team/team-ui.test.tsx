@@ -2,10 +2,11 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { en, LangProvider, zh } from '@/i18n';
-import { TeamCapsule } from './TeamRoster';
+import { TeamCapsule, workerDotStyle } from './TeamRoster';
+import { HeaderCapsuleFitContext } from '@/features/session/rail/ActivityChip';
 import { teamContext } from './worker-groups';
 import {
-  pendingQuestionText, teamRoster, teamSummaryText, workerDoing, workerStatusText,
+  pendingQuestionText, teamRoster, teamSummaryText, workerAgeText, workerDoing, workerStatusText,
 } from './worker-roster';
 import { ChatHeader } from '@/features/workbench/chat/ChatHeader';
 
@@ -100,6 +101,17 @@ describe('worker roster', () => {
     expect(workerStatusText(run, NOW, zh, 'zh')).toBe('运行中 4分钟');
   });
 
+  it('keeps only the span for the row\'s trailing slot, and nothing where the status has none', () => {
+    expect(workerAgeText(run, NOW, 'en')).toBe('4m');
+    expect(workerAgeText({ ...run, backgroundRunning: true }, NOW, 'en')).toBeNull();
+    expect(workerAgeText(idle, NOW, 'en')).toBe('12m');
+    expect(workerAgeText({ ...idle, lastUsedAt: '' }, NOW, 'en')).toBeNull();
+    expect(workerAgeText(you, NOW, 'en')).toBe(workerStatusText(you, NOW, en, 'en').replace(/^running /, ''));
+    expect(workerAgeText(session('solo', { awaitingInput: true }), NOW, 'en')).toBeNull();
+    expect(workerAgeText(signal, NOW, 'en')).toBeNull();
+    expect(workerAgeText(run, NOW, 'zh')).toBe('4分钟');
+  });
+
   it('describes the work: question, then current task while running, then brief, then a distinct label', () => {
     const todos = { items: [], total: 2, completed: 1, activeLabel: 'Running the sweep', updatedAt: 0 };
     const briefed = { ...run, todos, workerBrief: 'Sweep the grasp set', label: 'run' };
@@ -166,6 +178,65 @@ describe('TeamCapsule', () => {
     act(() => r.unmount());
   });
 
+  it('shares the activity strip\'s capsule, in the UI face, with no chevron', () => {
+    const r = render(<TeamCapsule workers={[w1, w2]} onOpen={vi.fn()} />);
+    const el = capsule(r)[0];
+    expect(el.props.style.height).toBe(28);
+    expect(el.props.style.border).toBe('1px solid var(--proto-line)');
+    expect(el.props.style.borderRadius).toBe('var(--r-pill)');
+    expect(el.props.style.font).toContain('var(--font-ui)');
+    expect(el.findAllByType('svg')).toHaveLength(0);
+    act(() => el.props.onClick({ stopPropagation: vi.fn() }));
+    expect(capsule(r)[0].props.style.border).toBe('1px solid var(--proto-line-3)');
+    act(() => r.unmount());
+  });
+
+  it('shows how long in a row\'s trailing slot and leaves the state to its dot', () => {
+    const r = render(<TeamCapsule workers={[w1, w2]} onOpen={vi.fn()} />);
+    act(() => capsule(r)[0].props.onClick({ stopPropagation: vi.fn() }));
+    const [running, waiting] = rows(r);
+    const meta = (row: typeof running) => row.findAll((n) => n.type === 'span' && n.props['data-worker-status'] !== undefined)[0];
+    expect(meta(running).props['data-worker-status']).toBe('running');
+    expect(meta(running).children.join('')).toBe('1h');
+    expect(meta(waiting).children).toHaveLength(0);
+    // The status words are not lost: they stay in the tooltip and in the row's accessible text.
+    expect(running.props.title).toBe('bench · running 1h');
+    expect(running.findByProps({ className: 'sr-only' }).children.join('')).toBe(' · running 1h');
+    expect(waiting.findByProps({ className: 'sr-only' }).children.join('')).toBe(' · waiting');
+    expect(meta(running).props.style.font ?? '').not.toMatch(/Plex/);
+    act(() => r.unmount());
+  });
+
+  it('gives an idle worker a light hollow ring in the stack and no dot at all in its row', () => {
+    const idle = session('quiet', { teamLeadId: 'lead', workerName: 'quiet' });
+    expect(workerDotStyle(idle)).toMatchObject({ background: 'transparent', border: expect.stringContaining('solid') });
+    const r = render(<TeamCapsule workers={[w1, idle]} onOpen={vi.fn()} />);
+    const stack = r.root.findByProps({ 'data-worker-stack': '' });
+    expect(stack.findAllByType('span').filter((n) => n !== stack)).toHaveLength(2);
+    act(() => capsule(r)[0].props.onClick({ stopPropagation: vi.fn() }));
+    const quiet = rows(r).find((n) => n.props['data-worker-row'] === 'quiet')!;
+    expect(quiet.findAll((n) => n.props['data-worker-dot'] !== undefined)).toHaveLength(0);
+    expect(quiet.props.title).toContain('idle');
+    const busy = rows(r).find((n) => n.props['data-worker-row'] === 'w1')!;
+    expect(busy.findAll((n) => n.props['data-worker-dot'] !== undefined)).toHaveLength(1);
+    act(() => r.unmount());
+  });
+
+  it('folds to its dots and a worker count when the header runs short, keeping the summary in its tooltip', () => {
+    const r = render(
+      <HeaderCapsuleFitContext.Provider value={{ board: 'compact', team: 'compact' }}>
+        <TeamCapsule workers={[w1, w2]} onOpen={vi.fn()} />
+      </HeaderCapsuleFitContext.Provider>,
+    );
+    const el = capsule(r)[0];
+    expect(el.props['data-compact']).toBe('true');
+    expect(el.findByProps({ 'data-team-count': 2 }).children.join('')).toBe('2');
+    const visible = (n: typeof el): string => n.children.map((c) => (typeof c === 'string' ? c : visible(c))).join('');
+    expect(visible(el)).toBe('2');
+    expect(el.props.title).toBe('Workers · 2 workers · 1 running');
+    act(() => r.unmount());
+  });
+
   it('folds inactive workers at the bottom until asked', () => {
     const onOpen = vi.fn();
     const r = render(<TeamCapsule workers={[w1, gone]} onOpen={onOpen} />);
@@ -198,8 +269,21 @@ describe('ChatHeader lead breadcrumb', () => {
     const r = render(header({ title: 'Plan the port', onSelect }));
     const crumb = r.root.findByProps({ 'data-lead-crumb': '' });
     expect(crumb.props.title).toBe('Open lead session · Plan the port');
+    expect(crumb.props.style.color).toBe('var(--proto-muted)');
     act(() => crumb.props.onClick());
     expect(onSelect).toHaveBeenCalledOnce();
+    act(() => r.unmount());
+  });
+
+  it('leads the 15/600 title with the project as plain muted text', () => {
+    const r = render(header(null));
+    const crumb = r.root.findByProps({ 'data-project-crumb': '' });
+    expect(crumb.props.style.color).toBe('var(--proto-muted)');
+    expect(crumb.props.style.background).toBeUndefined();
+    expect(crumb.findAllByType('svg')).toHaveLength(0);
+    expect(crumb.children[0]).toBe('atlas');
+    const title = r.root.findAll((n) => n.type === 'div' && n.children.join('') === 'Worker')[0];
+    expect(title.props.style).toMatchObject({ fontSize: 15, fontWeight: 600 });
     act(() => r.unmount());
   });
 });

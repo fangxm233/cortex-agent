@@ -25,6 +25,8 @@ vi.mock('cmdk', () => {
   const wrapper = ({ children }: { children: ReactNode }) => <div>{children}</div>;
   return { Command: {
     Dialog: wrapper, List: wrapper, Empty: wrapper,
+    Group: ({ children, heading }: { children: ReactNode; heading: ReactNode }) =>
+      <section data-group>{heading}{children}</section>,
     Input: () => null,
     Item: ({ children, onSelect, value }: { children: ReactNode; onSelect: () => void; value: string }) =>
       <button data-item={value} onClick={onSelect}>{children}</button>,
@@ -51,5 +53,19 @@ it('lists the recent boards in the server\'s order without a query', () => {
   const rows = tree.root.findAll((n) => n.type === 'button' && n.props['data-item'] !== undefined);
   expect(rows.map((n) => String(n.props['data-item'])).filter((id) => id.startsWith('board:')))
     .toEqual(['board:b-recent', 'board:b-older']);
+  act(() => tree.unmount());
+});
+
+it('heads each run of rows with a sentence-case group name instead of a mono kind column', () => {
+  const tree = create(<LangProvider><CommandPalette open onOpenChange={vi.fn()} /></LangProvider>);
+  const groups = tree.root.findAll((n) => n.type === 'section' && n.props['data-group'] !== undefined);
+  const heading = (n: (typeof groups)[number]) => n.findByType('div').children.join('');
+  expect(groups.map(heading)).toEqual(['Pages', 'Actions', 'Boards', 'Sessions']);
+  const json = JSON.stringify(tree.toJSON());
+  expect(json).not.toContain('IBM Plex Mono');
+  expect(json).not.toContain('uppercase');
+  // No close chip in the header: Escape is shown as a key hint in the footer instead.
+  expect(tree.root.findAll((n) => n.type === 'button' && n.children.includes('esc'))).toHaveLength(0);
+  expect(tree.root.findAllByType('kbd').map((n) => n.children.join(''))).toEqual(['↑', '↓', '↵', 'esc']);
   act(() => tree.unmount());
 });

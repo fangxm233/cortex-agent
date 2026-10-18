@@ -42,10 +42,12 @@ interface ThemeCardSpec {
   pane: string;
 }
 
+// The chosen card is the gray selected tint with an ink ring, not an accent outline: selection
+// is drawn the same way here as on every row and chip in the sheet.
 function themeCardStyle(active: boolean): CSSProperties {
   return {
-    border: 0, padding: 6, borderRadius: 'var(--r-card)', background: 'var(--material-card-bg)',
-    outline: active ? '1.5px solid var(--proto-accent)' : '1px solid var(--proto-line-2)',
+    border: 0, padding: 6, borderRadius: 'var(--r-card)', background: active ? 'var(--proto-gray)' : 'var(--material-card-bg)',
+    outline: active ? '1.5px solid var(--proto-ink-3)' : '1px solid var(--proto-line-2)',
     boxShadow: 'var(--material-card-shadow)',
     cursor: 'pointer', textAlign: 'left', display: 'block', width: '100%',
     transition: 'outline-color .12s',
@@ -69,10 +71,10 @@ function ThemeCard({ spec, active, onSelect }: {
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 6px 4px' }}>
         <span style={{
           width: 14, height: 14, borderRadius: '50%', boxSizing: 'border-box', flex: 'none',
-          border: active ? '1.5px solid var(--proto-accent)' : '1.5px solid var(--proto-line-3)',
+          border: active ? '1.5px solid var(--proto-ink)' : '1.5px solid var(--proto-line-3)',
           display: 'grid', placeItems: 'center',
         }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: active ? 'var(--proto-accent)' : 'transparent' }} />
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: active ? 'var(--proto-ink)' : 'transparent' }} />
         </span>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{spec.label}</span>
       </div>
@@ -129,14 +131,14 @@ function ColorSection() {
               { id: 'vivid', label: L.stAccentIntensityVivid },
             ]} />
         } />
-        <SRow title={L.stPaletteLabel} align="flex-start">
-          <div style={{ marginTop: 12 }}>
-            <PaletteControls
-              palette={palette} copy={paletteCopy} activePreset={activePreset}
-              onPickPreset={applyPreset} onChange={setPaletteValue} onReset={resetPalette}
-            />
-          </div>
-        </SRow>
+        {/* No row title: the section is already headed with this name, and the controls open
+            with their own "Presets" heading. */}
+        <div data-palette-row="" style={{ padding: '12px 16px' }}>
+          <PaletteControls
+            palette={palette} copy={paletteCopy} activePreset={activePreset}
+            onPickPreset={applyPreset} onChange={setPaletteValue} onReset={resetPalette}
+          />
+        </div>
       </SRowGroup>
     </SSection>
   );

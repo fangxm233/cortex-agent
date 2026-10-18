@@ -652,7 +652,7 @@ online. A quick probe:
 remote_bash({ device: "trainer", command: "hostname" })
 ```
 
-In the Web UI and desktop app, the machines chip in the top bar shows how many
+In the Web UI and desktop app, the machines button in the top bar shows how many
 machines are online and opens a sheet with each machine's GPUs, processes,
 load, memory, disk and uptime, probed on demand with one shell command over the
 client. In Slack or Feishu, `!devices` (alias `!clients`) lists the registered

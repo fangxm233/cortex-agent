@@ -40,6 +40,13 @@ describe.each([['desktop', false], ['mobile', true]])('turn layout in the %s str
     ? <MChatStream rows={r} group live={live} />
     : <ChatRows rows={r} group live={live} />);
 
+  it('offers the turn\'s copy only once the turn has ended', () => {
+    mount(rows(turn, true));
+    expect(byAttr('data-assistant-turn-copy')).toHaveLength(0);
+    act(() => mounted.update(<LangProvider>{rows(turn)}</LangProvider>));
+    expect(byAttr('data-assistant-turn-copy')).toHaveLength(1);
+  });
+
   it('folds a finished turn into one work line above the answer', () => {
     mount(rows(turn));
     const summary = byAttr('data-work-summary')[0];

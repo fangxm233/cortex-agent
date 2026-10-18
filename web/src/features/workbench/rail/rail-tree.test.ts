@@ -209,7 +209,7 @@ describe('buildRailTree bucketing', () => {
   });
 });
 
-describe('buildRailTree badges and hotkeys', () => {
+describe('buildRailTree badges', () => {
   it('merges unread and awaiting-input into one attention count', () => {
     const tree = buildRailTree(
       input({
@@ -244,18 +244,6 @@ describe('buildRailTree badges and hotkeys', () => {
       input({ projects: [project('nimbus')], directSessions: [session('nimbus', {})] }),
     );
     expect(tree.projects[0].sessions[0].waitingOn).toBe(false);
-  });
-
-  it('assigns ⌘1–9 to non-empty projects only, in visible order', () => {
-    const ids = ['a', 'b', 'c'];
-    const tree = buildRailTree(
-      input({
-        projects: [project('empty1'), ...ids.map(project)],
-        directSessions: ids.map((id, i) => session(id, { lastUsedAt: ago((i + 1) * HOUR) })),
-      }),
-    );
-    const keys = Object.fromEntries(tree.projects.map((p) => [p.id, p.hotkey]));
-    expect(keys).toEqual({ a: '⌘1', b: '⌘2', c: '⌘3', empty1: null });
   });
 
   it('shows an idle age only when neither a dot nor a badge is present', () => {

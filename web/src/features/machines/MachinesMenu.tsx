@@ -1,17 +1,19 @@
 import * as RadixPopover from '@radix-ui/react-popover';
 import { useState } from 'react';
+import type { MachineInfo } from '@cortex-agent/ui-contract';
 import '@/design/content-surfaces.css';
+import { MENU_FOCUS } from '@/design/MenuChrome';
 import { defineModal } from '@/design/modal-registry';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import { MachineList } from './MachineList';
-import { machinesChipLabel } from './machines-menu-vm';
+import { machinesChipLabel, machinesOnlineText } from './machines-menu-vm';
+import { MACHINES_TONE_COLOR, machinesStatusTone } from './machines-status';
 import { useMachinesResource } from './useMachinesResource';
 
-// The machines menu: a status chip in the top bar (online/total) that drops a glass sheet with
-// the machine cards. Machines are window-scoped, so they live on the bar rather
+// The machines menu: a server button in the top bar (status dot + online/total) that drops a
+// glass sheet with the machine cards. Machines are window-scoped, so they live on the bar rather
 // than beside any one pane. The open flag is a registry key so View → Machines can open it too.
 
-const MONO = "'IBM Plex Mono',monospace";
 const machinesMenu = defineModal('shell.machines', { requireProvider: false });
 
 export function useMachinesMenuActions() {
@@ -20,36 +22,40 @@ export function useMachinesMenuActions() {
 
 function RackGlyph() {
   return (
-    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 4.5h16v5.5H4zM4 14h16v5.5H4zM7.5 7.2h.01M7.5 16.8h.01M11 7.2h5M11 16.8h5" />
+    <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }}>
+      <rect x="3" y="3.5" width="18" height="7" rx="2" />
+      <rect x="3" y="13.5" width="18" height="7" rx="2" />
+      <path d="M7 7h.01M7 17h.01" />
     </svg>
   );
 }
 
-function MenuHeader({ count, onManage }: { count: string; onManage: () => void }) {
+// The sheet's header is a title, a plain count and a link — the count is a fact, not a badge.
+function MenuHeader({ machines, known, onManage }: { machines: MachineInfo[]; known: boolean; onManage: () => void }) {
   const L = useVocab();
+  const count = machinesOnlineText(machines, known, useLang());
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px 10px 18px', flex: 'none' }}>
-      <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.machines}</span>
-      <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-muted)', background: 'var(--material-control-bg)',
-        boxShadow: 'var(--material-control-shadow)', padding: '2px 8px', borderRadius: 'var(--r-pill)' }}>{count}</span>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '14px 16px 6px', flex: 'none' }}>
+      <span style={{ fontSize: 14, fontWeight: 620, color: 'var(--proto-ink)' }}>{L.machines}</span>
+      <span data-machines-count="" style={{ fontSize: 12.5, color: 'var(--proto-muted-3)', fontVariantNumeric: 'tabular-nums' }}>{count}</span>
       <button type="button" className="content-text-action" onClick={onManage}
-        style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}>
+        style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 500, color: 'var(--proto-accent)', cursor: 'pointer' }}>
         {L.mManageMachines} ›
       </button>
     </div>
   );
 }
 
-function MenuBody({ count, expanded, onToggle, onManage }: {
-  count: string;
+function MenuBody({ machines, known, expanded, onToggle, onManage }: {
+  machines: MachineInfo[];
+  known: boolean;
   expanded: ReadonlySet<string>;
   onToggle: (name: string) => void;
   onManage: () => void;
 }) {
   return <>
-    <MenuHeader count={count} onManage={onManage} />
+    <MenuHeader machines={machines} known={known} onManage={onManage} />
     <MachineList expanded={expanded} onToggle={onToggle} />
   </>;
 }
@@ -59,7 +65,7 @@ export function MachinesMenu({ onManage }: { onManage: () => void }): JSX.Elemen
   const { isOpen, open, close } = machinesMenu.useModal();
   const roster = useMachinesResource();
   const label = machinesChipLabel(roster.machines, !roster.loading && !roster.error);
-  const anyOnline = roster.machines.some((machine) => machine.online);
+  const tone = machinesStatusTone(roster.machines, !roster.loading && !roster.error);
   const [hover, setHover] = useState(false);
   // Held above the sheet, which unmounts on close: reopening shows the same cards expanded, while
   // their probes stop with the sheet.
@@ -80,25 +86,39 @@ export function MachinesMenu({ onManage }: { onManage: () => void }): JSX.Elemen
           title={title}
           onMouseEnter={() => setHover(true)}
           onMouseLeave={() => setHover(false)}
+          className={MENU_FOCUS}
           style={{
+            // A transparent icon button like its neighbours, widened only by the count; open is the
+            // same quiet tint as any engaged icon button.
+            position: 'relative',
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 6,
-            height: 26,
-            padding: '0 9px',
+            gap: 7,
+            height: 32,
+            padding: '0 10px 0 8px',
             border: 0,
             borderRadius: 'var(--r-chip)',
-            background: isOpen ? 'var(--proto-accent-bg)' : hover ? 'var(--glass-2)' : 'var(--glass-1)',
-            boxShadow: `0 0 0 1px ${isOpen ? 'var(--proto-accent-border)' : 'var(--proto-line)'}`,
-            color: anyOnline ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
+            background: isOpen ? 'var(--proto-gray)' : hover ? 'var(--proto-line-2)' : 'transparent',
+            color: isOpen || hover ? 'var(--proto-ink)' : 'var(--proto-ink-3)',
+            font: '550 13px var(--font-ui)',
+            fontVariantNumeric: 'tabular-nums',
             cursor: 'pointer',
             flex: 'none',
           }}
         >
           <RackGlyph />
-          <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-ink)' }}>
-            {label.online}<span style={{ color: 'var(--proto-muted)' }}>{label.total}</span>
-          </span>
+          {tone !== 'unknown' && (
+            // On the glyph's lower-right corner, ringed in the ground colour so it reads as a badge.
+            <span
+              aria-hidden="true"
+              data-machines-tone={tone}
+              style={{
+                position: 'absolute', left: 20, bottom: 7, width: 7, height: 7, borderRadius: '50%',
+                background: MACHINES_TONE_COLOR[tone], boxShadow: '0 0 0 2px var(--proto-base)',
+              }}
+            />
+          )}
+          <span>{label.online}{label.total}</span>
         </button>
       </RadixPopover.Trigger>
       <RadixPopover.Portal>
@@ -118,15 +138,17 @@ export function MachinesMenu({ onManage }: { onManage: () => void }): JSX.Elemen
             flexDirection: 'column',
             overflow: 'hidden',
             borderRadius: 'var(--r-float)',
-            background: 'var(--glass-2)',
-            backdropFilter: 'var(--glass-filter)',
-            WebkitBackdropFilter: 'var(--glass-filter)',
-            boxShadow: 'var(--shadow-float)',
+            // Opaque card, not glass. Radix's popper wrapper carries `will-change: transform`, which
+            // makes it a backdrop root: a backdrop-filter on the sheet would blur nothing, and a
+            // translucent fill let the chat header's icons, right under the sheet's header, read
+            // straight through it.
+            background: 'var(--proto-card)',
+            boxShadow: 'var(--material-overlay-shadow), 0 0 0 1px var(--proto-line)',
             transformOrigin: 'var(--radix-popover-content-transform-origin)',
             animation: 'cxpop 160ms cubic-bezier(0.22, 1, 0.36, 1)',
           }}
         >
-          <MenuBody count={`${label.online}${label.total}`} expanded={expanded} onToggle={toggle}
+          <MenuBody machines={roster.machines} known={!roster.loading && !roster.error} expanded={expanded} onToggle={toggle}
             onManage={() => { close(); onManage(); }} />
         </RadixPopover.Content>
       </RadixPopover.Portal>

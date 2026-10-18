@@ -118,14 +118,14 @@ takes no parameters and marks the current turn as a routine update (see above).
   dot summarizes its workers, and inactive workers are listed last and dimmed.
 - A lead's chat header carries its team as one capsule: up to six status dots for its active
   workers, running ones first, then a summary such as *7 workers · 3 running*. Clicking it opens the
-  team list, headed *Team · N*. Each row shows a worker's status and how long it has been running or
-  idle, and underneath it what the worker is doing: its current task while it runs, or the brief
-  the lead spawned it with. A row opens that worker. Inactive workers are folded at the bottom of the
-  list under *Inactive N*, and the capsule disappears once every worker is inactive.
+  team list, headed *Team · N*. Each row shows a worker's status as its dot and how long it has been
+  running or idle, and underneath it what the worker is doing: its current task while it runs, or
+  the brief the lead spawned it with. A row opens that worker. Inactive workers are folded at the
+  bottom of the list under *Inactive N*, and the capsule disappears once every worker is inactive.
 - On mobile, the Sessions list leaves workers out. The lead's row carries their state instead: it
   shows as running while any worker runs, and as unread while any worker has news. In the lead's
-  chat, a team capsule above the composer shows up to three worker dots and the count of active
-  workers, and opens the same team list as a sheet. Inactive workers count toward neither state and
+  chat, a team capsule above the composer shows up to three worker dots and the active workers in
+  words (*2 workers*), and opens the same team list as a sheet. Inactive workers count toward neither state and
   are folded at the bottom of the list.
 - A worker's header starts with its lead's title, which takes you back to the lead. The composer
   works as in any session, so you can talk to a worker directly.
@@ -136,17 +136,18 @@ takes no parameters and marks the current turn as a routine update (see above).
   lead session*.
 - In the lead's chat, what the lead does to its workers shows as quiet rows of its own rather than
   tool calls. A spawn is one line with the worker and its model, with the first two lines of its
-  brief under it. A message or an answer is one line naming the worker; click it for the full text.
+  brief under it; on a phone the model moves to the line's tooltip and the opened brief. A message or an answer is one line naming the worker; click it for the full text.
   A stop is one line too. An answer that directly follows its request folds into that request's
   line.
 - Worker traffic in between the lead's replies (reports, routine updates and requests) gathers
-  into one line per worker per run: the worker, its latest report or request (or the latest
-  routine update in muted text when the run holds nothing else), where its request stands, such as
-  *Question answered*, and its live status or when it happened. Click it to open a timeline where
+  into one line per worker per run: the worker's status dot, its name, its latest report or request
+  (or the latest routine update in muted text when the run holds nothing else) and when it
+  happened. Where a request stands, such as *Question answered*, and the worker's live status, such
+  as *running 3m*, are in the line's tooltip and accessible name. Click it to open a timeline where
   routine updates read quieter than reports and each entry expands to the full text, with a link
   to the worker's session. Several workers in one run get a line each. A worker whose question or
-  plan is still unanswered says so in its status. Live status appears only on a worker's latest
-  line; older lines show when they happened.
+  plan is still unanswered keeps its request's tag on the line. Live status appears only on a
+  worker's latest line; older lines show when they happened.
 - When the lead is idle while workers are still running or waiting on something, the chat ends
   with a line naming who it is waiting on, such as *Lead is waiting for docs to report*.
 
@@ -215,24 +216,27 @@ again. On mobile, nothing opens by itself, and the card's button opens the board
 
 **In the workbench.** A session bound to a board carries a board capsule among its chat header's
 actions. The capsule shows the board's flag and title; while a session on the board waits on you,
-it turns amber and adds the count of those requests. Workers never count here, since their
-requests go to their lead. Clicking the capsule opens the board in the right-hand dock, and the
-capsule stays hidden while the dock shows that board. On mobile the board sits in the row of
-capsules above the composer as its flag alone, with the waiting count beside it once there is
-one, and tapping it opens the board full screen.
+its flag turns amber and it adds the count of those requests in amber. Workers never count here,
+since their requests go to their lead. Clicking the capsule opens the board in the right-hand dock,
+and the capsule stays hidden while the dock shows that board. On mobile the board sits in the row
+of capsules above the composer as its flag and the word *Board*, with the waiting count beside it
+once there is one, and tapping it opens the board full screen.
 
 The command palette reaches every board, including those of old sessions. With an empty query it
 lists the eight most recently used boards, where a board is used when it is created, when a session
 attaches to it, and when its files change; typing searches all of them.
 
-The top of the board is drawn by the app and updates live. It shows the title and every bound
-session with its status; clicking a session opens it. While anything waits on you, an amber
-*N awaiting you* chip appears: with one session waiting it opens that session, and with several it
-lists them with their pending questions. The *Decisions N* chip unfolds the decision stream, newest
-first. The decision lines are the chat's: each shows its status and offers **Approve** and
-**Reply**, answering the session that announced it. **Approve** records your acknowledgement
-without messaging the agent; a reply either asks why, with an optional question, or requests a
-change, with the change you want, and sends the session a message.
+The top of the board is drawn by the app and updates live: one quiet line under the dock's tabs,
+which already name the board (on mobile the line starts with the title). It shows every bound
+session as a status dot, its name and how long since it was last active, with its state spelled out
+on hover; clicking a session opens it. While anything waits on you, an amber *N awaiting you ›*
+link appears on the right: with one session waiting it opens that session, and with several it
+lists them with their pending questions. The *Decisions N ›* link beside it unfolds the decision
+stream, newest first. The decision lines are the chat's, without its *Decision* label: each shows
+its status and the time of its latest answer, or of the announcement while unanswered, and offers
+**Approve** and **Reply**, answering the session that announced it. **Approve** records your acknowledgement without messaging the agent; a reply
+either asks why, with an optional question, or requests a change, with the change you want, and
+sends the session a message.
 
 Below the strip, `board.html` renders in a sandboxed frame. Images in `assets/` show inline. A link
 marked `data-open` opens a file from the board directory in the viewer the chat uses for files,
@@ -241,10 +245,13 @@ Ordinary web links open in a new browser tab. The page re-renders within a few s
 with no reload.
 
 **Styling.** Cortex ships a default stylesheet with components the agent is encouraged to use:
-`card`, state chips (`chip`), progress meters (`meter`), stage cards (`steps`), row lists for
-acceptance criteria, decisions and risks (`rows`), and timelines (`tl`), among others. The agent can
-also write its own HTML and SVG. The stylesheet takes its colours from the app's theme, so a board
-follows light and dark mode, the palette and the accent. To restyle every board, write
+sections (`card`), state labels drawn as a status dot and a word (`chip`), progress meters
+(`meter`), stages as rows with a status column (`steps`), row lists for acceptance criteria,
+decisions and risks (`rows`), and timelines (`tl`), among others. The page reads as one document:
+sections are set apart by space and a small heading rather than boxed, and only a `callout` is boxed,
+for something you have to act on. Text is in the app's face, with the mono face kept for code. The
+agent can also write its own HTML and SVG. The stylesheet takes its colours from the app's theme, so
+a board follows light and dark mode, the palette and the accent. To restyle every board, write
 `~/.cortex/config/board.css` (see [Boards](./configuration.md#boards) in the configuration guide).
 
 ## Limits

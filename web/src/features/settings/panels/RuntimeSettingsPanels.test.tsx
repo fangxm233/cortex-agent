@@ -151,14 +151,17 @@ describe('runtime settings panel save gates', () => {
 });
 
 describe('settings control material transitions', () => {
-  it('keeps the flat primary fill on a color longhand through repeated hover cycles', () => {
-    const renderer = create(<SButton tone="accent">Save</SButton>);
+  it('keeps the flat ink primary fill on a color longhand through repeated hover cycles', () => {
+    const renderer = create(<SButton tone="primary">Save</SButton>);
     const button = () => renderer.root.findByType('button');
     for (let cycle = 0; cycle < 2; cycle++) {
       for (const hover of [true, false]) {
         act(() => { button().props[hover ? 'onMouseEnter' : 'onMouseLeave'](); });
         expect(button().props.style.background).toBeUndefined();
-        expect(button().props.style.backgroundColor).toBe(`var(--proto-accent${hover ? '-strong' : ''})`);
+        // Ink, never the accent: a filled accent button would compete with the state it acts on.
+        expect(button().props.style.backgroundColor).toBe(hover
+          ? 'color-mix(in srgb, var(--ink-solid-bg) 88%, var(--ink-solid-fg))' : 'var(--ink-solid-bg)');
+        expect(button().props.style.color).toBe('var(--ink-solid-fg)');
         expect(button().props.style.backgroundImage).toBeUndefined();
       }
     }

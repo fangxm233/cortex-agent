@@ -3,9 +3,10 @@ import { useVocab } from '@/i18n';
 import { buildSessionIdRows } from '@/features/session/list/session-id';
 import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 
-// Copyable session identifiers for display, transcript lookup, and backend resume.
+// Copyable session identifiers for display, transcript lookup, and backend resume. The ids are what
+// a person pastes, so they alone take the code face; the labels and buttons around them stay UI.
 
-const mono = "'IBM Plex Mono',monospace";
+const mono = 'var(--font-code)';
 
 export function SessionIdModal({
   sessionId,
@@ -60,7 +61,7 @@ export function SessionIdModal({
       }}
     >
         <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid var(--proto-line-2)'  }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--proto-ink)' }}>{L.wbSessionId}</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.wbSessionId}</span>
           <button
             type="button"
             aria-label={L.winClose}
@@ -68,7 +69,8 @@ export function SessionIdModal({
             onClick={onClose}
             style={{
               marginLeft: 'auto',
-              font: `500 11px ${mono}`,
+              font: '400 12px var(--font-ui)',
+              background: 'transparent',
               color: 'var(--proto-muted)',
               border: '1px solid var(--proto-line)',
               borderRadius: 'var(--r-chip)',
@@ -85,9 +87,8 @@ export function SessionIdModal({
             <div key={row.key}>
               <div
                 style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: '.02em',
+                  fontSize: 12,
+                  fontWeight: 550,
                   color: 'var(--proto-muted)',
                   marginBottom: 6,
                 }}
@@ -123,8 +124,8 @@ export function SessionIdModal({
                   onClick={() => copyRow(row.key, row.value)}
                   style={{
                     flex: 'none',
-                    font: `500 11px ${mono}`,
-                    color: copiedKey === row.key ? 'var(--proto-accent)' : 'var(--proto-muted)',
+                    font: '500 12px var(--font-ui)',
+                    color: copiedKey === row.key ? 'var(--proto-ink)' : 'var(--proto-muted)',
                     border: '1px solid var(--proto-line-3)',
                     borderRadius: 'var(--r-chip)',
                     padding: '5px 8px',

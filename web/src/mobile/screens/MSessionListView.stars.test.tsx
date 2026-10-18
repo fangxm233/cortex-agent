@@ -62,14 +62,18 @@ describe('mobile project Stars', () => {
 });
 
 describe('mobile team lead rows', () => {
-  it('gives a lead its workers’ running state as a live row', () => {
+  it('gives a lead its workers’ running state as a live row, told by its dot alone', () => {
     const lead: MSessionRow = { ...row('lead'), status: { kind: 'running', text: '1 worker running' } };
     const tree = create(<MSessionListView rows={[lead, row('plain')]}
       presence="connected" newLabel="New" onNew={() => {}} onOpen={onOpen} />);
     expect(sessionIds(tree)).toEqual(['lead', 'plain']);
-    const style = (id: string) => tree.root.findByProps({ 'data-session-id': id }).props.style;
-    expect(style('lead').background).toContain('var(--proto-accent)');
-    expect(style('plain').background).toBeUndefined();
+    const rowNode = (id: string) => tree.root.findByProps({ 'data-session-id': id });
+    const dots = (id: string) => rowNode(id).findAll((n) => n.props['data-status-dot'] !== undefined);
+    expect(dots('lead').map((n) => n.props['data-status-dot'])).toEqual(['running']);
+    expect(dots('lead')[0].props.style.background).toBe('var(--proto-accent)');
+    expect(dots('plain')).toHaveLength(0);
+    // No accent wash on a live row: the dot is the only status mark.
+    expect(rowNode('lead').props.style.background).toBeUndefined();
     expect(JSON.stringify(tree.toJSON())).toContain('1 worker running');
     act(() => tree.unmount());
   });

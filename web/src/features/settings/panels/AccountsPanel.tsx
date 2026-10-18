@@ -18,7 +18,7 @@ function SectionCount({ label, count }: { label: string; count: number }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
       {label}
-      <SCount tone="accent">{count}</SCount>
+      <SCount tone="quiet">{count}</SCount>
     </span>
   );
 }

@@ -8,14 +8,14 @@ import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { useSettings } from '@/features/settings/useSettings';
 import { useDockIntake } from '@/design/dock-intake';
-import { selectPaletteRows, type PaletteRow } from './palette-items';
-import { paletteKindText } from './palette-items';
+import {
+  groupPaletteRows, labelSegments, paletteGroupLabel, selectPaletteRows, type PaletteRow,
+} from './palette-items';
 
-// ⌘K command palette — chrome and row anatomy follow glass-prototype.dc.html L370–386 (kind column,
-// label, right-aligned hint); real sessions over tRPC are substituted into that
-// structure (§8.3: data is the only variable). cmdk drives the fuzzy filter + ↑/↓/Enter +
-// focus-trap; the underlying Radix Dialog drives Esc/overlay-close + focus-restore. The
-// prototype's static `i===0` highlight becomes cmdk's data-[selected] row.
+// ⌘K command palette — a search row over headed groups of results (Panels mockup): real sessions
+// and boards over tRPC fill the structure. cmdk drives the ↑/↓/Enter + focus-trap; the underlying
+// Radix Dialog drives Esc/overlay-close + focus-restore. The arrow-selected row is cmdk's
+// data-[selected] row, tinted gray in index.css — selection is a surface, not an accent colour.
 // The fixed panel/backdrop live in index.css (`.cmdk-panel`/`.cmdk-backdrop`) — cmdk's Dialog only
 // exposes overlay/content classNames, not style props.
 //
@@ -27,55 +27,52 @@ const HEADER_STYLE: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 10,
-  padding: '14px 16px',
+  height: 50,
+  padding: '0 16px',
   borderBottom: '1px solid var(--proto-line-2)',
 };
 
 const INPUT_STYLE: CSSProperties = {
   flex: 1,
   minWidth: 0,
-  fontSize: 14,
+  fontSize: 14.5,
   color: 'var(--proto-ink)',
-  fontFamily: 'inherit',
-};
-
-const ESC_STYLE: CSSProperties = {
-  font: "400 11px 'IBM Plex Mono',monospace",
-  color: 'var(--proto-muted)',
-  background: 'transparent',
-  border: '1px solid var(--proto-line)',
-  borderRadius: 'var(--r-chip)',
-  padding: '1px 5px',
-  cursor: 'pointer',
+  fontFamily: 'var(--font-ui)',
 };
 
 // The prototype list holds ~7 curated rows with no cap; with real data we cap the row count in
 // `selectPaletteRows` and add a max-height + scroll so the panel stays a fixed, usable height.
-const BODY_STYLE: CSSProperties = { padding: 6, maxHeight: 384, overflowY: 'auto', scrollbarGutter: 'stable' };
+const BODY_STYLE: CSSProperties = { padding: '0 6px 6px', maxHeight: 384, overflowY: 'auto', scrollbarGutter: 'stable' };
+
+const GROUP_HEADING_STYLE: CSSProperties = {
+  padding: '10px 10px 4px',
+  fontSize: 12,
+  fontWeight: 550,
+  color: 'var(--proto-muted-3)',
+};
 
 const ROW_STYLE: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 10,
-  height: 34,
+  height: 36,
   padding: '0 10px',
   borderRadius: 'var(--r-chip)',
   cursor: 'pointer',
 };
 
-const KIND_STYLE: CSSProperties = {
-  width: 64,
+const ICON_STYLE: CSSProperties = {
+  width: 16,
   flex: 'none',
-  font: "600 11px 'IBM Plex Mono',monospace",
-  letterSpacing: '.02em',
-  textTransform: 'uppercase',
-  color: 'var(--proto-muted)',
+  display: 'flex',
+  justifyContent: 'center',
+  color: 'var(--proto-muted-3)',
 };
 
 const HINT_STYLE: CSSProperties = {
   marginLeft: 'auto',
-  font: "400 11px 'IBM Plex Mono',monospace",
-  color: 'var(--proto-muted)',
+  fontSize: 12,
+  color: 'var(--proto-muted-3)',
   whiteSpace: 'nowrap',
   maxWidth: '35%',
   overflow: 'hidden',
@@ -87,12 +84,27 @@ const HINT_STYLE: CSSProperties = {
 const FOOTER_STYLE: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  padding: '8px 16px',
+  gap: 14,
+  padding: '9px 16px',
   borderTop: '1px solid var(--proto-line-2)',
+  fontSize: 12,
+  color: 'var(--proto-muted-3)',
 };
 
-const FOOTER_TEXT_STYLE: CSSProperties = {
-  font: "400 11px 'IBM Plex Mono',monospace",
+const KEYCAP_STYLE: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minWidth: 18,
+  height: 18,
+  padding: '0 4px',
+  marginRight: 4,
+  boxSizing: 'border-box',
+  borderRadius: 5,
+  background: 'var(--proto-gray)',
+  // A <kbd> defaults to the code face; a key hint is a label, so it stays in the UI face.
+  fontFamily: 'var(--font-ui)',
+  fontSize: 11,
   color: 'var(--proto-muted)',
 };
 
@@ -108,22 +120,50 @@ export interface CommandPaletteProps {
   onOpenChange: (open: boolean) => void;
 }
 
-// A single palette row — kind column + label + right-aligned hint. cmdk sets
-// `data-[selected=true]` on the arrow-selected (or mouse-hovered) row; the prototype highlight
-// (var(--proto-accent-bg) bg, var(--proto-accent) label) is applied there via `.cmdk-row` CSS in index.css.
-function Row({ row, onSelect }: { row: PaletteRow; onSelect: () => void }) {
+// One stroked glyph per group, drawn on a 16×16 grid at 14px: the column is scanned, not read.
+const GROUP_ICON_PATHS: Record<string, string> = {
+  page: 'M2.5 2.5h4.5v4.5H2.5zM9 2.5h4.5v4.5H9zM2.5 9h4.5v4.5H2.5zM9 9h4.5v4.5H9z',
+  action: 'M8 5.8a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4zM8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6',
+  board: 'M4 14V2.5M4 3h8l-2 3 2 3H4',
+  session: 'M3 4h10v7H7l-3 2.5V11H3z',
+};
+
+function GroupIcon({ group }: { group: string }) {
+  const path = GROUP_ICON_PATHS[group];
+  if (!path) return <span style={ICON_STYLE} />;
+  return (
+    <span style={ICON_STYLE}>
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"
+        strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d={path} />
+      </svg>
+    </span>
+  );
+}
+
+// A single palette row — kind glyph + label + right-aligned hint. cmdk sets
+// `data-[selected=true]` on the arrow-selected (or mouse-hovered) row; its gray tint and ink label
+// come from `.cmdk-row` CSS in index.css.
+// What was typed reads bolder in the label, so a long list shows at a glance why each row is there.
+const MATCH_STYLE: CSSProperties = { fontWeight: 650, color: 'var(--proto-ink)' };
+
+function Row({ row, group, query, onSelect }: { row: PaletteRow; group: string; query: string; onSelect: () => void }) {
   const L = useVocab();
-  // Nav rows carry vocab keys → localized; entity rows carry real data in label/sub.
+  // Nav rows carry vocab keys → localized; entity rows carry real data in label/sub. The group
+  // heading names the kind, so the hint is only the row's own context (a project, a section list).
   const label = row.labelKey ? L[row.labelKey] : row.label;
-  const sub = row.subKey ? L[row.subKey] : row.sub;
-  // Nav rows are all commands; entity rows are named by their `kbd` tag. That tag is therefore
-  // redundant in the hint for entities, but not for nav rows, where it says page vs modal.
-  const kind = row.labelKey ? 'command' : row.kbd;
-  const hint = [sub, row.kbd === kind ? null : paletteKindText(row.kbd, L)].filter(Boolean).join(' · ');
+  const hint = row.subKey ? L[row.subKey] : row.sub;
   return (
     <Command.Item value={row.id} onSelect={onSelect} className="cmdk-row" style={ROW_STYLE}>
-      <span style={KIND_STYLE}>{paletteKindText(kind, L)}</span>
-      <span className="cmdk-row-label">{label}</span>
+      <GroupIcon group={group} />
+      <span className="cmdk-row-label">
+        {labelSegments(label, query).map((segment, index) => {
+          const key = `${index}:${segment.text}`;
+          return segment.match
+            ? <b key={key} data-palette-match="" style={MATCH_STYLE}>{segment.text}</b>
+            : <span key={key}>{segment.text}</span>;
+        })}
+      </span>
       <span style={HINT_STYLE} title={hint}>{hint}</span>
     </Command.Item>
   );
@@ -165,28 +205,48 @@ function usePaletteTarget(onOpenChange: (open: boolean) => void) {
   };
 }
 
-function PaletteHeader({ query, setQuery, close }: {
-  query: string; setQuery: (value: string) => void; close: () => void;
-}) {
+// The search row is the header: Escape, a click outside and the footer hint already say how to
+// leave, so there is no separate close chip.
+function PaletteHeader({ query, setQuery }: { query: string; setQuery: (value: string) => void }) {
   const L = useVocab();
   return (
     <div style={HEADER_STYLE}>
-      <svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="var(--proto-muted-3)" strokeWidth="1.5">
-        <circle cx="5" cy="5" r="3.8" /><path d="M8 8l2.6 2.6" />
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--proto-muted)" strokeWidth="1.6"
+        strokeLinecap="round" aria-hidden="true">
+        <circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3 3" />
       </svg>
       <Command.Input autoFocus value={query} onValueChange={setQuery} placeholder={L.cmdkPh} style={INPUT_STYLE} />
-      <button type="button" aria-label={L.palClose} style={ESC_STYLE} onClick={close}>esc</button>
     </div>
   );
 }
 
-function PaletteResults({ rows, go }: { rows: PaletteRow[]; go: (row: PaletteRow) => void }) {
+function PaletteResults({ rows, query, go }: { rows: PaletteRow[]; query: string; go: (row: PaletteRow) => void }) {
   const L = useVocab();
   return (
     <Command.List style={BODY_STYLE}>
       <Command.Empty style={EMPTY_STYLE}>{L.cpNoResults}</Command.Empty>
-      {rows.map((row) => <Row key={row.id} row={row} onSelect={() => go(row)} />)}
+      {groupPaletteRows(rows).map((group, index) => (
+        <Command.Group key={`${group.key}:${index}`} value={`${group.key}:${index}`}
+          heading={<div style={GROUP_HEADING_STYLE}>{paletteGroupLabel(group.key, L)}</div>}>
+          {group.rows.map((row) => <Row key={row.id} row={row} group={group.key} query={query} onSelect={() => go(row)} />)}
+        </Command.Group>
+      ))}
     </Command.List>
+  );
+}
+
+function Keycap({ children }: { children: string }) {
+  return <kbd style={KEYCAP_STYLE}>{children}</kbd>;
+}
+
+function PaletteFooter() {
+  const L = useVocab();
+  return (
+    <div style={FOOTER_STYLE}>
+      <span><Keycap>↑</Keycap><Keycap>↓</Keycap>{L.palKeyNavigate}</span>
+      <span><Keycap>↵</Keycap>{L.palKeyOpen}</span>
+      <span><Keycap>esc</Keycap>{L.palKeyClose}</span>
+    </div>
   );
 }
 
@@ -199,9 +259,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   return (
     <Command.Dialog open={open} onOpenChange={onOpenChange} label={L.palLabel}
       shouldFilter={false} loop overlayClassName="cmdk-backdrop" contentClassName="cmdk-panel">
-      <PaletteHeader query={query} setQuery={setQuery} close={() => onOpenChange(false)} />
-      <PaletteResults rows={rows} go={go} />
-      <div style={FOOTER_STYLE}><span style={FOOTER_TEXT_STYLE}>{L.cpFooterHint}</span></div>
+      <PaletteHeader query={query} setQuery={setQuery} />
+      <PaletteResults rows={rows} query={query} go={go} />
+      <PaletteFooter />
     </Command.Dialog>
   );
 }

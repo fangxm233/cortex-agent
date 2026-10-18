@@ -1,6 +1,5 @@
 import { useCallback, useState, type CSSProperties } from 'react';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
-import { MONO } from '@/design/MenuChrome';
 import { useVocab } from '@/i18n';
 import { downloadFile, boardFilePath } from '@/lib/files';
 import { isNativeShell } from '@/lib/desktop-config';
@@ -18,11 +17,16 @@ import { useBoardUpdated } from './useBoardLiveSync';
 
 // One board: the native live strip, the decision stream it can unfold, and the agent-written body.
 // Shared by the desktop dock tab and the mobile sheet; each host says how to open a session.
+// The strip and the stream sit on the pane's glass; the body below is the document, on a paper fill
+// of its own (as the dock's file documents are), so the board reads as one page under a status line.
 
 const CENTERED: CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, padding: 20,
-  color: 'var(--proto-muted)', font: `500 11.5px ${MONO}`, textAlign: 'center',
+  color: 'var(--proto-muted)', fontSize: 12.5, textAlign: 'center',
 };
+
+/** The document's fill: the card colour, slightly let through so the pane's glass still tints it. */
+const PAPER = 'color-mix(in srgb, var(--proto-card) 78%, transparent)';
 
 /** Open a board-relative file the way the rest of the app previews files: the dock while it is
  *  open, the preview modals otherwise; anything with no previewer downloads. */
@@ -56,7 +60,7 @@ function LegacyFiles({ files, onOpen }: { files: string[]; onOpen: (ref: string)
         <span style={{ display: 'flex', gap: 12 }}>
           {files.map((name) => (
             <button key={name} type="button" data-board-file={name} onClick={() => onOpen(name)}
-              style={{ border: 0, padding: 0, background: 'transparent', cursor: 'pointer', font: `500 12px ${MONO}`, color: 'var(--proto-accent)' }}>
+              style={{ border: 0, padding: 0, background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 500, color: 'var(--proto-accent)' }}>
               {name}
             </button>
           ))}
@@ -66,11 +70,13 @@ function LegacyFiles({ files, onOpen }: { files: string[]; onOpen: (ref: string)
   );
 }
 
-export function BoardView({ boardId, onOpenSession, touch }: {
+export function BoardView({ boardId, onOpenSession, touch, showTitle = true }: {
   boardId: string;
   onOpenSession: (session: SessionInfo) => void;
-  /** Mobile: touch-sized decision cards. */
+  /** Mobile: touch-sized decision cards and a narrower gutter. */
   touch?: boolean;
+  /** The strip leads with the board's title. The dock turns it off: its tab already names the board. */
+  showTitle?: boolean;
 }): JSX.Element {
   const L = useVocab();
   const data = useBoard(boardId);
@@ -79,6 +85,7 @@ export function BoardView({ boardId, onOpenSession, touch }: {
   useBoardUpdated(useCallback((id: string) => { if (id === boardId) setRefresh((n) => n + 1); }, [boardId]));
 
   const { board } = data;
+  const gutter = touch ? 16 : 20;
   const projectId = board?.projectId ?? '';
   const slug = board?.slug ?? '';
   const openFile = useOpenBoardFile(projectId, slug);
@@ -103,9 +110,14 @@ export function BoardView({ boardId, onOpenSession, touch }: {
         decisionsOpen={decisionsOpen}
         onToggleDecisions={() => setDecisionsOpen((v) => !v)}
         onOpenSession={onOpenSession}
+        showTitle={showTitle}
+        gutter={gutter}
       />
       {decisionsOpen && <BoardDecisionStream decisions={data.decisions} touch={touch} />}
-      <div data-board-scroll="" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '10px 12px 16px' }}>
+      <div data-board-scroll="" style={{
+        flex: 1, minHeight: 0, overflowY: 'auto', background: PAPER,
+        padding: touch ? '18px 16px 28px' : '24px 28px 32px',
+      }}>
         {data.body.kind === 'empty'
           ? <LegacyFiles files={data.body.files} onOpen={openFile} />
           : srcDoc === null

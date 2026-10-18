@@ -3,7 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LangProvider } from '@/i18n';
 import { DEFAULT_BROWSER_DEVICE } from '@/features/browser/BrowserOptIn';
-import { MenuCard, MenuRow } from '@/design/MenuChrome';
+import { MENU_INSET, MenuCard, MenuRow } from '@/design/MenuChrome';
 import {
   ComposerActionRow, ComposerSlashMenu,
   type ComposerBrowserControl,
@@ -15,6 +15,11 @@ beforeEach(() => {
 });
 
 afterEach(() => vi.unstubAllGlobals());
+
+/** Every inline style in the tree, as one string — the focus ring's class names stay out of it. */
+function inlineStyles(renderer: ReactTestRenderer): string {
+  return JSON.stringify(renderer.root.findAll((node) => typeof node.type === 'string').map((node) => node.props.style ?? null));
+}
 
 describe('shared picker chrome', () => {
   it('keeps selections semantic and disabled choices inert on a stationary glass surface', () => {
@@ -37,6 +42,8 @@ describe('shared picker chrome', () => {
     expect(card.props.style.overflow).toBe('hidden');
     const scroller = card.findByProps({ 'data-menu-scroll': true });
     expect(scroller.props.style.overflowY).toBe('auto');
+    // Rows sit in from the card's edges, so a tint is a rounded inset shape on both sides alike.
+    expect(scroller.props.style.padding).toBe(MENU_INSET);
     expect(scroller.props.style.backdropFilter).toBeUndefined();
     expect(row.props.style.backdropFilter).toBeUndefined();
   });
@@ -64,6 +71,26 @@ describe('ComposerSlashMenu', () => {
 
     expect(onPick).toHaveBeenCalledOnce();
     expect(onPick.mock.calls[0][0].command).toBe('/new');
+  });
+
+  it('keeps the typed command in the code face and highlights with a gray tint, not the accent', () => {
+    const renderer = create(
+      <LangProvider>
+        <ComposerSlashMenu
+          suggestions={[{ command: '/new', description: 'new', action: { type: 'new' }, disabled: false }]}
+          activeIndex={0}
+          onHover={vi.fn()}
+          onPick={vi.fn()}
+        />
+      </LangProvider>,
+    );
+    const row = renderer.root.findByProps({ 'data-slash-command': '/new' });
+    expect(row.props.style.background).toBe('var(--proto-line-2)');
+    expect(renderer.root.findByProps({ role: 'listbox' }).props.style.padding).toBe(MENU_INSET);
+    const [command, description] = row.findAllByType('span');
+    expect(command.props.style.font).toContain('var(--font-code)');
+    expect(description.props.style.font).toBeUndefined();
+    expect(inlineStyles(renderer)).not.toContain('proto-accent');
   });
 });
 
@@ -175,6 +202,22 @@ describe('ComposerActionRow right cluster', () => {
     const { renderer } = renderRow(null);
     expect(renderer.root.findAllByProps({ 'data-chip': 'agent' })).toHaveLength(0);
     expect(renderer.root.findAllByProps({ 'data-chip': 'selection' })).toHaveLength(1);
+  });
+});
+
+describe('ComposerActionRow quiet controls', () => {
+  it('draws ＋ as a transparent circle and the browser as a filled quiet chip in the UI face', () => {
+    const { renderer } = renderRow({ device: DEFAULT_BROWSER_DEVICE, onChange: vi.fn() });
+    const plus = renderer.root.findByProps({ 'data-chip': 'plus' });
+    expect(plus.props.style.background).toBe('transparent');
+    expect(plus.props.style.border).toBe(0);
+    const chip = renderer.root.findByProps({ 'data-chip': 'browser' });
+    expect(chip.props.style.background).toBe('var(--proto-line-2)');
+    expect(chip.props.style.border).toBe(0);
+    expect(chip.props.style.font).toContain('var(--font-ui)');
+    expect(inlineStyles(renderer)).not.toMatch(/proto-accent|Plex/);
+    openPlus(renderer);
+    expect(renderer.root.findByProps({ 'data-chip': 'plus' }).props.style.background).toBe('var(--proto-gray)');
   });
 });
 

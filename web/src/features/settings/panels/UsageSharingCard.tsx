@@ -51,7 +51,7 @@ function SharingActions({ controller }: { controller: UsageSharingController }) 
     {s.saveError ? <span role="alert" style={{ ...NOTE, color: 'var(--proto-danger)', overflowWrap: 'anywhere' }}>
       {L.usageShareSaveFailed}: {s.saveError}</span> : null}
     {s.justSaved ? <span role="status" style={{ ...NOTE, color: 'var(--proto-accent)' }}>{L.usageShareSaved}</span> : null}
-    {pending ? <SButton tone="accent" data-usage-sharing-save disabled={s.saving} onClick={() => void controller.save()}>
+    {pending ? <SButton tone="primary" data-usage-sharing-save disabled={s.saving} onClick={() => void controller.save()}>
       {s.saving ? L.usageShareSaving : L.usageShareSave}</SButton> : null}
   </div>;
 }

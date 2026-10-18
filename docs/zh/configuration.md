@@ -477,13 +477,13 @@ project 与 local 作用域的安装会把插件记录在 `$CORTEX_HOME/.claude/
 
 看板是长任务的状态页，由推进这项工作的 agent 维护（见团队指南中的[看板](./team.md#boards)）。每个看板位于 `<project context>/boards/<slug>/`，`data/boards.json` 列出每个看板及其所属项目、标题和最近使用时间。升级时，早期 Cortex 版本中已登记的 commission 会转为看板：目录从 `commissions/` 移到 `boards/`，文件只移动、从不删除。
 
-看板的样式来自随 Cortex 发布的预设样式表 `agent-server/defaults/board/board.css`。它从安装包读取，从不复制到 `$CORTEX_HOME`，因此每次升级都会带来其当前版本。预设只使用界面的主题变量（`--proto-*`、`--material-*`、`--border-card`、`--r-*`），所以看板会跟随深浅色模式、配色和 accent。
+看板的样式来自随 Cortex 发布的预设样式表 `agent-server/defaults/board/board.css`。它从安装包读取，从不复制到 `$CORTEX_HOME`，因此每次升级都会带来其当前版本。预设只使用界面的主题变量（`--proto-*`、`--material-*`、`--border-card`、`--r-*`，以及字体 `--font-ui` 和 `--font-code`），所以看板会跟随深浅色模式、配色和 accent。
 
 要改所有看板的样式，新建 `$CORTEX_HOME/config/board.css`。这个文件默认不存在。它在预设之后加载，所以可以重新定义任意变量（预设自己的 `--b-*` 或主题的 `--proto-*`），也可以覆盖任意规则：
 
 ```css
 :root { --proto-accent: #0f766e; --b-gap: 16px; }
-.card { border-radius: 4px; }
+.h { font-size: 14px; }
 ```
 
 保存后，打开着的看板几秒内刷新；删掉这个文件即恢复预设。

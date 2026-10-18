@@ -2,13 +2,12 @@ import { useState, type CSSProperties } from 'react';
 import './top-bar.css';
 import { useVocab } from '@/i18n';
 import { captionInsetLeft, titleBarMode, usesCommandKey } from '@/lib/desktop-platform';
-import { useTheme, useSetTheme } from '@/theme';
 import { useSettings } from '@/features/settings/useSettings';
 import { getSettingsNavIcon } from '@/features/settings/settings-nav';
 import { MachinesMenu } from '@/features/machines/MachinesMenu';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
 import { connectionDot, connectionLabelKey } from '@/features/connection/connection-status';
-import { BrandBadge, GearIcon } from '@/features/workbench/rail/LeftRail';
+import { BrandBadge } from '@/features/workbench/rail/LeftRail';
 import { toggleRail, useRailCollapsed } from '@/features/workbench/rail/rail-collapsed';
 import { useDaemonStatusModal } from '@/features/daemon/useDaemonStatusModal';
 import { useNavigationHistory } from './NavigationHistoryProvider';
@@ -22,11 +21,10 @@ import { IconButton } from '@/design/IconButton';
 
 export const TOP_BAR_HEIGHT = 44;
 
-const mono = "'IBM Plex Mono',monospace";
-
 // The bar is the app's one always-visible surface, so everything that must survive a collapsed rail
-// lives here: the brand block with its connectivity dot, the palette entry, the machines menu, theme,
-// Usage and Settings.
+// lives here: the brand block with its connectivity dot, the palette entry, the machines menu, Usage
+// and Settings. Theme is not a key here: it is set rarely, and View → Appearance (and Settings) hold
+// Light / Dark / System, so the bar's right side stays three icon keys.
 //
 // Everything here is window-scoped. Session-scoped controls (Browser, Notes, ⋯) stay in ChatHeader.
 
@@ -55,12 +53,26 @@ function ArrowGlyph({ forward }: { forward?: boolean }): JSX.Element {
   );
 }
 
+// The right-hand keys draw at 17px on a lighter stroke: they are the bar's only marks on that side,
+// so they carry a little more size than the navigation arrows without reading heavier.
+const toolStrokeProps = { ...strokeProps, strokeWidth: 1.7 } as const;
+
 // Same glyph as the Usage row in the settings nav, so the key and the page it opens read as one thing.
 // Drawn at the gear's size: the two sit side by side and share a full-bleed 24px frame.
 function UsageGlyph(): JSX.Element {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" {...strokeProps}>
+    <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true" {...toolStrokeProps}>
       <path d={getSettingsNavIcon('usage')} />
+    </svg>
+  );
+}
+
+// A toothed cog, not a ring of short strokes: at this size the latter reads as a sun.
+function SettingsGlyph(): JSX.Element {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true" {...toolStrokeProps}>
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+      <circle cx="12" cy="12" r="3" />
     </svg>
   );
 }
@@ -113,7 +125,7 @@ function CommandPill({ label, accel, onClick }: { label: string; accel: string; 
     >
       <SearchGlyph />
       <span className="shell-command-label" style={{ fontSize: 12, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
-      <span className="shell-command-accel" style={{ font: `500 11px ${mono}`, color: 'var(--proto-muted)', flex: 'none' }}>{accel}</span>
+      <span className="shell-command-accel" style={{ font: '400 11.5px var(--font-ui)', color: 'var(--proto-faint)', flex: 'none' }}>{accel}</span>
     </button>
   );
 }
@@ -122,8 +134,6 @@ export function TopBar(): JSX.Element {
   const L = useVocab();
   const railCollapsed = useRailCollapsed();
   const history = useNavigationHistory();
-  const theme = useTheme();
-  const setTheme = useSetTheme();
   const { open: openSettings, openSection: openSettingsSection } = useSettings();
   // Live UI↔server connectivity for the brand badge (green connected / amber (re)connecting /
   // red disconnected).
@@ -137,6 +147,7 @@ export function TopBar(): JSX.Element {
   const nativeMenu = useNativeMenu(menus);
   useMenuShortcuts(menus, !nativeMenu.active);
 
+  const commandKey = usesCommandKey();
   const mode = titleBarMode();
   // Full screen keeps the bar. The traffic lights hide there, so their strip goes, and the window
   // drag and caption buttons have nothing to act on.
@@ -205,7 +216,7 @@ export function TopBar(): JSX.Element {
 
       <CommandPill
         label={L.cmdkPh}
-        accel={formatAccel('mod+k', usesCommandKey())}
+        accel={formatAccel('mod+k', commandKey)}
         // The palette's open state lives in AppShell's own `useCommandPalette` instance, so the
         // established way to reach it from elsewhere is the synthetic key event (precedent:
         // shell/menu/useAppMenus.ts, features/workbench/chat/CenterChat.tsx).
@@ -214,49 +225,22 @@ export function TopBar(): JSX.Element {
 
       <div className="shell-topbar-spacer" />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 'none', paddingRight: 'var(--app-gutter)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2, flex: 'none', paddingRight: 'var(--app-gutter)' }}>
         <MachinesMenu onManage={() => openSettingsSection('machines')} />
-        {/* Theme controls remain keyboard reachable when labels compact. The capsule also opts
-            out of the native drag region so its gaps cannot begin a window drag. */}
-        <div
-          data-tauri-drag-region="false"
-          style={{
-            display: 'flex',
-            borderRadius: 'var(--r-chip)',
-            overflow: 'hidden',
-            background: 'var(--glass-1)',
-            boxShadow: '0 0 0 1px var(--proto-line)',
-          }}
-        >
-          <button
-            type="button"
-            aria-pressed={theme === 'light'}
-            onClick={() => setTheme('light')}
-            title={L.stThemeLight}
-            aria-label={L.stThemeLight}
-            style={{ border: 0, fontFamily: 'inherit', fontSize: 11, fontWeight: 600, padding: '5px 9px', cursor: 'pointer', background: theme === 'light' ? 'var(--ink-solid-bg)' : 'transparent', color: theme === 'light' ? 'var(--ink-solid-fg)' : 'var(--proto-muted)' }}
-          >
-            ☀
-          </button>
-          <button
-            type="button"
-            aria-pressed={theme === 'dark'}
-            onClick={() => setTheme('dark')}
-            title={L.stThemeDark}
-            aria-label={L.stThemeDark}
-            style={{ border: 0, fontFamily: 'inherit', fontSize: 11, fontWeight: 600, padding: '5px 9px', cursor: 'pointer', background: theme === 'dark' ? 'var(--ink-solid-bg)' : 'transparent', color: theme === 'dark' ? 'var(--ink-solid-fg)' : 'var(--proto-muted)' }}
-          >
-            ☾
-          </button>
-        </div>
         {/* Usage is checked far more often than anything else in Settings, so it gets its own key
             that opens the sheet already on that page. */}
-        <IconButton label={L.stNavUsage} onClick={() => openSettingsSection('usage')}>
+        <IconButton size={32} label={L.stNavUsage} onClick={() => openSettingsSection('usage')}>
           <UsageGlyph />
         </IconButton>
-        {/* Settings is a gear key, not a word: a label here made the cluster read as competing texts. */}
-        <IconButton label={L.settings} onClick={openSettings}>
-          <GearIcon />
+        {/* Settings is a gear key, not a word: a label here made the cluster read as competing texts.
+            Its File-menu shortcut rides in the tooltip, the one place a key can show it. */}
+        <IconButton
+          size={32}
+          label={L.settings}
+          title={`${L.settings} (${formatAccel('mod+,', commandKey)})`}
+          onClick={openSettings}
+        >
+          <SettingsGlyph />
         </IconButton>
       </div>
 

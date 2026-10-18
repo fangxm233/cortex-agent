@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import type { BoardInfo, SessionInfo } from '@cortex-agent/ui-contract';
-import { buildCmdkItems, NAV_COMMAND_ITEMS, selectPaletteRows } from './palette-items';
+import { en, zh } from '@/i18n';
+import {
+  buildCmdkItems, groupPaletteRows, labelSegments, NAV_COMMAND_ITEMS, paletteGroupLabel, selectPaletteRows,
+} from './palette-items';
 
 function session(over: Partial<SessionInfo> = {}): SessionInfo {
   return {
@@ -116,5 +119,37 @@ describe('board rows', () => {
   it('lists every board when the query names the kind', () => {
     const rows = selectPaletteRows('看板', { sessions: [session()], boards }, { kindWords: { board: '看板' } });
     expect(rows.map((r) => r.id)).toEqual(boards.map((b) => 'board:' + b.id));
+  });
+});
+
+describe('palette groups', () => {
+  it('splits the empty-query list into pages, actions, boards and sessions without reordering it', () => {
+    const rows = selectPaletteRows('', { sessions: [session()], boards: [board('busy')] });
+    const groups = groupPaletteRows(rows);
+    expect(groups.map((g) => g.key)).toEqual(['page', 'action', 'board', 'session']);
+    expect(groups.flatMap((g) => g.rows)).toEqual(rows);
+  });
+
+  it('names each group in sentence case, in either language', () => {
+    expect(['page', 'action', 'board', 'session'].map((key) => paletteGroupLabel(key, en)))
+      .toEqual(['Pages', 'Actions', 'Boards', 'Sessions']);
+    expect(paletteGroupLabel('session', zh)).toBe('会话');
+    expect(paletteGroupLabel('mystery', en)).toBe('mystery');
+  });
+});
+
+describe('labelSegments', () => {
+  it('marks the first case-insensitive occurrence of the query', () => {
+    expect(labelSegments('Optimizer study: plan', 'opt')).toEqual([
+      { text: 'Opt', match: true }, { text: 'imizer study: plan', match: false },
+    ]);
+    expect(labelSegments('Digits optimizer study', 'OPT')).toEqual([
+      { text: 'Digits ', match: false }, { text: 'opt', match: true }, { text: 'imizer study', match: false },
+    ]);
+  });
+
+  it('leaves a label whole when the row matched elsewhere or nothing was typed', () => {
+    expect(labelSegments('Overview', 'dashboard')).toEqual([{ text: 'Overview', match: false }]);
+    expect(labelSegments('Overview', '  ')).toEqual([{ text: 'Overview', match: false }]);
   });
 });

@@ -106,8 +106,8 @@ export function MCustomProviderSheet({ draft, creating, errors, pending, onChang
       <button
         type="button" data-cpv-action="save" onClick={onSave} disabled={!savable}
         style={{
-          width: '100%', minHeight: 44, border: 'none', borderRadius: 8,
-          background: 'var(--proto-accent)',
+          width: '100%', minHeight: 44, border: 'none', borderRadius: 'var(--r-control)',
+          background: 'var(--ink-solid-bg)',
           color: 'var(--ink-solid-fg)', display: 'flex',
           alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600,
           marginTop: 2, opacity: savable ? 1 : 0.45, cursor: savable ? 'pointer' : 'default',

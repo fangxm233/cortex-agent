@@ -1,6 +1,7 @@
 // Pure view-model for the 1a 会话列表 screen: project-local Stars plus the existing direct
 // and scheduled lists. Session rows keep desktop rail order (unread first, then most recent)
-// and carry their own relative time, without day buckets.
+// and carry their own relative time, without day buckets; the screen sections them by status
+// (`sessionSections`).
 import type { ScheduleInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { partitionStarredSessions } from '@/features/session/list/starred-sessions';
 import { buildScheduleRows } from '@/features/session/list/schedule-rail';
@@ -84,6 +85,32 @@ function toLeadRow(s: SessionInfo, workers: SessionInfo[], now: number, lang: La
     unread: row.unread || workerRollup(team).unread,
     status: leadStatusLine(row.status, team, L),
   };
+}
+
+export type MSessionSectionKey = 'needsYou' | 'active' | 'recent';
+
+export interface MSessionSection {
+  key: MSessionSectionKey;
+  rows: MSessionRow[];
+}
+
+const SECTION_OF: Record<MSessionStatus['kind'], MSessionSectionKey> = {
+  awaiting: 'needsYou',
+  running: 'active',
+  background: 'active',
+  'waiting-external': 'active',
+  idle: 'recent',
+};
+
+/** The list's sections, by what each row's status dot already says: blocked on the user first, then
+ *  whatever is still moving or waiting on a machine, then the rest. Rows keep their rail order within
+ *  a section; empty sections are left out. */
+export function sessionSections(rows: MSessionRow[]): MSessionSection[] {
+  const by: Record<MSessionSectionKey, MSessionRow[]> = { needsYou: [], active: [], recent: [] };
+  for (const row of rows) by[SECTION_OF[row.status.kind]].push(row);
+  return (['needsYou', 'active', 'recent'] as const)
+    .filter((key) => by[key].length > 0)
+    .map((key) => ({ key, rows: by[key] }));
 }
 
 /** Scope before partitioning: Stars never aggregate sessions from different projects. */

@@ -3,7 +3,7 @@ import { WebBody } from '@/features/browser/WebBody';
 import { BoardDockBody } from '@/features/board/BoardDockBody';
 import { DockDivider } from './DockDivider';
 import { DockCentered, DockFileBody, dockFileBackground } from './DockFileBody';
-import { DockTabStrip } from './DockTabStrip';
+import { CloseGlyph, DockTabStrip } from './DockTabStrip';
 import { useDock } from './DockProvider';
 import { useVocabOptional } from '@/i18n';
 import {
@@ -53,7 +53,9 @@ export function DockPane(): JSX.Element | null {
         onClose={close}
         onReorder={reorder}
         actions={
-          <button type="button" className="dock-control" data-close-dock="" title={L.dockCloseDock} aria-label={L.dockCloseDock} onClick={closeDock}>×</button>
+          <button type="button" className="dock-control" data-close-dock="" title={L.dockCloseDock} aria-label={L.dockCloseDock} onClick={closeDock}>
+            <CloseGlyph size={13} />
+          </button>
         }
       />
 

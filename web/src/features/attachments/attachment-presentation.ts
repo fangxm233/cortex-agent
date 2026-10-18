@@ -15,3 +15,18 @@ export function attachmentTypeColor(type: AttachmentMeta['type']): { bg: string;
   if (type === 'video') return { bg: 'var(--proto-danger-bg)', fg: 'var(--proto-danger)' };
   return { bg: 'var(--proto-gray)', fg: 'var(--proto-muted)' };
 }
+
+export interface AttachmentKindWords {
+  image: string;
+  video: string;
+  file: string;
+}
+
+/** The type word a quiet attachment row shows before the size: a localized word for pictures and
+ *  videos, which read as what they are, and the extension for everything else ("CSV", "PDF"), which
+ *  is how people name a document. A name with no extension falls back to the generic word. */
+export function attachmentKindLabel(type: AttachmentMeta['type'], name: string, words: AttachmentKindWords): string {
+  if (type === 'image') return words.image;
+  if (type === 'video') return words.video;
+  return name.lastIndexOf('.') > 0 ? attachmentFileExt(name) : words.file;
+}

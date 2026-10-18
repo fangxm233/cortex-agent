@@ -10,7 +10,11 @@ import {
   buildTranscriptRows, type ChatRow, type LiveSessionMessage, type PendingUserMessage,
 } from '@/features/session/transcript/transcript-vm';
 import { fmt, type Vocab } from '@/i18n';
-import { dayDivider, type TimeLang } from '@/i18n/time-format';
+import { dayDivider, formatSpanPrecise, timeAgo, type TimeLang } from '@/i18n/time-format';
+import { browserStartupHint, browserStartupPending } from '@/features/browser/browser-status';
+import type { RunStatusLine, RunStatusLineInput } from '@/features/session/chat/run-status-line';
+import { deriveSessionRunStatus } from '@/features/session/list/session-run-status';
+import { turnClockElapsedMs } from '@/features/session/transcript/transcript-vm';
 import type { AttachmentUploadStatus } from '@/features/attachments/types';
 
 /** Mobile projection of the shared transcript, including streaming and unread injected messages. */
@@ -54,13 +58,55 @@ export function interactionHeaderStatus(
   kind: 'ask-user' | 'plan-approval',
   answered: number,
   total: number,
-  L: Pick<Vocab, 'chatPlanPendingStatus' | 'chatAwaitingAnswerStatus'>,
+  L: Pick<Vocab, 'mChatPlanWaiting' | 'mChatAnswerWaiting'>,
 ): ChatHeaderStatus {
   if (kind === 'plan-approval') {
-    return { running: false, tone: 'waiting', text: L.chatPlanPendingStatus };
+    return { running: false, tone: 'waiting', text: L.mChatPlanWaiting };
   }
   const counter = total > 1 ? ` ${Math.min(answered + 1, total)}/${total}` : '';
-  return { running: false, tone: 'waiting', text: fmt(L.chatAwaitingAnswerStatus, { counter }) };
+  return { running: false, tone: 'waiting', text: fmt(L.mChatAnswerWaiting, { counter }) };
+}
+
+export interface MobileRunStatusInput extends RunStatusLineInput {
+  /** The lead's active workers (team mode); 0 elsewhere. */
+  workers: number;
+  /** When the session last ran: an idle session says how long it has been quiet. */
+  lastUsedAt: string | null;
+  now?: number;
+}
+
+/**
+ * The header's second line on a phone, in plain words: the run state, then how long the running
+ * turn has gone (ticking) or how long an idle session has been quiet, then its team and anything it
+ * waits on. The desktop run line's turns and cost stay behind ⋯ → Session stats — the header pill
+ * has room for one glance, not a ledger. Browser start-up outranks it, as it does on desktop.
+ */
+export function mobileRunStatus(input: MobileRunStatusInput, L: Vocab, lang: TimeLang): RunStatusLine {
+  const status = deriveSessionRunStatus({
+    running: input.running || input.starting,
+    backgroundRunning: input.backgroundRunning,
+    hasRun: !input.isDraft && input.turns != null,
+  });
+  const device = input.browserDevice;
+  if (device && browserStartupPending({ ...input, running: status.active, device })) {
+    return { active: status.active, text: browserStartupHint(device, L.wbBrowserStarting) };
+  }
+  const tail = [
+    input.workers > 0 ? fmt(input.workers === 1 ? L.wbTeamCountOne : L.wbTeamCountMany, { n: input.workers }) : null,
+    input.waitingOn > 0 ? fmt(L.chatWaitingOn, { n: input.waitingOn }) : null,
+  ];
+  const line = (parts: (string | null)[]): string => [...parts, ...tail].filter(Boolean).join(' · ');
+  if (status.phase === 'background') return { active: true, text: line([L.slBackground]) };
+  if (status.phase === 'foreground') {
+    const textAt = (now: number | null): string => {
+      const ms = turnClockElapsedMs(input.turnClock, now);
+      return line([L.slRunning, ms == null ? null : formatSpanPrecise(ms, lang)]);
+    };
+    const clockLive = input.running && input.turnClock != null;
+    return { active: true, text: textAt(null), ...(clockLive ? { liveText: textAt } : {}) };
+  }
+  const quiet = status.phase === 'idle' ? timeAgo(input.lastUsedAt, input.now ?? Date.now(), lang) : '';
+  return { active: false, text: line([L.slIdle, quiet || null]) };
 }
 
 /** Mobile draws the same model/thinking chip as desktop, on one line. */

@@ -38,8 +38,8 @@ describe('defaultSelectedId', () => {
 
 describe('approval copy language', () => {
   it('renders pills and the pending count in the UI language', () => {
-    expect(statusPill('approved', en).text).toBe('✓ approved');
-    expect(statusPill('approved', zh).text).toBe('✓ 已批准');
+    expect(statusPill('approved', en).text).toBe('Approved');
+    expect(statusPill('approved', zh).text).toBe('已批准');
     expect(pendingLabel(2, en)).toBe('2 approvals pending');
     expect(pendingLabel(2, zh)).toBe('2 条待审批');
   });

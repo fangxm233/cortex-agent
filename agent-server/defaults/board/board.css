@@ -1,42 +1,54 @@
 @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap");
 /* Cortex board preset.
    Loaded after the app's theme variables and before ~/.cortex/config/board.css, which may override
-   any --b-* variable or rule. Colours come only from theme variables (--proto-*, --material-*,
-   --border-card, --r-*), so a board follows light/dark, the palette and the accent.
-   State language: ok = done (success) · run = in progress (accent) · ask = needs the user (light
-   amber, and nothing else is amber) · wait = blocked on a machine or someone else (hollow ring,
-   dashed line) · bad = failed / risk (danger) · no modifier = not started.
+   any --b-* variable or rule. Colours and faces come only from theme variables (--proto-*,
+   --material-*, --border-card, --r-*, --font-ui, --font-code), so a board follows light/dark, the
+   palette and the accent.
+   The page reads as one document, not a stack of cards: a section is a stretch of the page under a
+   small ink heading, set apart by space; lists and tables are ruled by hairlines. All text is in the
+   app's face; the mono face is only for code (code, pre, .mono, a row's .id).
+   State language, the app's status dots: ok = done (success) · run = in progress (accent, soft
+   halo) · ask = needs the user (amber, and nothing else is amber) · wait = blocked on a machine or
+   someone else (hollow ring) · bad = failed / risk (danger) · no modifier = not started (faint).
+   Boards already written depend on every class name below: restyle them, never rename or drop one.
    The mono face is the one the app loads; offline it falls back to the system monospace. */
 
 :root {
-  --b-font: -apple-system, "Segoe UI", "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  --b-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --b-gap: 12px;
+  --b-font: var(--font-ui, -apple-system, "Segoe UI", "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif);
+  --b-mono: var(--font-code, "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  --b-gap: 28px;
 }
 
 /* Base */
 * { box-sizing: border-box; }
-body { margin: 0; padding: 1px 1px 3px; font: 13px/1.55 var(--b-font); color: var(--proto-ink); -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; }
-p { margin: 0 0 6px; }
-ul, ol { margin: 4px 0; padding-left: 18px; }
-b, strong { font-weight: 600; }
-.mono { font-family: var(--b-mono); font-size: 11px; }
+body { margin: 0; padding: 1px 1px 3px; font: 13.5px/1.6 var(--b-font); color: var(--proto-ink-2); -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; }
+p { margin: 0 0 8px; }
+p:last-child { margin-bottom: 0; }
+ul, ol { margin: 4px 0 8px; padding-left: 20px; }
+b, strong { font-weight: 600; color: var(--proto-ink); }
+.mono { font-family: var(--b-mono); font-size: 12px; }
 .muted { color: var(--proto-muted); }
 .faint { color: var(--proto-faint); }
-a { color: var(--proto-accent); text-decoration: none; }
+a { color: var(--proto-accent); font-weight: 500; text-decoration: none; }
 a:hover { text-decoration: underline; text-underline-offset: 3px; }
 a[data-open] { cursor: pointer; }
-code { font-family: var(--b-mono); font-size: 11px; background: var(--proto-gray); border-radius: 5px; padding: 0 4px; }
-pre { margin: 4px 0 6px; padding: 8px 10px; max-height: 24em; overflow: auto; font: 11px/1.5 var(--b-mono); white-space: pre; overflow-wrap: normal; background: var(--material-inset-bg); border: 1px solid var(--border-card); border-radius: var(--r-control); }
+code { font-family: var(--b-mono); font-size: 12px; background: var(--proto-gray); border-radius: 5px; padding: 0 4px; }
+pre { margin: 4px 0 8px; padding: 9px 12px; max-height: 24em; overflow: auto; font: 12px/1.55 var(--b-mono); white-space: pre; overflow-wrap: normal; background: var(--material-inset-bg); border: 1px solid var(--proto-line-2); border-radius: var(--r-control); }
 pre code { background: none; padding: 0; border-radius: 0; font-size: inherit; }
 img, svg, video { max-width: 100%; }
 img, video { height: auto; border-radius: var(--r-chip); }
-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-th, td { text-align: left; vertical-align: baseline; padding: 4px 10px 4px 0; border-top: 1px solid var(--proto-line); }
-th { font: 600 11px var(--b-mono); color: var(--proto-muted); border-top: 0; }
-th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Tables: the app's face, sentence-case headers in a quieter tone, hairline rules, aligned figures.
+   .num right-aligns a numeric th/td. A header or a figure never breaks across lines ("Median s" must
+   not leave its "s" behind): a table too wide for the page scrolls sideways instead — inside its .tbl
+   wrapper, or, on a narrow page, as its own scroll box (below). */
+table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; vertical-align: baseline; padding: 7px 14px 7px 0; border-bottom: 1px solid var(--proto-line-2); }
+th { font: 550 12.5px/1.4 var(--b-font); color: var(--proto-faint); padding-top: 5px; border-bottom-color: var(--proto-line-4); white-space: nowrap; }
+th:last-child, td:last-child { padding-right: 0; }
+th.num, td.num { text-align: right; white-space: nowrap; }
 figure { margin: 0; min-width: 0; }
-figcaption { margin-top: 4px; font: 400 11px/1.4 var(--b-mono); color: var(--proto-muted); }
+figcaption { margin-top: 6px; font: 400 12px/1.45 var(--b-font); color: var(--proto-faint); }
 
 /* Media: a board image opens in the app's viewer on click (unless a link wraps it). A file that was
    not inlined (missing, or over the size cap) shows as a dashed box; a video like that becomes a
@@ -49,89 +61,123 @@ a img[data-board-src], [data-open] img[data-board-src] { cursor: pointer; }
 .b-play::after { content: "\25B6"; position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; padding-left: 3px; font-size: 15px; color: #fff; background: var(--media-control-bg-dark, rgba(25, 28, 34, .72)); pointer-events: none; }
 
 /* Gallery: same-size thumbnails, each opening full size; --b-thumb sets the minimum column width */
-.gallery { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(var(--b-thumb, 160px), 100%), 1fr)); }
-.gallery img, .gallery video { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: var(--material-inset-bg); border: 1px solid var(--border-card); }
+.gallery { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(var(--b-thumb, 160px), 100%), 1fr)); }
+.gallery img, .gallery video { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: var(--material-inset-bg); border: 1px solid var(--proto-line-2); }
 .gallery .b-play { display: block; }
 .gallery .b-play video { min-width: 0; min-height: 0; }
 img[data-board-missing] { min-width: 96px; min-height: 48px; background: var(--material-inset-bg); border: 1px dashed var(--proto-faint); }
 
-/* Formulas: the app renders .tex with KaTeX; a display formula too wide for the card scrolls */
+/* Formulas: the app renders .tex with KaTeX; a display formula too wide for the page scrolls */
 .tex { overflow-wrap: normal; }
-div.tex { margin: 4px 0 6px; overflow-x: auto; overflow-y: hidden; }
+div.tex { margin: 4px 0 8px; overflow-x: auto; overflow-y: hidden; }
 div.tex .katex-display { margin: 0; }
 
-/* Wide table: scrolls sideways instead of breaking words into a column of letters */
+/* Wide table: scrolls sideways instead of breaking words into a column of letters. On a narrow page a
+   table written without the .tbl wrapper becomes its own scroll box; its row group (the one the
+   browser adds when the rows are written straight into the table) keeps the full width. */
 .tbl { overflow-x: auto; }
 .tbl table { width: auto; min-width: 100%; }
 .tbl th, .tbl td { overflow-wrap: normal; }
+@media (max-width: 560px) {
+  table:not(.tbl table) { display: block; overflow-x: auto; }
+  table:not(.tbl table) > tbody:only-child { display: table; width: 100%; }
+  table:not(.tbl table) :is(th, td) { overflow-wrap: normal; }
+}
 
-/* Card, stack, grid, section heading */
-.card { background: var(--material-card-bg); border: 1px solid var(--border-card); border-radius: var(--r-card); box-shadow: var(--material-card-shadow); padding: 12px 14px; min-width: 0; }
+/* Section, callout, stack, grid, section heading. A .card is one topic: a plain stretch of the page
+   with no box, set apart by the stack's space and its .h heading. A .callout (alone or on a .card)
+   is the one boxed panel, kept for something the user has to act on; .callout.ask tints it amber. */
+.card { min-width: 0; }
+.callout { min-width: 0; padding: 12px 14px; border-radius: var(--r-card); background: var(--material-inset-bg); border: 1px solid var(--border-card); }
+.callout.ask { background: var(--proto-amber-bg); border-color: var(--proto-amber-border); }
 .stack > * + * { margin-top: var(--b-gap); }
 .grid { display: grid; gap: var(--b-gap); grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); }
 .grid > * { min-width: 0; }
 .grid.wide-left { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
 @media (max-width: 560px) { .grid.wide-left { grid-template-columns: minmax(0, 1fr); } }
-.h { font: 600 11px var(--b-mono); color: var(--proto-muted); letter-spacing: .4px; margin: 0 0 8px; display: flex; align-items: center; gap: 6px; }
-.h .n { font-weight: 500; color: var(--proto-faint); }
+.h { font: 620 13.5px/1.4 var(--b-font); color: var(--proto-ink); margin: 0 0 10px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.h .n { font-size: 12.5px; font-weight: 400; color: var(--proto-faint); font-variant-numeric: tabular-nums; }
 
-/* Head: title line + one-line status */
-.head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.head h1 { font-size: 15px; font-weight: 650; margin: 0; }
-.head .meta { margin-left: auto; }
-.lead { margin: 6px 0 10px; color: var(--proto-ink-2); }
+/* Head: an optional kicker line (scope, and the updated time as .meta on the right), the title line
+   with the overall state, then the lead — one line on where things stand, its key fact in bold.
+   The .meta goes last behind a spacer that takes the line's free room, so it sits at the right end
+   while it fits and starts the next line at the left when it wraps (an auto margin would push a
+   wrapped .meta to the right on a line of its own). The spacer's negative margin cancels its gap,
+   so it never wraps by itself. */
+.kicker { display: flex; align-items: baseline; gap: 4px 8px; flex-wrap: wrap; margin: 0 0 6px; font-size: 12.5px; line-height: 1.45; color: var(--proto-faint); }
+.head { display: flex; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; }
+.head h1 { font-size: 21px; line-height: 1.35; font-weight: 650; letter-spacing: -.01em; color: var(--proto-ink); margin: 0; }
+.head .meta, .kicker .meta { order: 2; font: 400 12.5px/1.45 var(--b-font); color: var(--proto-faint); font-variant-numeric: tabular-nums; }
+.head::after, .kicker::after { content: ""; order: 1; flex: 1 1 0; }
+.head::after { margin-left: -12px; }
+.kicker::after { margin-left: -8px; }
+.lead { margin: 8px 0 12px; font-size: 14.5px; line-height: 1.7; color: var(--proto-ink-3); }
 .lead:last-child { margin-bottom: 0; }
-.lead b { color: var(--proto-ink); }
+.lead b, .lead strong { color: var(--proto-ink); }
+.lead.muted { color: var(--proto-muted); }
 
-/* Status chip */
-.chip { display: inline-flex; align-items: center; gap: 4px; font: 500 11px/14px var(--b-mono); border: 1px solid transparent; border-radius: var(--r-chip); padding: 0 6px; white-space: nowrap; color: var(--proto-muted); background: var(--proto-gray); }
-.chip.ok { color: var(--proto-success); background: var(--proto-success-bg); }
-.chip.run { color: var(--proto-accent); background: var(--proto-accent-bg); }
-.chip.ask { color: var(--proto-amber-fg); background: var(--proto-amber-bg); border-color: var(--proto-amber-border); }
-.chip.wait { color: var(--proto-muted); background: transparent; border: 1px dashed var(--proto-faint); }
-.chip.bad { color: var(--proto-danger); background: var(--proto-danger-bg); }
+/* State label: a status dot and a word in the app's face — no box */
+.chip { display: inline-block; white-space: nowrap; font: 550 12.5px/1.4 var(--b-font); color: var(--proto-muted); background: none; border: 0; padding: 0; }
+.chip::before { content: ""; display: inline-block; box-sizing: border-box; width: 7px; height: 7px; margin: 0 6px 0 0; border-radius: 50%; vertical-align: middle; position: relative; top: -1px; background: color-mix(in srgb, var(--proto-faint) 45%, transparent); }
+.chip.ok { color: var(--proto-success); }
+.chip.ok::before { background: var(--proto-success); }
+.chip.run { color: var(--proto-accent); }
+.chip.run::before { background: var(--proto-accent); box-shadow: 0 0 0 3px var(--proto-accent-bg); }
+.chip.ask { color: var(--proto-amber-fg); }
+.chip.ask::before { background: var(--proto-amber); }
+.chip.wait { color: var(--proto-muted); }
+.chip.wait::before { background: transparent; border: 1.5px solid var(--proto-muted-3); }
+.chip.bad { color: var(--proto-danger); }
+.chip.bad::before { background: var(--proto-danger); }
 
 /* Progress meter: one <i> per unit of work */
-.meter { display: flex; gap: 2px; height: 6px; }
-.meter i { flex: 1; min-width: 2px; border-radius: 3px; background: var(--proto-line-3); }
+.meter { display: flex; gap: 2px; height: 4px; }
+.meter i { flex: 1; min-width: 2px; border-radius: 2px; background: var(--proto-line-3); }
 .meter i.ok { background: var(--proto-success); }
 .meter i.run { background: var(--proto-accent); }
-.meter i.ask { background: var(--proto-amber-bg); box-shadow: inset 0 0 0 1px var(--proto-amber-border); }
-.meter i.wait { background: transparent; border: 1px dashed var(--proto-faint); }
+.meter i.ask { background: var(--proto-amber); }
+.meter i.wait { background: transparent; box-shadow: inset 0 0 0 1px var(--proto-muted-3); }
 .meter i.bad { background: var(--proto-danger); }
-.legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 5px; font: 400 11px var(--b-mono); color: var(--proto-muted); }
-.legend .sw { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 4px; vertical-align: 0; background: var(--proto-line-3); }
+.legend { display: flex; gap: 4px 14px; flex-wrap: wrap; margin-top: 6px; font: 400 12px/1.45 var(--b-font); color: var(--proto-faint); font-variant-numeric: tabular-nums; }
+.legend .sw { display: inline-block; width: 10px; height: 4px; border-radius: 2px; margin-right: 6px; vertical-align: middle; background: var(--proto-line-3); }
 .legend .sw.ok { background: var(--proto-success); }
 .legend .sw.run { background: var(--proto-accent); }
-.legend .sw.ask { background: var(--proto-amber-bg); box-shadow: inset 0 0 0 1px var(--proto-amber-border); }
-.legend .sw.wait { background: transparent; border: 1px dashed var(--proto-faint); }
+.legend .sw.ask { background: var(--proto-amber); }
+.legend .sw.wait { background: transparent; box-shadow: inset 0 0 0 1px var(--proto-muted-3); }
 .legend .sw.bad { background: var(--proto-danger); }
 
-/* Stage cards */
-.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 8px; }
-.step { min-width: 0; border: 1px solid var(--border-card); border-radius: var(--r-control); padding: 8px 10px; background: var(--material-inset-bg); }
-.step .top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-.step .k { font-weight: 650; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.step .t { font-size: 12px; color: var(--proto-ink-2); margin: 2px 0 4px; }
-.step .m { font: 400 10.5px var(--b-mono); color: var(--proto-faint); }
-.step.ok { border-color: color-mix(in srgb, var(--proto-success) 30%, var(--proto-line)); }
-.step.run { border-color: var(--proto-accent-border); background: var(--proto-accent-bg); }
-.step.ask { border-color: var(--proto-amber-border); background: var(--proto-amber-bg); }
-.step.wait { border-style: dashed; border-color: var(--proto-faint); background: transparent; }
-.step.bad { border-color: color-mix(in srgb, var(--proto-danger) 35%, var(--proto-line)); }
+/* Stages: rows in two columns (one when narrow), each closed by a hairline. The step's state draws
+   its 16px icon column — a check when done, else the status dot. A chip inside a step keeps its word
+   on the name line; its dot is that column, so it is not drawn twice. */
+.steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; }
+@media (max-width: 520px) { .steps { grid-template-columns: minmax(0, 1fr); } }
+.step { position: relative; min-width: 0; padding: 8px 0 9px 26px; border-bottom: 1px solid var(--proto-line-2); }
+.step::before { content: ""; position: absolute; box-sizing: border-box; left: 4px; top: 15px; width: 8px; height: 8px; border-radius: 50%; background: color-mix(in srgb, var(--proto-faint) 45%, transparent); }
+.step.ok::before { left: 6px; top: 12px; width: 5px; height: 10px; border-radius: 0; background: none; border: solid var(--proto-success); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.step.run::before { background: var(--proto-accent); box-shadow: 0 0 0 3px var(--proto-accent-bg); }
+.step.ask::before { background: var(--proto-amber); }
+.step.wait::before { background: transparent; border: 1.5px solid var(--proto-muted-3); }
+.step.bad::before { background: var(--proto-danger); }
+.step .top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.step .k { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; font-weight: 550; color: var(--proto-ink); }
+.step .chip { flex: none; font-size: 12px; font-weight: 500; }
+.step .chip::before { display: none; }
+.step .t { font-size: 12.5px; line-height: 1.5; color: var(--proto-muted); margin: 1px 0 0; }
+.step .m { font: 400 12px/1.5 var(--b-font); color: var(--proto-faint); font-variant-numeric: tabular-nums; }
 
-/* Row list: acceptance, checkpoints, decisions, risks, outputs */
+/* Row list: acceptance, checkpoints, decisions, risks, outputs. The app's row grammar: a 16px icon
+   column, the body, right-aligned meta; hairlines between rows. An .id is code, so it stays mono. */
 .rows { display: flex; flex-direction: column; }
-.row { display: flex; gap: 8px; align-items: baseline; padding: 5px 0; border-top: 1px solid var(--proto-line); }
+.row { display: flex; gap: 10px; align-items: baseline; padding: 7px 0; font-size: 13px; border-top: 1px solid var(--proto-line-2); }
 .row:first-child { border-top: 0; padding-top: 0; }
 .row:last-child { padding-bottom: 0; }
-.row .id { font: 500 11px var(--b-mono); color: var(--proto-faint); width: 34px; flex: none; }
+.row .id { flex: none; min-width: 34px; font: 500 12px var(--b-mono); color: var(--proto-faint); }
 .row .body { flex: 1; min-width: 0; }
-.row .end { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 11px var(--b-mono); color: var(--proto-muted); }
-.row .sub { display: block; font-size: 11.5px; color: var(--proto-muted); margin-top: 1px; }
+.row .end { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 12px var(--b-font); color: var(--proto-faint); font-variant-numeric: tabular-nums; }
+.row .sub { display: block; font-size: 12px; color: var(--proto-muted); margin-top: 1px; }
 
 /* Status icon, usually the first thing in a row */
-.ic { flex: none; width: 14px; text-align: center; font-size: 11px; color: var(--proto-faint); }
+.ic { flex: none; width: 16px; text-align: center; font-size: 12px; color: var(--proto-faint); }
 .ic.ok { color: var(--proto-success); }
 .ic.run { color: var(--proto-accent); }
 .ic.ask { color: var(--proto-amber-fg); }
@@ -140,4 +186,4 @@ div.tex .katex-display { margin: 0; }
 .ic.todo { color: var(--proto-faint); }
 
 /* Timeline: rows led by a date */
-.tl .row .when { font: 400 11px var(--b-mono); color: var(--proto-faint); min-width: 40px; white-space: nowrap; flex: none; }
+.tl .row .when { flex: none; min-width: 40px; white-space: nowrap; font: 400 12px var(--b-font); color: var(--proto-faint); font-variant-numeric: tabular-nums; }

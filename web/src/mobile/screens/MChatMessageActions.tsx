@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { messageTimeLabel, type ChatRow } from '@/features/session/transcript/transcript-vm';
 import { useVocabOptional } from '@/i18n';
-import { MC, MONO } from '@/mobile/ui/kit';
+import { MC } from '@/mobile/ui/kit';
 import { msgMenuGroupTop, msgMenuSafeTop, MSG_MENU_SAFE_BOTTOM } from './m-chat-vm';
 import type { MMsgMenu } from './MChatView.types';
 import { HEADER_BOTTOM_VAR } from './useHeaderClearance';
@@ -135,7 +135,7 @@ function ActionGroup({ row, menu, groupRef, top, safeTop }: {
   return (
     <div ref={groupRef} data-msg-menu-group="true" style={style}>
       <HeldBubbleCopy isUser={isUser} text={text} />
-      {timeLabel && <div style={{ flex: 'none', font: `500 11px ${MONO}`, color: 'var(--media-overlay-fg)', background: 'var(--media-timestamp-bg)', padding: '3px 8px', borderRadius: 6, letterSpacing: '.02em' }}>{timeLabel}</div>}
+      {timeLabel && <div style={{ flex: 'none', fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--media-overlay-fg)', background: 'var(--media-timestamp-bg)', padding: '3px 8px', borderRadius: 6 }}>{timeLabel}</div>}
       <MessageMenuCard menu={menu} />
     </div>
   );

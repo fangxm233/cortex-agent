@@ -42,9 +42,12 @@ function HeaderMenu({ actions, onSessionId }: {
       onClick={(event) => { event.stopPropagation(); setOpen((value) => !value); }}
       style={{ width: 28, height: 28, padding: 0, border: 0, borderRadius: 'var(--r-chip)',
         display: 'grid', placeItems: 'center', cursor: 'pointer',
-        background: hover || open ? 'var(--proto-line-2)' : 'transparent',
-        color: hover || open ? 'var(--proto-ink)' : 'var(--proto-muted)',
-        fontSize: 15, lineHeight: 1, letterSpacing: 1 }}>⋯</button>
+        background: open ? 'var(--proto-gray)' : hover ? 'var(--proto-line-2)' : 'transparent',
+        color: hover || open ? 'var(--proto-ink)' : 'var(--proto-muted)' }}>
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <circle cx="4" cy="8" r="1.2" /><circle cx="8" cy="8" r="1.2" /><circle cx="12" cy="8" r="1.2" />
+      </svg>
+    </button>
     {open && <MenuPanel actions={actions} close={close} onSessionId={onSessionId} />}
   </span>;
 }

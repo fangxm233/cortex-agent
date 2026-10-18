@@ -30,4 +30,24 @@ describe('ComposerStatusLine', () => {
       vi.useRealTimers();
     }
   });
+
+  it('sets the session totals at the far end, in the UI face, with no divider glyph', () => {
+    const open = vi.fn();
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <ComposerStatusLine running text="running · 1m 12s" sessionText="session 9m · $0.96" onOpenSessionStats={open} />,
+      );
+    });
+    const line = renderer.root.findByProps({ 'data-composer-status-line': 'true' });
+    expect(line.props.style.font).toContain('var(--font-ui)');
+    expect(statusText(renderer)).toBe('running · 1m 12s' + 'session 9m · $0.96');
+    expect(statusText(renderer)).not.toContain('│');
+    expect(renderer.root.findByProps({ 'data-composer-status-dot': 'running' }).props.style.background).toBe('var(--proto-accent)');
+    const totals = renderer.root.findByProps({ 'data-composer-session-totals': 'true' });
+    expect(totals.props.style.marginLeft).toBe('auto');
+    act(() => totals.props.onClick());
+    act(() => totals.props.onKeyDown({ key: 'Enter', preventDefault: vi.fn() }));
+    expect(open).toHaveBeenCalledTimes(2);
+  });
 });

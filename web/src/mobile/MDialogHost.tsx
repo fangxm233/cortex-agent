@@ -14,7 +14,7 @@ const CARD_STYLE: CSSProperties = {
   overflowWrap: 'anywhere', animation: 'cxfade .18s ease',
 };
 const TITLE_STYLE: CSSProperties = {
-  fontSize: 16, fontWeight: 700, lineHeight: 1.4, color: 'var(--proto-ink)', textAlign: 'center',
+  fontSize: 16, fontWeight: 650, lineHeight: 1.4, color: 'var(--proto-ink)', textAlign: 'center',
 };
 const DESCRIPTION_STYLE: CSSProperties = {
   fontSize: 13, lineHeight: 1.6, color: 'var(--proto-muted)', textAlign: 'center', marginTop: 8,
@@ -40,7 +40,7 @@ function MDialogForm({ request }: { request: DialogRequest }) {
       <div style={ACTIONS_STYLE}>
         <MButton data-dialog-cancel="" style={{ flex: 1 }} onClick={form.cancel}>{request.cancelLabel ?? L.cancel}</MButton>
         <MButton data-dialog-confirm="" type="submit" style={{ flex: 1 }} disabled={!form.ready}
-          variant={request.tone === 'danger' ? 'danger-outline' : 'accent'}>{request.confirmLabel}</MButton>
+          variant={request.tone === 'danger' ? 'danger-outline' : 'ink'}>{request.confirmLabel}</MButton>
       </div>
     </form>
   );

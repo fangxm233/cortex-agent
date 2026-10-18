@@ -74,7 +74,7 @@ Cortex 可以编辑文件、启动进程、管理 GPU 训练，并与多台机�
 
 ### 在 Approval Center 中 {#in-the-approval-center}
 
-在桌面端，只要队列中有待处理的条目，左侧栏就会出现一个琥珀色胶囊标签（"2 approvals pending"），点击即可打开 Approval Center。在手机上，同一个队列就是 Approvals 页面。条目按项目分组，未指定项目的条目归在 GLOBAL 下，每个条目都会显示其操作、原因、影响和命令。
+在桌面端，只要队列中有待处理的条目，左侧栏底部就会出现一张带琥珀色圆点的卡片（"2 approvals pending"），点击即可打开 Approval Center。在手机上，同一个队列就是 Approvals 页面。条目按项目分组，未指定项目的条目归在 GLOBAL 下，每个条目都会显示其操作、原因、影响和命令。
 
 在这里批准或拒绝，会改写条目的 `Status` 行——写成 `approved <date>`，或在你附带反馈时写成 `rejected <date> (<feedback>)`——文件中的其他行保持不变。Approval Center 只记录你的决定，既不执行操作，也不给会话发消息。操作由下一个处理该队列的智能体执行。
 

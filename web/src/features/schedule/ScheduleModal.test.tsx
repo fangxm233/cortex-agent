@@ -5,7 +5,7 @@ import { defaultScheduleForm, editableScheduleFields, scheduleModelOptions, type
 import { modelKey } from '@/lib/model-selection';
 
 vi.mock('@/design', async () => ({
-  ...(await vi.importActual<typeof import('@/design/controls')>('@/design/controls')),
+  ...(await vi.importActual<typeof import('@/design')>('@/design')),
   Select: ({ options, value, ...props }: any) => (
     <div data-select-control data-select-value={String(value)} data-option-count={options.length} {...props} />
   ),
@@ -93,6 +93,27 @@ describe('ScheduleModal custom selections', () => {
       { selection: { ...selection, thinking: 'high' } },
       { selection: { ...selection, thinking: null } },
     ]);
+  });
+
+  it('draws the v2 dialog: quiet close, lifted type option, UI-face next run, ink primary', () => {
+    const renderer = mount({ ...defaultScheduleForm(null), time: '09:00' });
+    // No keycap chip: the close is a labelled icon button and Escape still closes.
+    expect(renderer.root.findAll((node) => node.type === 'button' && node.children.includes('esc'))).toHaveLength(0);
+    expect(renderer.root.findByProps({ 'aria-label': 'Close' }).props.className).toContain('text-proto-muted');
+
+    const daily = renderer.root.findByProps({ 'data-sched-type-opt': 'daily' });
+    expect(daily.props.style).toMatchObject({ background: 'var(--segment-active-bg)', color: 'var(--proto-ink)' });
+    expect(JSON.stringify(daily.props.style)).not.toContain('accent');
+
+    const nextRun = renderer.root.findByProps({ 'data-schedule-next-run': true });
+    expect(nextRun.props.style.font).toBeUndefined();
+    expect(nextRun.children.join('')).toMatch(/^Next run: (Today|Tomorrow) 09:00 · in /);
+
+    const [save] = renderer.root.findAllByProps({ 'data-action': 'create-schedule' });
+    expect(save.props.variant).toBe('primary');
+    const json = JSON.stringify(renderer.toJSON());
+    expect(json).not.toContain('IBM Plex Mono');
+    expect(json).not.toContain('uppercase');
   });
 
   it('keeps delay units as strings and weekday values as numbers', () => {

@@ -5,7 +5,8 @@ import { cadenceLabel, nextRunDelta } from '@/features/session/list/scheduled-ch
 import { sessionStamp } from '@/features/session/list/session-groups';
 import { formatUsd } from '@/lib/format';
 
-const mono = "'IBM Plex Mono',monospace";
+// Run numbers, times and costs are meta, not code: UI face with tabular digits so the columns align.
+const META = { fontSize: 12.5, color: 'var(--proto-muted)', fontVariantNumeric: 'tabular-nums' } as const;
 
 // Design 30b: the ONLY run drill-in for a repeating schedule — three columns, no status prose.
 // Clicking a run hands its sessionId back (the workbench opens it in the chat pane and closes
@@ -81,7 +82,7 @@ export function RunListModal({
       }}
     >
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '15px 18px 12px', borderBottom: '1px solid var(--proto-line)', flex: 'none' }}>
-          <svg width={13} height={13} viewBox="0 0 14 14" fill="none" stroke="var(--proto-accent)" strokeWidth={1.6} style={{ flex: 'none' }}>
+          <svg width={13} height={13} viewBox="0 0 14 14" fill="none" stroke="var(--proto-muted-3)" strokeWidth={1.6} style={{ flex: 'none' }}>
             <circle cx="7" cy="7" r="5.6" />
             <path d="M7 4v3.2l2.2 1.3" />
           </svg>
@@ -89,7 +90,7 @@ export function RunListModal({
             <div style={{ fontSize: 13.5, fontWeight: 650, color: 'var(--proto-ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {row.title}
             </div>
-            {sub && <div style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' , marginTop: 2 }}>{sub}</div>}
+            {sub && <div style={{ fontSize: 12, color: 'var(--proto-muted)', marginTop: 2 }}>{sub}</div>}
           </div>
           {sched && onManage && (
             <button
@@ -113,8 +114,8 @@ export function RunListModal({
             ✕
           </button>
         </div>
-        {/* Column captions: mono uppercase in English, plain words in Chinese. */}
-        <div style={{ ...GRID, background: 'transparent', padding: '8px 18px 6px', font: `600 11px ${mono}`, color: 'var(--proto-muted)' , letterSpacing: '.05em', flex: 'none' }}>
+        {/* Column captions: small sentence-case words, hierarchy from weight and colour. */}
+        <div style={{ ...GRID, background: 'transparent', padding: '8px 18px 6px', fontSize: 12, fontWeight: 550, color: 'var(--proto-muted)', flex: 'none' }}>
           <span>{L.wbRunCaption}</span>
           <span>{L.wbFiredCaption}</span>
           <span style={{ textAlign: 'right' }}>{L.wbCostCaption}</span>
@@ -135,16 +136,16 @@ export function RunListModal({
                   width: '100%',
                   textAlign: 'left',
                   cursor: 'pointer',
-                  background: active ? 'var(--proto-accent-bg)' : 'transparent',
+                  background: active ? 'var(--proto-gray)' : 'transparent',
                   borderTop: i === 0 ? 'none' : '1px solid var(--proto-gray)',
                 }}
               >
-                <span style={{ font: `${r.unread ? 600 : 400} 11px ${mono}`, color: r.unread ? 'var(--proto-ink)' : 'var(--proto-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ ...META, fontWeight: r.unread ? 600 : 400, color: r.unread ? 'var(--proto-ink)' : META.color, display: 'flex', alignItems: 'center', gap: 6 }}>
                   #{ordinals.get(r.sessionId)}
                   {r.unread && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-accent)' }} />}
                 </span>
-                <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>{sessionStamp(r, now)}</span>
-                <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', textAlign: 'right' }}>
+                <span style={META}>{sessionStamp(r, now)}</span>
+                <span style={{ ...META, textAlign: 'right' }}>
                   {r.costUsd != null ? formatUsd(r.costUsd) : '—'}
                 </span>
               </button>
@@ -152,7 +153,7 @@ export function RunListModal({
           })}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', background: 'transparent', padding: '10px 18px 13px', borderTop: '1px solid var(--proto-line)', flex: 'none' }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-muted)'  }}>
+          <span style={{ fontSize: 12, fontWeight: 550, color: 'var(--proto-muted)' }}>
             {L.wbAllRuns.replace('{n}', String(row.runs.length))}
           </span>
           {onMarkAllRead && unreadIds.length > 0 && (

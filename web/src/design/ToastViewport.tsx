@@ -52,8 +52,8 @@ function ToastHeading({ item, onDismiss }: BubbleProps) {
   const dismissLabel = useVocabOptional().cmDismiss;
   return (
     <div className="flex items-baseline gap-[8px]">
-      <span className="truncate text-[12.5px] font-semibold text-proto-ink">{item.title}</span>
-      <span className="ml-auto flex-none font-mono text-[10px] text-proto-faint">{relativeAge(item.ts, lang)}</span>
+      <span className="truncate text-[13px] font-semibold text-proto-ink">{item.title}</span>
+      <span className="ml-auto flex-none text-[11.5px] tabular-nums text-proto-faint">{relativeAge(item.ts, lang)}</span>
       <button type="button" aria-label={dismissLabel}
         onClick={(e) => { e.stopPropagation(); onDismiss(item.id); }}
         className="flex-none text-[12px] leading-none text-proto-faint transition-colors hover:text-proto-muted">
@@ -70,7 +70,7 @@ function ToastActions({ item, onDismiss }: BubbleProps) {
       {item.actions.map((action, i) => (
         <button key={i} type="button" aria-label={action.altText ?? action.label}
           onClick={(e) => { e.stopPropagation(); action.onClick(); onDismiss(item.id); }}
-          className="rounded-[6px] border border-proto-line [background:var(--material-control-bg)] shadow-[shadow:var(--material-control-shadow)] px-[8px] py-[3px] text-[10.5px] text-proto-muted transition-colors hover:text-proto-ink">
+          className="rounded-[6px] border border-proto-line [background:var(--material-control-bg)] shadow-[shadow:var(--material-control-shadow)] px-[9px] py-[4px] text-[12px] font-medium text-proto-ink-2 transition-colors hover:text-proto-ink">
           {action.label}
         </button>
       ))}
@@ -88,7 +88,7 @@ function ToastBody({ item, onDismiss }: BubbleProps) {
       <div className="min-w-0 flex-1">
         <ToastHeading item={item} onDismiss={onDismiss} />
         {item.description ? (
-          <div className="mt-[3px] line-clamp-2 break-words font-mono text-[10.5px] text-proto-muted-2">
+          <div className="mt-[3px] line-clamp-2 break-words text-[12px] leading-[1.45] text-proto-muted-2">
             {item.description}
           </div>
         ) : null}
@@ -129,7 +129,7 @@ function OverflowControl({ count, onExpand }: { count: number; onExpand: () => v
     <button type="button" onClick={onExpand} className={[
       'pointer-events-auto flex items-center gap-[7px] rounded-full px-[12px] py-[5px]', SHELL_CLASS,
     ].join(' ')}>
-      <span className="font-mono text-[10.5px] font-semibold text-proto-muted">+{count}</span>
+      <span className="text-[12px] font-semibold tabular-nums text-proto-muted">+{count}</span>
       <span className="text-[11px] text-proto-muted-2">{hint}</span>
     </button>
   );

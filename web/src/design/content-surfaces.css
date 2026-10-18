@@ -26,31 +26,3 @@
   text-align: inherit;
 }
 .issue-center > div:first-child { flex-wrap: wrap; overflow-wrap: anywhere; }
-
-.overview-header, .overview-stats { flex-wrap: wrap; }
-.overview-header { min-height: 50px; height: auto; padding-block: 10px; }
-.overview-header > *, .overview-stats > * { min-width: 0; }
-.overview-header { overflow-wrap: anywhere; }
-.overview-actions { flex-wrap: wrap; }
-.overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.overview-executions { grid-column: 1 / -1; }
-.overview-executions > div:first-child { flex-wrap: wrap; gap: 6px; }
-.overview-table-scroll { overflow-x: auto; overscroll-behavior-x: contain; }
-.overview-table-row {
-  display: grid;
-  grid-template-columns: 104px minmax(180px, 1fr) 72px 72px 104px 56px;
-  min-width: 656px;
-  gap: 8px;
-}
-.overview-table-row > * { min-width: 0; overflow-wrap: anywhere; }
-.overview-schedule-meta { flex-wrap: wrap; gap: 6px; }
-
-@media (max-width: 1024px) {
-  .overview-grid { grid-template-columns: minmax(0, 1fr); }
-  .overview-stats { gap: 16px !important; }
-}
-@media (max-width: 768px) {
-  .overview-grid { padding: 12px !important; }
-  .overview-header, .overview-stats { padding-inline: 12px !important; }
-  .overview-actions { width: 100%; }
-}

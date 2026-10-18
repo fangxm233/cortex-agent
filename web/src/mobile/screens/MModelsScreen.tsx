@@ -43,7 +43,7 @@ function Favorites({ c }: { c: ModelsController }) {
       {facts.map(fact => <MSettingsRow key={fact.key} stacked title={fact.ref.model}
         trailing={<div className="mobile-settings-actions">
           <FavoriteThinking c={c} fact={fact} />
-          <MButton compact variant="accent-outline" disabled={c.pending || fact.current}
+          <MButton compact variant="outline" disabled={c.pending || fact.current}
             onClick={() => c.setDefault(fact.key)}>{fact.current ? L.default : L.stSetDefaultModel}</MButton>
           <MButton compact variant="danger-outline" disabled={c.pending}
             onClick={() => c.remove(fact.ref)}>{L.stRemoveFavorite}</MButton>
@@ -54,7 +54,7 @@ function Favorites({ c }: { c: ModelsController }) {
 
 function Catalog({ c }: { c: ModelsController }) {
   const L = useVocab();
-  if (!c.catalogOpen) return <MButton variant="accent-outline" onClick={() => c.setCatalogOpen(true)}>{L.stAddFavorite}</MButton>;
+  if (!c.catalogOpen) return <MButton variant="outline" onClick={() => c.setCatalogOpen(true)}>{L.stAddFavorite}</MButton>;
   const keys = new Set(c.facts.map(fact => fact.key));
   return <MSettingsCard title={L.stAllModels}>
     <MSettingsFeedback hint={c.catalogPending ? L.stModelCatalogPending : undefined} error={c.catalogError?.message} />
@@ -65,11 +65,11 @@ function Catalog({ c }: { c: ModelsController }) {
         <span>{modelOptionLabel(ref)}</span>
       </span>
     } trailing={
-      <MButton compact variant="accent-outline" disabled={c.pending || keys.has(modelKey(ref))} onClick={() => c.add(ref)}>
+      <MButton compact variant="outline" disabled={c.pending || keys.has(modelKey(ref))} onClick={() => c.add(ref)}>
         {keys.has(modelKey(ref)) ? L.stFavorited : L.stAddFavorite}
       </MButton>
     } />)}
-    <MButton compact variant="accent-outline" onClick={() => c.setCatalogOpen(false)}>{L.cancel}</MButton>
+    <MButton compact variant="outline" onClick={() => c.setCatalogOpen(false)}>{L.cancel}</MButton>
   </MSettingsCard>;
 }
 

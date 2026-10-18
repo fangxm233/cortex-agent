@@ -33,6 +33,15 @@ textarea::placeholder {
     transition-delay: 0s !important;
   }
 
+  /* The two faces. UI text — labels, names, counts, times — uses `--font-ui`; `--font-code` is only
+     for what a person would type or paste (paths, commands, ids, diffs). `font` shorthands in inline
+     styles cannot say `inherit`, so they name these variables instead. */
+  :root {
+    --font-ui: -apple-system, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial,
+      'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    --font-code: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  }
+
   html,
   body {
     margin: 0;
@@ -40,8 +49,7 @@ textarea::placeholder {
     /* The ground the glass panes blur. Fixed so the mesh stays put while panes scroll over it. */
     background: var(--app-backdrop);
     background-attachment: fixed;
-    font-family: -apple-system, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial,
-      'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    font-family: var(--font-ui);
     -webkit-font-smoothing: antialiased;
   }
 
@@ -125,9 +133,8 @@ textarea::placeholder {
     transition: background 0.12s;
   }
 
-  /* ⌘K command palette — 1:1 chrome from prototype.dc.html L1291–1315 (task c967).
-     cmdk's Dialog only accepts overlay/content classNames (no style prop), so the
-     fixed-position panel + backdrop live here; rows carry inline styles. */
+  /* ⌘K command palette (Panels mockup). cmdk's Dialog only accepts overlay/content classNames
+     (no style prop), so the fixed-position panel + backdrop live here; rows carry inline styles. */
   .cmdk-backdrop {
     position: fixed;
     inset: 0;
@@ -159,23 +166,31 @@ textarea::placeholder {
   .cmdk-panel:focus-visible {
     outline: none;
   }
+  /* The search row is the palette's header and its only field: focus is always there while the
+     sheet is open, and the caret already shows it, so it draws no ring around a borderless input. */
+  .cmdk-panel [cmdk-input]:focus-visible {
+    outline: none;
+  }
+  /* Hover is a faint ink tint and the selected row a gray one, with an ink label — the same row
+     grammar as every list; selection is never an accent colour. Hover comes first so a row that is
+     both keeps the selected tint. */
+  .cmdk-row:hover {
+    background: var(--proto-alt);
+  }
   .cmdk-row[data-selected='true'] {
     background: var(--cmdk-row-selected);
   }
-  .cmdk-row:hover {
-    background: var(--cmdk-row-hover);
-  }
   .cmdk-row-label {
-    font-size: 12.5px;
-    font-weight: 600;
-    color: var(--proto-ink);
+    font-size: 13.5px;
+    font-weight: 400;
+    color: var(--proto-ink-2);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     min-width: 0;
   }
   .cmdk-row[data-selected='true'] .cmdk-row-label {
-    color: var(--proto-accent);
+    color: var(--proto-ink);
   }
 }
 
@@ -358,9 +373,10 @@ textarea::placeholder {
   width: 336px;
 }
 
+/* No reserved scrollbar gutter: it inset the rows on the right only. The list's own symmetric
+   padding (MENU_INSET) is the inset; a long catalog simply scrolls inside it. */
 .selection-menu [data-menu-scroll] {
   overflow-x: hidden;
-  scrollbar-gutter: stable;
 }
 
 .selection-menu [data-selection-row] > span {

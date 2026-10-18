@@ -24,7 +24,7 @@ function CustomProviderCard({ provider, editDisabled, deleteDisabled, confirming
   return (
     <MCard>
       <div data-custom-provider={provider.name} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: MC.ink }}>{provider.name}</span>
+        <span style={{ fontSize: 14, fontWeight: 650, color: MC.ink }}>{provider.name}</span>
         <span style={{ font: `400 12px ${MONO}`, color: MC.muted }}>{provider.api}</span>
         {provider.routed ? null : <MPill tone="waiting">{L.cpvUnrouted}</MPill>}
         <MPill tone="cancelled">{provider.hasApiKey ? L.cpvKeyStored : L.cpvNoKey}</MPill>
@@ -33,7 +33,7 @@ function CustomProviderCard({ provider, editDisabled, deleteDisabled, confirming
         <span style={{ font: `400 12px ${MONO}`, color: MC.muted, overflowWrap: 'anywhere' }}>
           {provider.upstreamUrl ?? '—'}
         </span>
-        <span style={{ font: `400 12px ${MONO}`, color: MC.muted, overflowWrap: 'anywhere' }}>
+        <span style={{ fontSize: 13, color: MC.muted, overflowWrap: 'anywhere' }}>
           {provider.models.map(model => model.id).join(', ')}
         </span>
       </div>
@@ -42,8 +42,8 @@ function CustomProviderCard({ provider, editDisabled, deleteDisabled, confirming
           type="button" data-cpv-action="edit" data-cpv-provider={provider.name}
           disabled={editDisabled} onClick={onEdit}
           style={{
-            border: `1px solid ${MC.run}`, borderRadius: 'var(--r-chip)', padding: '6px 9px', background: 'var(--material-inset-bg)',
-            color: MC.run, fontSize: 10.5, fontWeight: 650,
+            border: '1px solid var(--proto-line-3)', borderRadius: 'var(--r-chip)', padding: '6px 10px', background: 'var(--material-control-bg)',
+            color: MC.ink, fontSize: 13, fontWeight: 600,
             cursor: editDisabled ? 'not-allowed' : 'pointer', opacity: editDisabled ? 0.45 : 1,
           }}
         >
@@ -54,7 +54,7 @@ function CustomProviderCard({ provider, editDisabled, deleteDisabled, confirming
           disabled={deleteDisabled} onClick={onDelete}
           style={{
             border: '1px solid var(--proto-danger-bg)', borderRadius: 'var(--r-chip)', padding: '6px 9px',
-            background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.fail, fontSize: 10.5, fontWeight: 650,
+            background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.fail, fontSize: 13, fontWeight: 600,
             cursor: deleteDisabled ? 'not-allowed' : 'pointer', opacity: deleteDisabled ? 0.45 : 1,
           }}
         >
@@ -96,7 +96,7 @@ export function MAccountsView({
   const trailing = (
     <button type="button" data-accounts-sync disabled={rescanning} onClick={onRescan}
       style={{ border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-chip)', padding: '5px 8px',
-        background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.run, fontSize: 10, fontWeight: 650 }}>
+        background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.ink, fontSize: 13, fontWeight: 600 }}>
       {L.accountsSyncModels}
     </button>
   );
@@ -134,8 +134,8 @@ export function MAccountsView({
               type="button" data-cpv-action="new" disabled={custom.savePending}
               onClick={custom.onNew}
               style={{
-                marginLeft: 8, border: `1px solid ${MC.run}`, borderRadius: 'var(--r-chip)', padding: '3px 8px',
-                background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.run, fontSize: 10, fontWeight: 650, cursor: 'pointer',
+                marginLeft: 8, border: '1px solid var(--proto-line-3)', borderRadius: 'var(--r-chip)', padding: '3px 9px',
+                background: 'var(--material-control-bg)', color: MC.ink, fontSize: 13, fontWeight: 600, cursor: 'pointer',
               }}
             >
               {L.cpvNew}

@@ -81,7 +81,7 @@ function ConnectionEditor(props: CardProps & {
     <PlatformConnectionFields fields={props.platform.fields} draft={props.draft} disabled={locked}
       onChange={(key, value) => props.setDraft({ ...props.draft, [key]: value })} />
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 14, marginTop: 16 }}>
-      <SButton tone="accent" disabled={!props.dirty || locked} onClick={props.onSave}>
+      <SButton tone="primary" disabled={!props.dirty || locked} onClick={props.onSave}>
         {props.pending ? L.psSaving : L.psSave}
       </SButton>
       <SLinkAction disabled={!props.dirty || props.pending} onClick={props.onReset}>{L.psReset}</SLinkAction>

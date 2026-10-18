@@ -38,6 +38,8 @@ export const MC = {
   inkSolidFg: 'var(--ink-solid-fg)',
 } as const;
 
+/** The code face, for code only: commands, paths, ids, keys, hashes, log text. Names, models, times,
+ *  counts, labels and chips take the UI face (set no font) with `M_NUM` where figures align. */
 export const MONO = "'IBM Plex Mono', ui-monospace, Menlo, monospace";
 
 /** Bottom edge of floating screen chrome (the new-session button), above the home indicator. */

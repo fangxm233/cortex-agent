@@ -61,8 +61,6 @@ export interface MChatViewProps {
   /** Opens a session from the board's live strip. */
   onOpenBoardSession?: (sessionId: string) => void;
   status: ChatHeaderStatus;
-  /** Project the session belongs to; prefixes the header status line when known. */
-  project?: string;
   rows: ChatRow[];
   /** The foreground turn is running (not merely held open by background work): the turn being
    *  written keeps its work log open. */

@@ -1,16 +1,20 @@
 import { forwardRef, type CSSProperties, type ReactNode } from 'react';
 import { AnimatePresence, MotionConfig, Reorder, motion, useIsPresent, useReducedMotion } from 'motion/react';
 import { useMotionMode, type MotionMode } from '@/theme';
+import { PlusGlyph } from '@/design';
 import { browserTabChip, browserTabForwardSource, currentUrl, type BrowserTabChip } from '@/features/browser/browser-target';
-import { attachmentFileExt } from '@/features/attachments/attachment-presentation';
 import { useVocabOptional, type Vocab } from '@/i18n';
 import { BoardTabTitle } from '@/features/board/BoardDockBody';
-import { dockTabLabel, isBoardTab, isFileTab, type DockState, type DockTab } from './dock-tabs';
+import { BoardIcon } from '@/features/board/BoardIcon';
+import { dockTabLabel, isBoardTab, isFileTab, isWebTab, type DockState, type DockTab, type WebDockTab } from './dock-tabs';
 import './dock-chrome.css';
 
 // Keep the strip at the chat header's 50px height. Only chrome reorders; the pane's
 // insertion-ordered bodies remain mounted. The scroller clips vertical drag overflow.
-const MONO = "'IBM Plex Mono',monospace";
+//
+// A tab is plain muted text with a small glyph for its kind (the board's flag, a page for a file, a
+// globe for the web); the selected tab alone is raised — control material, a hairline and a soft
+// shadow. A web tab's port, or the device:port a forward came from, follows its label as quiet text.
 
 interface StripProps {
   state: DockState | null;
@@ -45,7 +49,9 @@ function TabScroller({ state, onAdd, onSelect, onClose, onReorder, reduceMotion 
         {tabs.map((tab) => <DockTabItem key={tab.id} tab={tab} active={tab.id === state?.activeId}
           draggable={tabs.length > 1} reduceMotion={reduceMotion} onSelect={onSelect} onClose={onClose} />)}
       </AnimatePresence>
-      <motion.button layout type="button" className="dock-control" data-add-tab="" title={L.brNewTab} aria-label={L.brNewTab} onClick={onAdd}>+</motion.button>
+      <motion.button layout type="button" className="dock-control" data-add-tab="" title={L.brNewTab} aria-label={L.brNewTab} onClick={onAdd}>
+        <PlusGlyph size={14} />
+      </motion.button>
     </Reorder.Group>
   );
 }
@@ -79,25 +85,50 @@ function TabButtons({ tab, active, onSelect, onClose, isPresent }: DockTabItemPr
   const L = useVocabOptional();
   const closeTab = L.dockCloseTab;
   const label = isBoardTab(tab) ? null : dockTabLabel(tab, L.brNewTab);
-  const source = isFileTab(tab) || isBoardTab(tab) ? null : browserTabForwardSource(tab);
-  const chip = isBoardTab(tab) ? { text: L.boardTitle, kind: 'plain' as const } : tabChip(tab);
+  const web = isWebTab(tab) ? tab : null;
+  const source = web ? browserTabForwardSource(web) : null;
+  const where = web ? browserTabChip(web) : null;
   return (
     <>
       <button type="button" className="dock-tab-select" aria-pressed={active} data-dock-tab={tab.id}
         data-tab-kind={tab.kind} data-active={active ? 'true' : 'false'} onClick={() => onSelect(tab.id)} title={isBoardTab(tab) ? undefined : tabTooltip(tab, label!, source, L)}>
-        {chip && <TabChip chip={chip} source={source} copy={L} />}
+        <TabIcon tab={tab} copy={L} />
         <span style={TAB_LABEL_STYLE}>{isBoardTab(tab) ? <BoardTabTitle boardId={tab.boardId} /> : label}</span>
+        {web && where && <TabWhere tab={web} chip={where} source={source} copy={L} />}
       </button>
       <button type="button" className="dock-control dock-tab-close" disabled={!isPresent} data-close-tab={tab.id}
-        title={closeTab} aria-label={closeTab} onPointerDown={(event) => event.stopPropagation()} onClick={() => onClose(tab.id)}>×</button>
+        title={closeTab} aria-label={closeTab} onPointerDown={(event) => event.stopPropagation()} onClick={() => onClose(tab.id)}>
+        <CloseGlyph size={10} />
+      </button>
     </>
   );
 }
 
-/** Every tab carries the same chip shape: a web port or device, or a file extension. */
-function tabChip(tab: Exclude<DockTab, { kind: 'board' }>): BrowserTabChip | null {
-  if (!isFileTab(tab)) return browserTabChip(tab);
-  return { text: attachmentFileExt(tab.item.name), kind: 'plain' };
+/** The ✕ as line art, for the tab close and the dock close: centred, weight independent of the font. */
+export function CloseGlyph({ size = 13 }: { size?: number }): JSX.Element {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"
+      strokeLinecap="round" aria-hidden="true" style={{ display: 'block', flex: 'none' }}>
+      <path d="m3.5 3.5 9 9m0-9-9 9" />
+    </svg>
+  );
+}
+
+/** One small muted glyph per kind. The board's flag also names the kind for assistive tech, since its
+ *  label is only the board's title; a file name and a web address speak for themselves. */
+function TabIcon({ tab, copy }: { tab: DockTab; copy: Pick<Vocab, 'boardTitle'> }): JSX.Element {
+  if (isBoardTab(tab)) {
+    return <span className="dock-tab-icon" role="img" aria-label={copy.boardTitle}><BoardIcon size={13} /></span>;
+  }
+  return (
+    <span className="dock-tab-icon" aria-hidden="true">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
+        {isFileTab(tab)
+          ? <><path d="M4 2.5h5l3 3v8H4z" /><path d="M9 2.5v3h3" /></>
+          : <><circle cx="8" cy="8" r="5.5" /><path d="M2.5 8h11M8 2.5c1.6 1.6 2.4 3.4 2.4 5.5S9.6 11.9 8 13.5C6.4 11.9 5.6 10.1 5.6 8S6.4 4.1 8 2.5z" /></>}
+      </svg>
+    </span>
+  );
 }
 
 function tabTooltip(tab: Exclude<DockTab, { kind: 'board' }>, label: string, source: string | null, copy: Pick<Vocab, 'brForwardedFrom'>): string {
@@ -107,13 +138,22 @@ function tabTooltip(tab: Exclude<DockTab, { kind: 'board' }>, label: string, sou
   return url ?? label;
 }
 
-/** The forward chip keeps data-forward-source — provenance the address bar cannot show. */
-function TabChip({ chip, source, copy }: { chip: BrowserTabChip; source: string | null; copy: Pick<Vocab, 'brForwardedFrom'> }): JSX.Element {
+/** Where a web tab points, after its label: the port its URL carries (the label already dropped it)
+ *  or a forward's original `device:port`. Quiet text rather than a chip; a forward keeps
+ *  data-forward-source — provenance the address bar cannot show. A bare port reads straight on from
+ *  an untitled tab's host (`localhost:8080`); after a page title or a forward it stands apart. */
+function TabWhere({ tab, chip, source, copy }: {
+  tab: WebDockTab;
+  chip: BrowserTabChip;
+  source: string | null;
+  copy: Pick<Vocab, 'brForwardedFrom'>;
+}): JSX.Element {
   const forwarded = chip.kind === 'forward' && source !== null;
+  const attached = chip.kind === 'plain' && tab.pageTitle === null;
   return (
-    <span {...(forwarded ? { 'data-forward-source': source } : {})}
-      title={forwarded ? copy.brForwardedFrom.replace('{source}', source) : undefined}
-      style={forwarded ? TAB_CHIP_FORWARD_STYLE : TAB_CHIP_PLAIN_STYLE}>{chip.text}</span>
+    <span className="dock-tab-where" data-tab-where={chip.kind} data-attached={attached ? 'true' : undefined}
+      {...(forwarded ? { 'data-forward-source': source } : {})}
+      title={forwarded ? copy.brForwardedFrom.replace('{source}', source) : undefined}>{chip.text}</span>
   );
 }
 
@@ -123,7 +163,4 @@ function motionReduction(mode: MotionMode): 'always' | 'never' | 'user' {
   return 'user';
 }
 
-const TAB_LABEL_STYLE: CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '15px' };
-const TAB_CHIP_STYLE: CSSProperties = { display: 'inline-flex', alignItems: 'center', flex: 'none', maxWidth: 98, height: 18, padding: '0 5px', marginRight: 6, borderRadius: 'var(--r-chip)', font: `600 11px ${MONO}`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
-const TAB_CHIP_FORWARD_STYLE: CSSProperties = { ...TAB_CHIP_STYLE, background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)' };
-const TAB_CHIP_PLAIN_STYLE: CSSProperties = { ...TAB_CHIP_STYLE, border: '1px solid var(--proto-line)', color: 'var(--proto-muted)' };
+const TAB_LABEL_STYLE: CSSProperties = { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '16px' };

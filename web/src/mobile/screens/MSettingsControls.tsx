@@ -1,5 +1,5 @@
 import type { ComponentProps, CSSProperties, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
-import { MCard, MBottomSheet, MC } from '@/mobile/ui/kit';
+import { MBackChevron, MCard, MBottomSheet, MC } from '@/mobile/ui/kit';
 import { useVocab, useVocabOptional } from '@/i18n';
 import type { SettingsQuery } from '@/features/settings/controllers/useConfigSnapshot';
 import '@/features/settings/ui/settings-style.css';
@@ -15,7 +15,7 @@ export function MSettingsFrame(props: { label?: string; header?: ReactNode; chil
 export function MSettingsHeader(props: { onBack: () => void; trailing?: ReactNode; children: ReactNode }) {
   const vocab = useVocabOptional();
   return <header className="mobile-settings-header">
-    <button type="button" aria-label={vocab.back} onClick={props.onBack} className="mobile-settings-back">‹</button>
+    <button type="button" aria-label={vocab.back} onClick={props.onBack} className="mobile-settings-back"><MBackChevron /></button>
     <div className="mobile-settings-heading">{props.children}</div>
     {props.trailing && <div className="mobile-settings-header-actions">{props.trailing}</div>}
   </header>;
@@ -88,7 +88,7 @@ export function MSettingsQueryPage<T>(props: {
 export function MSettingsCard(props: { children: ReactNode; title?: ReactNode; note?: string }) {
   return (
     <div>
-      {props.title && <div style={{ ...MSET_KEY, padding: '0 2px 5px', fontWeight: 700 }}>{props.title}</div>}
+      {props.title && <div style={{ ...MSET_KEY, padding: '0 2px 5px', fontWeight: 600 }}>{props.title}</div>}
       <MSettingsSurfaceCard padding={0}>{props.children}</MSettingsSurfaceCard>
       {props.note && <div style={{ ...MSET_SUB, padding: '6px 3px 0' }}>{props.note}</div>}
     </div>

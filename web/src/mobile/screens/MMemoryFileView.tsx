@@ -1,6 +1,6 @@
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { useVocabOptional } from '@/i18n';
-import { MDrillHeader, MC, MONO } from '@/mobile/ui/kit';
+import { MDrillHeader, MC } from '@/mobile/ui/kit';
 
 export type MMemoryFileStatus = 'loading' | 'error' | 'ready' | 'empty';
 
@@ -27,9 +27,9 @@ export function MMemoryFileView({
         <div style={{ minWidth: 0 }}>
           <div
             style={{
-              font: `600 14px ${MONO}`,
+              fontSize: 15.5,
+              fontWeight: 620,
               color: MC.ink,
-              letterSpacing: '-.01em',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -40,9 +40,10 @@ export function MMemoryFileView({
           {metaLine && (
             <div
               style={{
-                font: `400 11px ${MONO}`,
+                fontSize: 12.5,
                 color: MC.muted,
                 marginTop: 1,
+                fontVariantNumeric: 'tabular-nums',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -57,13 +58,13 @@ export function MMemoryFileView({
       {/* white reading surface — real file markdown (read-only) */}
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: 'var(--proto-card)' }}>
         {status === 'loading' && (
-          <div style={{ padding: 16, font: `400 12px ${MONO}`, color: MC.muted }}>{copy.memLoadingFile}</div>
+          <div style={{ padding: 16, fontSize: 13, color: MC.muted }}>{copy.memLoadingFile}</div>
         )}
         {status === 'error' && (
           <div style={{ padding: 16, fontSize: 12.5, color: MC.fail }}>{copy.memFileReadError}</div>
         )}
         {status === 'empty' && (
-          <div style={{ padding: 16, font: `400 12px ${MONO}`, color: MC.muted }}>{copy.memFileEmpty}</div>
+          <div style={{ padding: 16, fontSize: 13, color: MC.muted }}>{copy.memFileEmpty}</div>
         )}
         {status === 'ready' && (
           <div

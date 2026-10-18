@@ -19,8 +19,6 @@ import { isDocItem, type FileItem } from './dock-tabs';
 // other kind gets a `FileBar`. A file with no workspace path (a composer object URL for something
 // not uploaded yet) has nothing to show or download, so it gets no row at all.
 
-const mono = "'IBM Plex Mono',monospace";
-
 export function DockFileBody({ item }: { item: FileItem }): JSX.Element {
   const dl = useDownloadFile();
   const L = useVocabOptional();
@@ -96,9 +94,10 @@ function DockMediaBody({ item }: { item: MediaItem }): JSX.Element {
   );
 }
 
+/** A pane's one line of state — empty, loading, failed: muted text in the UI face, nothing around it. */
 export function DockCentered({ children, failed }: { children: React.ReactNode; failed?: boolean }): JSX.Element {
   return (
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 20px', textAlign: 'center', color: failed ? 'var(--proto-danger)' : 'var(--proto-muted)', font: `500 12px ${mono}` }}>
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', boxSizing: 'border-box', padding: '32px 20px', textAlign: 'center', color: failed ? 'var(--proto-danger)' : 'var(--proto-muted)', fontSize: 13, lineHeight: 1.5 }}>
       {children}
     </div>
   );
@@ -116,7 +115,7 @@ const CONTENT_STYLE = {
   pdf: { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' } as CSSProperties,
 };
 
-/** Resting look on top of IconButton (whose muted glyph turns ink on hover). */
+/** Resting look on top of IconButton, matching the PDF pager's own buttons beside it (whose muted glyph turns ink on hover). */
 const PAGER_BUTTON_STYLE: CSSProperties = {
   borderRadius: 'var(--r-chip)',
   border: '1px solid var(--proto-line)',

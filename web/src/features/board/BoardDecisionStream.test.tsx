@@ -16,6 +16,7 @@ vi.mock('@/features/session/interaction/useDecisionActions', async (importOrigin
 });
 
 import { BoardDecisionStream } from './BoardDecisionStream';
+import { messageTimeLabel } from '@/features/session/transcript/transcript-vm';
 
 const entry = (id: string, sessionId: string, title: string, actions: BoardDecisionEntry['item']['actions'] = []): BoardDecisionEntry => ({
   ts: '2026-10-13T22:00:00.000Z',
@@ -48,8 +49,19 @@ describe('BoardDecisionStream', () => {
     expect(toggles.map((n) => n.props['data-decision-toggle'])).toEqual(['d2', 'd1']);
     const all = text(r.root.findByProps({ 'data-board-decision-stream': '' }));
     expect(all).toContain('Approved');
+    // Every line here is a decision: no repeated label, and an unanswered one is dated by its announcement.
+    expect(all).not.toContain('Decision');
+    expect(text(r.root.findByProps({ 'data-decision-toggle': 'd2' }))).toBe(`Second${messageTimeLabel('2026-10-13T22:00:00.000Z')}`);
     expect(all).not.toContain('lead-session');
     expect(all).not.toContain('worker-session');
+  });
+
+  it('says so in one muted line of the app face when there is nothing yet', () => {
+    const stream = render([]).root.findByProps({ 'data-board-decision-stream': '' });
+    expect(text(stream)).toBe('No decisions recorded yet.');
+    const line = stream.children[0] as ReactTestInstance;
+    expect(line.props.style).toMatchObject({ color: 'var(--proto-muted)' });
+    expect(JSON.stringify(line.props.style)).not.toMatch(/font"|Mono|monospace/);
   });
 
   it('answers a decision on the session that announced it', () => {

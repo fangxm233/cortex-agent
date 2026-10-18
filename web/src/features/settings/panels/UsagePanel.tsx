@@ -32,15 +32,16 @@ import {
   type UsageWindowView,
 } from '@/features/usage/usage-vm';
 
-const MONO = "'IBM Plex Mono',monospace";
-
 const SEVERITY_FILL: Record<UsageSeverity, string> = {
   normal: 'var(--proto-accent)',
   warning: 'var(--proto-amber)',
   danger: 'var(--proto-danger)',
 };
 
-const META_TEXT: CSSProperties = { font: `400 12px/1.5 ${MONO}`, color: 'var(--proto-muted-2)', overflowWrap: 'anywhere' };
+// Modes, ages and reset times are labels and numbers: UI face, tabular figures.
+const META_TEXT: CSSProperties = {
+  fontSize: 12, lineHeight: 1.5, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted-2)', overflowWrap: 'anywhere',
+};
 const POLICY_TEXT: CSSProperties = { fontSize: 13, lineHeight: 1.5, color: 'var(--proto-muted)', overflowWrap: 'anywhere' };
 // The kit control scale, widened on the right only: the `%` suffix is painted over the field.
 const POLICY_INPUT: CSSProperties = { ...S_CONTROL_STYLE, width: 84, paddingRight: 24 };
@@ -114,7 +115,7 @@ function ThresholdField(props: {
         onKeyDown={(event) => { if (event.key === 'Enter') props.onSubmit(); }}
         style={props.disabled ? POLICY_INPUT_DISABLED : POLICY_INPUT}
       />
-      <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', font: `500 12px ${MONO}`, color: 'var(--proto-muted-2)' }}>%</span>
+      <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, fontWeight: 500, color: 'var(--proto-muted-2)' }}>%</span>
     </div>
   );
 }

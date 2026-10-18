@@ -1,4 +1,4 @@
-import { MScreen, MDrillHeader, MScrollBody, MButton, MCard, MCollapsedCard, MPill, MC, MONO } from '@/mobile/ui/kit';
+import { MScreen, MDrillHeader, MScrollBody, MButton, MCard, MCollapsedCard, MPill, MC, MONO, M_NUM } from '@/mobile/ui/kit';
 import { useVocabOptional, type Vocab } from '@/i18n';
 import type { MApprovalsVm, MApprovalCard } from './m-approvals-vm';
 
@@ -33,7 +33,7 @@ export function MApprovalsView({
       header={
         <MDrillHeader onBack={onBack}>
           <div
-            style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em', flex: 'none' }}
+            style={{ fontSize: 16, fontWeight: 650, color: MC.ink, flex: 'none' }}
           >
             {copy.approvals}
           </div>
@@ -80,7 +80,7 @@ export function MApprovalsView({
 function GroupDivider({ label }: { label: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '2px 2px 0' }}>
-      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.06em', color: MC.muted }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: MC.muted }}>
         {label}
       </div>
       <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
@@ -93,8 +93,8 @@ function TierPill({ copy, operation }: { copy: Vocab; operation: string }) {
   return (
     <span
       style={{
-        fontSize: 11,
-        fontWeight: 700,
+        fontSize: 12,
+        fontWeight: 600,
         padding: '2px 8px',
         borderRadius: 'var(--r-pill)',
         background: MC.amberBg,
@@ -152,11 +152,11 @@ function ExpandedCard({
             {card.id}
           </span>
           {card.time && (
-            <span style={{ font: `400 11px ${MONO}`, color: MC.muted, flex: 'none' }}>{card.time}</span>
+            <span style={{ fontSize: 12, color: MC.muted, flex: 'none', ...M_NUM }}>{card.time}</span>
           )}
         </div>
         {/* title (scheme L369) */}
-        <div style={{ fontSize: 14.5, fontWeight: 600, color: MC.ink, lineHeight: 1.4, marginTop: 8 }}>
+        <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink, lineHeight: 1.4, marginTop: 8 }}>
           {card.title}
         </div>
         {/* real reason / impact free-text — carries the budget/estimate wording (scheme L370) */}
@@ -189,7 +189,7 @@ function ExpandedCard({
           {card.provenance && (
             <>
               {copy.apFrom}{' '}
-              <span style={{ font: `400 11px ${MONO}`, color: MC.run }}>{card.provenance}</span>
+              <span style={{ color: MC.ink, fontWeight: 500 }}>{card.provenance}</span>
               {' · '}
             </>
           )}

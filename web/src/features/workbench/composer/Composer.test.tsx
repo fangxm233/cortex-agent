@@ -162,6 +162,47 @@ describe('Composer material', () => {
   });
 });
 
+describe('Composer send cluster', () => {
+  const card = (tree: ReactTestRenderer) => tree.root.find((node) => node.props.style?.background === 'var(--material-card-bg)');
+  const send = (tree: ReactTestRenderer) => tree.root.findByProps({ 'data-action': 'send' });
+
+  it('sends with an ink circle and never rings the card in the accent', () => {
+    const tree = mountComposer(vi.fn(), { running: false });
+    expect(send(tree).props.disabled).toBe(true);
+    expect(send(tree).props.style.background).toBe('var(--proto-line)');
+    expect(card(tree).props.style.boxShadow).toContain('var(--proto-line)');
+    act(() => tree.root.findByProps({ 'data-composer-input': true }).props.onChange({ target: { value: 'hello' } }));
+    expect(send(tree).props.disabled).toBe(false);
+    expect(send(tree).props.style.background).toBe('var(--ink-solid-bg)');
+    expect(send(tree).props.style.boxShadow).toBeUndefined();
+    expect(card(tree).props.style.boxShadow).toContain('var(--proto-line-3)');
+    expect(card(tree).props.style.boxShadow).not.toContain('accent');
+    act(() => tree.unmount());
+  });
+
+  it('firms the card\'s hairline while focus is inside it, without an accent outline', () => {
+    const tree = mountComposer(vi.fn(), { running: false });
+    expect(card(tree).props.className).toBeUndefined();
+    act(() => card(tree).props.onFocus());
+    expect(card(tree).props.style.boxShadow).toContain('var(--proto-line-3)');
+    act(() => card(tree).props.onBlur({ currentTarget: { contains: () => false }, relatedTarget: null }));
+    expect(card(tree).props.style.boxShadow).not.toContain('var(--proto-line-3)');
+    act(() => tree.unmount());
+  });
+
+  it('shows only Stop mid-turn until there is something to send, then send as the outlined secondary', () => {
+    const tree = mountComposer(vi.fn(), { running: true });
+    expect(tree.root.findAllByProps({ 'data-action': 'send' })).toHaveLength(0);
+    expect(tree.root.findAllByProps({ 'data-action': 'stop' })).toHaveLength(1);
+    act(() => tree.root.findByProps({ 'data-composer-input': true }).props.onChange({ target: { value: 'steer' } }));
+    expect(send(tree).props.style.background).toBe('transparent');
+    const stop = tree.root.findByProps({ 'data-action': 'stop' });
+    expect(stop.props.style.background).toBe('var(--ink-solid-bg)');
+    expect(stop.findByType('span').props.style.borderRadius).toBe(2);
+    act(() => tree.unmount());
+  });
+});
+
 describe('Composer draft project selector', () => {
   it('renders only for drafts and locks while create-and-send is pending', () => {
     const live = mountComposer(() => {});
@@ -274,7 +315,8 @@ describe('Composer attachment send gate', () => {
       { id: 'done', status: 'done', progress: 100, meta: { name: 'ok', path: 'ok', size: 1, mimeType: 'text/plain', type: 'file' } },
       { id: 'error', status: 'error', progress: 0, file: new File(['x'], 'bad') },
     ];
-    const renderer = mountComposer(() => {});
+    // Idle, so the gated send stays on screen as a disabled circle (mid-turn it would be hidden).
+    const renderer = mountComposer(() => {}, { running: false });
     act(() => renderer.root.findByProps({ 'data-composer-input': true }).props.onChange({ target: { value: 'send me' } }));
 
     expect(renderer.root.findByProps({ 'data-action': 'send' }).props.disabled).toBe(true);

@@ -1,11 +1,14 @@
 import type { CSSProperties, ReactNode } from 'react';
+import { IconButton } from '@/design/IconButton';
+import { MENU_FOCUS } from '@/design/MenuChrome';
 import { useVocabOptional } from '@/i18n';
 
 // A docked tab has no header of its own — the strip above is shared by every tab — so each file body
 // carries this row: where the file is, and what can be done with it. A PDF already has such a row
 // (its page pager), and takes its actions there instead of growing a second one.
-
-const MONO = "'IBM Plex Mono',monospace";
+//
+// The path is the one thing here a person would copy, so it alone takes the code face; the controls
+// are neutral — a transparent icon button and a quiet toggle, a gray tint when on.
 
 export function FileBar({ path, onDownload, children }: {
   /** Workspace-relative path; the row is only worth rendering when the file has one. */
@@ -22,7 +25,12 @@ export function FileBar({ path, onDownload, children }: {
       <span data-file-path={path} title={path} style={PATH_STYLE}>{path}</span>
       {children}
       {onDownload && (
-        <button type="button" data-file-download="" title={L.cmDownload} aria-label={L.cmDownload} onClick={onDownload} style={BUTTON_STYLE}>↓</button>
+        <IconButton data-file-download="" label={L.cmDownload} size={28} onClick={onDownload}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7"
+            strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M8 2.5v8M4.5 7 8 10.5 11.5 7M3 13.5h10" />
+          </svg>
+        </IconButton>
       )}
     </div>
   );
@@ -42,12 +50,10 @@ export function FileBarToggle({ on, label, title, onClick, ...rest }: {
       title={title}
       onClick={onClick}
       {...rest}
+      className={on ? MENU_FOCUS : `${MENU_FOCUS} text-proto-muted hover:bg-proto-line-2 hover:text-proto-ink`}
       style={{
         ...TOGGLE_STYLE,
-        borderColor: on ? 'var(--proto-accent)' : 'var(--proto-line)',
-        background: on ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)',
-        boxShadow: 'var(--material-control-shadow)',
-        color: on ? 'var(--proto-accent)' : 'var(--proto-muted)',
+        ...(on ? { background: 'var(--proto-gray)', color: 'var(--proto-ink)' } : null),
       }}
     >{label}</button>
   );
@@ -72,35 +78,18 @@ const PATH_STYLE: CSSProperties = {
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-  font: `500 11px ${MONO}`,
+  font: '400 11.5px var(--font-code)',
   color: 'var(--proto-muted)',
-};
-
-const BUTTON_STYLE: CSSProperties = {
-  width: 28,
-  height: 28,
-  borderRadius: 'var(--r-chip)',
-  border: '1px solid var(--proto-line)',
-  background: 'var(--material-control-bg)',
-  boxShadow: 'var(--material-control-shadow)',
-  color: 'var(--proto-muted)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: 13,
-  cursor: 'pointer',
-  flex: 'none',
-  userSelect: 'none',
 };
 
 const TOGGLE_STYLE: CSSProperties = {
-  height: 22,
-  padding: '0 8px',
+  height: 24,
+  padding: '0 9px',
   borderRadius: 'var(--r-chip)',
-  border: '1px solid var(--proto-line)',
+  border: 0,
   display: 'inline-flex',
   alignItems: 'center',
-  font: `600 11px ${MONO}`,
+  font: '500 12px var(--font-ui)',
   cursor: 'pointer',
   flex: 'none',
   userSelect: 'none',

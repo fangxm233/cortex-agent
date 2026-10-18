@@ -4,7 +4,8 @@ import { MENU_FOCUS } from './MenuChrome';
 // The borderless square icon control shared by the top bar, the rail and the chat header. Hover is
 // CSS, so a row of these costs no state. `tone` picks the engaged (`active`) look: `neutral` for
 // a standing toggle such as the rail switch, `accent` for an open panel or menu; `amber` is the
-// always-lit attention badge.
+// always-lit attention badge. An open panel is not a state the accent should announce, so both
+// engaged looks are the same quiet ink tint; the tone survives as intent for callers.
 
 export type IconButtonTone = 'neutral' | 'accent' | 'amber';
 
@@ -12,7 +13,7 @@ const QUIET = 'text-proto-muted enabled:hover:bg-proto-line-2 enabled:hover:text
 
 const TONE_CLASS: Record<IconButtonTone, { rest: string; active: string }> = {
   neutral: { rest: QUIET, active: 'bg-proto-line-2 text-proto-ink' },
-  accent: { rest: QUIET, active: 'bg-proto-accent-bg text-proto-accent' },
+  accent: { rest: QUIET, active: 'bg-proto-gray text-proto-ink' },
   amber: { rest: 'bg-proto-amber-bg text-proto-amber-fg', active: 'bg-proto-amber-bg text-proto-amber-fg' },
 };
 

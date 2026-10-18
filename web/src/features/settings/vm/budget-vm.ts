@@ -105,6 +105,14 @@ export function formatBudgetUsd(n: number | null | undefined): string {
   return Number.isInteger(n) ? '$' + n : '$' + n.toFixed(2);
 }
 
+/** The spend bar's fill: the accent while there is room, amber from 80% of the limit, red once it
+ *  is reached. Daily and monthly read on the same scale, so one colour means one thing. */
+export function budgetMeterTone(percent: number): string {
+  if (percent >= 100) return 'var(--proto-danger)';
+  if (percent >= 80) return 'var(--proto-amber)';
+  return 'var(--proto-accent)';
+}
+
 /** spend/limit as a clamped `NN%` string for the spend bar; `0%` when the limit is unusable. */
 export function budgetBarPct(spent: number, limit: number | null | undefined): string {
   if (limit == null || !Number.isFinite(limit) || limit <= 0) return '0%';

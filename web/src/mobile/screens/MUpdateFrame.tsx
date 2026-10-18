@@ -1,6 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
 
-const MONO = "'IBM Plex Mono', monospace";
 const OVERLAY_STYLE: CSSProperties = {
   position: 'fixed', inset: 0, zIndex: 60, background: 'var(--overlay-scrim-strong)',
   display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 36px',
@@ -13,14 +12,15 @@ const CARD_STYLE: CSSProperties = {
   boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center',
 };
 const ICON_STYLE: CSSProperties = {
-  width: 46, height: 46, borderRadius: 'var(--r-card)', background: 'var(--proto-accent-bg)',
+  width: 46, height: 46, borderRadius: 'var(--r-card)', background: 'var(--proto-gray)',
   display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14,
 };
 const TITLE_STYLE: CSSProperties = {
-  fontSize: 17, fontWeight: 700, color: 'var(--proto-ink)', letterSpacing: '-.01em',
+  fontSize: 17, fontWeight: 650, color: 'var(--proto-ink)',
 };
+// Versions and sizes are figures, not code: the UI face with aligned digits.
 const SUMMARY_STYLE: CSSProperties = {
-  font: `500 10.5px ${MONO}`, color: 'var(--proto-muted-3)', marginTop: 6,
+  fontSize: 12.5, color: 'var(--proto-muted-3)', marginTop: 6, fontVariantNumeric: 'tabular-nums',
 };
 const DESCRIPTION_STYLE: CSSProperties = {
   fontSize: 13, lineHeight: 1.6, color: 'var(--proto-muted)', textAlign: 'center',
@@ -38,7 +38,7 @@ function MUpdateHeader({ title, summary }: Pick<MUpdateFrameProps, 'title' | 'su
   return (
     <>
       <div style={ICON_STYLE}>
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="var(--proto-accent)" strokeWidth="1.8">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="var(--proto-ink-2)" strokeWidth="1.8" aria-hidden="true">
           <path d="M10 14V4M5.5 8.5 10 4l4.5 4.5" />
           <path d="M3.5 16.5h13" />
         </svg>

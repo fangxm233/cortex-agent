@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { MenuCard, MENU_SURFACE, MENU_BUTTON_STYLE, MENU_FOCUS } from '@/design/MenuChrome';
+import { Divider, MenuCard, MENU_SURFACE, MENU_BUTTON_STYLE, MENU_FOCUS, MENU_INSET, MENU_ROW_PAD_X } from '@/design/MenuChrome';
 import { PlusGlyph } from '@/design';
 import { useVocab } from '@/i18n';
 import type { SlashSuggestion } from '@/features/session/composer/composer-slash';
 import { useBrowserDeviceOptions, type BrowserDeviceOption } from '@/features/browser/BrowserOptIn';
+import { QUIET_CHIP_GLYPH, quietChipStyle } from './composer-chip';
 
-const MONO = "'IBM Plex Mono',monospace";
+// A slash command is something the user types, so the command column alone takes the code face.
+const CODE = 'var(--font-code)';
 
 export function ComposerSlashMenu({ suggestions, activeIndex, onHover, onPick }: {
   suggestions: SlashSuggestion[];
@@ -21,7 +23,9 @@ export function ComposerSlashMenu({ suggestions, activeIndex, onHover, onPick }:
   if (suggestions.length === 0) return null;
   return (
     <div data-menu="slash" style={{ position: 'absolute', left: 0, right: 0, bottom: '100%', marginBottom: -2, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', ...MENU_SURFACE, overflow: 'hidden', zIndex: 10 }}>
-      <div role="listbox" style={{ maxHeight: 320, overflowY: 'auto' }}>
+      {/* The same inset rows as the composer's MenuCard menus: rounded tints that stop short of the
+          card's edges, and a footer rule inset the same way. */}
+      <div role="listbox" style={{ maxHeight: 320, overflowY: 'auto', padding: MENU_INSET }}>
         {suggestions.map((suggestion, index) => (
           <button
             type="button"
@@ -35,15 +39,15 @@ export function ComposerSlashMenu({ suggestions, activeIndex, onHover, onPick }:
             data-slash-active={index === active || undefined}
             onMouseEnter={() => onHover(index)}
             onClick={() => { if (!suggestion.disabled) onPick(suggestion); }}
-            style={{ ...MENU_BUTTON_STYLE, display: 'flex', alignItems: 'center', minWidth: 0, padding: '8px 14px', opacity: suggestion.disabled ? 0.45 : 1, background: index === active ? 'var(--proto-accent-bg)' : 'transparent', cursor: suggestion.disabled ? 'default' : 'pointer' }}
+            style={{ ...MENU_BUTTON_STYLE, display: 'flex', alignItems: 'center', minWidth: 0, padding: `8px ${MENU_ROW_PAD_X}px`, opacity: suggestion.disabled ? 0.45 : 1, background: index === active ? 'var(--proto-line-2)' : 'transparent', cursor: suggestion.disabled ? 'default' : 'pointer' }}
           >
-            <span style={{ flex: 'none', font: `600 12px ${MONO}`, color: index === active ? 'var(--proto-accent)' : 'var(--proto-muted)' }}>{suggestion.command}</span>
-            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11.5, color: 'var(--proto-muted)', marginLeft: 12 }}>{suggestion.description}</span>
+            <span style={{ flex: 'none', font: `500 12px ${CODE}`, color: index === active ? 'var(--proto-ink)' : 'var(--proto-ink-2)' }}>{suggestion.command}</span>
+            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5, color: 'var(--proto-muted)', marginLeft: 12 }}>{suggestion.description}</span>
           </button>
         ))}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', padding: '7px 14px', borderTop: '1px solid var(--proto-alt)', background: 'transparent' }}>
-        <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>↑↓ {L.wbNavigate} · ⏎ {L.wbRun} · {L.wbEscDismiss}</span>
+      <div style={{ display: 'flex', alignItems: 'center', margin: `0 ${MENU_INSET}px`, padding: `7px ${MENU_ROW_PAD_X}px 8px`, borderTop: '1px solid var(--proto-line)', background: 'transparent' }}>
+        <span style={{ fontSize: 12, color: 'var(--proto-faint)' }}>↑↓ {L.wbNavigate} · ⏎ {L.wbRun} · {L.wbEscDismiss}</span>
       </div>
     </div>
   );
@@ -78,8 +82,8 @@ export interface ComposerBrowserControl {
 
 const MENU_ROW_STYLE: CSSProperties = {
   ...MENU_BUTTON_STYLE, background: 'transparent',
-  display: 'flex', alignItems: 'center', gap: 9, minHeight: 32, padding: '0 13px',
-  cursor: 'pointer', fontSize: 12, color: 'var(--proto-ink)',
+  display: 'flex', alignItems: 'center', gap: 9, minHeight: 32, padding: `0 ${MENU_ROW_PAD_X}px`,
+  cursor: 'pointer', fontSize: 13, color: 'var(--proto-ink)',
 };
 
 /** Row glyphs for the ＋ menu — same 16-unit line-art family the mobile attach menu uses, so the
@@ -130,14 +134,14 @@ function BrowserDeviceRows({ options, current, onPick }: {
           data-device={o.device ?? '__off__'}
           onClick={(e) => { e.stopPropagation(); onPick(o.device); }}
           style={{
-            ...MENU_ROW_STYLE, gap: 5,
-            background: o.device === current ? 'var(--proto-accent-bg)' : 'transparent',
+            ...MENU_ROW_STYLE, gap: 6,
+            background: o.device === current ? 'var(--proto-line-2)' : 'transparent',
           }}
         >
-          <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-ink)' }}>{o.label}</span>
-          <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>{o.sub}</span>
+          <span style={{ fontWeight: 500, color: 'var(--proto-ink)' }}>{o.label}</span>
+          <span style={{ fontSize: 12.5, color: 'var(--proto-muted)' }}>{o.sub}</span>
           {o.device === current && (
-            <span style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontSize: 11, fontWeight: 700 }}>✓</span>
+            <span style={{ marginLeft: 'auto', color: 'var(--proto-ink)', fontSize: 12, fontWeight: 700 }}>✓</span>
           )}
         </button>
       ))}
@@ -181,20 +185,11 @@ function ComposerBrowserChip({ browser }: { browser: ComposerBrowserControl }): 
         onClick={editable ? (e) => { e.stopPropagation(); setOpen((o) => !o); } : undefined}
         onMouseEnter={() => { if (editable) setHover(true); }}
         onMouseLeave={() => setHover(false)}
-        style={{
-          display: 'inline-flex', alignItems: 'center', gap: 5, flex: 'none',
-          height: 30, maxWidth: 160, padding: '0 10px', boxSizing: 'border-box',
-          borderRadius: 'var(--r-pill)',
-          border: `1.5px solid ${lit ? 'var(--proto-accent)' : 'var(--proto-accent-border)'}`,
-          background: 'var(--proto-accent-bg)',
-          color: 'var(--proto-accent)',
-          font: `500 11px ${MONO}`,
-          cursor: editable ? 'pointer' : 'default',
-        }}
+        style={{ ...quietChipStyle(lit), flex: 'none', maxWidth: 160, cursor: editable ? 'pointer' : 'default' }}
       >
-        <MenuIcon kind="browser" size={12} color="currentColor" />
+        <MenuIcon kind="browser" size={12} color={QUIET_CHIP_GLYPH} />
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{device}</span>
-        {editable && <span style={{ fontSize: 7.5, opacity: 0.75 }}>▾</span>}
+        {editable && <span aria-hidden="true" style={{ fontSize: 8, color: QUIET_CHIP_GLYPH }}>▾</span>}
       </button>
       {open && editable && (
         <MenuCard kind="browser" align="left" minWidth={170}>
@@ -241,11 +236,11 @@ function ComposerPlusMenu({ browser, onAttach, onCommands }: {
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         style={{
+          // A transparent circle: muted ＋ at rest, a gray tint and ink on hover or while open.
           width: 30, height: 30, borderRadius: '50%', boxSizing: 'border-box', padding: 0, flex: 'none',
-          border: `1px solid ${active ? 'var(--proto-accent-border)' : 'var(--proto-line-3)'}`,
-          color: active ? 'var(--proto-accent)' : 'var(--proto-muted)',
-          background: 'var(--material-control-bg)',
-          boxShadow: 'var(--material-control-shadow)',
+          border: 0,
+          color: active ? 'var(--proto-ink)' : 'var(--proto-muted)',
+          background: open ? 'var(--proto-gray)' : hover ? 'var(--proto-line-2)' : 'transparent',
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           lineHeight: 0, cursor: 'pointer',
         }}
@@ -264,7 +259,7 @@ function ComposerPlusMenu({ browser, onAttach, onCommands }: {
               >
                 <MenuIcon kind="attach" />
                 {L.wbAttach}
-                <span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>{L.wbAttachHint}</span>
+                <span style={{ marginLeft: 'auto', paddingLeft: 12, fontSize: 12, color: 'var(--proto-faint)' }}>{L.wbAttachHint}</span>
               </button>
               {browser && (
                 <button
@@ -276,7 +271,7 @@ function ComposerPlusMenu({ browser, onAttach, onCommands }: {
                 >
                   <MenuIcon kind="browser" />
                   {L.wbBrowser}
-                  <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, font: `500 11px ${MONO}`, color: browser.device ? 'var(--proto-accent)' : 'var(--proto-muted)' }}>
+                  <span style={{ marginLeft: 'auto', paddingLeft: 12, display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: browser.device ? 'var(--proto-ink-2)' : 'var(--proto-muted)' }}>
                     {browser.device ?? L.wbBrowserOffOption}
                     {browserEditable && <span style={{ fontSize: 8, color: 'var(--proto-muted)' }}>▸</span>}
                   </span>
@@ -298,10 +293,11 @@ function ComposerPlusMenu({ browser, onAttach, onCommands }: {
                 type="button" className={MENU_FOCUS}
                 data-plus-back
                 onClick={(e) => { e.stopPropagation(); setPage('root'); }}
-                style={{ ...MENU_ROW_STYLE, minHeight: 28, borderBottom: '1px solid var(--proto-line-2)', color: 'var(--proto-muted)', fontSize: 11 }}
+                style={{ ...MENU_ROW_STYLE, minHeight: 28, color: 'var(--proto-muted)', fontSize: 12, fontWeight: 550 }}
               >
                 ‹ {L.wbBrowser}
               </button>
+              <Divider />
               <BrowserDeviceRows
                 options={options}
                 current={browser!.device}

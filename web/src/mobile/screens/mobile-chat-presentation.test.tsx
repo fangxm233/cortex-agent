@@ -29,7 +29,25 @@ describe('mobile chat presentation', () => {
     expect(html).toContain('var(--material-card-bg)');
     expect(html).toContain('var(--material-card-shadow)');
     expect(html).toContain('A reviewed plan');
-    expect(html).toContain('font-size:11px');
+    // The file reads by its name in the UI face; the full path rides the tooltip.
+    expect(html).toContain('title="plans/long-path/plan.md"');
+    expect(html).toMatch(/>plan\.md</);
+    expect(html).not.toContain('Plex Mono');
+  });
+
+  it('asks for the pending plan with a hairline secondary and the ink primary, never the accent', () => {
+    const html = planMarkup({ ...plan, status: 'pending' });
+    expect(html).toContain(en.mPlanAwaiting);
+    expect(html).toContain('color:var(--proto-amber-fg)');
+    expect(html).toContain(en.mPlanReadFull);
+    expect(html).toMatch(/>plan\.md</);
+    const button = (label: string) => html.match(new RegExp(`<button[^>]*>${label.replace('&', '&amp;')}</button>`))?.[0] ?? '';
+    const approve = button(en.ixApproveRun);
+    expect(approve).toContain('background:var(--ink-solid-bg)');
+    expect(html).not.toContain('accent-glow');
+    expect(html).not.toContain('var(--m-run-border)');
+    const reject = button(en.ixRejectNote);
+    expect(reject).toContain('border:1px solid var(--proto-line-3)');
   });
 
   it('gives only the small menus a backdrop sample', () => {

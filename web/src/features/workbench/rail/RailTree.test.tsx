@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { LangProvider } from '@/i18n';
 import { RailTree, type RailTreeProps } from './RailTree';
 import { RailSessionMenu } from './RailSessionMenu';
 import type { RailProjectNode, RailSessionRow } from './rail-tree';
+import type { ScheduleRow } from '@/features/session/list/schedule-rail';
 
 const node = (): RailProjectNode => ({
   id: 'p1',
@@ -12,7 +13,6 @@ const node = (): RailProjectNode => ({
   empty: false,
   attention: 0,
   attentionTone: 'unread',
-  hotkey: null,
   idleAge: null,
   starredSessions: [],
   starsExpanded: true,
@@ -55,14 +55,21 @@ function renderTree(overrides: Partial<RailTreeProps> = {}): { renderer: ReactTe
   return { renderer };
 }
 
+const session = (over: Partial<RailSessionRow> = {}): RailSessionRow => ({
+  sessionId: 's1', projectId: 'p1', title: 'Session', age: '5m', stamp: '', running: false,
+  awaitingInput: false, waitingOn: false, unread: false, selected: false, ...over,
+});
+
 describe('flat project rail row', () => {
   it.each([
-    ['action', 'var(--proto-amber-bg)', 'var(--proto-amber-fg)'],
-    ['unread', 'var(--proto-accent)', 'var(--ink-solid-fg)'],
-  ] as const)('uses the themed %s badge colors', (attentionTone, background, color) => {
+    ['action', 'var(--proto-amber-text)'],
+    ['unread', 'var(--proto-muted)'],
+  ] as const)('shows %s attention as a plain coloured count, not a filled badge', (attentionTone, color) => {
     const { renderer } = renderTree({ nodes: [{ ...node(), attention: 1, attentionTone }] });
     const badge = renderer.root.findByProps({ 'data-project-attention-badge': 'p1' });
-    expect(badge.props.style).toMatchObject({ background, color, minWidth: 16, height: 16 });
+    expect(badge.props.style).toMatchObject({ color, fontVariantNumeric: 'tabular-nums' });
+    expect(badge.props.style.background).toBeUndefined();
+    expect(badge.props.style.font).toBeUndefined();
     expect(badge.children).toEqual(['1']);
     act(() => renderer.unmount());
   });
@@ -71,20 +78,36 @@ describe('flat project rail row', () => {
     const onToggleProject = vi.fn();
     const { renderer } = renderTree({ nodes: [{ ...node(), current }], onToggleProject });
     const project = renderer.root.findByProps({ 'data-project-row': 'p1' });
-    const background = current ? 'var(--proto-accent-bg)' : 'transparent';
-    expect(project.props.style).toMatchObject({ position: 'relative', height: 32, gap: 7, background });
+    // With no selected session row in the folder, the current folder holds the selected tint.
+    const background = current ? 'var(--proto-gray)' : 'transparent';
+    expect(project.props.style).toMatchObject({ position: 'relative', height: 30, gap: 10, background });
     expect(project.props.style.boxShadow).toBeUndefined();
-    expect(project.findByProps({ title: 'p1' }).props.style.fontWeight).toBe(current ? 600 : 500);
-    // Folder glyph, title, trailing slot only: no extra chevron column takes title width.
-    expect(project.children).toHaveLength(3);
+    expect(project.findByProps({ title: 'p1' }).props.style.fontWeight).toBe(550);
+    // Drag grip, disclosure chevron column, title, trailing slot.
+    expect(project.children).toHaveLength(4);
+    const grip = project.findByProps({ 'data-project-grip': 'p1' });
+    expect(grip.props.style.opacity).toBe(0);
     act(() => project.props.onMouseEnter());
     expect(project.props.style).toMatchObject({
-      height: 32, background: current ? 'var(--proto-accent-bg)' : 'var(--proto-gray)',
+      height: 30, background: current ? 'var(--proto-gray)' : 'var(--proto-line-2)',
     });
+    expect(project.findByProps({ 'data-project-grip': 'p1' }).props.style.opacity).toBe(1);
     act(() => project.props.onMouseLeave());
     expect(project.props.style.background).toBe(background);
     act(() => project.props.onClick());
     expect(onToggleProject).toHaveBeenCalledWith('p1');
+    act(() => renderer.unmount());
+  });
+
+  it('leaves the current folder plain while its selected session row is on screen', () => {
+    const { renderer } = renderTree({ nodes: [{ ...node(), sessions: [session({ selected: true })] }] });
+    expect(renderer.root.findByProps({ 'data-project-row': 'p1' }).props.style.background).toBe('transparent');
+    act(() => renderer.unmount());
+  });
+
+  it('drops the drag grip while a filter is active', () => {
+    const { renderer } = renderTree({ filter: 'x' });
+    expect(renderer.root.findAllByProps({ 'data-project-grip': 'p1' })).toHaveLength(0);
     act(() => renderer.unmount());
   });
 
@@ -121,7 +144,7 @@ describe('project Stars disclosure', () => {
     const header = () => renderer.root.findByProps({ 'data-starred-project': 'p1' }).findByProps({ 'aria-label': 'Stars' });
     expect(renderer.root.findAllByProps({ 'data-session-id': 'star-1' })).toHaveLength(1);
     const selected = renderer.root.findByProps({ 'data-session-id': 'star-1' });
-    expect(selected.props.style.background).toBe('var(--proto-accent-bg)');
+    expect(selected.props.style.background).toBe('var(--proto-gray)');
     expect(selected.props.title).toBe('Renamed session');
     act(() => selected.props.onClick());
     expect(onOpenSession).toHaveBeenCalledWith(star);
@@ -197,13 +220,74 @@ describe('team lead rail row', () => {
       nodes={[{ ...node(), sessions: [{ ...lead, workersExpanded: true }] }]} /></LangProvider>));
     const w1 = renderer.root.findByProps({ 'data-session-id': 'w1' });
     const w2 = renderer.root.findByProps({ 'data-session-id': 'w2' });
-    expect(w1.props.style).toMatchObject({ padding: '0 10px 0 56px' });
+    expect(w1.props.style).toMatchObject({ padding: '0 8px 0 40px' });
     expect(w1.props.style.opacity).toBeUndefined();
     expect(w2.props.style.opacity).toBe(0.55);
     act(() => renderer.unmount());
   });
 });
 
+
+describe('session row status', () => {
+  const dot = (renderer: ReactTestRenderer) => renderer.root.findAllByProps({ role: 'img' })[0];
+
+  it.each([
+    [{ running: true }, 'Running', 'var(--proto-accent)', 400],
+    [{ awaitingInput: true, running: true }, 'Needs your input', 'var(--proto-amber)', 600],
+  ] as const)('marks %o with a haloed dot and keeps the words out of the meta slot', (state, words, colour, weight) => {
+    const { renderer } = renderTree({ nodes: [{ ...node(), sessions: [session(state)] }] });
+    const row = renderer.root.findByProps({ 'data-session-id': 's1' });
+    expect(dot(renderer).props['aria-label']).toBe(words);
+    expect(dot(renderer).props.style).toMatchObject({ background: colour });
+    expect(dot(renderer).props.style.boxShadow).toContain('0 0 0 3px');
+    expect(row.props.title).toBe(`Session · ${words}`);
+    expect(row.findByProps({ children: 'Session' }).props.style.fontWeight).toBe(weight);
+    // The trailing slot holds the age and nothing else.
+    expect(row.findByType(RailSessionMenu).props.row.age).toBe('5m');
+    act(() => renderer.unmount());
+  });
+
+  it('draws a hollow ring for a session waiting on a machine and nothing for an idle one', () => {
+    const { renderer } = renderTree({ nodes: [{ ...node(), sessions: [session({ waitingOn: true })] }] });
+    expect(dot(renderer).props['data-rail-dot']).toBe('waiting');
+    expect(dot(renderer).props.style).toMatchObject({ background: 'transparent' });
+    act(() => renderer.unmount());
+    const idle = renderTree({ nodes: [{ ...node(), sessions: [session()] }] }).renderer;
+    expect(idle.root.findAllByProps({ role: 'img' })).toHaveLength(0);
+    act(() => idle.unmount());
+  });
+
+  it('selects with a gray tint and weight, never an accent fill or spine', () => {
+    const { renderer } = renderTree({ nodes: [{ ...node(), sessions: [session({ selected: true })] }] });
+    const row = renderer.root.findByProps({ 'data-session-id': 's1' });
+    expect(row.props.style.background).toBe('var(--proto-gray)');
+    expect(row.findByProps({ children: 'Session' }).props.style).toMatchObject({ fontWeight: 550, color: 'var(--proto-ink)' });
+    expect(row.findAll((n) => typeof n.props.style?.background === 'string' && n.props.style.background.includes('accent'))).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+});
+
+const text = (node: ReactTestInstance): string =>
+  node.children.map((child) => (typeof child === 'string' ? child : text(child))).join('');
+
+describe('rail schedule group', () => {
+  const schedule: ScheduleRow = { scheduleId: 'sch-1', schedule: null, title: 'Nightly eval', kind: 'repeat',
+    runs: [{}, {}] as unknown as ScheduleRow['runs'], latest: null, unread: false };
+
+  it('heads the group with a plain count and lists runs as plain numbers', () => {
+    const onToggleSchedules = vi.fn();
+    const { renderer } = renderTree({ nodes: [{ ...node(), schedules: [schedule], schedulesExpanded: true }], onToggleSchedules });
+    const header = renderer.root.findByProps({ 'aria-label': 'Scheduled' });
+    expect(header.props['aria-expanded']).toBe(true);
+    expect(text(header)).toBe('Scheduled1');
+    act(() => header.props.onClick());
+    expect(onToggleSchedules).toHaveBeenCalledWith('p1');
+    const row = renderer.root.findByProps({ 'data-schedule-row': 'sch-1' });
+    expect(row.props).toMatchObject({ role: 'button', tabIndex: 0 });
+    expect(text(row)).toBe('Nightly eval2');
+    act(() => renderer.unmount());
+  });
+});
 
 describe('rail keyboard navigation', () => {
   it.each(['Enter', ' '])('opens sessions and expands projects with %j', (key) => {

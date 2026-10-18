@@ -4,9 +4,9 @@ export interface FrontmatterEntry {
 }
 
 export interface Frontmatter {
-  /** Non-`summary` key/value pairs, in file order — rendered as the card's chips. */
+  /** Non-`summary` key/value pairs, in file order — the memory viewer's property line and Properties list. */
   entries: FrontmatterEntry[];
-  /** The `summary` key value if present (rendered as the card's summary line), else null. */
+  /** The `summary` key value if present (the memory viewer's lede), else null. */
   summary: string | null;
 }
 
@@ -43,7 +43,7 @@ function stripQuotes(v: string): string {
 /**
  * Splits a YAML `--- … ---` frontmatter fence off the top of a Markdown file. Returns null
  * frontmatter (and the untouched source as body) when there is no well-formed leading fence.
- * Only top-level `key: value` lines are parsed (the memory card renders flat chips); the `summary`
+ * Only top-level `key: value` lines are parsed (the memory viewer shows flat values); the `summary`
  * key is surfaced separately.
  */
 export function splitFrontmatter(content: string): { frontmatter: Frontmatter | null; body: string } {
