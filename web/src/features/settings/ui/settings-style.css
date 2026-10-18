@@ -10,7 +10,8 @@
   --settings-card-fill: var(--material-card-bg);
   --settings-control-fill: var(--material-control-bg);
   --settings-boundary: var(--proto-line-2);
-  --settings-control-boundary: var(--proto-faint);
+  /* A hairline, like the cards': a field must not out-draw the chips and buttons beside it. */
+  --settings-control-boundary: var(--proto-line-4);
   --settings-panel-padding: 20px;
   --settings-nav-width: 196px;
   --r-card: var(--settings-card-radius);
@@ -103,7 +104,7 @@
 .settings-surface .settings-nav-button:not(:disabled):hover { background: var(--proto-alt); }
 .settings-surface .settings-nav-button:focus-visible { outline-offset: -2px; }
 .settings-surface .settings-nav-label { white-space: normal; }
-.settings-surface .settings-nav-build { overflow-wrap: anywhere; }
+.settings-surface .settings-nav-build { overflow-wrap: normal; }
 .settings-surface .settings-content-frame { container: settings-content / inline-size; }
 .settings-surface .settings-panel-header { min-height: 56px; padding: 12px var(--settings-panel-padding); }
 .settings-surface .settings-panel-title { font-size: 16px; font-weight: 600; }

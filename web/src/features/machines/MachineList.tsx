@@ -239,9 +239,11 @@ interface MachineListViewProps {
   onToggle: (name: string) => void;
 }
 
+// No reserved scrollbar gutter on the scroller: it would pull every row's right edge in from the
+// header's, which sits outside it.
 export function MachineListView(props: MachineListViewProps) {
   return <div style={{ flex: 1, minHeight: 0, paddingBottom: 4, display: 'flex',
-    flexDirection: 'column', overflow: 'auto', scrollbarGutter: 'stable' }}>
+    flexDirection: 'column', overflow: 'auto' }}>
     {props.machines.map((machine, index) => <MachineRow key={machine.name} machine={machine} divided={index > 0}
       open={props.expanded.has(machine.name)} detail={props.detailFor(machine.name)}
       onToggle={() => props.onToggle(machine.name)} />)}

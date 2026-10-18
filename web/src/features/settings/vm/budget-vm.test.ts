@@ -8,6 +8,7 @@ import {
   budgetClearArgs,
   parseAmountInput,
   buildBudgetDraft,
+  budgetMeterTone,
 } from './budget-vm';
 
 const budget = (
@@ -114,5 +115,14 @@ describe('parseAmountInput', () => {
     expect(parseAmountInput('0')).toBeNull();
     expect(parseAmountInput('-5')).toBeNull();
     expect(parseAmountInput('1e5')).toBeNull();
+  });
+});
+
+describe('budgetMeterTone', () => {
+  it('fills daily and monthly alike: accent with room, amber near the limit, red at it', () => {
+    expect(budgetMeterTone(0)).toBe('var(--proto-accent)');
+    expect(budgetMeterTone(79)).toBe('var(--proto-accent)');
+    expect(budgetMeterTone(80)).toBe('var(--proto-amber)');
+    expect(budgetMeterTone(100)).toBe('var(--proto-danger)');
   });
 });

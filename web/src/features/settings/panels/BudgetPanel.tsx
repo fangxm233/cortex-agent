@@ -26,6 +26,7 @@ import {
   parseAmountInput,
   formatBudgetUsd,
   budgetBarPct,
+  budgetMeterTone,
 } from '@/features/settings/vm/budget-vm';
 import { useBudgetWriter } from '@/features/settings/controllers/useBudgetWriter';
 import { useBudgetSpend, useProjectList } from '@/features/settings/controllers/useConfigSnapshot';
@@ -58,17 +59,19 @@ function SpendSection({ scopeLabel, today, month, limits, unpricedCount }: {
   unpricedCount: number;
 }) {
   const L = useVocab();
+  const dailyPct = meterPct(today, limits.daily);
+  const monthlyPct = meterPct(month, limits.monthly);
   return (
     <SSection label={L.stCurrentSpend} action={<span style={SCOPE_TAG_STYLE}>{scopeLabel}</span>}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <SStat
           value={formatBudgetUsd(today)} caption={`${L.today} / ${formatBudgetUsd(limits.daily)}`}
-          percent={meterPct(today, limits.daily)}
+          percent={dailyPct} tone={budgetMeterTone(dailyPct)}
         />
         <SStat
           value={formatBudgetUsd(month)}
           caption={`${L.month} / ${formatBudgetUsd(limits.monthly)}`}
-          percent={meterPct(month, limits.monthly)} tone="var(--proto-accent-2)"
+          percent={monthlyPct} tone={budgetMeterTone(monthlyPct)}
         />
         {unpricedCount > 0 && (
           <div style={NOTE_STYLE} data-budget-unpriced>

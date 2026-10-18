@@ -8,7 +8,9 @@ import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { useSettings } from '@/features/settings/useSettings';
 import { useDockIntake } from '@/design/dock-intake';
-import { groupPaletteRows, paletteGroupLabel, selectPaletteRows, type PaletteRow } from './palette-items';
+import {
+  groupPaletteRows, labelSegments, paletteGroupLabel, selectPaletteRows, type PaletteRow,
+} from './palette-items';
 
 // ⌘K command palette — a search row over headed groups of results (Panels mockup): real sessions
 // and boards over tRPC fill the structure. cmdk drives the ↑/↓/Enter + focus-trap; the underlying
@@ -142,7 +144,10 @@ function GroupIcon({ group }: { group: string }) {
 // A single palette row — kind glyph + label + right-aligned hint. cmdk sets
 // `data-[selected=true]` on the arrow-selected (or mouse-hovered) row; its gray tint and ink label
 // come from `.cmdk-row` CSS in index.css.
-function Row({ row, group, onSelect }: { row: PaletteRow; group: string; onSelect: () => void }) {
+// What was typed reads bolder in the label, so a long list shows at a glance why each row is there.
+const MATCH_STYLE: CSSProperties = { fontWeight: 650, color: 'var(--proto-ink)' };
+
+function Row({ row, group, query, onSelect }: { row: PaletteRow; group: string; query: string; onSelect: () => void }) {
   const L = useVocab();
   // Nav rows carry vocab keys → localized; entity rows carry real data in label/sub. The group
   // heading names the kind, so the hint is only the row's own context (a project, a section list).
@@ -151,7 +156,14 @@ function Row({ row, group, onSelect }: { row: PaletteRow; group: string; onSelec
   return (
     <Command.Item value={row.id} onSelect={onSelect} className="cmdk-row" style={ROW_STYLE}>
       <GroupIcon group={group} />
-      <span className="cmdk-row-label">{label}</span>
+      <span className="cmdk-row-label">
+        {labelSegments(label, query).map((segment, index) => {
+          const key = `${index}:${segment.text}`;
+          return segment.match
+            ? <b key={key} data-palette-match="" style={MATCH_STYLE}>{segment.text}</b>
+            : <span key={key}>{segment.text}</span>;
+        })}
+      </span>
       <span style={HINT_STYLE} title={hint}>{hint}</span>
     </Command.Item>
   );
@@ -208,7 +220,7 @@ function PaletteHeader({ query, setQuery }: { query: string; setQuery: (value: s
   );
 }
 
-function PaletteResults({ rows, go }: { rows: PaletteRow[]; go: (row: PaletteRow) => void }) {
+function PaletteResults({ rows, query, go }: { rows: PaletteRow[]; query: string; go: (row: PaletteRow) => void }) {
   const L = useVocab();
   return (
     <Command.List style={BODY_STYLE}>
@@ -216,7 +228,7 @@ function PaletteResults({ rows, go }: { rows: PaletteRow[]; go: (row: PaletteRow
       {groupPaletteRows(rows).map((group, index) => (
         <Command.Group key={`${group.key}:${index}`} value={`${group.key}:${index}`}
           heading={<div style={GROUP_HEADING_STYLE}>{paletteGroupLabel(group.key, L)}</div>}>
-          {group.rows.map((row) => <Row key={row.id} row={row} group={group.key} onSelect={() => go(row)} />)}
+          {group.rows.map((row) => <Row key={row.id} row={row} group={group.key} query={query} onSelect={() => go(row)} />)}
         </Command.Group>
       ))}
     </Command.List>
@@ -248,7 +260,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     <Command.Dialog open={open} onOpenChange={onOpenChange} label={L.palLabel}
       shouldFilter={false} loop overlayClassName="cmdk-backdrop" contentClassName="cmdk-panel">
       <PaletteHeader query={query} setQuery={setQuery} />
-      <PaletteResults rows={rows} go={go} />
+      <PaletteResults rows={rows} query={query} go={go} />
       <PaletteFooter />
     </Command.Dialog>
   );

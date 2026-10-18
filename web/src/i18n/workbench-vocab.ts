@@ -34,10 +34,10 @@ export const workbenchZh: Record<keyof typeof workbenchEn, string> = {
 
 // Approval center (desktop overlay) and the mobile approval queue.
 export const approvalsEn = {
-  apprPillPending: '● pending',
-  apprPillApproved: '✓ approved',
-  apprPillRejected: '✕ rejected',
-  apprPillFailed: 'failed',
+  apprPillPending: 'Pending',
+  apprPillApproved: 'Approved',
+  apprPillRejected: 'Rejected',
+  apprPillFailed: 'Failed',
   apprPendingOne: '{n} approval pending',
   apprPendingMany: '{n} approvals pending',
   apprQueuedAt: 'queued {date}',
@@ -51,9 +51,9 @@ export const approvalsEn = {
   apprGlobalGroup: 'GLOBAL',
 };
 export const approvalsZh: Record<keyof typeof approvalsEn, string> = {
-  apprPillPending: '● 待审批',
-  apprPillApproved: '✓ 已批准',
-  apprPillRejected: '✕ 已拒绝',
+  apprPillPending: '待审批',
+  apprPillApproved: '已批准',
+  apprPillRejected: '已拒绝',
   apprPillFailed: '失败',
   apprPendingOne: '{n} 条待审批',
   apprPendingMany: '{n} 条待审批',

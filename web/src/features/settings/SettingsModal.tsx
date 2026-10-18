@@ -212,6 +212,7 @@ function SettingsNavEntry({ entry, ...props }: SettingsNavProps & { entry: NavEn
 
 function SettingsNav(props: SettingsNavProps) {
   const L = useVocab();
+  const build = fmt(L.setNavBuild, { build: BUILD_STAMP });
   return (
     <div className="settings-nav" style={NAV_STYLE}>
       <div style={{ fontSize: 16, fontWeight: 620, color: 'var(--proto-ink)', padding: '2px 10px 6px', flex: 'none' }}>
@@ -225,8 +226,10 @@ function SettingsNav(props: SettingsNavProps) {
           </div>
         ))}
       </div>
-      <div className="settings-nav-build" style={{ padding: '10px 10px 0', fontSize: 11.5, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted-3)', flex: 'none' }}>
-        {fmt(L.setNavBuild, { build: BUILD_STAMP })}
+      {/* One line, never broken inside the stamp: a narrow nav ellipsizes it and the title has it whole. */}
+      <div className="settings-nav-build" title={build} style={{ padding: '10px 10px 0', fontSize: 11.5, fontVariantNumeric: 'tabular-nums',
+        color: 'var(--proto-muted-3)', flex: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {build}
       </div>
     </div>
   );

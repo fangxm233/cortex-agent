@@ -144,7 +144,7 @@ function ApprovalCenterView(props: ApprovalCenterViewProps) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                height: 24,
+                height: 28,
                 boxSizing: 'border-box',
                 background: 'var(--material-control-bg)',
                 border: '1px solid var(--proto-line)',
@@ -186,6 +186,7 @@ function ApprovalCenterView(props: ApprovalCenterViewProps) {
               {detail && (
                 <DetailPane
                   detail={detail}
+                  status={selected?.status ?? 'pending'}
                   armed={armed}
                   feedback={feedback}
                   pending={pending}
@@ -335,8 +336,17 @@ const GRID_LABEL: React.CSSProperties = {
   color: 'var(--proto-muted)',
 };
 
+// The one set of status dots: amber = needs you (pending), green = done, red = rejected or failed.
+const STATUS_DOT: Record<ApprovalInfo['status'], string> = {
+  pending: 'var(--proto-amber)',
+  approved: 'var(--proto-success)',
+  rejected: 'var(--proto-danger)',
+  failed: 'var(--proto-danger)',
+};
+
 function DetailPane({
   detail,
+  status,
   armed,
   feedback,
   pending,
@@ -347,6 +357,7 @@ function DetailPane({
   onFeedback,
 }: {
   detail: ReturnType<typeof toDetail>;
+  status: ApprovalInfo['status'];
   armed: boolean;
   feedback: string;
   pending: boolean;
@@ -360,23 +371,26 @@ function DetailPane({
   return (
     <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', overflowWrap: 'anywhere', background: 'transparent' }}>
       <div style={{ flex: 1, overflow: 'auto', scrollbarGutter: 'stable', minHeight: 0, padding: '16px 22px 0' }}>
-        {/* title + status pill */}
+        {/* title + status: the status dot and its word, the same form as the header capsule's — not
+            a filled badge competing with the title */}
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ fontSize: 15.5, fontWeight: 650, color: 'var(--proto-ink)', lineHeight: 1.35, flex: 1 }}>
             {detail.title}
           </div>
           <span
+            data-approval-status=""
             style={{
-              fontSize: 11,
-              fontWeight: 600,
-              padding: '2px 9px',
-              borderRadius: 'var(--r-pill)',
-              background: detail.pill.bg,
-              color: detail.pill.fg,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 12.5,
+              fontWeight: 550,
+              color: 'var(--proto-ink-3)',
               flex: 'none',
-              marginTop: 2,
+              marginTop: 3,
             }}
           >
+            <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', background: STATUS_DOT[status] }} />
             {detail.pill.text}
           </span>
         </div>

@@ -121,8 +121,9 @@ function segOptionStyle(active: boolean, inert: boolean): CSSProperties {
   return {
     minHeight: 'var(--settings-control-height, 34px)', padding: '4px 10px', border: 0, borderRadius: 6,
     fontFamily: 'inherit', fontSize: 13, fontWeight: active ? 550 : 400,
-    background: active ? 'var(--material-control-bg)' : 'transparent',
-    boxShadow: active ? 'var(--material-control-shadow)' : 'none',
+    // The theme's raised-segment pair: lifted to the control surface in light, lightened in dark.
+    background: active ? 'var(--segment-active-bg)' : 'transparent',
+    boxShadow: active ? 'var(--segment-active-shadow)' : 'none',
     color: active ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     cursor: inert ? 'default' : 'pointer', transition: 'background .12s, color .12s',
@@ -235,7 +236,7 @@ export function SSelectChip({ children, onClick, disabled, className, ...rest }:
   return (
     <button {...rest} className={settingsClassName('settings-select-chip', className)} type="button" disabled={disabled} onClick={onClick} style={{
       display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 'var(--settings-control-height, 34px)',
-      padding: '4px 10px', border: '1px solid var(--settings-control-boundary, var(--proto-faint))', borderRadius: 'var(--settings-control-radius, 8px)',
+      padding: '4px 10px', border: '1px solid var(--settings-control-boundary, var(--proto-line-4))', borderRadius: 'var(--settings-control-radius, 8px)',
       background: 'var(--settings-control-fill, var(--material-control-bg))', boxShadow: 'var(--material-control-shadow)',
       fontFamily: 'inherit', fontSize: 13, color: 'var(--proto-ink)', flex: 'none',
       cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.6 : 1,

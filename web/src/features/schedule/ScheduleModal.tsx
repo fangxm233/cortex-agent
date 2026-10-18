@@ -91,7 +91,8 @@ const SEG_TRACK: CSSProperties = {
 function segOptionStyle(selected: boolean, editable: boolean): CSSProperties {
   return {
     flex: 1,
-    height: 28,
+    // 30 inside the track's 3px padding: the control is as tall as the 36px fields beside it.
+    height: 30,
     padding: '0 10px',
     border: 0,
     borderRadius: 'calc(var(--r-control) - 3px)',
@@ -100,8 +101,8 @@ function segOptionStyle(selected: boolean, editable: boolean): CSSProperties {
     fontSize: 13,
     fontWeight: selected ? 550 : 400,
     color: selected ? 'var(--proto-ink)' : 'var(--proto-muted)',
-    background: selected ? 'var(--material-control-bg)' : 'transparent',
-    boxShadow: selected ? 'var(--material-control-shadow)' : 'none',
+    background: selected ? 'var(--segment-active-bg)' : 'transparent',
+    boxShadow: selected ? 'var(--segment-active-shadow)' : 'none',
     cursor: editable ? 'pointer' : 'default',
   };
 }
@@ -130,9 +131,11 @@ export interface ScheduleModalProps {
   now?: Date;
 }
 
+// Model and thinking sit side by side on their own row: they are one choice (what runs), and
+// stacking them beside a short time field left an empty column under it.
 function ModelFields({ form, editableFields, onChange, modelOptions, thinkingOptions }: ScheduleModalProps) {
   const L = useVocab();
-  return <div style={{ minWidth: 0, display: 'grid', gap: 12 }}>
+  return <div style={{ minWidth: 0, display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(0, 1fr)', gap: 12 }}>
     <div><div style={LABEL}>{L.scModel}</div>
       <div style={CELL_BOX}><Select data-schedule-select="model" density="bare" aria-label={L.scModel}
         value={form.selection ? modelKey(form.selection) : ''} placeholder={L.scChooseModel}
@@ -187,9 +190,9 @@ export function ScheduleModal(props: ScheduleModalProps) {
   const onceTimingUnavailable = editing && form.type === 'once';
   const nextRun = onceTimingUnavailable ? null : nextRunParts(form, now ?? new Date(), lang);
 
-  // Left 150px cell: TIME (daily/weekly) · EVERY (interval) · IN (once). MODEL always on the right;
-  // weekly inserts a DAY cell between them (grid widens to 150/130/1fr — daily stays 150/1fr).
-  const topGridCols = vis.dayOfWeek ? '150px 130px 1fr' : '150px 1fr';
+  // First row: TYPE, then the timing it asks for — TIME (daily/weekly) · EVERY (interval) · IN (once),
+  // with weekly's DAY before its time. The type control takes the rest of the row.
+  const topGridCols = vis.dayOfWeek ? 'minmax(0, 1fr) 112px 132px' : 'minmax(0, 1fr) 150px';
 
   return (
     <>
@@ -237,34 +240,52 @@ export function ScheduleModal(props: ScheduleModalProps) {
 
         {/* body */}
         <div style={{ padding: '18px 22px 20px', display: 'flex', flexDirection: 'column', gap: 16, background: 'transparent', minHeight: 0, overflowY: 'auto', scrollbarGutter: 'stable' }}>
-          {/* TYPE */}
-          <div>
-            <div style={LABEL}>{L.scType}</div>
-            <div role="group" aria-label={L.scType} style={SEG_TRACK}>
-              {SCHED_TYPES.map((t: SchedType) => {
-                const selected = form.type === t;
-                return (
-                  <button
-                    type="button"
-                    className={focusClass}
-                    disabled={!editableFields.type}
-                    key={t}
-                    data-sched-type-opt={t}
-                    aria-pressed={selected}
-                    onClick={editableFields.type ? () => onChange({ type: t }) : undefined}
-                    style={segOptionStyle(selected, editableFields.type)}
-                  >
-                    {TYPE_LABELS[t]}
-                  </button>
-                );
-              })}
+          {/* [TYPE] + [DAY if weekly] + [timing cell] */}
+          <div style={{ display: 'grid', gridTemplateColumns: topGridCols, gap: 12, alignItems: 'start' }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={LABEL}>{L.scType}</div>
+              <div role="group" aria-label={L.scType} style={SEG_TRACK}>
+                {SCHED_TYPES.map((t: SchedType) => {
+                  const selected = form.type === t;
+                  return (
+                    <button
+                      type="button"
+                      className={focusClass}
+                      disabled={!editableFields.type}
+                      key={t}
+                      data-sched-type-opt={t}
+                      aria-pressed={selected}
+                      onClick={editableFields.type ? () => onChange({ type: t }) : undefined}
+                      style={segOptionStyle(selected, editableFields.type)}
+                    >
+                      {TYPE_LABELS[t]}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
-          {/* [left cell] + [DAY if weekly] + MODEL */}
-          <div style={{ display: 'grid', gridTemplateColumns: topGridCols, gap: 12 }}>
-            {/* left cell */}
-            <div>
+            {/* DAY (weekly only) */}
+            {vis.dayOfWeek && (
+              <div>
+                <div style={LABEL}>{L.scDay}</div>
+                <div style={CELL_BOX}>
+                  <Select
+                    data-schedule-select="dayOfWeek"
+                    density="bare"
+                    aria-label={L.scDay}
+                    value={form.dayOfWeek}
+                    disabled={!editableFields.dayOfWeek}
+                    options={DAY_OPTIONS.map((day) => ({ value: day, label: DAY_LABELS[day] }))}
+                    onValueChange={(dayOfWeek) => onChange({ dayOfWeek })}
+                    style={bareSelectStyle()}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* timing cell */}
+            <div style={{ minWidth: 0 }}>
               {vis.time && (
                 <>
                   <div style={LABEL}>{L.scTime}</div>
@@ -343,36 +364,21 @@ export function ScheduleModal(props: ScheduleModalProps) {
                 </>
               )}
               {onceTimingUnavailable && (
-                <div
-                  data-once-timing-note
-                  style={{ fontSize: 12.5, lineHeight: 1.45, color: 'var(--proto-muted)'  }}
-                >
-                  {L.scOnceTimingUnavailable}
-                </div>
+                <>
+                  <div style={LABEL}>{L.scIn}</div>
+                  <div
+                    data-once-timing-note
+                    style={{ fontSize: 12.5, lineHeight: 1.45, color: 'var(--proto-muted)'  }}
+                  >
+                    {L.scOnceTimingUnavailable}
+                  </div>
+                </>
               )}
             </div>
-
-            {/* DAY (weekly only) */}
-            {vis.dayOfWeek && (
-              <div>
-                <div style={LABEL}>{L.scDay}</div>
-                <div style={CELL_BOX}>
-                  <Select
-                    data-schedule-select="dayOfWeek"
-                    density="bare"
-                    aria-label={L.scDay}
-                    value={form.dayOfWeek}
-                    disabled={!editableFields.dayOfWeek}
-                    options={DAY_OPTIONS.map((day) => ({ value: day, label: DAY_LABELS[day] }))}
-                    onValueChange={(dayOfWeek) => onChange({ dayOfWeek })}
-                    style={bareSelectStyle()}
-                  />
-                </div>
-              </div>
-            )}
-
-            <ModelFields {...props} />
           </div>
+
+          {/* MODEL + THINKING */}
+          <ModelFields {...props} />
 
           {/* MESSAGE */}
           <div>

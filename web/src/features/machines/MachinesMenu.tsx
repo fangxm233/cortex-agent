@@ -138,10 +138,12 @@ export function MachinesMenu({ onManage }: { onManage: () => void }): JSX.Elemen
             flexDirection: 'column',
             overflow: 'hidden',
             borderRadius: 'var(--r-float)',
-            background: 'var(--glass-2)',
-            backdropFilter: 'var(--glass-filter)',
-            WebkitBackdropFilter: 'var(--glass-filter)',
-            boxShadow: 'var(--shadow-float)',
+            // Opaque card, not glass. Radix's popper wrapper carries `will-change: transform`, which
+            // makes it a backdrop root: a backdrop-filter on the sheet would blur nothing, and a
+            // translucent fill let the chat header's icons, right under the sheet's header, read
+            // straight through it.
+            background: 'var(--proto-card)',
+            boxShadow: 'var(--material-overlay-shadow), 0 0 0 1px var(--proto-line)',
             transformOrigin: 'var(--radix-popover-content-transform-origin)',
             animation: 'cxpop 160ms cubic-bezier(0.22, 1, 0.36, 1)',
           }}

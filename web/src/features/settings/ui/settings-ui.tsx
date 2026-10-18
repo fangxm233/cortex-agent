@@ -200,7 +200,7 @@ export const S_CONTROL_STYLE: CSSProperties = {
   fontFamily: 'inherit', fontSize: 'var(--settings-input-size, 13px)', lineHeight: 1.5,
   color: 'var(--proto-ink)',
   background: 'var(--settings-control-fill, var(--material-control-bg))',
-  border: '1px solid var(--settings-control-boundary, var(--proto-line-3))',
+  border: '1px solid var(--settings-control-boundary, var(--proto-line-4))',
   boxShadow: 'var(--material-control-shadow)',
   borderRadius: 'var(--settings-control-radius, 8px)',
   padding: '6px 10px',

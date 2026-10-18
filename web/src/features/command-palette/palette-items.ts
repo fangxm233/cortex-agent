@@ -207,3 +207,23 @@ export function paletteGroupLabel(
   };
   return labels[key] ?? key;
 }
+
+// ── Match highlight ─────────────────────────────────────────────────────────
+
+export interface LabelSegment {
+  text: string;
+  match: boolean;
+}
+
+/** Splits a label around the first case-insensitive occurrence of the query, so the row can bold
+ *  what was typed. A row that matched on its sub or keywords instead comes back as one plain run. */
+export function labelSegments(label: string, query: string): LabelSegment[] {
+  const q = query.trim();
+  const at = q ? label.toLowerCase().indexOf(q.toLowerCase()) : -1;
+  if (at < 0) return [{ text: label, match: false }];
+  return [
+    { text: label.slice(0, at), match: false },
+    { text: label.slice(at, at + q.length), match: true },
+    { text: label.slice(at + q.length), match: false },
+  ].filter((segment) => segment.text !== '');
+}

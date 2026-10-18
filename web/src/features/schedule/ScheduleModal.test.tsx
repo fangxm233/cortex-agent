@@ -102,7 +102,7 @@ describe('ScheduleModal custom selections', () => {
     expect(renderer.root.findByProps({ 'aria-label': 'Close' }).props.className).toContain('text-proto-muted');
 
     const daily = renderer.root.findByProps({ 'data-sched-type-opt': 'daily' });
-    expect(daily.props.style).toMatchObject({ background: 'var(--material-control-bg)', color: 'var(--proto-ink)' });
+    expect(daily.props.style).toMatchObject({ background: 'var(--segment-active-bg)', color: 'var(--proto-ink)' });
     expect(JSON.stringify(daily.props.style)).not.toContain('accent');
 
     const nextRun = renderer.root.findByProps({ 'data-schedule-next-run': true });
