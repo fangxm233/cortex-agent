@@ -41,14 +41,14 @@ const TRIGGER_CLASS =
 const CONTENT_CLASS =
   'z-[100] overflow-hidden rounded-[var(--r-float)] [background:var(--material-overlay-bg)] ' +
   '[backdrop-filter:var(--glass-filter)] [-webkit-backdrop-filter:var(--glass-filter)] ' +
-  'font-mono text-[12px] text-proto-ink shadow-[shadow:var(--material-overlay-shadow)] ' +
+  'text-[13px] text-proto-ink shadow-[shadow:var(--material-overlay-shadow)] ' +
   'data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out ' +
   'motion-reduce:animate-none';
 
 const ITEM_CLASS =
   'relative flex w-full select-none items-center gap-0.5g px-1g py-menu-row-y pr-3g ' +
   'font-medium leading-normal ' +
-  'data-[highlighted]:bg-proto-gray data-[state=checked]:bg-proto-accent-bg ' +
+  'data-[highlighted]:bg-proto-gray data-[state=checked]:bg-proto-line-2 ' +
   'data-[disabled]:cursor-not-allowed data-[disabled]:opacity-40';
 
 const CONTENT_STYLE = {
@@ -57,10 +57,9 @@ const CONTENT_STYLE = {
 } as CSSProperties;
 
 const DENSITY_FONT: CSSProperties = {
-  fontFamily: "'IBM Plex Mono',monospace",
-  fontSize: 10.5,
+  fontSize: 12,
   fontWeight: 500,
-  lineHeight: 1.2,
+  lineHeight: 1.3,
 };
 
 const DENSITY_STYLE: Record<SelectDensity, CSSProperties> = {

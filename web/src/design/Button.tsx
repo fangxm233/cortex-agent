@@ -7,13 +7,11 @@ import { forwardRef, type ButtonHTMLAttributes } from 'react';
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'danger-outline';
 export type ButtonSize = 'sm' | 'md';
 
-// Only the accent-filled `primary` carries `--accent-glow`; `danger` is filled from the state
-// palette, not the accent, so glowing it would read as a second primary.
-// The glow needs the arbitrary shadow utility's `shadow:` type hint — a bare `var()` there is
-// ambiguous and Tailwind compiles it to a shadow *color* instead. The hinted form also keeps the
-// box-shadow composed with Tailwind shadows; keyboard focus uses the shared solid outline.
+// `primary` is ink, not accent: the accent is reserved for state (running, selected, a link), so
+// a filled accent button would compete with the thing it acts on. Ink also inverts cleanly in the
+// dark theme through the `--ink-solid-*` pair. Keyboard focus uses the shared solid outline.
 const VARIANT_CLASS: Record<ButtonVariant, string> = {
-  primary: 'bg-state-run text-[var(--accent-fg)] shadow-[shadow:var(--accent-glow)] hover:bg-proto-accent-strong',
+  primary: '[background:var(--ink-solid-bg)] text-[var(--ink-solid-fg)] hover:opacity-90',
   secondary: 'border border-proto-faint [background:var(--material-control-bg)] shadow-[shadow:var(--material-control-shadow)] text-state-ink hover:[background:var(--material-inset-bg)]',
   ghost: 'text-proto-ink-2 hover:bg-surface-canvas-alt',
   danger: 'bg-state-fail text-[var(--ink-solid-fg)] hover:bg-state-fail/90',

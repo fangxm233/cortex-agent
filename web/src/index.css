@@ -33,6 +33,15 @@ textarea::placeholder {
     transition-delay: 0s !important;
   }
 
+  /* The two faces. UI text — labels, names, counts, times — uses `--font-ui`; `--font-code` is only
+     for what a person would type or paste (paths, commands, ids, diffs). `font` shorthands in inline
+     styles cannot say `inherit`, so they name these variables instead. */
+  :root {
+    --font-ui: -apple-system, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial,
+      'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    --font-code: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  }
+
   html,
   body {
     margin: 0;
@@ -40,8 +49,7 @@ textarea::placeholder {
     /* The ground the glass panes blur. Fixed so the mesh stays put while panes scroll over it. */
     background: var(--app-backdrop);
     background-attachment: fixed;
-    font-family: -apple-system, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial,
-      'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    font-family: var(--font-ui);
     -webkit-font-smoothing: antialiased;
   }
 
