@@ -576,4 +576,28 @@ export const zhBase = {
   winRestore: '还原',
   winClose: '关闭',
 
+  // ── redesign: memory ──
+  memModeLabel: '视图',
+  memModeRead: '阅读',
+  memModeChanges: '变更',
+  memViewChanges: '查看变更',
+  memNoLineChanges: '与 HEAD 无差异',
+  memProperties: '属性',
+  memOnThisPage: '本页',
+  memFiles: '记忆文件',
+  memRecentChange: '24 小时内有变更',
+  memKindExperiment: '实验',
+  memKindKnowledge: '知识',
+  memKindPattern: '模式',
+  memStatusActive: '活跃',
+  memStatusValid: '有效',
+  memStatusPartial: '部分成立',
+  memStatusChallenged: '受质疑',
+  memStatusCorrected: '已更正',
+  memStatusSuperseded: '已被取代',
+  memStatusDeprecated: '已弃用',
+  memStatusRefined: '已被改进版取代',
+  memStatusStale: '待复核',
+  memStatusInvalidated: '已证伪',
+
 };

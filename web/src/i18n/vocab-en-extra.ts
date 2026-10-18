@@ -192,7 +192,6 @@ export const enExtra = {
   memLoadingFile: 'Loading file…',
   memReadError: 'Could not read this file.',
   memSelectFile: 'Select a file to view.',
-  memSummary: 'summary',
   exLogTitle: 'Execution log',
   exAlreadyFinished: 'already finished',
   exKilled: 'killed',

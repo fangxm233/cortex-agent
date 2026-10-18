@@ -1,9 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import type { MemoryTree, MemoryBlameLine } from '@cortex-agent/ui-contract';
+import { en, zh } from '@/i18n';
 import { deriveMemoryTreeFacts } from './memory-tree';
+import { parseStatus } from './memory-doc';
 import {
   buildTreeRows,
   groupBlame,
+  formatLineDiff,
+  hasRecentChange,
+  isRecentChange,
+  kindLabel,
+  statusLabel,
+  DEFAULT_MEMORY_MODE,
+  RECENT_CHANGE_MS,
 } from './memory-vm';
 
 function tree(over: Partial<MemoryTree> = {}): MemoryTree {
@@ -38,15 +47,16 @@ describe('buildTreeRows', () => {
     expect(rows.map((r) => r.name)).toEqual([
       'mission.md',
       'STATUS.md',
-      'experiments/',
+      'experiments',
       'EXP-001.md',
       'EXP-002.md',
-      'knowledge/',
+      'knowledge',
       'K-001.md',
     ]);
     expect(rows[0]).toMatchObject({ kind: 'file', path: 'mission.md', selectable: true, depth: 0 });
     expect(rows[0].right).toBeNull(); // no fabricated line-count chip
-    expect(rows[2]).toMatchObject({ kind: 'dir', path: null, selectable: false, right: '2', depth: 0 });
+    expect(rows[2]).toMatchObject({ kind: 'dir', path: null, selectable: false, right: '2', depth: 0, expanded: true });
+    expect(rows[0].expanded).toBeNull();
     expect(rows[3]).toMatchObject({
       kind: 'file',
       path: 'experiments/EXP-001.md',
@@ -59,6 +69,59 @@ describe('buildTreeRows', () => {
     const rows = buildTreeRows(deriveMemoryTreeFacts(tree()), 'experiments/EXP-002.md');
     expect(rows.find((r) => r.path === 'experiments/EXP-002.md')!.selected).toBe(true);
     expect(rows.find((r) => r.path === 'mission.md')!.selected).toBe(false);
+  });
+
+  it('folds a collapsed directory to its row, keeping the server count', () => {
+    const rows = buildTreeRows(deriveMemoryTreeFacts(tree()), null, { collapsed: new Set(['experiments']) });
+    expect(rows.map((r) => r.name)).toEqual(['mission.md', 'STATUS.md', 'experiments', 'knowledge', 'K-001.md']);
+    expect(rows[2]).toMatchObject({ expanded: false, right: '2' });
+  });
+
+  it('marks files whose real mtime is inside the last 24 hours, and none without a clock', () => {
+    const now = Date.parse('2026-07-05T06:00:00.000Z');
+    const facts = deriveMemoryTreeFacts(tree());
+    const rows = buildTreeRows(facts, null, { now });
+    // EXP-002 changed 30h before `now`, K-001 6h before.
+    expect(rows.filter((r) => r.recent).map((r) => r.path)).toEqual(['knowledge/K-001.md']);
+    expect(rows.find((r) => r.kind === 'dir')!.recent).toBe(false);
+    expect(buildTreeRows(facts, null).some((r) => r.recent)).toBe(false);
+    expect(hasRecentChange(facts, now)).toBe(true);
+    expect(hasRecentChange(facts, Date.parse('2026-08-01T00:00:00.000Z'))).toBe(false);
+  });
+});
+
+describe('isRecentChange', () => {
+  const now = Date.parse('2026-07-04T12:00:00.000Z');
+  it('is true strictly inside the window and false for missing or unparseable times', () => {
+    expect(isRecentChange(new Date(now - RECENT_CHANGE_MS + 1000).toISOString(), now)).toBe(true);
+    expect(isRecentChange(new Date(now - RECENT_CHANGE_MS).toISOString(), now)).toBe(false);
+    expect(isRecentChange(null, now)).toBe(false);
+    expect(isRecentChange('not a date', now)).toBe(false);
+  });
+});
+
+describe('viewer mode', () => {
+  it('opens on the rendered document, not the per-line history', () => {
+    expect(DEFAULT_MEMORY_MODE).toBe('read');
+  });
+});
+
+describe('formatLineDiff', () => {
+  it('formats real counts with a true minus and flags a clean file', () => {
+    expect(formatLineDiff({ added: 3, removed: 1 })).toEqual({ added: '+3', removed: '−1', clean: false });
+    expect(formatLineDiff({ added: 0, removed: 0 })!.clean).toBe(true);
+    expect(formatLineDiff(null)).toBeNull();
+  });
+});
+
+describe('property line labels', () => {
+  it('names known kinds and statuses in the reader language, else shows the value as written', () => {
+    expect(kindLabel({ kind: 'experiment', kindRaw: null }, zh)).toBe('实验');
+    expect(kindLabel({ kind: null, kindRaw: 'retro' }, en)).toBe('retro');
+    expect(kindLabel({ kind: null, kindRaw: null }, en)).toBeNull();
+    expect(statusLabel(parseStatus('valid')!, zh)).toBe('有效');
+    expect(statusLabel(parseStatus('superseded:EXP-012')!, en)).toBe('Superseded EXP-012');
+    expect(statusLabel(parseStatus('on-hold')!, en)).toBe('on-hold');
   });
 });
 

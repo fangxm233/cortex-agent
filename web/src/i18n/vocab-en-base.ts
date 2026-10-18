@@ -577,4 +577,28 @@ export const enBase = {
   winRestore: 'Restore',
   winClose: 'Close',
 
+  // ── redesign: memory ──
+  memModeLabel: 'View',
+  memModeRead: 'Read',
+  memModeChanges: 'Changes',
+  memViewChanges: 'View changes',
+  memNoLineChanges: 'No changes vs HEAD',
+  memProperties: 'Properties',
+  memOnThisPage: 'On this page',
+  memFiles: 'Memory files',
+  memRecentChange: 'Changed in the last 24 hours',
+  memKindExperiment: 'Experiment',
+  memKindKnowledge: 'Knowledge',
+  memKindPattern: 'Pattern',
+  memStatusActive: 'Active',
+  memStatusValid: 'Valid',
+  memStatusPartial: 'Partial',
+  memStatusChallenged: 'Challenged',
+  memStatusCorrected: 'Corrected',
+  memStatusSuperseded: 'Superseded',
+  memStatusDeprecated: 'Deprecated',
+  memStatusRefined: 'Refined',
+  memStatusStale: 'Stale',
+  memStatusInvalidated: 'Invalidated',
+
 };

@@ -1,135 +1,137 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import '@/design/content-surfaces.css';
+import './memory-view.css';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useLang, useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
+import { IconButton } from '@/design/IconButton';
 import { deriveActiveProjectId } from '@/features/projects/current-project';
 import { deriveMemoryTreeFacts } from './memory-tree';
+import { activeOutlineId, deriveMemoryDoc } from './memory-doc';
 import {
   buildTreeRows,
+  hasRecentChange,
   relTimeAgo,
-  diffToggle,
   formatLineDiff,
   groupBlame,
-  type TreeRow,
-  type BlameRow,
+  DEFAULT_MEMORY_MODE,
+  type LineDiffLabel,
+  type MemoryMode,
 } from './memory-vm';
 import { MarkdownView } from './MarkdownView';
+import { MemoryTree } from './MemoryTree';
+import { MemoryDocHeader, ClockGlyph, LineDiffText } from './MemoryDocHeader';
+import { MemoryOutline } from './MemoryOutline';
+import { BlamePane } from './BlamePane';
 
-// MEMORY VIEWER 7b — 1:1 from prototype.dc.html L658–719. CENTER-pane view mounted in the
-// workbench frame (LeftRail persists, like Overview). Exact inline styles / px / hex /
-// font / weight / EN copy reproduced; real fs-read data substituted via the existing memory.tree /
-// memory.file tRPC scopes. Aggregate +/− is real (git numstat). With diff ON, a per-line blame pane
-// shows the REAL commit hash + parsed task ref per line (memory.file.blame, git blame). When blame is
-// unavailable (not a git repo / git unavailable / binary) it falls back to an HONEST placeholder
-// (never fabricated); the task ref is null when the commit carries no task tag.
+// MEMORY VIEWER — a CENTER-pane view mounted in the workbench frame (LeftRail persists, like
+// Overview): file column, a centred reading column, and an "On this page" outline when the pane is
+// wide enough. Real fs-read data via the existing memory.tree / memory.file tRPC scopes. Read mode
+// renders the document; Changes mode shows the REAL per-line git blame (memory.file.blame: short
+// commit hash + parsed task ref) and the real working-copy +/− (git numstat). When blame or the
+// line counts are unavailable (not a git repo / git unavailable / binary) the view says so — never
+// fabricated; the task ref is null when the commit carries no task tag.
 
-const MONO = "'IBM Plex Mono',monospace";
+/** How far below the scroller's top edge a heading counts as the section being read. */
+const OUTLINE_THRESHOLD_PX = 48;
 
-// Per-line blame pane (逐行高亮): real short commit hash + task-ref chip in the gutter (shown once per
-// commit run), a subtle background band alternating per commit group, monospace line text.
-function BlamePane({ rows }: { rows: BlameRow[] }): JSX.Element {
-  let groupIdx = -1;
+function BackGlyph(): JSX.Element {
   return (
-    <div style={{ font: `400 11px ${MONO}`, lineHeight: 1.55 }}>
-      {rows.map((r) => {
-        if (r.groupStart) groupIdx += 1;
-        const band = groupIdx % 2 === 0 ? 'var(--proto-rail)' : 'var(--proto-accent-bg)';
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M10 3.5 5.5 8l4.5 4.5" />
+    </svg>
+  );
+}
+
+/** The header's Read | Changes switch: a recessed track holding the raised current option. */
+function ModeSwitch({ mode, onChange }: { mode: MemoryMode; onChange: (mode: MemoryMode) => void }): JSX.Element {
+  const L = useVocab();
+  const options: { id: MemoryMode; label: string }[] = [
+    { id: 'read', label: L.memModeRead },
+    { id: 'changes', label: L.memModeChanges },
+  ];
+  return (
+    <div
+      role="group"
+      aria-label={L.memModeLabel}
+      style={{ display: 'inline-flex', gap: 2, padding: 2, borderRadius: 'var(--r-chip)', background: 'var(--proto-line-2)', flex: 'none' }}
+    >
+      {options.map((option) => {
+        const on = option.id === mode;
         return (
-          <div
-            key={r.lineNo}
+          <button
+            key={option.id}
+            type="button"
+            className="memory-seg-option"
+            aria-pressed={on}
+            onClick={() => onChange(option.id)}
             style={{
-              display: 'flex',
-              alignItems: 'baseline',
-              gap: 10,
-              background: band,
-              borderLeft: r.groupStart ? '2px solid var(--proto-accent)' : '2px solid transparent',
-              padding: '0 8px',
+              height: 26,
+              padding: '0 12px',
+              border: 0,
+              borderRadius: 6,
+              fontSize: 12.5,
+              fontWeight: on ? 550 : 400,
+              color: on ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
+              background: on ? 'var(--material-control-bg)' : 'transparent',
+              boxShadow: on ? 'var(--material-control-shadow)' : 'none',
+              cursor: 'pointer',
             }}
           >
-            <span style={{ width: 34, flex: 'none', textAlign: 'right', color: 'var(--proto-muted)', fontSize: 11 }}>
-              {r.lineNo}
-            </span>
-            <span style={{ width: 66, flex: 'none', color: 'var(--proto-muted)', fontSize: 11 }}>
-              {r.groupStart && r.commit ? r.commit : ''}
-            </span>
-            <span style={{ width: 52, flex: 'none' }}>
-              {r.groupStart && r.taskRef && (
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: 'var(--proto-accent)',
-                    background: 'var(--proto-accent-bg)',
-                    border: '1px solid var(--proto-accent-border)',
-                    borderRadius: 'var(--r-pill)',
-                    padding: '1px 6px',
-                  }}
-                >
-                  {r.taskRef}
-                </span>
-              )}
-            </span>
-            <span style={{ flex: 1, minWidth: 0, color: 'var(--proto-ink-2)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-              {r.text || ' '}
-            </span>
-          </div>
+            {option.label}
+          </button>
         );
       })}
     </div>
   );
 }
 
-function TreeRowView({ row, onPick }: { row: TreeRow; onPick: (path: string) => void }) {
-  const [hover, setHover] = useState(false);
-  const bg = row.selected ? 'var(--proto-accent-bg)' : hover && row.selectable ? 'var(--proto-gray)' : 'transparent';
-  const weight = row.selected ? 600 : row.kind === 'dir' ? 600 : 500;
-  const color = row.selected ? 'var(--proto-accent)' : 'var(--proto-ink-2)';
+const META: CSSProperties = { fontSize: 12.5, color: 'var(--proto-muted-3)', fontVariantNumeric: 'tabular-nums' };
+
+/** Changes mode's head: when the file changed and by how much against HEAD, then what the line
+ *  listing below shows — or that git could not say, in which case the document is shown instead. */
+function ChangesSummary({ updated, lineDiff, hasBlame }: {
+  updated: string;
+  lineDiff: LineDiffLabel | null;
+  hasBlame: boolean;
+}): JSX.Element {
+  const L = useVocab();
   return (
-    <div
-      role={row.selectable ? 'button' : undefined}
-      tabIndex={row.selectable ? 0 : undefined}
-      onKeyDown={(event) => {
-        if (row.selectable && row.path && (event.key === 'Enter' || event.key === ' ')) {
-          event.preventDefault(); onPick(row.path);
-        }
-      }}
-      onClick={row.selectable && row.path ? () => onPick(row.path!) : undefined}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 7,
-        padding: `5px 8px 5px ${row.depth === 1 ? 22 : 8}px`,
-        background: bg,
-        borderRadius: 'var(--r-chip)',
-        cursor: row.selectable ? 'pointer' : 'default',
-      }}
-    >
-      <span
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ ...META, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+        <ClockGlyph />
+        <span>{updated}</span>
+        <span aria-hidden="true">·</span>
+        {/* Line-level +/− is REAL (git numstat vs HEAD); null → honest placeholder, never fabricated. */}
+        {lineDiff ? (
+          <span style={{ display: 'inline-flex', gap: 6 }}>
+            <LineDiffText diff={lineDiff} />
+            {!lineDiff.clean && <span>{L.memLinesChanged}</span>}
+          </span>
+        ) : (
+          <span>{L.memDiffUnavailable}</span>
+        )}
+      </div>
+      <div
         style={{
-          font: `${weight} 11px ${MONO}`,
-          color,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
+          fontSize: 12.5,
+          lineHeight: 1.5,
+          color: 'var(--proto-amber-fg)',
+          background: 'var(--proto-amber-bg)',
+          border: '1px solid var(--proto-amber-border)',
+          borderRadius: 'var(--r-control)',
+          padding: '7px 12px',
         }}
       >
-        {row.name}
-      </span>
-      {row.right != null && (
-        <span style={{ marginLeft: 'auto', font: `400 11px ${MONO}`, color: 'var(--proto-muted)', flex: 'none' }}>
-          {row.right}
-        </span>
-      )}
+        {hasBlame ? L.memBlameNote : L.memBlameUnavailable}
+      </div>
     </div>
   );
 }
 
-// No background of its own: the viewer reads directly on the workspace pane's glass. Only the
-// document body below keeps an opaque fill, because prose has to occlude the mesh behind it.
+// No background of its own: the header and the file column read directly on the workspace pane's
+// glass. Only the document pane below carries a fill.
 const CENTER: CSSProperties = {
   flex: 1,
   minWidth: 0,
@@ -138,6 +140,8 @@ const CENTER: CSSProperties = {
   minHeight: 0,
 };
 
+const STATE_NOTE: CSSProperties = { fontSize: 13, color: 'var(--proto-muted)' };
+
 export function MemoryView(): JSX.Element {
   const navigate = useNavigate();
   const trpc = useTRPC();
@@ -145,7 +149,11 @@ export function MemoryView(): JSX.Element {
   const lang = useLang();
   const now = Date.now();
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const [diffOn, setDiffOn] = useState(true);
+  const [mode, setMode] = useState<MemoryMode>(DEFAULT_MEMORY_MODE);
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<number | null>(null);
 
   const projectsQuery = useQuery(trpc.projects.list.queryOptions({}));
   const sessionsQuery = useQuery(trpc.sessions.list.queryOptions({}));
@@ -169,156 +177,144 @@ export function MemoryView(): JSX.Element {
     enabled: !!activeProjectId && !!effectivePath,
   });
   const file = fileQuery.data;
+  const content = file?.content;
+  const doc = useMemo(() => (content == null ? null : deriveMemoryDoc(content)), [content]);
 
-  const rows = buildTreeRows(treeFacts, effectivePath);
-  const dt = diffToggle(diffOn, L);
+  const rows = buildTreeRows(treeFacts, effectivePath, { now, collapsed });
+  const updated = relTimeAgo(file?.modifiedAt, now, lang, L);
   // Real per-file git line counts (memory.file.lineDiff); null → honest placeholder (never fabricated).
   const lineDiff = formatLineDiff(file?.lineDiff);
-  // Real per-line git blame (memory.file.blame); null → honest placeholder (no per-line highlight).
-  const blameRows = groupBlame(file?.blame, file?.content ?? '');
+  // Real per-line git blame (memory.file.blame); null → honest placeholder (no per-line listing).
+  const blameRows = groupBlame(file?.blame, content ?? '');
+  // Changes lists the lines; without blame it falls back to the document under an honest note.
+  const blamePane = mode === 'changes' ? blameRows : null;
+  const outline = !blamePane && doc && doc.outline.length >= 2 ? doc.outline : null;
+
+  const toggleDir = useCallback((name: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }, []);
+
+  // Each file opens at its top, so the outline below starts from its first section.
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [effectivePath]);
+
+  const updateActive = useCallback(() => {
+    frameRef.current = null;
+    const scroller = scrollRef.current;
+    if (!scroller || !outline) return;
+    const origin = scroller.getBoundingClientRect().top;
+    const tops = outline.flatMap((entry) => {
+      const el = document.getElementById(entry.id);
+      return el ? [{ id: entry.id, top: el.getBoundingClientRect().top - origin }] : [];
+    });
+    const atEnd = scroller.scrollTop > 0 && scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2;
+    setActiveId(activeOutlineId(tops, OUTLINE_THRESHOLD_PX, atEnd));
+  }, [outline]);
+
+  useEffect(() => {
+    updateActive();
+  }, [updateActive]);
+
+  useEffect(() => () => {
+    if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
+  }, []);
+
+  const onScroll = (): void => {
+    if (outline && frameRef.current == null) frameRef.current = requestAnimationFrame(updateActive);
+  };
+
+  const jumpTo = (id: string): void => {
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    document.getElementById(id)?.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
+    setActiveId(id);
+  };
 
   return (
-    <div className="content-surface" data-pane="center" style={CENTER}>
-      {/* header (prototype L660–666) */}
+    <div className="content-surface memory-view" data-pane="center" style={CENTER}>
       <div
         style={{
-          minHeight: 50,
-          flexWrap: 'wrap',
-          overflowWrap: 'anywhere',
+          minHeight: 52,
           flex: 'none',
+          flexWrap: 'wrap',
           borderBottom: '1px solid var(--proto-line-2)',
           display: 'flex',
           alignItems: 'center',
-          gap: 9,
-          padding: '0 20px',
+          gap: 8,
+          padding: '8px 14px 8px 12px',
+          boxSizing: 'border-box',
         }}
       >
-        <button type="button" className="content-text-action"
-          onClick={() => navigate('/overview')}
-          aria-label={L.back}
-          style={{ fontSize: 14, color: 'var(--proto-muted)', cursor: 'pointer', padding: '4px 8px 4px 0' }}
-        >
-          ‹
-        </button>
-        <button type="button" className="content-text-action"
-          onClick={() => navigate('/overview')}
-          style={{ font: `500 12px ${MONO}`, color: 'var(--proto-muted)', cursor: 'pointer' }}
-        >
-          {projName}
-        </button>
-        <span style={{ color: 'var(--proto-line-3)' }}>/</span>
-        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.memMemory}</span>
-        <span style={{ color: 'var(--proto-line-3)' }}>/</span>
-        <span style={{ font: `500 12px ${MONO}`, color: 'var(--proto-muted)' }}>{effectivePath ?? '—'}</span>
+        <IconButton label={L.back} size={28} onClick={() => navigate('/overview')}>
+          <BackGlyph />
+        </IconButton>
+        <div style={{ flex: '1 1 160px', minWidth: 0, display: 'flex', alignItems: 'baseline', gap: 6, overflow: 'hidden', whiteSpace: 'nowrap' }}>
+          <button type="button" className="content-text-action"
+            onClick={() => navigate('/overview')}
+            style={{ fontSize: 15, fontWeight: 600, color: 'var(--proto-ink)', cursor: 'pointer', flex: 'none' }}
+          >
+            {projName}
+          </button>
+          <span style={{ fontSize: 15, color: 'var(--proto-muted-3)', flex: 'none' }}>/ {L.memMemory}</span>
+          {/* The open file as a breadcrumb: a path, but here it names a place, so it reads in the UI face. */}
+          {effectivePath && (
+            <span style={{ fontSize: 13, color: 'var(--proto-muted-3)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              / {effectivePath}
+            </span>
+          )}
+        </div>
+        <ModeSwitch mode={mode} onChange={setMode} />
       </div>
 
-      {/* body: 200px tree + fluid rendered pane (prototype L667) */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+        <MemoryTree
+          rows={rows}
+          loading={treeQuery.isLoading}
+          showLegend={hasRecentChange(treeFacts, now)}
+          onPick={setSelectedPath}
+          onToggle={toggleDir}
+        />
+
+        {/* The document pane is more opaque than the pane glass (a control-material fill): long
+            prose over a fully translucent surface reads the mesh through every line, which is
+            exactly what a reading pane must not do. It goes fully opaque with the glass level. */}
         <div
-          style={{
-            width: 'clamp(140px, 28%, 220px)',
-            flex: 'none',
-            borderRight: '1px solid var(--proto-line-2)',
-            background: 'transparent',
-            padding: '8px 6px',
-            overflow: 'auto',
-            scrollbarGutter: 'stable',
-          }}
+          ref={scrollRef}
+          onScroll={onScroll}
+          style={{ flex: 1, minWidth: 0, overflow: 'auto', scrollbarGutter: 'stable', background: 'var(--material-control-bg)' }}
         >
-          {treeQuery.isLoading && (
-            <div style={{ fontSize: 11, color: 'var(--proto-muted)', padding: '6px 8px' }}>{L.memLoading}</div>
-          )}
-          {!treeQuery.isLoading && rows.length === 0 && (
-            <div style={{ fontSize: 11, color: 'var(--proto-muted)', padding: '6px 8px' }}>{L.memNoFiles}</div>
-          )}
-          {rows.map((r) => (
-            <TreeRowView key={r.path ?? `dir:${r.name}`} row={r} onPick={setSelectedPath} />
-          ))}
-        </div>
-
-        {/* The rendered document stays on opaque `--proto-card`: long prose over a translucent
-            surface reads the mesh through every line, which is exactly what a reading pane must not do. */}
-        <div style={{ flex: 1, minWidth: 0, background: 'var(--proto-card)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* diff bar (prototype L678–684) */}
-          <div
-            style={{
-              flex: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              flexWrap: 'wrap',
-              padding: '8px 20px',
-              background: 'var(--proto-accent-bg)',
-              borderBottom: '1px solid var(--proto-accent-bg)',
-            }}
-          >
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-accent)', flex: 'none' }} />
-            <span style={{ fontSize: 11, color: 'var(--proto-accent-strong)' }}>{relTimeAgo(file?.modifiedAt, now, lang, L)}</span>
-            {/* Line-level +/− is REAL (git numstat vs HEAD). When the backend can't resolve it
-                (no git / not a repo / binary) lineDiff is null → honest placeholder, never fabricated.
-                Task ref + commit hash still have no backend scope → not shown (not fabricated). */}
-            {lineDiff ? (
-              <>
-                <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-success)' }}>{lineDiff.added}</span>
-                <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-danger)' }}>{lineDiff.removed}</span>
-              </>
-            ) : (
-              <span style={{ font: `400 11px ${MONO}`, color: 'var(--proto-muted)' }}>{L.memDiffUnavailable}</span>
-            )}
-            <button type="button" className="content-text-action"
-              onClick={() => setDiffOn((v) => !v)}
-              style={{
-                marginLeft: 'auto',
-                fontSize: 11,
-                fontWeight: 600,
-                color: dt.color,
-                background: dt.bg,
-                border: `1px solid ${dt.border}`,
-                borderRadius: 'var(--r-pill)',
-                padding: '2px 10px',
-                cursor: 'pointer',
-              }}
-            >
-              {dt.label}
-            </button>
-          </div>
-
-          {/* rendered markdown / per-line blame (prototype L685–716) */}
-          <div style={{ flex: 1, overflow: 'auto', scrollbarGutter: 'stable', minHeight: 0, padding: '18px 24px 24px' }}>
-            {diffOn && (
-              <div
-                style={{
-                  fontSize: 11,
-                  color: 'var(--proto-amber-fg)',
-                  background: 'var(--proto-amber-bg)',
-                  border: '1px solid var(--proto-amber-border)',
-                  borderRadius: 'var(--r-control)',
-                  padding: '6px 11px',
-                  marginBottom: 12,
-                  lineHeight: 1.5,
-                }}
-              >
-                {blameRows ? (
+          <div className="memory-doc-row" style={{ display: 'flex', justifyContent: 'center', gap: 40, padding: '32px 32px 48px' }}>
+            <article style={{ flex: `0 1 ${blamePane ? 880 : 680}px`, minWidth: 0 }}>
+              {mode === 'changes' && file && (
+                <ChangesSummary updated={updated} lineDiff={lineDiff} hasBlame={!!blameRows} />
+              )}
+              {fileQuery.isLoading && <div style={STATE_NOTE}>{L.memLoadingFile}</div>}
+              {fileQuery.isError && <div style={{ ...STATE_NOTE, color: 'var(--proto-danger)' }}>{L.memReadError}</div>}
+              {blamePane ? (
+                <BlamePane rows={blamePane} />
+              ) : (
+                file && doc && (
                   <>
-                    {lineDiff ? `${lineDiff.added} / ${lineDiff.removed} ${L.memLinesChanged}` : L.memBlameNote}
+                    <MemoryDocHeader
+                      doc={doc}
+                      updated={updated}
+                      lineDiff={lineDiff}
+                      onShowChanges={mode === 'read' ? () => setMode('changes') : undefined}
+                    />
+                    <MarkdownView blocks={doc.blocks} />
                   </>
-                ) : (
-                  <>{L.memBlameUnavailable}</>
-                )}
-              </div>
-            )}
-            {fileQuery.isLoading && <div style={{ fontSize: 11.5, color: 'var(--proto-muted)' }}>{L.memLoadingFile}</div>}
-            {fileQuery.isError && (
-              <div style={{ fontSize: 11.5, color: 'var(--proto-danger)' }}>{L.memReadError}</div>
-            )}
-            {file && diffOn && blameRows ? (
-              <BlamePane rows={blameRows} />
-            ) : (
-              file && <MarkdownView content={file.content} />
-            )}
-            {!fileQuery.isLoading && !fileQuery.isError && !file && (
-              <div style={{ fontSize: 11.5, color: 'var(--proto-muted)' }}>{L.memSelectFile}</div>
-            )}
+                )
+              )}
+              {!fileQuery.isLoading && !fileQuery.isError && !file && (
+                <div style={STATE_NOTE}>{L.memSelectFile}</div>
+              )}
+            </article>
+            {outline && <MemoryOutline entries={outline} activeId={activeId} onJump={jumpTo} />}
           </div>
         </div>
       </div>

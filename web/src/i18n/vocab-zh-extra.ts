@@ -192,7 +192,6 @@ export const zhExtra = {
   memLoadingFile: '正在加载文件…',
   memReadError: '无法读取此文件。',
   memSelectFile: '选择一个文件查看。',
-  memSummary: '摘要',
   exLogTitle: '执行日志',
   exAlreadyFinished: '已结束',
   exKilled: '已终止',

@@ -255,9 +255,11 @@ Two consequences worth knowing:
 The Web workbench shows a project's memory read-only. On desktop, **View → Memory** or **Open memory
 viewer** on the project's Overview opens it; on a phone, it is **Project memory** in the Projects
 panel. It lists `mission.md`, `roadmap.md`, `STATUS.md`, and the files in `experiments/`,
-`knowledge/`, `patterns/` and `decisions/` (without the generated `index.md`), renders the selected
-file, and, when the project is in a git work tree, shows how many lines differ from `HEAD` and the
-latest change behind each line.
+`knowledge/`, `patterns/` and `decisions/` (without the generated `index.md`) and renders the
+selected file. On desktop the file reads as a document — its frontmatter becomes a property line, a
+title and the summary, and a wide pane lists the file's sections beside it — and, when the project
+is in a git work tree, the view shows how many lines differ from `HEAD`; **Changes**, next to
+**Read** in the header, shows the latest change behind each line.
 
 ## Fresh Session Test
 
