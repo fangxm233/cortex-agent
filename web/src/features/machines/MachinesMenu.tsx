@@ -1,5 +1,5 @@
 import * as RadixPopover from '@radix-ui/react-popover';
-import { useState } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import type { MachineInfo } from '@cortex-agent/ui-contract';
 import '@/design/content-surfaces.css';
 import { MENU_FOCUS } from '@/design/MenuChrome';
@@ -7,10 +7,9 @@ import { defineModal } from '@/design/modal-registry';
 import { useLang, useVocab } from '@/i18n';
 import { MachineList } from './MachineList';
 import { machinesChipLabel, machinesOnlineText } from './machines-menu-vm';
-import { MACHINES_TONE_COLOR, machinesStatusTone } from './machines-status';
 import { useMachinesResource } from './useMachinesResource';
 
-// The machines menu: a server button in the top bar (status dot + online/total) that drops a
+// The machines menu: a server button in the top bar (icon + online/total) that drops a
 // glass sheet with the machine cards. Machines are window-scoped, so they live on the bar rather
 // than beside any one pane. The open flag is a registry key so View → Machines can open it too.
 
@@ -60,98 +59,86 @@ function MenuBody({ machines, known, expanded, onToggle, onManage }: {
   </>;
 }
 
+const TRIGGER_STYLE: CSSProperties = {
+  position: 'relative',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 7,
+  height: 32,
+  padding: '0 10px 0 8px',
+  border: 0,
+  borderRadius: 'var(--r-chip)',
+  font: '550 13px var(--font-ui)',
+  fontVariantNumeric: 'tabular-nums',
+  cursor: 'pointer',
+  flex: 'none',
+};
+
+function MenuTrigger({ title, label, isOpen }: { title: string; label: string; isOpen: boolean }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <RadixPopover.Trigger asChild>
+      <button type="button" data-machines-menu="" aria-label={title} title={title}
+        onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} className={MENU_FOCUS}
+        style={{
+          ...TRIGGER_STYLE,
+          background: isOpen ? 'var(--proto-gray)' : hover ? 'var(--proto-line-2)' : 'transparent',
+          color: isOpen || hover ? 'var(--proto-ink)' : 'var(--proto-ink-3)',
+        }}>
+        <RackGlyph />
+        <span>{label}</span>
+      </button>
+    </RadixPopover.Trigger>
+  );
+}
+
+const SHEET_STYLE: CSSProperties = {
+  zIndex: 50,
+  width: 360,
+  maxHeight: 'min(640px, var(--radix-popover-content-available-height))',
+  display: 'flex',
+  flexDirection: 'column',
+  overflow: 'hidden',
+  borderRadius: 'var(--r-float)',
+  // Radix's transformed popper is a backdrop root; keep the sheet opaque.
+  background: 'var(--proto-card)',
+  boxShadow: 'var(--material-overlay-shadow), 0 0 0 1px var(--proto-line)',
+  transformOrigin: 'var(--radix-popover-content-transform-origin)',
+  animation: 'cxpop 160ms cubic-bezier(0.22, 1, 0.36, 1)',
+};
+
+function MenuSheet({ children }: { children: ReactNode }) {
+  return (
+    <RadixPopover.Portal>
+      <RadixPopover.Content className="content-surface" data-machines-sheet="" side="bottom" align="end"
+        sideOffset={8} collisionPadding={12} onOpenAutoFocus={(event) => event.preventDefault()} style={SHEET_STYLE}>
+        {children}
+      </RadixPopover.Content>
+    </RadixPopover.Portal>
+  );
+}
+
 export function MachinesMenu({ onManage }: { onManage: () => void }): JSX.Element {
   const L = useVocab();
   const { isOpen, open, close } = machinesMenu.useModal();
   const roster = useMachinesResource();
-  const label = machinesChipLabel(roster.machines, !roster.loading && !roster.error);
-  const tone = machinesStatusTone(roster.machines, !roster.loading && !roster.error);
-  const [hover, setHover] = useState(false);
-  // Held above the sheet, which unmounts on close: reopening shows the same cards expanded, while
-  // their probes stop with the sheet.
+  const known = !roster.loading && !roster.error;
+  const label = machinesChipLabel(roster.machines, known);
+  // Keep expanded cards across sheet closes, while their probes stop with the sheet.
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const toggle = (name: string) => setExpanded((current) => {
     const next = new Set(current);
     if (next.has(name)) next.delete(name); else next.add(name);
     return next;
   });
-  const title = `${L.machines} · ${label.online}${label.total}`;
+  const count = `${label.online}${label.total}`;
   return (
     <RadixPopover.Root open={isOpen} onOpenChange={(next) => (next ? open() : close())}>
-      <RadixPopover.Trigger asChild>
-        <button
-          type="button"
-          data-machines-menu=""
-          aria-label={title}
-          title={title}
-          onMouseEnter={() => setHover(true)}
-          onMouseLeave={() => setHover(false)}
-          className={MENU_FOCUS}
-          style={{
-            // A transparent icon button like its neighbours, widened only by the count; open is the
-            // same quiet tint as any engaged icon button.
-            position: 'relative',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 7,
-            height: 32,
-            padding: '0 10px 0 8px',
-            border: 0,
-            borderRadius: 'var(--r-chip)',
-            background: isOpen ? 'var(--proto-gray)' : hover ? 'var(--proto-line-2)' : 'transparent',
-            color: isOpen || hover ? 'var(--proto-ink)' : 'var(--proto-ink-3)',
-            font: '550 13px var(--font-ui)',
-            fontVariantNumeric: 'tabular-nums',
-            cursor: 'pointer',
-            flex: 'none',
-          }}
-        >
-          <RackGlyph />
-          {tone !== 'unknown' && (
-            // On the glyph's lower-right corner, ringed in the ground colour so it reads as a badge.
-            <span
-              aria-hidden="true"
-              data-machines-tone={tone}
-              style={{
-                position: 'absolute', left: 20, bottom: 7, width: 7, height: 7, borderRadius: '50%',
-                background: MACHINES_TONE_COLOR[tone], boxShadow: '0 0 0 2px var(--proto-base)',
-              }}
-            />
-          )}
-          <span>{label.online}{label.total}</span>
-        </button>
-      </RadixPopover.Trigger>
-      <RadixPopover.Portal>
-        <RadixPopover.Content
-          className="content-surface"
-          data-machines-sheet=""
-          side="bottom"
-          align="end"
-          sideOffset={8}
-          collisionPadding={12}
-          onOpenAutoFocus={(event) => event.preventDefault()}
-          style={{
-            zIndex: 50,
-            width: 360,
-            maxHeight: 'min(640px, var(--radix-popover-content-available-height))',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            borderRadius: 'var(--r-float)',
-            // Opaque card, not glass. Radix's popper wrapper carries `will-change: transform`, which
-            // makes it a backdrop root: a backdrop-filter on the sheet would blur nothing, and a
-            // translucent fill let the chat header's icons, right under the sheet's header, read
-            // straight through it.
-            background: 'var(--proto-card)',
-            boxShadow: 'var(--material-overlay-shadow), 0 0 0 1px var(--proto-line)',
-            transformOrigin: 'var(--radix-popover-content-transform-origin)',
-            animation: 'cxpop 160ms cubic-bezier(0.22, 1, 0.36, 1)',
-          }}
-        >
-          <MenuBody machines={roster.machines} known={!roster.loading && !roster.error} expanded={expanded} onToggle={toggle}
-            onManage={() => { close(); onManage(); }} />
-        </RadixPopover.Content>
-      </RadixPopover.Portal>
+      <MenuTrigger title={`${L.machines} · ${count}`} label={count} isOpen={isOpen} />
+      <MenuSheet>
+        <MenuBody machines={roster.machines} known={known} expanded={expanded} onToggle={toggle}
+          onManage={() => { close(); onManage(); }} />
+      </MenuSheet>
     </RadixPopover.Root>
   );
 }
