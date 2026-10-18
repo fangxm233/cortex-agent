@@ -12,7 +12,10 @@ import { execStatusWord } from '@/features/execution/execution-drawer-view';
 import { decisionStatus } from '@/features/session/interaction/decision-vm';
 import { shortSessionId } from '@/features/session/metadata/short-session-id';
 import { effectiveMs } from '@/features/session/list/session-groups';
-import { workerState } from '@/features/team/worker-roster';
+import { teamRoster, teamSummaryText } from '@/features/team/worker-roster';
+import { groupWorkers } from '@/features/team/worker-groups';
+import { sessionRollup, type WorkerRollup } from '@/features/team/worker-rollup';
+import { leadRow } from '@/features/workbench/rail/worker-rail';
 import type { MemoryTreeFacts } from '@/features/memory/memory-tree';
 import { sessionTitle } from '@/features/workbench/rail/rail-tree';
 import { fmt, type Vocab } from '@/i18n';
@@ -225,9 +228,9 @@ export function execRows(
   });
 }
 
-// ── Needs you / In progress — the rail's dot language (features/team/worker-roster), one row
-//    per session. Both lists come from the same sessions.list snapshot the rail renders, so the
-//    overview and the rail never disagree about who is waiting on the user.
+// ── Needs you / In progress — one row per session, in the rail's dot language. Both lists come
+//    from the same sessions.list snapshot the rail renders and roll a lead up from its workers the
+//    way the rail does, so the page and the rail never show the same session with different dots.
 
 export type OverviewSessionState = 'you' | 'running' | 'waiting';
 
@@ -247,36 +250,63 @@ export interface OverviewSessionGroups {
   inProgress: OverviewSessionRow[];
 }
 
-function sessionDoing(s: SessionInfo, state: OverviewSessionState, L: Vocab): string | null {
-  if (state === 'waiting') {
-    const n = s.waitingOn ?? 0;
-    return n === 1 ? L.ovWaitingOne : fmt(L.ovWaitingMany, { n });
+/**
+ * The rail's dot for a row (RailTree), in its priority order: amber while blocked on you, the
+ * accent while running, a still ring while waiting on a machine; an idle row has none.
+ */
+export function railDotState(r: WorkerRollup): OverviewSessionState | null {
+  if (r.awaitingInput) return 'you';
+  if (r.running) return 'running';
+  return r.waitingOn ? 'waiting' : null;
+}
+
+function waitingText(n: number, L: Vocab): string {
+  return n === 1 ? L.ovWaitingOne : fmt(L.ovWaitingMany, { n });
+}
+
+/** What an In-progress row says it is doing: its own task while it runs, its team when its dot
+ *  comes from its workers (the reason the rail lights it), else what it waits on. */
+function sessionDoing(
+  s: SessionInfo, state: OverviewSessionState, workers: SessionInfo[], now: number, L: Vocab,
+): string | null {
+  if (state === 'you') return null;
+  if (s.running) return s.todos?.activeLabel || s.workerBrief || (s.backgroundRunning ? L.pillBackground : null);
+  const own = sessionRollup(s);
+  if (workers.length > 0 && !own[state === 'running' ? 'running' : 'waitingOn']) {
+    return teamSummaryText(teamRoster(workers, now).active, L);
   }
-  if (state !== 'running') return null;
-  return s.todos?.activeLabel || s.workerBrief || (s.backgroundRunning ? L.pillBackground : null);
+  return own.waitingOn ? waitingText(s.waitingOn ?? 0, L) : null;
 }
 
 const STATE_ORDER: Record<OverviewSessionState, number> = { you: 0, running: 1, waiting: 2 };
 
 /**
- * Split a project's sessions into what is blocked on the user and what is still moving. A worker's
- * questions go to its lead, so a worker never lands in Needs you (workerState); idle sessions are
- * in neither list. Most recent first; running ahead of waiting.
+ * Split a project's sessions into what is blocked on the user and what is still moving, with each
+ * session's dot exactly as the rail draws it. In team mode the rail nests a project's workers under
+ * their lead — over the non-starred direct sessions only, since a starred lead sits in Stars without
+ * its workers — and the lead's row rolls theirs up (leadRow): a lead whose worker runs reads as
+ * running. Every other row, workers included, shows its own state. Idle sessions are in neither
+ * list. Most recent first; running ahead of waiting.
  */
-export function groupSessions(sessions: SessionInfo[], L: Vocab): OverviewSessionGroups {
-  const seen = new Set<string>();
+export function groupSessions(
+  sessions: SessionInfo[], L: Vocab, teamEnabled = false, now: number = Date.now(),
+): OverviewSessionGroups {
+  const unique = [...new Map(sessions.map((s) => [s.sessionId, s])).values()];
+  const nesting = teamEnabled
+    ? groupWorkers(unique.filter((s) => s.origin === 'direct' && s.starred !== true), now)
+    : null;
   const rows: OverviewSessionRow[] = [];
-  for (const s of sessions) {
-    if (seen.has(s.sessionId)) continue;
-    seen.add(s.sessionId);
-    const state = workerState(s);
-    if (state === 'idle') continue;
+  for (const s of unique) {
+    const workers = nesting?.workers.get(s.sessionId) ?? [];
+    const own = sessionRollup(s);
+    const state = railDotState(workers.length > 0 ? leadRow(own, workers.map(sessionRollup), [], false) : own);
+    if (!state) continue;
     rows.push({
       sessionId: s.sessionId,
       projectId: s.projectId,
       title: sessionTitle(s),
       state,
-      doing: sessionDoing(s, state, L),
+      doing: sessionDoing(s, state, workers, now, L),
       at: effectiveMs(s),
     });
   }

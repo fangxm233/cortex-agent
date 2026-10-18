@@ -35,6 +35,9 @@
 
 @container overview (max-width: 900px) {
   .ov-root .ov-page { grid-template-columns: minmax(0, 1fr); }
+  /* Folded under the work column, the side sections keep the width they were drawn for: stretched
+     to the pane, the 14-day bars turn into blocks and the week / month / forecast trio drifts apart. */
+  .ov-root .ov-col-side > * { width: 100%; max-width: 400px; }
 }
 @container overview (max-width: 520px) {
   .ov-root .ov-page { padding: 16px; }
@@ -55,6 +58,20 @@
   font-size: 13px;
   color: var(--proto-muted);
 }
+/* The one card on the page — Needs you, the thing the user must act on. In the dark theme the card
+   glass sits too close to the pane's, so the card takes the raised surface there instead. */
+.ov-root .ov-card {
+  min-width: 0;
+  background: var(--material-card-bg);
+  border: 1px solid var(--proto-line-2);
+  border-radius: var(--r-card);
+  box-shadow: var(--material-card-shadow);
+}
+[data-theme='dark'] .ov-root .ov-card {
+  background: var(--surface-raised);
+  border-color: var(--proto-line);
+}
+
 .ov-root .ov-row-link { cursor: pointer; }
 .ov-root .ov-row-link:hover,
 .ov-root .ov-run:hover { background: var(--proto-alt); }
@@ -68,11 +85,24 @@
   margin: 0 -8px;
   padding: 0 8px;
   border-radius: var(--r-chip);
-  border-bottom: 1px solid var(--proto-line-soft);
+  position: relative;
   font-size: 13px;
   color: var(--proto-muted);
   font-variant-numeric: tabular-nums;
 }
+/* The separator is its own straight line under the row: a border on the rounded row would curl up
+   at both ends. The hovered row drops its line so the tint reads as one shape. */
+.ov-root .ov-run::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--proto-line-soft);
+  pointer-events: none;
+}
+.ov-root .ov-run:not(.ov-run-head):hover::after { background: transparent; }
 .ov-root .ov-run > * { min-width: 0; display: flex; align-items: center; }
 .ov-root .ov-run-head { min-height: 28px; font-size: 12px; color: var(--proto-muted-3); }
 .ov-root .ov-run-head:hover { background: transparent; }

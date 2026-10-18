@@ -4,6 +4,7 @@ import type { ExecutionInfo, IssueInfo, SessionInfo } from '@cortex-agent/ui-con
 import { useTRPC } from '@/lib/trpc';
 import { useProjectSessions } from '@/features/projects/useProjectSessions';
 import { useWorkerQuestions } from '@/features/team/useWorkerQuestions';
+import { useTeamEnabled } from '@/features/team/useTeamEnabled';
 import { deriveMemoryTreeFacts } from '@/features/memory/memory-tree';
 import { useVocab } from '@/i18n';
 import { groupSessions, pendingDecisionRows, recentMemoryFiles } from './overview-vm';
@@ -12,8 +13,9 @@ import { groupSessions, pendingDecisionRows, recentMemoryFiles } from './overvie
 // the queries, so the page stays testable without a tRPC client and every query key lives here.
 //
 // The session lists are the rail's own queries (useProjectSessions selects the project out of the
-// shared sessions.list cache), so Needs you / In progress read the same snapshot the rail's dots do
-// and stay live through the rail's session.status subscription — no second one is opened here.
+// shared sessions.list cache) and the same team-mode switch, so Needs you / In progress read the
+// same snapshot the rail's dots do and stay live through the rail's session.status subscription —
+// no second one is opened here.
 
 /** How many recent runs the page lists. */
 const RECENT_RUNS = 6;
@@ -57,7 +59,9 @@ export function useOverviewData(projectId: string | null) {
     [projectId, direct, scheduled],
   );
   const sessionsById = useMemo(() => new Map(sessions.map((s) => [s.sessionId, s])), [sessions]);
-  const groups = useMemo(() => groupSessions(sessions, L), [sessions, L]);
+  // Team mode decides whether a lead's dot rolls up its workers — the rail reads the same switch.
+  const teamEnabled = useTeamEnabled();
+  const groups = useMemo(() => groupSessions(sessions, L, teamEnabled), [sessions, L, teamEnabled]);
   // The question each blocked session is asking — one pendingInteraction query per such session,
   // the same lookup the team roster and the board strip make.
   const askingSessions = useMemo(() => {

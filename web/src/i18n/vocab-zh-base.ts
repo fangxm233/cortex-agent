@@ -626,7 +626,7 @@ export const zhBase = {
   ovTodayOfBudget: '今日 / 每日预算 {budget}',
   ovThisWeek: '本周',
   ovThisMonth: '本月',
-  ovForecast: '预计今天',
+  ovForecast: '今日预计',
 
   // ── redesign: panels ──
   scTomorrow: '明天',

@@ -62,14 +62,6 @@ import {
 const INK: CSSProperties = { color: 'var(--proto-ink)', fontWeight: 550 };
 const EMPTY: CSSProperties = { fontSize: 12.5, color: 'var(--proto-muted-3)' };
 const ACTION_BUTTON: CSSProperties = { height: 28, padding: '0 11px', fontSize: 12.5, fontWeight: 500, flex: 'none' };
-// The one card on the page: the content fill and hairline the workspace uses for things to act on.
-const CARD: CSSProperties = {
-  background: 'var(--material-card-bg)',
-  border: '1px solid var(--proto-line-2)',
-  borderRadius: 'var(--r-card)',
-  boxShadow: 'var(--material-card-shadow)',
-  minWidth: 0,
-};
 
 function activate(event: KeyboardEvent, run: () => void): void {
   if (event.key === 'Enter' || event.key === ' ') {
@@ -114,7 +106,7 @@ function NeedsYouSection({ data, now, onReply, onViewBoard }: {
   return (
     <section data-overview-needs-you="">
       <SectionHead title={L.ovNeedsYou} count={count} />
-      <div style={CARD}>
+      <div className="ov-card">
         {needsYou.map((row, i) => (
           <div key={row.sessionId} data-needs-you-session={row.sessionId} style={actionRowStyle(i)}>
             <IconCell><StatusDot state="you" /></IconCell>
@@ -436,7 +428,7 @@ export function OverviewView(): JSX.Element {
             <IssuesSection issues={data.issues} onOpen={openIssues} />
             <RecentRunsSection executions={data.executions} sessionsById={data.sessionsById} now={now} onLogs={openExecutionDrawer} />
           </div>
-          <div className="ov-col">
+          <div className="ov-col ov-col-side">
             <OverviewSpend cost={data.cost} now={now} onAdjustBudget={() => openSection('budget')} />
             <SchedulesSection
               schedules={data.schedules}

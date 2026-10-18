@@ -21,12 +21,13 @@ import {
 // only "today" (never a made-up denominator), and a week with no spend says so in one line.
 
 // Series colours for the where-it-goes split, in slot order (see triggerSlots): the accent at
-// falling strength, then neutral ink. Mixing toward transparent (not the theme's accent-mid) keeps
-// the steps apart in dark mode too, where the accent and its mid tone sit close together.
+// falling strength, then neutral ink. The steps mix the accent with the opaque card colour rather
+// than with transparency or the theme's accent-mid: on the dark pane a see-through step went dim,
+// and the dark accent-mid sits too close to the accent to tell apart.
 const SERIES = [
   'var(--proto-accent)',
-  'color-mix(in srgb, var(--proto-accent) 45%, transparent)',
-  'color-mix(in srgb, var(--proto-accent) 22%, transparent)',
+  'color-mix(in oklab, var(--proto-accent) 66%, var(--proto-card))',
+  'color-mix(in oklab, var(--proto-accent) 36%, var(--proto-card))',
   'var(--proto-faint)',
   'var(--proto-line-3)',
 ];

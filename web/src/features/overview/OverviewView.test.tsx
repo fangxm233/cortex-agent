@@ -115,6 +115,7 @@ vi.mock('@/lib/trpc', () => ({
       decisions: staticQuery('boards.decisions', decisions),
     },
     memory: { tree: staticQuery('memory.tree', { projectId: 'nimbus', files: [], dirs: [] }) },
+    config: { get: staticQuery('config.get', { settings: [{ key: 'teamEnabled', value: true }] }) },
   }),
 }));
 
@@ -289,9 +290,10 @@ describe('Overview header and layout', () => {
 
   it('keeps Needs you as the only card and sets no monospace or capitalised labels', async () => {
     const renderer = await mount();
-    const cards = renderer.root.findAll((node) => node.props.style?.background === 'var(--material-card-bg)');
+    const cards = renderer.root.findAll((node) => typeof node.type === 'string' && node.props.className === 'ov-card');
     expect(cards).toHaveLength(1);
     expect(cards[0].parent?.props['data-overview-needs-you']).toBe('');
+    expect(renderer.root.findAll((node) => node.props.style?.background === 'var(--material-card-bg)')).toHaveLength(0);
     const styled = renderer.root.findAll((node) => typeof node.type === 'string' && node.props.style);
     for (const node of styled) {
       expect(JSON.stringify(node.props.style)).not.toMatch(/Plex Mono|monospace|uppercase|letterSpacing":"\.0/);

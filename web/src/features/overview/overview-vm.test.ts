@@ -11,6 +11,7 @@ import {
   execRows,
   clockOrDayLabel,
   groupSessions,
+  railDotState,
   needsYouReason,
   pendingDecisionRows,
   recentMemoryFiles,
@@ -20,6 +21,7 @@ import {
   seriesDayLabel,
 } from './overview-vm';
 import { deriveMemoryTreeFacts } from '@/features/memory/memory-tree';
+import { buildRailTree } from '@/features/workbench/rail/rail-tree';
 import { en, zh } from '@/i18n';
 
 const exec = (p: Partial<ExecutionInfo>): ExecutionInfo => ({
@@ -213,12 +215,50 @@ describe('groupSessions', () => {
     expect(groups.inProgress.map((r) => r.doing)).toEqual([en.pillBackground, 'Running seed 4/5', 'Waiting on 2 signals']);
   });
 
-  it('never puts a worker in Needs you — its questions go to its lead', () => {
-    const groups = groupSessions([
-      session({ sessionId: 'w', teamLeadId: 'lead', awaitingInput: true, running: true }),
-    ], zh);
-    expect(groups.needsYou).toEqual([]);
-    expect(groups.inProgress.map((r) => r.state)).toEqual(['running']);
+  it('rolls a lead up from its running worker in team mode, as the rail does', () => {
+    const now = Date.parse('2026-07-06T12:00:00Z');
+    const lead = session({ sessionId: 'lead', label: 'Plan', waitingOn: 1, lastUsedAt: '2026-07-06T11:51:00Z' });
+    const worker = session({ sessionId: 'w', label: 'sweep', teamLeadId: 'lead', running: true, lastUsedAt: '2026-07-06T11:49:00Z' });
+    const team = groupSessions([lead, worker], en, true, now).inProgress;
+    expect(team.map((r) => [r.sessionId, r.state])).toEqual([['lead', 'running'], ['w', 'running']]);
+    // The row says why it is lit: its team, not the signal it also waits on.
+    expect(team[0].doing).toBe('1 worker · 1 running');
+    // Team mode off: the rail draws the lead flat, with its own ring.
+    const flat = groupSessions([lead, worker], en, false, now).inProgress;
+    expect(flat.map((r) => [r.sessionId, r.state])).toEqual([['w', 'running'], ['lead', 'waiting']]);
+    expect(flat[1].doing).toBe('Waiting on 1 signal');
+  });
+
+  it('draws every session with the dot the rail tree gives it', () => {
+    const now = Date.parse('2026-07-06T12:00:00Z');
+    const at = (m: number) => new Date(now - m * 60_000).toISOString();
+    const sessions = [
+      session({ sessionId: 'ask', label: 'Asks', awaitingInput: true, running: true, lastUsedAt: at(12) }),
+      session({ sessionId: 'lead', label: 'Plan', waitingOn: 1, lastUsedAt: at(9) }),
+      session({ sessionId: 'w1', label: 'sweep 1', teamLeadId: 'lead', running: true, lastUsedAt: at(11) }),
+      session({ sessionId: 'w2', label: 'sweep 2', teamLeadId: 'lead', waitingOn: 1, lastUsedAt: at(30) }),
+      session({ sessionId: 'lead2', label: 'Quiet lead', lastUsedAt: at(40) }),
+      session({ sessionId: 'w3', label: 'sweep 3', teamLeadId: 'lead2', waitingOn: 2, lastUsedAt: at(45) }),
+      session({ sessionId: 'star', label: 'Starred lead', starred: true, lastUsedAt: at(50) }),
+      session({ sessionId: 'w4', label: 'orphaned by the star', teamLeadId: 'star', running: true, lastUsedAt: at(55) }),
+      session({ sessionId: 'idle', label: 'Idle', lastUsedAt: at(60) }),
+    ];
+    const tree = buildRailTree({
+      projects: [{ id: 'proj', kind: 'research', contextDir: '/ctx', hasMission: true, conduits: {} }],
+      directSessions: sessions, scheduledSessions: [], schedules: [],
+      selectedSessionId: null, fallbackProjectId: null,
+      expanded: new Set(['proj']), schedulesExpanded: new Set(), showAll: new Set(['proj']),
+      teamEnabled: true, expandedLeads: new Set(['lead', 'lead2']),
+      filter: '', sort: 'activity', manualOrder: [], dragged: false, now, lang: 'en',
+    });
+    const node = tree.projects[0];
+    const railRows = [...node.starredSessions, ...node.sessions.flatMap((r) => [r, ...(r.workers ?? [])])];
+    const groups = groupSessions(sessions, en, true, now);
+    const ours = new Map([...groups.needsYou, ...groups.inProgress].map((r) => [r.sessionId, r.state]));
+    expect(railRows).toHaveLength(sessions.length);
+    for (const row of railRows) expect([row.sessionId, ours.get(row.sessionId) ?? null]).toEqual([row.sessionId, railDotState(row)]);
+    expect(ours.get('lead2')).toBe('waiting');
+    expect(ours.get('star')).toBeUndefined();
   });
 
   it('lists a session once even when both origins return it', () => {
