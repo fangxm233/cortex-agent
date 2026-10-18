@@ -57,13 +57,13 @@ export interface RailProjectNode {
   expanded: boolean;
   /** No sessions and no schedules: rendered dimmed, sorted last. */
   empty: boolean;
-  /** Unread + awaiting-input sessions, in one badge. */
+  /** Unread + awaiting-input sessions, in one count. */
   attention: number;
-  /** 'action' when any session is actually blocked on you (amber), else 'unread' (accent). */
+  /** 'action' when any session is actually blocked on you (amber), else 'unread' (muted). */
   attentionTone: ProjectAttentionBadgeTone;
   /** '⌘1'…'⌘9' by visible order, non-empty projects only; null past nine or when an age shows. */
   hotkey: string | null;
-  /** Last-activity age, only for quiet rows that show no badge. */
+  /** Last-activity age, only for quiet rows that show no attention count. */
   idleAge: string | null;
   starredSessions: RailSessionRow[];
   starsExpanded: boolean;
@@ -219,8 +219,8 @@ export function buildRailTree(input: RailTreeInput): RailTree {
       schedulesByProject.get(project.id) ?? [],
       partition.scheduled,
     );
-    // The badge counts both, but its COLOUR only ever means one thing: amber = something is waiting
-    // on you. Unread replies are news, not a request, so they stay accent — collapsing the two into
+    // The count covers both, but its COLOUR only ever means one thing: amber = something is waiting
+    // on you. Unread replies are news, not a request, so they stay muted — collapsing the two into
     // one alarm colour makes the real asks stop registering.
     const badge = projectAttentionBadge(unreadCounts[project.id] ?? 0, actionCounts[project.id] ?? 0);
     const attention = badge.count;

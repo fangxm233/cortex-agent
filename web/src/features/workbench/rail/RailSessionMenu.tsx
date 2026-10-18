@@ -1,6 +1,6 @@
 import * as Popover from '@radix-ui/react-popover';
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { MENU_FOCUS, MENU_SURFACE, MONO } from '@/design/MenuChrome';
+import { MENU_FOCUS, MENU_SURFACE } from '@/design/MenuChrome';
 import { useVocab } from '@/i18n';
 import { SessionMetadata, type SessionMetadataActions } from '@/features/session/metadata/SessionMetadata';
 import { SessionMetadataMenuItems } from '@/features/session/metadata/SessionMetadataMenuItems';
@@ -38,8 +38,9 @@ function TimeSlot({ age, visible, label, trigger }: {
   age: string; visible: boolean; label: string; trigger: RefObject<HTMLButtonElement>;
 }): JSX.Element {
   return <>
-    {/* Keep the age in flow, including long localized ages, so the title never jumps. */}
-    <span style={{ visibility: visible ? 'hidden' : 'visible', font: `400 11px ${MONO}` }}>{age}</span>
+    {/* Keep the age in flow, including long localized ages, so the title never jumps. An age is
+        meta, not code: UI face, tabular digits. */}
+    <span style={{ visibility: visible ? 'hidden' : 'visible', font: '400 12px var(--font-ui)', fontVariantNumeric: 'tabular-nums' }}>{age}</span>
     <Popover.Trigger asChild>
       <button ref={trigger} type="button" aria-label={label} title={label} className={MENU_FOCUS}
         style={{ position: 'absolute', right: 0, top: 0, width: 22, height: 22,
@@ -69,7 +70,7 @@ export function RailSessionMenu({ row, hovered }: { row: RailSessionRow; hovered
     onKeyDown={(event) => event.stopPropagation()}
     onFocus={() => menu.setFocused(true)} onBlur={() => menu.setFocused(false)}
     style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end',
-      flex: 'none', minWidth: 22, height: 22, color: 'var(--proto-muted-2)' }}>
+      flex: 'none', minWidth: 22, height: 22, color: 'var(--proto-faint)' }}>
     {/* Catch clicks from both portals too. Leave pointerdown bubbling so Radix can reset its
         inside/outside tracking on document; stopping it breaks the next outside dismissal. */}
     <Popover.Root open={menu.open} onOpenChange={menu.onOpenChange}>

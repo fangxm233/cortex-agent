@@ -112,9 +112,9 @@ file is created by the first entry written to it.
 
 ### In the Approval Center
 
-On the desktop, an amber pill in the left rail ("2 approvals pending") appears
-whenever the queue has pending entries, and opens the Approval Center. On a
-phone the same queue is the Approvals screen. Entries are grouped by project,
+On the desktop, a card with an amber dot at the foot of the left rail ("2 approvals
+pending") appears whenever the queue has pending entries, and opens the Approval
+Center. On a phone the same queue is the Approvals screen. Entries are grouped by project,
 with entries that name no project under GLOBAL, and each shows its operation,
 reason, impact and command.
 

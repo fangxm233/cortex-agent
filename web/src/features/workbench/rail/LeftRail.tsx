@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
@@ -23,6 +23,8 @@ import { useMarkManyRead } from '@/features/session/live/useMarkSessionRead';
 import type { ConnectionDot } from '@/features/connection/connection-status';
 import { RailRateLimitStatus, useRateLimitStatus } from '@/features/rate-limit';
 import { IconButton, PlusGlyph } from '@/design';
+import { MENU_FOCUS } from '@/design/MenuChrome';
+import { usesCommandKey } from '@/lib/desktop-platform';
 import { glassPanelStyle } from '@/design/GlassPanel';
 import { useAllSessions } from '@/features/projects/useProjectSessions';
 import { useNewProjectModal } from '@/features/projects/useNewProjectModal';
@@ -32,7 +34,6 @@ import { loadRailWidth, saveRailWidth } from './rail-width';
 import { useNowTick } from '@/lib/useNowTick';
 import { useRailTreeState } from './useRailTreeState';
 
-const mono = "'IBM Plex Mono',monospace";
 // A 30px square of content inside 8px gutters — the buttons are the widest thing the collapsed
 // column ever holds.
 const RAIL_COLLAPSED_WIDTH = 46;
@@ -91,13 +92,19 @@ export function BrandBadge({ dot, label, onClick }: { dot: ConnectionDot; label:
   );
 }
 
-export function GearIcon({ size = 15 }: { size?: number }): JSX.Element {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none' }}>
-      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
+// "New session" is a secondary control — hairline, control material, ink text — not an accent
+// fill: the accent marks state, and a filled button here outshouted the rows it sits above. Shared
+// by the full-width row and the collapsed rail's square so the two read as one control.
+function newSessionStyle(hovered: boolean): CSSProperties {
+  return {
+    border: '1px solid var(--proto-line-4)',
+    borderRadius: 'var(--r-control)',
+    background: hovered ? 'var(--material-inset-bg)' : 'var(--material-control-bg)',
+    boxShadow: 'var(--material-control-shadow)',
+    color: 'var(--proto-ink)',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  };
 }
 
 export function LeftRail(): JSX.Element {
@@ -238,8 +245,9 @@ export function LeftRail(): JSX.Element {
     navigate('/workbench');
   };
   // ⌘N itself is bound by the menu registry (shell/menu/useMenuShortcuts) — File → New session —
-  // so the rail no longer keeps its own listener for it.
+  // so the rail no longer keeps its own listener for it, only the hint.
   const onNewSession = () => newSessionIn(null);
+  const newSessionAccel = usesCommandKey() ? '⌘N' : 'Ctrl+N';
 
   const onOverview = (projectId: string) => {
     setCurrentProject(projectId);
@@ -331,27 +339,24 @@ export function LeftRail(): JSX.Element {
       aria-label={L.lrRailNavigation}
       style={{ width: RAIL_COLLAPSED_WIDTH - 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '12px 0' }}
     >
-      {/* The one filled square in the column, echoing the expanded rail's accent button: at this
-          width the only way to say "primary" is with the fill. */}
+      {/* The expanded rail's "New session" row, folded to its glyph: the same outlined control, so
+          the one bordered square in the column is what says "start here". */}
       <button
         type="button"
         aria-label={L.wbNewSession}
-        title={`${L.wbNewSession} · ⌘N`}
+        title={`${L.wbNewSession} · ${newSessionAccel}`}
         onClick={onNewSession}
+        className={MENU_FOCUS}
         {...hp('crail:new')}
         style={{
+          ...newSessionStyle(isHover('crail:new')),
           width: 30,
           height: 30,
-          border: 0,
           borderRadius: 9,
           padding: 0,
-          cursor: 'pointer',
           flex: 'none',
           display: 'grid',
           placeItems: 'center',
-          color: 'var(--ink-solid-fg)',
-          background: isHover('crail:new') ? 'var(--proto-accent-strong)' : 'var(--proto-accent)',
-          boxShadow: 'var(--accent-glow)',
         }}
       >
         <PlusGlyph size={14} />
@@ -364,8 +369,9 @@ export function LeftRail(): JSX.Element {
       </IconButton>
       <div style={{ flex: 1, minHeight: 8 }} />
       {hasPendingApprovals && (
-        <IconButton label={pendingLabel} tone="amber" onClick={() => approvals.open()}>
-          <span style={{ minWidth: 16, height: 16, padding: '0 4px', borderRadius: 'var(--r-chip)', background: 'var(--proto-amber)', color: 'var(--amber-fill-fg)', font: `600 11px ${mono}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+        // A plain amber number: amber already says "waiting on you", so it needs no filled badge.
+        <IconButton label={pendingLabel} onClick={() => approvals.open()}>
+          <span style={{ font: '600 13px var(--font-ui)', fontVariantNumeric: 'tabular-nums', color: 'var(--proto-amber-text)' }}>
             {pendingCount}
           </span>
         </IconButton>
@@ -397,35 +403,33 @@ export function LeftRail(): JSX.Element {
           ref={treeScrollRef}
           style={{ display: collapsed ? 'none' : 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: railWidth }}
         >
-          {/* The rail has exactly one primary action, so it gets a full row rather than a text link
-              competing with a section heading. The wrapper carries the column's top inset: the brand
-              block moved to the top strip, which is where the rail's first row used to get its air. */}
-          <div style={{ padding: '14px 12px 10px', flex: 'none' }}>
-            <div
+          {/* The rail's one action gets a full row rather than a text link competing with a section
+              heading. The wrapper carries the column's top inset: the brand block moved to the top
+              strip, which is where the rail's first row used to get its air. */}
+          <div style={{ padding: '12px 12px 10px', flex: 'none' }}>
+            <button
+              type="button"
               {...hp('newsess')}
-              role="button"
               onClick={onNewSession}
+              className={MENU_FOCUS}
               style={{
-                position: 'relative',
+                ...newSessionStyle(isHover('newsess')),
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                gap: 7,
-                height: 36,
-                borderRadius: 'var(--r-control)',
-                cursor: 'pointer',
-                fontSize: 12.5,
-                fontWeight: 600,
-                color: 'var(--ink-solid-fg)',
-                background: isHover('newsess') ? 'var(--proto-accent-strong)' : 'var(--proto-accent)',
-                // The rail's one primary action: the glow is what separates it from the list it sits on.
-                boxShadow: 'var(--accent-glow)',
+                gap: 8,
+                width: '100%',
+                height: 34,
+                padding: '0 10px',
+                boxSizing: 'border-box',
+                textAlign: 'left',
+                fontSize: 13,
+                fontWeight: 550,
               }}
             >
-              <PlusGlyph size={13} />
+              <PlusGlyph size={14} />
               {L.wbNewSession}
-              <span style={{ position: 'absolute', right: 11, font: `500 11px ${mono}`, color: 'var(--ink-solid-fg)' }}>⌘N</span>
-            </div>
+              <span style={{ marginLeft: 'auto', fontSize: 11.5, fontWeight: 400, color: 'var(--proto-faint)' }}>{newSessionAccel}</span>
+            </button>
           </div>
 
           <RailTree
@@ -459,37 +463,43 @@ export function LeftRail(): JSX.Element {
             <div style={{ margin: '0 10px 10px', display: 'flex', flexDirection: 'column', gap: 8, flex: 'none' }}>
               <RailRateLimitStatus status={rateLimitStatus} />
               {hasPendingApprovals && (
-                <div
+                // The one card in the rail, because it is the one thing here the user must act on —
+                // but a quiet one: a faint amber field, the amber dot and a line of text. The dot
+                // already says "waiting on you"; a lift shadow on top of it only shouted.
+                <button
+                  type="button"
                   {...hp('approval')}
                   onClick={() => approvals.open()}
+                  className={MENU_FOCUS}
                   style={{
                     // Matches the rate-limit banner above it (RailRateLimitStatus): one flat row height.
                     height: 34,
                     padding: '0 12px',
                     background: 'var(--proto-amber-bg)',
                     border: '1px solid ' + (isHover('approval') ? 'var(--proto-amber)' : 'var(--proto-amber-border)'),
-                    borderRadius: 12,
+                    borderRadius: 'var(--r-control)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 8,
                     cursor: 'pointer',
                     flex: 'none',
-                    // Urgent, not merely coloured: the tinted lift is what pulls the card off the rail.
-                    boxShadow: 'var(--shadow-amber-lift)',
+                    fontFamily: 'inherit',
+                    textAlign: 'left',
                   }}
                 >
                   <span
+                    aria-hidden="true"
                     style={{
-                      width: 8,
-                      height: 8,
+                      width: 7,
+                      height: 7,
                       borderRadius: '50%',
                       background: 'var(--proto-amber)',
                       flex: 'none',
                     }}
                   />
-                  <div style={{ fontSize: 12, color: 'var(--proto-amber-fg)', fontWeight: 600 }}>{pendingLabel}</div>
-                  <div style={{ marginLeft: 'auto', color: 'var(--proto-amber-accent)', fontSize: 11 }}>→</div>
-                </div>
+                  <span style={{ fontSize: 12.5, color: 'var(--proto-ink-2)', fontWeight: 550, fontVariantNumeric: 'tabular-nums' }}>{pendingLabel}</span>
+                  <span aria-hidden="true" style={{ marginLeft: 'auto', color: 'var(--proto-amber-text)', fontSize: 12 }}>→</span>
+                </button>
               )}
             </div>
           )}

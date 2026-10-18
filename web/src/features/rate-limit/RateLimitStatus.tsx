@@ -45,7 +45,8 @@ const RailBannerTrigger = forwardRef<
         gap: 8,
         cursor: 'pointer',
         textAlign: 'left',
-        font: "600 11px 'IBM Plex Mono',monospace",
+        // A status line, not code: the UI face, like the approvals card beside it.
+        font: '550 12.5px var(--font-ui)',
       }}
     >
       <span

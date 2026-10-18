@@ -23,9 +23,9 @@ export const workbenchEn = {
   wbSessionsFailed: 'Failed to load conversations',
   wbAttachQueued: 'queued',
   wbAttachRetry: 'retry',
-  wbRunCaption: 'RUN',
-  wbFiredCaption: 'FIRED',
-  wbCostCaption: 'COST',
+  wbRunCaption: 'Run',
+  wbFiredCaption: 'Fired',
+  wbCostCaption: 'Cost',
   wbRailResize: 'Drag to resize the sidebar, double-click to reset',
 };
 export const workbenchZh: Record<keyof typeof workbenchEn, string> = {

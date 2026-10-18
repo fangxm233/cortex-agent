@@ -199,7 +199,7 @@ export const enBase = {
   wbSchedReplyHint: 'Replying converts this run into a normal session; future scheduled runs are unaffected.',
 
   // ── project folder tree (left rail) ──
-  wbProjects: 'PROJECTS',
+  wbProjects: 'Projects',
   wbNewSession: 'New session',
   wbNewSessionIn: 'New session in {p}',
   wbProjectOverview: '{p} overview',
@@ -576,6 +576,8 @@ export const enBase = {
   winMaximize: 'Maximize',
   winRestore: 'Restore',
   winClose: 'Close',
+  // ── redesign: shell ──
+  wbRowWaitingOn: 'Waiting on a signal',
 
   // ── redesign: memory ──
   memModeLabel: 'View',

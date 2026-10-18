@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { usesCommandKey } from '@/lib/desktop-platform';
 import { formatAccel, type MenuDef, type MenuNode } from './menu-model';
 
-const MONO = "'IBM Plex Mono',monospace";
 const BAR_ITEM_HEIGHT = 30;
 
 // Classic menu-bar behaviour: the first click opens a menu and arms the bar, after which merely
@@ -59,7 +58,8 @@ function ItemRow({ node, onRun }: { node: MenuNode; onRun: () => void }): JSX.El
       <span style={{ width: 14, textAlign: 'center', color: 'inherit' }}>{node.checked ? '✓' : ''}</span>
       <span>{node.label}</span>
       {node.accel && (
-        <span style={{ marginLeft: 'auto', font: `500 11px ${MONO}`, color: hover && !node.disabled ? 'inherit' : 'var(--proto-muted)' }}>
+        // A key hint is a label, not code: UI face, with tabular digits so the column lines up.
+        <span style={{ marginLeft: 'auto', font: '400 12px var(--font-ui)', fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted)' }}>
           {formatAccel(node.accel, commandKey)}
         </span>
       )}
@@ -67,6 +67,8 @@ function ItemRow({ node, onRun }: { node: MenuNode; onRun: () => void }): JSX.El
   );
 }
 
+// The highlighted row is a quiet ink tint, the same as every other menu: an accent-filled row would
+// spend the accent on a pointer position.
 function rowStyle(active: boolean, disabled: boolean): React.CSSProperties {
   return {
     display: 'flex',
@@ -78,8 +80,8 @@ function rowStyle(active: boolean, disabled: boolean): React.CSSProperties {
     fontSize: 12.5,
     whiteSpace: 'nowrap',
     cursor: disabled ? 'default' : 'pointer',
-    color: disabled ? 'var(--proto-line-3)' : active ? 'var(--ink-solid-fg)' : 'var(--proto-ink)',
-    background: active ? 'var(--proto-accent)' : 'transparent',
+    color: disabled ? 'var(--proto-line-3)' : 'var(--proto-ink)',
+    background: active ? 'var(--proto-gray)' : 'transparent',
   };
 }
 

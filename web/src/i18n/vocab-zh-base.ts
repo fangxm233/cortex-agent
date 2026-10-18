@@ -575,6 +575,8 @@ export const zhBase = {
   winMaximize: '最大化',
   winRestore: '还原',
   winClose: '关闭',
+  // ── redesign: shell ──
+  wbRowWaitingOn: '等待信号',
 
   // ── redesign: memory ──
   memModeLabel: '视图',
