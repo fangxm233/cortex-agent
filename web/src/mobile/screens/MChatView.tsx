@@ -39,7 +39,7 @@ import type { MChatInteractions, MChatViewProps, MEditMode } from './MChatView.t
 
 export type { MChatInteractions, MEditMode, MMsgMenu, MRejectBar } from './MChatView.types';
 
-// ── floating header — back chevron · status dot + title over a plain-words status line · ⋯ ───
+// ── floating header — back chevron · status dot + title over a plain-words status line · context ring · ⋯ ───
 interface MChatHeaderProps {
   title: string;
   /** Team mode: the worker's lead, a tappable prefix before the title. */
@@ -47,6 +47,8 @@ interface MChatHeaderProps {
   status: ChatHeaderStatus;
   onBack: () => void;
   onMore: () => void;
+  /** Context usage, as a bare ring left of ⋯. Absent on a session that reports no window. */
+  contextControl?: ReactNode;
 }
 
 /** The floating header pill, measured once (useHeaderClearance) so the transcript clears it. */
@@ -105,6 +107,7 @@ export function MChatHeader(props: MChatHeaderProps): JSX.Element {
         </div>
         <MChatStatusLine status={props.status} />
       </div>
+      {props.contextControl}
       <button type="button" aria-label={vocab.more} onClick={props.onMore}
         style={{ ...HEADER_KEY, color: 'var(--proto-muted-2)', fontSize: 18, letterSpacing: '1px' }}>
         ⋯
@@ -699,7 +702,6 @@ function MChatComposer({ props, shellRef, overlay, selection }: {
       running={props.status.running} onStop={props.onStop} stopEnabled={props.stopEnabled}
       leading={takenOver ? undefined : <ComposerKeys browser={props.browser} overlay={overlay} />}
       tools={takenOver ? null : <ComposerTools selection={props.selection} view={selection} />}
-      trailing={composerContextControl(props, () => overlay.open('context'))}
       above={<ComposerAbove props={props} overlay={overlay} />}
       commandMenu={commandMenu}
       onPlus={() => overlay.toggle('attach')}
@@ -734,25 +736,24 @@ function MChatBody({ props, overlay, selection }: {
   );
 }
 
-/** Context usage rides the composer's action row, left of Send — the same seat the desktop composer
- *  gives it. A bare ring: the composer card is already the frame, and the ring is itself the button
- *  (nesting it in a round wrapper would nest a button in a button). */
-function composerContextControl(props: MChatViewProps, onOpen: () => void): ReactNode {
+/** Context usage sits in the header, left of ⋯. A bare ring: the header pill is already the frame,
+ *  and the ring is itself the button (nesting it in a round wrapper would nest a button in a button). */
+function headerContextControl(props: MChatViewProps, onOpen: () => void): ReactNode {
   if (!props.contextUsageSupported && props.contextUsage == null) return null;
   return (
     <ContextUsageRing
       usage={props.contextUsage ?? null}
       variant="mobile"
       onClick={onOpen}
-      data-context-usage-position="composer"
+      data-context-usage-position="chat-header"
       data-context-compact-enabled={props.contextCompactAction ? 'true' : undefined}
-      style={COMPOSER_CONTEXT_KEY}
+      style={HEADER_CONTEXT_KEY}
     />
   );
 }
 
-const COMPOSER_CONTEXT_KEY: CSSProperties = {
-  width: 34, height: 34, borderRadius: '50%', background: 'transparent', border: 0, flexShrink: 0,
+const HEADER_CONTEXT_KEY: CSSProperties = {
+  width: 44, height: 44, borderRadius: '50%', background: 'transparent', border: 0, flexShrink: 0,
   boxSizing: 'border-box', justifyContent: 'center',
 };
 
@@ -773,7 +774,8 @@ export function MChatView(props: MChatViewProps): JSX.Element {
         {files.input}
         <div ref={clearance.stackRef} data-chat-header-stack="" style={HEADER_STACK}>
           <MChatHeader title={props.title} parent={props.parent} status={props.status}
-            onBack={props.onBack} onMore={() => overlay.toggle('more')} />
+            onBack={props.onBack} onMore={() => overlay.toggle('more')}
+            contextControl={headerContextControl(props, () => overlay.open('context'))} />
         </div>
         <MChatBody props={props} overlay={overlay} selection={selection} />
         <MChatOverlays props={props} overlay={overlay} selection={selection} files={files} />

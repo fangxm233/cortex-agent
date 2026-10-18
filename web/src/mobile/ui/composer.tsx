@@ -120,10 +120,8 @@ export interface MComposerProps {
   commandMenu?: ReactNode;
   /** The toolbar's left end (＋ and mode keys). */
   leading?: ReactNode;
-  /** Chips seated at the right, before `trailing` and the send keys. */
+  /** Chips seated at the right, before the send keys. */
   tools?: ReactNode;
-  /** A key between the chips and Send (context usage). */
-  trailing?: ReactNode;
   sendEnabled?: boolean;
   value?: string;
   onChange?: (value: string) => void;
@@ -200,7 +198,7 @@ function ExpandButton({ onClick }: { onClick: () => void }): JSX.Element {
   );
 }
 
-/** ＋ and the mode keys at the left; the chips, context usage and the send keys gathered at the right
+/** ＋ and the mode keys at the left; the chips and the send keys gathered at the right
  *  — the chips carry the push themselves (an empty spacer would also claim a gap on each side, and
  *  on a phone toolbar those pixels are width the engine chip needs). */
 function ComposerToolbar(props: MComposerProps): JSX.Element {
@@ -209,7 +207,6 @@ function ComposerToolbar(props: MComposerProps): JSX.Element {
     <div data-composer-toolbar style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10 }}>
       {props.leading}
       <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: '0 1 auto' }}>{props.tools}</span>
-      {props.trailing}
       {running && <SecondarySendKey enabled={props.sendEnabled ?? true} onSend={props.onSend} size={32} />}
       <PrimaryKey running={running} enabled={running ? props.stopEnabled ?? true : props.sendEnabled ?? true} onSend={props.onSend} onStop={props.onStop} size={34} />
     </div>
