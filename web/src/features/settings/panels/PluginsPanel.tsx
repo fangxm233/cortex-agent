@@ -67,15 +67,15 @@ function PluginListRow(props: {
       onClick={() => props.onSelect(props.plugin.id)}
       style={{
         padding: '9px 12px', borderRadius: 'var(--r-control)', cursor: 'pointer',
-        background: props.active ? 'var(--proto-accent-bg)' : 'transparent',
+        background: props.active ? 'var(--proto-gray)' : 'transparent',
         display: 'flex', flexDirection: 'column', gap: 3, flex: 'none',
       }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{
           font: `600 13px ${MONO}`, minWidth: 0, overflowWrap: 'anywhere',
-          color: props.active ? 'var(--settings-selected-ink)' : 'var(--proto-ink)',
+          color: 'var(--proto-ink)',
         }}>{props.plugin.id}</span>
-        {props.plugin.valid ? null : <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-danger)' }}>!</span>}
+        {props.plugin.valid ? null : <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--proto-danger)' }}>!</span>}
       </div>
       <div style={{ fontSize: 12, color: 'var(--proto-muted-3)' }}>
         {L.plSkillCount.replace('{n}', String(props.plugin.skills.length))}
@@ -97,7 +97,7 @@ function CreatePluginModal(props: { actions: PluginAuthoringActions; onClose: ()
       footer={(
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
           <SButton tone="neutral" onClick={props.onClose}>{L.plCancel}</SButton>
-          <SButton tone="accent" data-action="plugin-create-confirm"
+          <SButton tone="primary" data-action="plugin-create-confirm"
             disabled={props.actions.busy || !isCanonicalName(id)}
             onClick={async () => {
               const done = await props.actions.pluginCreate({ id, description: description.trim() || undefined });
@@ -190,7 +190,7 @@ function UsageRow({ item }: { item: PluginUsage }) {
   return (
     <div data-plugin-usage={item.key} style={{ ...ROW_STYLE, flexWrap: 'wrap', overflowWrap: 'anywhere', gap: 8 }}>
       <SPill>{L.plTargetAgent}</SPill>
-      <span style={{ font: `500 12px ${MONO}`, color: 'var(--proto-ink-2)', minWidth: 0 }}>{item.name}</span>
+      <span style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--proto-ink-2)', minWidth: 0 }}>{item.name}</span>
     </div>
   );
 }
@@ -235,9 +235,9 @@ function PluginHeader(props: { plugin: UiPluginCatalogEntry; busy: boolean; onDe
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)', minWidth: 0, overflowWrap: 'anywhere' }}>{pluginTitle(plugin)}</span>
-      <SPill mono>{plugin.manifest.version ?? L.plUnknownValue}</SPill>
+      <SPill>{plugin.manifest.version ?? L.plUnknownValue}</SPill>
       <SPill>{pluginKindText(plugin.kind, L)}</SPill>
-      <SPill data-plugin-origin={plugin.origin} tone={plugin.origin === 'builtin' ? 'accent' : 'neutral'}>
+      <SPill data-plugin-origin={plugin.origin} tone={plugin.origin === 'builtin' ? 'strong' : 'neutral'}>
         {plugin.origin === 'builtin' ? L.plOriginBuiltin : L.plOriginLocal}
       </SPill>
       <SPill tone={plugin.valid ? 'success' : 'danger'}>{plugin.valid ? L.plValid : L.plInvalid}</SPill>

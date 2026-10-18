@@ -23,7 +23,6 @@ import {
   starterBody,
 } from '@/features/settings/vm/environments-panel-vm';
 
-const MONO = "'IBM Plex Mono',monospace";
 const LIST_WIDTH = 248;
 
 type Issues = { errors: EnvironmentIssue[]; warnings: EnvironmentIssue[] };
@@ -52,8 +51,9 @@ function EnvironmentRow({
         style={{
           flex: 1,
           minWidth: 0,
-          font: `600 13px ${MONO}`,
-          color: selected ? 'var(--proto-accent)' : 'var(--proto-ink-2)',
+          fontSize: 13,
+          fontWeight: selected ? 600 : 500,
+          color: selected ? 'var(--proto-ink)' : 'var(--proto-ink-2)',
           overflowWrap: 'anywhere',
         }}
       >

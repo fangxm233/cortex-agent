@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
-import { Button, EmptyState, useToast } from '@/design';
+import { Button, EmptyState, IconButton, useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import {
   defaultSelectedId,
@@ -29,8 +29,21 @@ import { useApprovalQueue } from './useApprovalQueue';
 //   • ESTIMATE cost table              — no cost data; the mono block shows the real COMMAND instead.
 //   • Why-approval note                — no rationale field.
 // queuedAt has date-only (no clock), so the "age" and "queued" slots show the date.
+//
+// Type follows the v2 rules: labels are sentence case in the UI face, and only the command — the
+// thing being approved, verbatim — is set in the code face.
 
 const mono = "'IBM Plex Mono',monospace";
+const META_TEXT: React.CSSProperties = { fontSize: 12, color: 'var(--proto-muted)', fontVariantNumeric: 'tabular-nums' };
+
+function CloseGlyph() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"
+      strokeLinecap="round" aria-hidden="true">
+      <path d="m4.5 4.5 7 7m0-7-7 7" />
+    </svg>
+  );
+}
 // The empty queue's mark (prototype L1329-1335): a green tick over the title.
 const ALL_CLEAR_ICON = (
   <span style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--proto-success-bg)', color: 'var(--proto-success)',
@@ -119,21 +132,24 @@ function ApprovalCenterView(props: ApprovalCenterViewProps) {
             display: 'flex',
             alignItems: 'center',
             gap: 9,
-            padding: '12px 20px',
-            borderBottom: '1px solid var(--proto-line)',
+            padding: '12px 14px 12px 20px',
+            borderBottom: '1px solid var(--proto-line-2)',
           }}
         >
-          <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.approvals}</span>
+          <span style={{ fontSize: 16, fontWeight: 620, color: 'var(--proto-ink)' }}>{L.approvals}</span>
+          {/* the one status capsule: a hairline pill with a leading amber dot, not a filled badge */}
           {hasItems && (
             <span
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                background: 'var(--proto-amber-bg)',
-                border: '1px solid var(--proto-amber-border)',
+                height: 24,
+                boxSizing: 'border-box',
+                background: 'var(--material-control-bg)',
+                border: '1px solid var(--proto-line)',
                 borderRadius: 'var(--r-pill)',
-                padding: '3px 10px',
+                padding: '0 10px',
                 marginLeft: 4,
               }}
             >
@@ -145,29 +161,15 @@ function ApprovalCenterView(props: ApprovalCenterViewProps) {
                   background: 'var(--proto-amber)',
                 }}
               />
-              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-amber-fg)'  }}>
+              <span style={{ fontSize: 12, fontWeight: 550, color: 'var(--proto-ink-3)', fontVariantNumeric: 'tabular-nums' }}>
                 {pendingLabel(count, L)}
               </span>
             </span>
           )}
-          <button
-            type="button"
-            className={focusClass}
-            aria-label={L.cmClose}
-            onClick={props.onClose}
-            style={{
-              marginLeft: 'auto',
-              font: `500 11px ${mono}`,
-              color: 'var(--proto-muted)',
-              border: '1px solid var(--proto-line)',
-              borderRadius: 'var(--r-chip)',
-              padding: '5px 8px',
-              flex: 'none',
-              cursor: 'pointer',
-            }}
-          >
-            {L.dmEsc}
-          </button>
+          {/* a quiet × — Escape still closes, so the header no longer carries a keycap */}
+          <IconButton label={L.cmClose} size={28} onClick={props.onClose} style={{ marginLeft: 'auto' }}>
+            <CloseGlyph />
+          </IconButton>
         </div>
 
         {/* body (prototype L1328) */}
@@ -232,10 +234,10 @@ function PendingList({
       <div
         style={{
           padding: '13px 16px 8px',
-          fontSize: 11,
-          fontWeight: 600,
-          letterSpacing: '.02em',
-          color: 'var(--proto-muted)',
+          fontSize: 12,
+          fontWeight: 550,
+          color: 'var(--proto-muted-3)',
+          fontVariantNumeric: 'tabular-nums',
         }}
       >
         {L.apPending} · {count}
@@ -258,10 +260,11 @@ function PendingList({
               }}
               data-approval-id={e.id}
               onClick={() => onSelect(e.id)}
+              // Selected = the gray tint and a firmer hairline, the same selection grammar as a row.
               style={{
-                background: sel ? 'var(--proto-accent-bg)' : 'var(--material-card-bg)',
+                background: sel ? 'var(--proto-gray)' : 'var(--material-card-bg)',
                 boxShadow: 'var(--material-card-shadow)',
-                border: `1px solid ${sel ? 'var(--proto-accent)' : 'var(--proto-line-2)'}`,
+                border: `1px solid ${sel ? 'var(--proto-line-3)' : 'var(--proto-line-2)'}`,
                 borderRadius: 'var(--r-card)',
                 padding: '10px 12px',
                 overflowWrap: 'anywhere',
@@ -282,7 +285,7 @@ function PendingList({
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div
                     style={{
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: 600,
                       color: sel ? 'var(--proto-ink)' : 'var(--proto-ink-2)',
                       lineHeight: 1.4,
@@ -303,13 +306,13 @@ function PendingList({
                     }}
                   >
                     {card.project && (
-                      <span style={{ font: `600 11px ${mono}`, color: 'var(--proto-muted)'  }}>{card.project}</span>
+                      <span style={{ ...META_TEXT, fontWeight: 550 }}>{card.project}</span>
                     )}
                     {card.origin && (
-                      <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)'  }}>{card.origin}</span>
+                      <span style={META_TEXT}>{card.origin}</span>
                     )}
                     {card.age && (
-                      <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)'  }}>
+                      <span style={{ ...META_TEXT, marginLeft: 'auto' }}>
                         {card.age}
                       </span>
                     )}
@@ -327,11 +330,9 @@ function PendingList({
 // ── right detail pane (prototype L1353-1401) ──────────────────────────────────────────────────
 
 const GRID_LABEL: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  letterSpacing: '.02em',
+  fontSize: 12.5,
+  fontWeight: 550,
   color: 'var(--proto-muted)',
-  paddingTop: 2,
 };
 
 function DetailPane({
@@ -389,25 +390,24 @@ function DetailPane({
             alignItems: 'center',
             gap: 14,
             marginTop: 8,
-            font: `400 11px ${mono}`,
-            color: 'var(--proto-muted)',
+            ...META_TEXT,
             flexWrap: 'wrap',
           }}
         >
           {detail.queued && <span>{detail.queued}</span>}
           {detail.project && (
             <span>
-              {L.apProject} <span style={{ color: 'var(--proto-accent)' }}>{detail.project}</span>
+              {L.apProject} <span style={{ color: 'var(--proto-ink-2)', fontWeight: 550 }}>{detail.project}</span>
             </span>
           )}
           {detail.origin && (
             <span>
-              {L.apFrom} <span style={{ color: 'var(--proto-accent)' }}>{detail.origin}</span>
+              {L.apFrom} <span style={{ color: 'var(--proto-ink-2)', fontWeight: 550 }}>{detail.origin}</span>
             </span>
           )}
           {detail.task && (
             <span>
-              {L.apTask} <span style={{ color: 'var(--proto-accent)' }}>{detail.task}</span>
+              {L.apTask} <span style={{ color: 'var(--proto-ink-2)', fontFamily: mono }}>{detail.task}</span>
             </span>
           )}
         </div>
@@ -420,7 +420,7 @@ function DetailPane({
             gridTemplateColumns: '76px minmax(0, 1fr)' ,
             rowGap: 9,
             columnGap: 14,
-            fontSize: 12,
+            fontSize: 13,
             lineHeight: 1.55,
           }}
         >
@@ -435,15 +435,7 @@ function DetailPane({
         {/* COMMAND mono block (real command; prototype's ESTIMATE cost table has no real data) */}
         {detail.hasCommand && (
           <div style={{ marginTop: 13 }}>
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 600,
-                letterSpacing: '.02em',
-                color: 'var(--proto-muted)',
-                marginBottom: 6,
-              }}
-            >
+            <div style={{ ...GRID_LABEL, marginBottom: 6 }}>
               {L.apCommand}
             </div>
             <div
@@ -452,8 +444,8 @@ function DetailPane({
                 border: '1px solid var(--proto-line-2)',
                 borderRadius: 'var(--r-control)',
                 padding: '9px 14px',
-                font: `400 11px/1.75 ${mono}`,
-                color: 'var(--proto-muted)',
+                font: `400 12px/1.7 ${mono}`,
+                color: 'var(--proto-ink-3)',
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word',
               }}

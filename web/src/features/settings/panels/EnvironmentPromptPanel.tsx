@@ -52,7 +52,7 @@ function PromptActions(props: EnvironmentPromptViewProps) {
   const { state } = props;
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-      <SButton tone="accent" disabled={!state.canSave} onClick={props.onSave} data-action="prompt-save">
+      <SButton tone="primary" disabled={!state.canSave} onClick={props.onSave} data-action="prompt-save">
         {L.ttSave}
       </SButton>
       <SButton tone="neutral" disabled={!state.canRevert} onClick={props.onRevert} data-action="prompt-revert">
@@ -72,7 +72,10 @@ export function EnvironmentPromptView(props: EnvironmentPromptViewProps) {
   const L = useVocab();
   return (
     <div data-environment-prompt={props.prompt.kind} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <span data-prompt-source="" style={{ ...MUTED, fontFamily: MONO }}>{promptSource(props.prompt, L)}</span>
+      {/* A file source is a path (code face); "inline" / "none" are words (UI face). */}
+      <span data-prompt-source="" style={{ ...MUTED, fontFamily: props.prompt.kind === 'file' && props.prompt.file ? MONO : undefined }}>
+        {promptSource(props.prompt, L)}
+      </span>
       <PromptNotices prompt={props.prompt} locked={props.state.locked} />
       <textarea
         data-environment-prompt-text=""

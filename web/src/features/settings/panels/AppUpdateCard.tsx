@@ -4,10 +4,8 @@ import { isNativeShell } from '@/lib/desktop-config';
 import { safeInvoke } from '@/lib/native-bridge';
 import { SButton, SRow, SRowGroup, Toggle } from '@/features/settings/ui/settings-ui';
 
-const MONO = "'IBM Plex Mono',monospace";
-
 const FOOTNOTE_STYLE: CSSProperties = {
-  font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)', marginTop: 4, overflowWrap: 'anywhere',
+  fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted-2)', marginTop: 4, overflowWrap: 'anywhere',
 };
 const ALERT_STYLE: CSSProperties = {
   fontSize: 12, lineHeight: 1.5, color: 'var(--proto-danger)', marginTop: 6,

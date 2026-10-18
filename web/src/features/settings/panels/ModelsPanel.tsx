@@ -43,7 +43,7 @@ function FavoriteGroups({ controller: c }: { controller: ModelsController }) {
       </span>
     }>
       <SRowGroup data-model-group={group}>{facts.map(fact => <SRow className="settings-model-row" key={fact.key} data-model-row={fact.key}
-        title={<span className="settings-model-name">{fact.ref.model} {fact.current && <SPill tone="accent">{L.default}</SPill>}</span>}
+        title={<span className="settings-model-name">{fact.ref.model} {fact.current && <SPill tone="strong">{L.default}</SPill>}</span>}
         control={<div className="settings-model-controls">
           <FavoriteThinking c={c} fact={fact} />
           <SLinkAction disabled={c.pending || fact.current} onClick={() => c.setDefault(fact.key)}>{L.stSetDefaultModel}</SLinkAction>

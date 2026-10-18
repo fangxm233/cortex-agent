@@ -38,7 +38,7 @@ function OriginPill(props: { origin: SkillOrigin }) {
   if (props.origin === 'local') return null;
   const modified = props.origin === 'overridden';
   return (
-    <SPill tone={modified ? 'amber' : 'accent'} data-plugin-skill-origin={props.origin}>
+    <SPill tone={modified ? 'amber' : 'strong'} data-plugin-skill-origin={props.origin}>
       {modified ? L.plOriginModified : L.plOriginBuiltin}
     </SPill>
   );
@@ -81,7 +81,7 @@ function SkillEditor(props: {
       <textarea data-plugin-skill-source={props.skill} value={state.draft} spellCheck={false}
         onChange={(event) => setState({ ...state, draft: event.target.value })} style={EDITOR} />
       <div style={{ display: 'flex', gap: 8 }}>
-        <SButton tone="accent" data-action="skill-save" disabled={props.busy || !dirty}
+        <SButton tone="primary" data-action="skill-save" disabled={props.busy || !dirty}
           onClick={async () => {
             const next = await props.onSave(state.draft, state.baseHash);
             if (!next) return;
@@ -114,7 +114,7 @@ function SkillRow(props: {
   return (
     <div data-plugin-skill={props.skill.name} style={ROW}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <span style={{ font: `600 13px ${MONO}`, color: 'var(--proto-ink)', minWidth: 0, overflowWrap: 'anywhere' }}>{props.skill.name}</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)', minWidth: 0, overflowWrap: 'anywhere' }}>{props.skill.name}</span>
         <OriginPill origin={props.skill.origin} />
         <div style={ACTIONS}>
           <SButton tone="neutral" data-action="skill-open" onClick={props.onToggle}>
@@ -170,7 +170,7 @@ function CreateSkillForm(props: { pluginId: string; busy: boolean; actions: Plug
           onChange={(event) => setDescription(event.target.value)} style={S_CONTROL_STYLE} />
       </SFieldRow>
       <div style={{ display: 'flex' }}>
-        <SButton tone="accent" data-action="skill-create" disabled={props.busy || !ready}
+        <SButton tone="primary" data-action="skill-create" disabled={props.busy || !ready}
           onClick={async () => {
             const done = await props.actions.skillCreate({
               pluginId: props.pluginId, skill: name, description: description.trim(),
@@ -203,7 +203,7 @@ function MoveSkillModal(props: {
       footer={(
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
           <SButton tone="neutral" onClick={props.onClose}>{L.plCancel}</SButton>
-          <SButton tone="accent" data-action="skill-move-confirm"
+          <SButton tone="primary" data-action="skill-move-confirm"
             disabled={props.busy || unchanged || !isCanonicalName(toSkill)}
             onClick={async () => {
               const done = await props.actions.skillMove({

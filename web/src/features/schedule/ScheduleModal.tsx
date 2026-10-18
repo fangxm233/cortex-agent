@@ -1,6 +1,6 @@
 import { useEffect, type CSSProperties } from 'react';
-import { CONTROL_HEIGHT, Select } from '@/design';
-import { useLang, useVocab } from '@/i18n';
+import { Button, IconButton, Select } from '@/design';
+import { fmt, useLang, useVocab } from '@/i18n';
 import { modelKey } from '@/lib/model-selection';
 import {
   visibleFields,
@@ -17,40 +17,55 @@ import {
   type SchedType,
 } from './schedule-modal-vm';
 
-// New-schedule overlay (design 7c), rebuilt 1:1 from prototype.dc.html L1431-1459 (+ shared backdrop
-// L1291-1292). Exact inline styles / px / hex / font-size / weight / EN copy from the source; the
-// prototype's static mock is made interactive: TYPE drives which field cell shows, MESSAGE is
-// editable, MODEL/DAY/unit are real controls, and Create schedule fires the real
-// `schedules.add` mutation (owned by useScheduleEditorController). The DAILY state is the visual-diff bar
-// (proto-shot 13); interval/weekly/once reuse the identical cell chrome, swapping the visible field.
+// New-schedule overlay (design 7c), restyled to the v2 dialog grammar (Panels mockup): a 16/620
+// title with a quiet × close, sentence-case field labels, a segmented type control, UI-face fields
+// and an ink primary. The form stays live: TYPE drives which field cell shows, MESSAGE is editable,
+// MODEL/DAY/unit are real controls, and Create schedule fires the real `schedules.add` mutation
+// (owned by useScheduleEditorController). interval/weekly/once reuse the identical cell chrome,
+// swapping the visible field.
 
+// Labels are hierarchy by weight and colour, not by case: an uppercase tracked label reads as a
+// code token sitting above the field rather than as the field's name.
 const LABEL: CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  letterSpacing: '.02em',
+  fontSize: 12.5,
+  fontWeight: 550,
   color: 'var(--proto-muted)',
+  marginBottom: 6,
 };
 
 // Every field of the form — the time input, the interval pair, and the four selects — sits in this
 // one cell. A select used to get a shorter, rounder box than the input beside it; sharing the cell
 // (and fixing its height rather than inferring one from padding) keeps the row aligned whatever the
-// control inside it is.
+// control inside it is. The cell is a raised control surface with a hairline, not a recessed well:
+// it is where the user types, so it reads as the brightest thing in the sheet.
+const FIELD_HEIGHT = 36;
+// Longhands rather than a `font` shorthand, so a field's `tabular-nums` is not reset by it.
+const FIELD_TEXT: CSSProperties = { fontFamily: 'var(--font-ui)', fontSize: 13.5, fontWeight: 400 };
 const focusClass = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-proto-accent';
 const CELL_BOX: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  gap: 6,
-  height: CONTROL_HEIGHT.md,
+  gap: 8,
+  height: FIELD_HEIGHT,
   boxSizing: 'border-box',
-  border: '1px solid var(--proto-line-3)',
-  background: 'var(--material-inset-bg)',
+  border: '1px solid var(--proto-line-4)',
+  background: 'var(--material-control-bg)',
   borderRadius: 'var(--r-control)',
-  padding: '0 10px',
+  padding: '0 12px',
 };
 
-// Shared Select trigger styled to disappear into the prototype's value-cell chrome. `bare` density
-// adds nothing of its own, so the cell above owns the whole box and the trigger just fills it.
-function bareSelectStyle(font: string): CSSProperties {
+const NUMBER_INPUT: CSSProperties = {
+  width: 44,
+  border: 'none',
+  background: 'transparent',
+  ...FIELD_TEXT,
+  fontVariantNumeric: 'tabular-nums',
+  color: 'var(--proto-ink)',
+};
+
+// Shared Select trigger styled to disappear into the value-cell chrome. `bare` density adds nothing
+// of its own, so the cell above owns the whole box and the trigger just fills it.
+function bareSelectStyle(): CSSProperties {
   return {
     flex: 1,
     minWidth: 0,
@@ -58,9 +73,46 @@ function bareSelectStyle(font: string): CSSProperties {
     border: 'none',
     background: 'transparent',
     cursor: 'pointer',
-    font,
+    ...FIELD_TEXT,
     color: 'var(--proto-ink)',
   };
+}
+
+// The type picker is the sheet's one segmented control: a recessed track holding a raised active
+// option. The active option is lifted, not tinted — the accent is reserved for focus and state.
+const SEG_TRACK: CSSProperties = {
+  display: 'flex',
+  gap: 2,
+  padding: 3,
+  borderRadius: 'var(--r-control)',
+  background: 'var(--proto-line-2)',
+};
+
+function segOptionStyle(selected: boolean, editable: boolean): CSSProperties {
+  return {
+    flex: 1,
+    height: 28,
+    padding: '0 10px',
+    border: 0,
+    borderRadius: 'calc(var(--r-control) - 3px)',
+    textAlign: 'center',
+    whiteSpace: 'nowrap',
+    fontSize: 13,
+    fontWeight: selected ? 550 : 400,
+    color: selected ? 'var(--proto-ink)' : 'var(--proto-muted)',
+    background: selected ? 'var(--material-control-bg)' : 'transparent',
+    boxShadow: selected ? 'var(--material-control-shadow)' : 'none',
+    cursor: editable ? 'pointer' : 'default',
+  };
+}
+
+function CloseGlyph() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"
+      strokeLinecap="round" aria-hidden="true">
+      <path d="m4.5 4.5 7 7m0-7-7 7" />
+    </svg>
+  );
 }
 
 export interface ScheduleModalProps {
@@ -80,21 +132,21 @@ export interface ScheduleModalProps {
 
 function ModelFields({ form, editableFields, onChange, modelOptions, thinkingOptions }: ScheduleModalProps) {
   const L = useVocab();
-  return <div style={{ minWidth: 0, display: 'grid', gap: 10 }}>
-    <div><div style={{ ...LABEL, marginBottom: 5 }}>{L.scModel}</div>
+  return <div style={{ minWidth: 0, display: 'grid', gap: 12 }}>
+    <div><div style={LABEL}>{L.scModel}</div>
       <div style={CELL_BOX}><Select data-schedule-select="model" density="bare" aria-label={L.scModel}
         value={form.selection ? modelKey(form.selection) : ''} placeholder={L.scChooseModel}
         disabled={!editableFields.selection} options={modelOptions.map((option) => ({
           value: option.value, label: `${option.favorite ? '★ ' : ''}${option.label}`, disabled: !option.selection.mode,
         }))} onValueChange={(value) => onChange(scheduleModelPatch(modelOptions, value))}
-        style={bareSelectStyle("500 11.5px 'IBM Plex Mono',monospace")} /></div>
+        style={bareSelectStyle()} /></div>
     </div>
-    <div><div style={{ ...LABEL, marginBottom: 5 }}>{L.scThinking}</div>
+    <div><div style={LABEL}>{L.scThinking}</div>
       <div style={CELL_BOX}><Select data-schedule-select="thinking" density="bare" aria-label={L.scThinking}
         value={form.selection?.thinking ?? ''} disabled={!editableFields.selection || !form.selection}
         options={thinkingOptions.map((value) => ({ value, label: value || L.scThinkingDefault }))}
         onValueChange={(value) => onChange(scheduleThinkingPatch(form, value))}
-        style={bareSelectStyle("500 11.5px 'IBM Plex Mono',monospace")} /></div>
+        style={bareSelectStyle()} /></div>
     </div>
   </div>;
 }
@@ -135,18 +187,18 @@ export function ScheduleModal(props: ScheduleModalProps) {
   const onceTimingUnavailable = editing && form.type === 'once';
   const nextRun = onceTimingUnavailable ? null : nextRunParts(form, now ?? new Date(), lang);
 
-  // Left 130px cell: TIME (daily/weekly) · EVERY (interval) · IN (once). MODEL always on the right;
-  // weekly inserts a DAY cell between them (grid widens to 130/130/1fr — daily stays 130/1fr, 1:1).
-  const topGridCols = vis.dayOfWeek ? '130px 130px 1fr' : '130px 1fr';
+  // Left 150px cell: TIME (daily/weekly) · EVERY (interval) · IN (once). MODEL always on the right;
+  // weekly inserts a DAY cell between them (grid widens to 150/130/1fr — daily stays 150/1fr).
+  const topGridCols = vis.dayOfWeek ? '150px 130px 1fr' : '150px 1fr';
 
   return (
     <>
-      {/* backdrop (prototype L1291-1292) */}
+      {/* backdrop */}
       <div
         onClick={onCancel}
         style={{ position: 'fixed', inset: 0, background: 'var(--overlay-scrim)', backdropFilter: 'var(--material-scrim-filter)', WebkitBackdropFilter: 'var(--material-scrim-filter)', zIndex: 60, animation: 'cxfade .18s ease' }}
       />
-      {/* card (prototype L1433) */}
+      {/* card */}
       <div
         data-schedule-modal
         role="dialog"
@@ -175,69 +227,47 @@ export function ScheduleModal(props: ScheduleModalProps) {
           overflow: 'hidden',
         }}
       >
-        {/* header (prototype L1434) */}
-        <div style={{ display: 'flex', flex: 'none', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid var(--proto-line-2)' }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--proto-ink)' }}>{editing ? L.scEditSchedule : L.scNewSchedule}</span>
-          <button
-            type="button"
-            className={focusClass}
-            aria-label={L.cmClose}
-            onClick={onCancel}
-            style={{
-              marginLeft: 'auto',
-              font: "500 11px 'IBM Plex Mono',monospace",
-              color: 'var(--proto-muted)',
-              border: '1px solid var(--proto-line)',
-              borderRadius: 'var(--r-chip)',
-              padding: '5px 8px',
-              cursor: 'pointer',
-            }}
-          >
-            {L.dmEsc}
-          </button>
+        {/* header: the title and a quiet close. Escape still closes; it no longer needs a keycap. */}
+        <div style={{ display: 'flex', flex: 'none', alignItems: 'center', gap: 8, padding: '16px 14px 0 22px' }}>
+          <span style={{ fontSize: 16, fontWeight: 620, color: 'var(--proto-ink)' }}>{editing ? L.scEditSchedule : L.scNewSchedule}</span>
+          <IconButton label={L.cmClose} size={28} onClick={onCancel} style={{ marginLeft: 'auto' }}>
+            <CloseGlyph />
+          </IconButton>
         </div>
 
-        {/* body (prototype L1435) */}
-        <div style={{ padding: '0 20px 16px', background: 'transparent', minHeight: 0, overflowY: 'auto', scrollbarGutter: 'stable' }}>
-          {/* TYPE (prototype L1436-1442) */}
-          <div style={{ ...LABEL, margin: '13px 0 5px' }}>{L.scType}</div>
-          <div style={{ display: 'flex', border: '1px solid var(--proto-line)', borderRadius: 'var(--r-control)', overflow: 'hidden' }}>
-            {SCHED_TYPES.map((t: SchedType, i) => {
-              const selected = form.type === t;
-              return (
-                <button
-                  type="button"
-                  className={focusClass}
-                  disabled={!editableFields.type}
-                  key={t}
-                  data-sched-type-opt={t}
-                  aria-pressed={selected}
-                  onClick={editableFields.type ? () => onChange({ type: t }) : undefined}
-                  style={{
-                    flex: 1,
-                    textAlign: 'center',
-                    padding: '6px 0',
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    color: selected ? 'var(--proto-accent)' : 'var(--proto-muted)',
-                    background: selected ? 'var(--proto-accent-bg)' : undefined,
-                    borderRight: i < SCHED_TYPES.length - 1 ? '1px solid var(--proto-line)' : undefined,
-                    cursor: editableFields.type ? 'pointer' : 'default',
-                  }}
-                >
-                  {TYPE_LABELS[t]}
-                </button>
-              );
-            })}
+        {/* body */}
+        <div style={{ padding: '18px 22px 20px', display: 'flex', flexDirection: 'column', gap: 16, background: 'transparent', minHeight: 0, overflowY: 'auto', scrollbarGutter: 'stable' }}>
+          {/* TYPE */}
+          <div>
+            <div style={LABEL}>{L.scType}</div>
+            <div role="group" aria-label={L.scType} style={SEG_TRACK}>
+              {SCHED_TYPES.map((t: SchedType) => {
+                const selected = form.type === t;
+                return (
+                  <button
+                    type="button"
+                    className={focusClass}
+                    disabled={!editableFields.type}
+                    key={t}
+                    data-sched-type-opt={t}
+                    aria-pressed={selected}
+                    onClick={editableFields.type ? () => onChange({ type: t }) : undefined}
+                    style={segOptionStyle(selected, editableFields.type)}
+                  >
+                    {TYPE_LABELS[t]}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* [left cell] + [DAY if weekly] + MODEL */}
-          <div style={{ display: 'grid', gridTemplateColumns: topGridCols, gap: 12, marginTop: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: topGridCols, gap: 12 }}>
             {/* left cell */}
             <div>
               {vis.time && (
                 <>
-                  <div style={{ ...LABEL, marginBottom: 5 }}>{L.scTime}</div>
+                  <div style={LABEL}>{L.scTime}</div>
                   <div style={CELL_BOX}>
                     <input
                       value={form.time}
@@ -251,17 +281,18 @@ export function ScheduleModal(props: ScheduleModalProps) {
                         minWidth: 0,
                         border: 'none',
                         background: 'transparent',
-                        font: "600 12px 'IBM Plex Mono',monospace",
+                        ...FIELD_TEXT,
+                        fontVariantNumeric: 'tabular-nums',
                         color: 'var(--proto-ink)',
                       }}
                     />
-                    <span style={{ marginLeft: 'auto', font: "400 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>{L.schedClock24h}</span>
+                    <span style={{ marginLeft: 'auto', flex: 'none', fontSize: 12, color: 'var(--proto-muted)' }}>{L.schedClock24h}</span>
                   </div>
                 </>
               )}
               {vis.interval && (
                 <>
-                  <div style={{ ...LABEL, marginBottom: 5 }}>{L.scEvery}</div>
+                  <div style={LABEL}>{L.scEvery}</div>
                   <div style={CELL_BOX}>
                     <input
                       type="number"
@@ -271,13 +302,7 @@ export function ScheduleModal(props: ScheduleModalProps) {
                       aria-label={L.scEvery}
                       disabled={!editableFields.interval}
                       onChange={(e) => onChange({ intervalValue: Number(e.target.value) })}
-                      style={{
-                        width: 44,
-                        border: 'none',
-                        background: 'transparent',
-                        font: "600 12px 'IBM Plex Mono',monospace",
-                        color: 'var(--proto-ink)',
-                      }}
+                      style={NUMBER_INPUT}
                     />
                     <Select
                       data-schedule-select="intervalUnit"
@@ -287,14 +312,14 @@ export function ScheduleModal(props: ScheduleModalProps) {
                       disabled={!editableFields.interval}
                       options={INTERVAL_UNITS.map((unit) => ({ value: unit, label: scheduleOptionLabel(unit, L) }))}
                       onValueChange={(intervalUnit) => onChange({ intervalUnit })}
-                      style={bareSelectStyle("400 11px 'IBM Plex Mono',monospace")}
+                      style={bareSelectStyle()}
                     />
                   </div>
                 </>
               )}
               {vis.delay && editableFields.delay && (
                 <>
-                  <div style={{ ...LABEL, marginBottom: 5 }}>{L.scIn}</div>
+                  <div style={LABEL}>{L.scIn}</div>
                   <div data-schedule-delay style={CELL_BOX}>
                     <input
                       type="number"
@@ -303,13 +328,7 @@ export function ScheduleModal(props: ScheduleModalProps) {
                       className={focusClass}
                       aria-label={L.scIn}
                       onChange={(e) => onChange({ delayValue: Number(e.target.value) })}
-                      style={{
-                        width: 44,
-                        border: 'none',
-                        background: 'transparent',
-                        font: "600 12px 'IBM Plex Mono',monospace",
-                        color: 'var(--proto-ink)',
-                      }}
+                      style={NUMBER_INPUT}
                     />
                     <Select
                       data-schedule-select="delayUnit"
@@ -318,7 +337,7 @@ export function ScheduleModal(props: ScheduleModalProps) {
                       value={form.delayUnit}
                       options={INTERVAL_UNITS.map((unit) => ({ value: unit, label: scheduleOptionLabel(unit, L) }))}
                       onValueChange={(delayUnit) => onChange({ delayUnit })}
-                      style={bareSelectStyle("400 11px 'IBM Plex Mono',monospace")}
+                      style={bareSelectStyle()}
                     />
                   </div>
                 </>
@@ -326,7 +345,7 @@ export function ScheduleModal(props: ScheduleModalProps) {
               {onceTimingUnavailable && (
                 <div
                   data-once-timing-note
-                  style={{ fontSize: 11, lineHeight: 1.45, color: 'var(--proto-muted)'  }}
+                  style={{ fontSize: 12.5, lineHeight: 1.45, color: 'var(--proto-muted)'  }}
                 >
                   {L.scOnceTimingUnavailable}
                 </div>
@@ -336,7 +355,7 @@ export function ScheduleModal(props: ScheduleModalProps) {
             {/* DAY (weekly only) */}
             {vis.dayOfWeek && (
               <div>
-                <div style={{ ...LABEL, marginBottom: 5 }}>{L.scDay}</div>
+                <div style={LABEL}>{L.scDay}</div>
                 <div style={CELL_BOX}>
                   <Select
                     data-schedule-select="dayOfWeek"
@@ -346,7 +365,7 @@ export function ScheduleModal(props: ScheduleModalProps) {
                     disabled={!editableFields.dayOfWeek}
                     options={DAY_OPTIONS.map((day) => ({ value: day, label: DAY_LABELS[day] }))}
                     onValueChange={(dayOfWeek) => onChange({ dayOfWeek })}
-                    style={bareSelectStyle("500 11.5px 'IBM Plex Mono',monospace")}
+                    style={bareSelectStyle()}
                   />
                 </div>
               </div>
@@ -355,75 +374,50 @@ export function ScheduleModal(props: ScheduleModalProps) {
             <ModelFields {...props} />
           </div>
 
-          {/* MESSAGE (prototype L1447-1448) */}
-          <div style={{ ...LABEL, margin: '12px 0 5px' }}>{L.scMessage}</div>
-          <div style={{ border: '1px solid var(--proto-line-3)', background: 'var(--material-inset-bg)', borderRadius: 'var(--r-control)', padding: '8px 11px', minHeight: 38 }}>
-            <textarea
-              className={focusClass}
-              aria-label={L.scMessage}
-              value={form.message}
-              disabled={!editableFields.message}
-              onChange={(e) => onChange({ message: e.target.value })}
-              placeholder={L.scMessagePh}
-              rows={2}
-              style={{
-                width: '100%',
-                border: 'none',
-                resize: 'none',
-                background: 'transparent',
-                fontSize: 11.5,
-                lineHeight: 1.55,
-                color: 'var(--proto-ink-2)',
-                fontFamily: 'inherit',
-              }}
-            />
+          {/* MESSAGE */}
+          <div>
+            <div style={LABEL}>{L.scMessage}</div>
+            <div style={{ border: '1px solid var(--proto-line-4)', background: 'var(--material-control-bg)', borderRadius: 'var(--r-control)', padding: '10px 12px', minHeight: 92, boxSizing: 'border-box', display: 'flex' }}>
+              <textarea
+                className={focusClass}
+                aria-label={L.scMessage}
+                value={form.message}
+                disabled={!editableFields.message}
+                onChange={(e) => onChange({ message: e.target.value })}
+                placeholder={L.scMessagePh}
+                rows={3}
+                style={{
+                  width: '100%',
+                  border: 'none',
+                  resize: 'none',
+                  background: 'transparent',
+                  font: '400 13.5px/1.6 var(--font-ui)',
+                  color: 'var(--proto-ink)',
+                }}
+              />
+            </div>
           </div>
         </div>
 
-        {/* footer (prototype L1454-1458) */}
-        <div style={{ display: 'flex', flex: 'none', alignItems: 'center', gap: 10, padding: '16px 20px', borderTop: '1px solid var(--proto-line-2)', background: 'transparent' }}>
+        {/* footer: when it next runs, in words, then the two actions */}
+        <div style={{ display: 'flex', flex: 'none', alignItems: 'center', gap: 8, padding: '14px 22px 18px', borderTop: '1px solid var(--proto-line-2)', background: 'transparent' }}>
           {nextRun && (
-            <span data-schedule-next-run style={{ font: "500 11px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>
-              {L.scNextRun} <b style={{ color: 'var(--proto-accent)' }}>{nextRun.clock}</b> · {L.scFooterIn} {nextRun.delta}
+            <span data-schedule-next-run style={{ minWidth: 0, fontSize: 12.5, color: 'var(--proto-muted)', fontVariantNumeric: 'tabular-nums' }}>
+              {fmt(L.scNextRunLine, { day: nextRun.day, clock: nextRun.clock, until: fmt(L.timeUntil, { span: nextRun.delta }) })}
             </span>
           )}
-          <button
-            type="button"
-            className={focusClass}
-            onClick={onCancel}
-            style={{
-              marginLeft: 'auto',
-              fontSize: 12,
-              flex: 'none',
-              fontWeight: 600,
-              border: '1px solid var(--proto-line-3)',
-              borderRadius: 'var(--r-control)',
-              padding: '6px 13px',
-              color: 'var(--proto-ink)',
-              cursor: 'pointer',
-            }}
-          >
+          <Button variant="secondary" onClick={onCancel} style={{ marginLeft: 'auto', flex: 'none' }}>
             {L.cancel}
-          </button>
-          <button
-            type="button"
-            className={focusClass}
+          </Button>
+          <Button
+            variant="primary"
             disabled={!canCreate}
             data-action="create-schedule"
             onClick={() => canCreate && onCreate()}
-            style={{
-              fontSize: 12,
-              fontWeight: 600,
-              flex: 'none',
-              borderRadius: 'var(--r-control)',
-              padding: '7px 15px',
-              color: canCreate ? 'var(--ink-solid-fg)' : 'var(--proto-muted)',
-              background: canCreate ? 'var(--proto-accent)' : 'var(--proto-gray)',
-              cursor: canCreate ? 'pointer' : 'not-allowed',
-            }}
+            style={{ flex: 'none' }}
           >
             {editing ? L.scSaveSchedule : L.scCreateSchedule}
-          </button>
+          </Button>
         </div>
       </div>
     </>

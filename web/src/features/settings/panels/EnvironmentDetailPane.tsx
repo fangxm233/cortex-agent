@@ -123,7 +123,7 @@ function DetailIdentity(props: {
           style={{ ...S_CONTROL_STYLE, width: 220, maxWidth: '100%' }}
         />
       ) : (
-        <span style={{ font: `600 13px ${MONO}`, color: 'var(--proto-ink)', minWidth: 0, overflowWrap: 'anywhere' }}>{props.name}</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)', minWidth: 0, overflowWrap: 'anywhere' }}>{props.name}</span>
       )}
       {props.origin !== null ? <OriginBadge origin={props.origin} /> : null}
       {props.dirty ? (
@@ -258,7 +258,7 @@ function DetailFooter(props: EnvironmentDetailPaneProps & {
   const L = useVocab();
   return (
     <PaneFooter hint={props.hint !== null ? <span data-save-hint="">{props.hint}</span> : null}>
-      <SButton tone="accent" disabled={!props.canSave || props.busy} onClick={props.onSave} data-action="save">
+      <SButton tone="primary" disabled={!props.canSave || props.busy} onClick={props.onSave} data-action="save">
         {L.ttSave}
       </SButton>
       <SButton tone="neutral" disabled={props.busy} onClick={props.onValidate} data-action="validate">

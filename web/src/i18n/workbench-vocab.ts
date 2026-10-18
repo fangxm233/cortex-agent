@@ -1,19 +1,11 @@
-// Command palette chrome and its row kind tags.
+// Command palette chrome and the kind words a search can name.
 export const paletteEn = {
   palLabel: 'Command palette',
-  palClose: 'Close command palette',
-  palKindCommand: 'command',
   palKindSession: 'session',
-  palKindPage: 'page',
-  palKindModal: 'modal',
 };
 export const paletteZh: Record<keyof typeof paletteEn, string> = {
   palLabel: '命令面板',
-  palClose: '关闭命令面板',
-  palKindCommand: '命令',
   palKindSession: '会话',
-  palKindPage: '页面',
-  palKindModal: '弹窗',
 };
 
 // Workbench chrome: chat header, rail menus, run list, composer chips.

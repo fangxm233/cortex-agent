@@ -22,8 +22,6 @@ import { SettingsHeaderSlotContext } from '@/features/settings/ui/settings-kit';
 import { useConfigSnapshot } from '@/features/settings/controllers/useConfigSnapshot';
 import '@/features/settings/ui/settings-style.css';
 
-const MONO = "'IBM Plex Mono',monospace";
-
 const BACKDROP_STYLE: CSSProperties = {
   position: 'fixed',
   inset: 0,
@@ -153,33 +151,36 @@ const NAV_STYLE: CSSProperties = {
   background: 'var(--proto-alt)',
 };
 
+// The current section is the gray selected tint with ink text — the same row grammar as every
+// list. No accent fill and no accent icon: the accent is for state, and "you are here" is not one.
 function navButtonStyle(active: boolean, disabled: boolean): CSSProperties {
   return {
-    width: '100%', border: 0, display: 'flex', alignItems: 'center', gap: 9,
-    minHeight: 34, padding: '6px 10px', flex: 'none',
-    background: active ? 'var(--proto-accent-bg)' : 'transparent',
-    color: active ? 'var(--settings-selected-ink)' : 'var(--proto-ink-2)',
-    fontFamily: 'inherit', fontSize: 13, fontWeight: active ? 600 : 500,
+    width: '100%', border: 0, display: 'flex', alignItems: 'center', gap: 10,
+    minHeight: 30, padding: '5px 10px', flex: 'none',
+    // Undefined at rest, so the stylesheet's hover tint can show through.
+    background: active ? 'var(--proto-gray)' : undefined,
+    color: active ? 'var(--proto-ink)' : 'var(--proto-ink-3)',
+    fontFamily: 'inherit', fontSize: 13, fontWeight: active ? 550 : 400,
     borderRadius: 'var(--r-control)', cursor: disabled ? 'not-allowed' : 'pointer',
     opacity: disabled ? 0.4 : 1, textAlign: 'left',
   };
 }
 
-function NavIcon({ path, active }: { path: string; active: boolean }) {
+function NavIcon({ path }: { path: string }) {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden
-      style={{ flex: 'none', color: active ? 'var(--proto-accent)' : 'var(--proto-muted-2)' }}>
+      style={{ flex: 'none', color: 'var(--proto-muted-2)' }}>
       <path d={path} />
     </svg>
   );
 }
 
+// Group headings are sentence case, set apart by weight and a quieter colour, not by caps.
 function NavGroupLabel({ children }: { children: string }) {
   return (
     <div style={{
-      fontSize: 11, fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase',
-      color: 'var(--proto-muted-2)', padding: '12px 10px 5px', flex: 'none',
+      fontSize: 12, fontWeight: 550, color: 'var(--proto-muted-3)', padding: '12px 10px 3px', flex: 'none',
     }}>
       {children}
     </div>
@@ -203,7 +204,7 @@ function SettingsNavEntry({ entry, ...props }: SettingsNavProps & { entry: NavEn
       onClick={() => props.onSelect(entry.key)} data-settings-nav={entry.key}
       aria-current={active ? 'page' : undefined}
       title={disabled ? L.setUnsavedLeave : undefined} style={navButtonStyle(active, disabled)}>
-      <NavIcon path={entry.icon} active={active} />
+      <NavIcon path={entry.icon} />
       <span className="settings-nav-label" style={{ flex: 1, minWidth: 0 }}>{entry.label}</span>
     </button>
   );
@@ -213,7 +214,7 @@ function SettingsNav(props: SettingsNavProps) {
   const L = useVocab();
   return (
     <div className="settings-nav" style={NAV_STYLE}>
-      <div style={{ fontSize: 16, fontWeight: 650, color: 'var(--proto-ink)', padding: '2px 10px 6px', flex: 'none' }}>
+      <div style={{ fontSize: 16, fontWeight: 620, color: 'var(--proto-ink)', padding: '2px 10px 6px', flex: 'none' }}>
         {L.settings}
       </div>
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
@@ -224,7 +225,7 @@ function SettingsNav(props: SettingsNavProps) {
           </div>
         ))}
       </div>
-      <div className="settings-nav-build" style={{ padding: '10px 10px 0', font: `400 11px ${MONO}`, color: 'var(--proto-muted-2)', flex: 'none' }}>
+      <div className="settings-nav-build" style={{ padding: '10px 10px 0', fontSize: 11.5, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted-3)', flex: 'none' }}>
         {fmt(L.setNavBuild, { build: BUILD_STAMP })}
       </div>
     </div>

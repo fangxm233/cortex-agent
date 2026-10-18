@@ -11,8 +11,6 @@
   --settings-control-fill: var(--material-control-bg);
   --settings-boundary: var(--proto-line-2);
   --settings-control-boundary: var(--proto-faint);
-  /* Keep selected small text legible over tinted glass in both themes. */
-  --settings-selected-ink: color-mix(in srgb, var(--proto-accent) 80%, var(--proto-ink));
   --settings-panel-padding: 20px;
   --settings-nav-width: 196px;
   --r-card: var(--settings-card-radius);
@@ -101,7 +99,7 @@
 
 .settings-surface.settings-modal { outline: none; }
 .settings-surface .settings-nav { box-sizing: border-box; }
-.settings-surface .settings-nav-button { min-height: 34px; height: auto; padding-block: 6px; }
+.settings-surface .settings-nav-button { min-height: 30px; height: auto; padding-block: 5px; }
 .settings-surface .settings-nav-button:not(:disabled):hover { background: var(--proto-alt); }
 .settings-surface .settings-nav-button:focus-visible { outline-offset: -2px; }
 .settings-surface .settings-nav-label { white-space: normal; }

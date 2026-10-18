@@ -1,11 +1,12 @@
 import * as RadixPopover from '@radix-ui/react-popover';
 import { useState } from 'react';
+import type { MachineInfo } from '@cortex-agent/ui-contract';
 import '@/design/content-surfaces.css';
 import { MENU_FOCUS } from '@/design/MenuChrome';
 import { defineModal } from '@/design/modal-registry';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import { MachineList } from './MachineList';
-import { machinesChipLabel } from './machines-menu-vm';
+import { machinesChipLabel, machinesOnlineText } from './machines-menu-vm';
 import { MACHINES_TONE_COLOR, machinesStatusTone } from './machines-status';
 import { useMachinesResource } from './useMachinesResource';
 
@@ -13,7 +14,6 @@ import { useMachinesResource } from './useMachinesResource';
 // glass sheet with the machine cards. Machines are window-scoped, so they live on the bar rather
 // than beside any one pane. The open flag is a registry key so View → Machines can open it too.
 
-const MONO = "'IBM Plex Mono',monospace";
 const machinesMenu = defineModal('shell.machines', { requireProvider: false });
 
 export function useMachinesMenuActions() {
@@ -31,29 +31,31 @@ function RackGlyph() {
   );
 }
 
-function MenuHeader({ count, onManage }: { count: string; onManage: () => void }) {
+// The sheet's header is a title, a plain count and a link — the count is a fact, not a badge.
+function MenuHeader({ machines, known, onManage }: { machines: MachineInfo[]; known: boolean; onManage: () => void }) {
   const L = useVocab();
+  const count = machinesOnlineText(machines, known, useLang());
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px 10px 18px', flex: 'none' }}>
-      <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.machines}</span>
-      <span style={{ font: `600 11px ${MONO}`, color: 'var(--proto-muted)', background: 'var(--material-control-bg)',
-        boxShadow: 'var(--material-control-shadow)', padding: '2px 8px', borderRadius: 'var(--r-pill)' }}>{count}</span>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '14px 16px 6px', flex: 'none' }}>
+      <span style={{ fontSize: 14, fontWeight: 620, color: 'var(--proto-ink)' }}>{L.machines}</span>
+      <span data-machines-count="" style={{ fontSize: 12.5, color: 'var(--proto-muted-3)', fontVariantNumeric: 'tabular-nums' }}>{count}</span>
       <button type="button" className="content-text-action" onClick={onManage}
-        style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}>
+        style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 500, color: 'var(--proto-accent)', cursor: 'pointer' }}>
         {L.mManageMachines} ›
       </button>
     </div>
   );
 }
 
-function MenuBody({ count, expanded, onToggle, onManage }: {
-  count: string;
+function MenuBody({ machines, known, expanded, onToggle, onManage }: {
+  machines: MachineInfo[];
+  known: boolean;
   expanded: ReadonlySet<string>;
   onToggle: (name: string) => void;
   onManage: () => void;
 }) {
   return <>
-    <MenuHeader count={count} onManage={onManage} />
+    <MenuHeader machines={machines} known={known} onManage={onManage} />
     <MachineList expanded={expanded} onToggle={onToggle} />
   </>;
 }
@@ -144,7 +146,7 @@ export function MachinesMenu({ onManage }: { onManage: () => void }): JSX.Elemen
             animation: 'cxpop 160ms cubic-bezier(0.22, 1, 0.36, 1)',
           }}
         >
-          <MenuBody count={`${label.online}${label.total}`} expanded={expanded} onToggle={toggle}
+          <MenuBody machines={roster.machines} known={!roster.loading && !roster.error} expanded={expanded} onToggle={toggle}
             onManage={() => { close(); onManage(); }} />
         </RadixPopover.Content>
       </RadixPopover.Portal>

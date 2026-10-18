@@ -617,4 +617,19 @@ export const zhBase = {
   ovThisWeek: '本周',
   ovThisMonth: '本月',
   ovForecast: '预计今天',
+
+  // ── redesign: panels ──
+  scTomorrow: '明天',
+  scNextRunLine: '下次运行：{day} {clock} · {until}',
+  mOnlineCount: '{online}/{total} 在线',
+  mGpuProcOne: '1 个进程',
+  mGpuProcMany: '{n} 个进程',
+  mGpuPid: 'pid {pid}',
+  palGroupPage: '页面',
+  palGroupAction: '操作',
+  palGroupBoard: '看板',
+  palGroupSession: '会话',
+  palKeyNavigate: '选择',
+  palKeyOpen: '打开',
+  palKeyClose: '关闭',
 };

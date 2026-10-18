@@ -5,8 +5,6 @@ import './settings-style.css';
 
 export * from './settings-kit';
 
-const MONO = "'IBM Plex Mono',monospace";
-
 // Cards carry tint and a shallow highlight; only portaled shells blur.
 export const CARD_STYLE: CSSProperties = {
   background: 'var(--settings-card-fill, var(--material-card-bg))',
@@ -27,8 +25,8 @@ export function SCard({
 }
 
 // The header reads at the same 13px/600 as a row title: a card header IS a row, just one that
-// happens to name the rows below it. `right` keeps its mono styling only when it is plain text —
-// an element is placed as-is so callers can hang a button or a pill there.
+// happens to name the rows below it. `right` gets the quiet meta styling only when it is plain text
+// (a count, a caption) — an element is placed as-is so callers can hang a button or a pill there.
 export function SCardHeader({ title, right }: { title: ReactNode; right?: ReactNode }) {
   const plain = typeof right === 'string' || typeof right === 'number';
   return (
@@ -43,7 +41,8 @@ export function SCardHeader({ title, right }: { title: ReactNode; right?: ReactN
     >
       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{title}</span>
       {right != null ? (
-        <span style={{ marginLeft: 'auto', font: plain ? `400 12px ${MONO}` : undefined, color: plain ? 'var(--proto-muted-3)' : undefined }}>{right}</span>
+        <span style={{ marginLeft: 'auto', fontSize: plain ? 12 : undefined, fontVariantNumeric: plain ? 'tabular-nums' : undefined,
+          color: plain ? 'var(--proto-muted-3)' : undefined }}>{right}</span>
       ) : null}
     </div>
   );
@@ -150,9 +149,8 @@ export function SSectionLabel({ children }: { children: ReactNode }) {
   return (
     <div
       style={{
-        fontSize: 12,
+        fontSize: 12.5,
         fontWeight: 600,
-        letterSpacing: '.02em',
         color: 'var(--proto-muted)',
         margin: '20px 0 8px',
       }}
@@ -215,16 +213,18 @@ export const S_CONTROL_DISABLED_STYLE: CSSProperties = {
   cursor: 'not-allowed',
 };
 
-export type SButtonTone = 'accent' | 'danger' | 'neutral';
+export type SButtonTone = 'primary' | 'danger' | 'neutral';
 
 const BUTTON_TONE: Record<SButtonTone, { base: CSSProperties; hover: CSSProperties }> = {
-  // Accent is the primary fill; secondary actions share the quiet control surface.
-  accent: {
+  // Primary is ink, like design/Button: the accent is kept for state (on, selected, a link), so a
+  // filled accent button would compete with the thing it acts on. Secondary actions share the
+  // quiet control surface. The fill changes on a colour longhand so hover never drops the material.
+  primary: {
     base: {
-      color: 'var(--ink-solid-fg)', backgroundColor: 'var(--proto-accent)',
+      color: 'var(--ink-solid-fg)', backgroundColor: 'var(--ink-solid-bg)',
       border: '1px solid transparent', boxShadow: 'var(--material-control-shadow)',
     },
-    hover: { backgroundColor: 'var(--proto-accent-strong)' },
+    hover: { backgroundColor: 'color-mix(in srgb, var(--ink-solid-bg) 88%, var(--ink-solid-fg))' },
   },
   danger: {
     base: { color: 'var(--proto-danger)', background: 'var(--settings-control-fill, var(--material-control-bg))', border: '1px solid var(--proto-danger-bg)', boxShadow: 'var(--material-control-shadow)' },

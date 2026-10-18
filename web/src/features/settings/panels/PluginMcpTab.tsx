@@ -125,7 +125,7 @@ function ConvertNotice(props: { pluginId: string; busy: boolean; actions: Plugin
   return (
     <SNotice tone="amber" data-plugin-mcp-unsupported=""
       action={(
-        <SButton tone="accent" data-action="mcp-convert" disabled={props.busy}
+        <SButton tone="primary" data-action="mcp-convert" disabled={props.busy}
           onClick={() => props.actions.convertToPortable({ id: props.pluginId })}>
           {L.plConvertPortable}
         </SButton>
@@ -178,7 +178,7 @@ function McpServerForms(props: { plugin: UiPluginCatalogEntry; actions: PluginAu
           onClick={() => { setDrafts([...drafts, emptyDraft(`new${nextId}`)]); setNextId(nextId + 1); }}>
           {L.plMcpAdd}
         </SButton>
-        <SButton tone="accent" data-action="mcp-save"
+        <SButton tone="primary" data-action="mcp-save"
           disabled={props.actions.busy || !dirty || issues.length > 0}
           onClick={async () => {
             const done = await props.actions.mcpWrite({

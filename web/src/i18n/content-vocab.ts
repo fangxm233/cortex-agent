@@ -4,7 +4,7 @@ export const contentEn = {
   noteTitle: 'Notes',
   noteInputPlaceholder: 'Note something to do…',
   noteQuickPlaceholder: 'Quick note…',
-  noteTodo: 'TO DO',
+  noteTodo: 'To do',
   noteCompleted: 'Completed',
   noteClear: 'Clear',
   noteHandoff: 'Hand to agent',

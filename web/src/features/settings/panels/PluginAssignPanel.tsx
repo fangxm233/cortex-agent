@@ -143,10 +143,10 @@ function PluginChoice(props: {
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)', minWidth: 0, overflowWrap: 'anywhere' }}>{pluginTitle(props.plugin)}</span>
-          {props.plugin.origin === 'builtin' ? <SPill tone="accent" data-plugin-builtin="">{L.plOriginBuiltin}</SPill> : null}
+          {props.plugin.origin === 'builtin' ? <SPill tone="strong" data-plugin-builtin="">{L.plOriginBuiltin}</SPill> : null}
           <SPill>{L.plSkillCount.replace('{n}', String(props.plugin.skills.length))}</SPill>
           {props.plugin.mcp.servers.length > 0
-            ? <SPill tone="accent">{L.plMcpCount.replace('{n}', String(props.plugin.mcp.servers.length))}</SPill>
+            ? <SPill tone="strong">{L.plMcpCount.replace('{n}', String(props.plugin.mcp.servers.length))}</SPill>
             : null}
           {props.plugin.assignable ? null : <SPill tone="danger">{L.plUnassignable}</SPill>}
         </div>
@@ -172,7 +172,7 @@ function AckModal(props: {
       footer={(
         <>
           <SButton tone="neutral" disabled={props.pending} onClick={() => props.onOpenChange(false)}>{L.plAckCancel}</SButton>
-          <SButton tone="accent" disabled={props.pending} onClick={props.onConfirm}>{L.plAckConfirm}</SButton>
+          <SButton tone="primary" disabled={props.pending} onClick={props.onConfirm}>{L.plAckConfirm}</SButton>
         </>
       )}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -232,7 +232,7 @@ function AssignBody(props: PluginAssignViewProps) {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         <SButton tone="neutral" disabled={!resettable} data-action="reset"
           data-disabled={resettable ? 'false' : 'true'} onClick={props.onReset}>{L.plReset}</SButton>
-        <SButton tone="accent" disabled={!state.canSave} data-action="save"
+        <SButton tone="primary" disabled={!state.canSave} data-action="save"
           data-disabled={state.canSave ? 'false' : 'true'} onClick={props.onSave}>{props.pending ? L.plSaving : L.plSave}</SButton>
       </div>
     </>

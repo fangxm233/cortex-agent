@@ -36,11 +36,10 @@ import { useBudgetSpend, useProjectList } from '@/features/settings/controllers/
 // are pair-only, so a project that has never been overridden is seeded from the globals it is
 // currently inheriting. Budgets are advisory: the server reports them but does not enforce them.
 
-const MONO = "'IBM Plex Mono',monospace";
-
-const AMOUNT_STYLE: CSSProperties = { font: `500 18px ${MONO}`, letterSpacing: '-.02em' };
+// Money is a number, not code: UI face with tabular figures so amounts line up.
+const AMOUNT_STYLE: CSSProperties = { fontSize: 18, fontWeight: 550, fontVariantNumeric: 'tabular-nums' };
 const NOTE_STYLE: CSSProperties = { fontSize: 12, lineHeight: 1.5, color: 'var(--proto-muted-2)' };
-const SCOPE_TAG_STYLE: CSSProperties = { font: `400 12px ${MONO}`, color: 'var(--proto-muted-3)', overflowWrap: 'anywhere' };
+const SCOPE_TAG_STYLE: CSSProperties = { fontSize: 12, color: 'var(--proto-muted-3)', overflowWrap: 'anywhere' };
 const CHIPS_STYLE: CSSProperties = { display: 'flex', gap: 8, flexWrap: 'wrap', minWidth: 0, maxWidth: '100%' };
 const PANEL_STYLE: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 };
 

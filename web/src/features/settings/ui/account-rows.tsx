@@ -59,7 +59,8 @@ function ProviderMark({ provider, label }: { provider: string; label: string }) 
   );
 }
 
-/** A small outline button: the login entry of a row that has nothing to manage yet. */
+/** A small hairline-outline (secondary) button: the login entry of a row that has nothing to
+ *  manage yet. Ink on the control surface, not accent — the accent is kept for state. */
 export function AccountButton({ children, disabled, onClick, ...rest }: {
   children: ReactNode; disabled?: boolean; onClick: () => void;
 } & Record<string, unknown>) {
@@ -70,8 +71,8 @@ export function AccountButton({ children, disabled, onClick, ...rest }: {
       style={{
         fontFamily: 'inherit', fontSize: 12, fontWeight: 600, lineHeight: 1.4, whiteSpace: 'nowrap',
         padding: '3px 9px', borderRadius: 7, flex: 'none',
-        border: '1px solid var(--proto-accent-border)', color: 'var(--proto-accent)',
-        background: hover && !disabled ? 'var(--proto-accent-bg)' : 'var(--material-control-bg)',
+        border: '1px solid var(--proto-line-3)', color: 'var(--proto-ink)',
+        background: hover && !disabled ? 'var(--proto-alt)' : 'var(--material-control-bg)',
         cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.45 : 1,
       }}>
       {children}
@@ -297,7 +298,7 @@ export function ClaudeHeading({ inUse }: { inUse: boolean }) {
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
       <ProviderIcon provider="claude-code" label="Claude Code" size={14} />
       Claude Code
-      {inUse ? <SPill tone="accent">{L.accountsInUse}</SPill> : null}
+      {inUse ? <SPill tone="strong">{L.accountsInUse}</SPill> : null}
     </span>
   );
 }

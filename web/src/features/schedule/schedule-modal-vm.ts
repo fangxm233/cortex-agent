@@ -1,6 +1,8 @@
 import type { ConfigSnapshot, EngineSelection, ModelCatalogSnapshot, ModelRef, ScheduleInfo, MutateArgs } from '@cortex-agent/ui-contract';
 import { modelKey, modelLabel, selectionForModel } from '@/lib/model-selection';
 import { formatSpan, formatSpanPrecise, type TimeLang } from '@/i18n/time-format';
+import { fmt } from '@/i18n/fmt';
+import { pickVocab } from '@/i18n/lang';
 import type { Vocab } from '@/i18n';
 
 export type SchedType = 'interval' | 'daily' | 'weekly' | 'once';
@@ -287,9 +289,24 @@ export function humanizeDelta(ms: number, lang: TimeLang): string {
   return span < 86_400_000 ? formatSpanPrecise(span, lang) : formatSpan(span, lang);
 }
 
-export function nextRunParts(form: ScheduleForm, now: Date, lang: TimeLang): { clock: string; delta: string } {
+function startOfDay(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+/** The run's calendar day as a person says it: `Today / Tomorrow / Oct 20` · `今天 / 明天 / 10月20日`. */
+export function nextRunDay(next: Date, now: Date, lang: TimeLang): string {
+  const L = pickVocab(lang);
+  // Rounded, not floored: a day that crosses a DST change is 23 or 25 hours long.
+  const days = Math.round((startOfDay(next) - startOfDay(now)) / 86_400_000);
+  if (days <= 0) return L.timeToday;
+  if (days === 1) return L.scTomorrow;
+  return fmt(L.timeMonthDay, { month: L.timeMonths.split(',')[next.getMonth()], day: next.getDate() });
+}
+
+export function nextRunParts(form: ScheduleForm, now: Date, lang: TimeLang): { day: string; clock: string; delta: string } {
   const next = computeNextRun(form, now);
   return {
+    day: nextRunDay(next, now, lang),
     clock: `${pad2(next.getHours())}:${pad2(next.getMinutes())}`,
     delta: humanizeDelta(next.getTime() - now.getTime(), lang),
   };

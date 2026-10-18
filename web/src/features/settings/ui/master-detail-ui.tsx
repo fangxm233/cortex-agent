@@ -2,8 +2,6 @@ import type { CSSProperties, ReactNode } from 'react';
 import { GROUP_STYLE, S_CONTROL_STYLE } from './settings-ui';
 import './settings-style.css';
 
-const MONO = "'IBM Plex Mono',monospace";
-
 // Error changes only the existing boundary, never the control geometry.
 export const CONTROL_ERROR_STYLE: CSSProperties = {
   ...S_CONTROL_STYLE, borderColor: 'var(--proto-danger)',
@@ -50,7 +48,7 @@ const PANE_TITLE_STYLE: CSSProperties = {
 };
 
 const PANE_COUNT_STYLE: CSSProperties = {
-  font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)',
+  fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted-3)',
 };
 
 const FILTER_ROW_STYLE: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 6 };
@@ -116,7 +114,8 @@ export function NoticeStack({ children, style }: { children: ReactNode; style?: 
   );
 }
 
-/** A master-list row: roomy enough to aim at, selected by a tint rather than an outline. */
+/** A master-list row: roomy enough to aim at, selected by the gray tint rather than an outline or
+ *  an accent fill — callers keep the selected label ink, too. */
 export function listRowStyle(
   selected: boolean,
   align: CSSProperties['alignItems'] = 'center',
@@ -124,6 +123,6 @@ export function listRowStyle(
   return {
     display: 'flex', alignItems: align, gap: 9, padding: '8px 10px',
     borderRadius: 'var(--settings-control-radius, 8px)', cursor: 'pointer',
-    background: selected ? 'var(--proto-accent-bg)' : 'transparent',
+    background: selected ? 'var(--proto-gray)' : 'transparent',
   };
 }

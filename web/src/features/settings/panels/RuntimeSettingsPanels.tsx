@@ -51,8 +51,10 @@ type SettingSource = ConfigSettingEntry['source'];
 
 const MONO = "'IBM Plex Mono',monospace";
 
-const MONO_VALUE_STYLE: CSSProperties = {
-  font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)', minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere',
+// Captions, ages and interval words are UI face with tabular figures; only a literal id (a channel
+// id) is set in the code face where it appears.
+const VALUE_STYLE: CSSProperties = {
+  fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted-2)', minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere',
 };
 // Controls keep their compact widths, but wrap as a unit below the row's text when needed.
 const CONTROL_STRIP_STYLE: CSSProperties = {
@@ -121,7 +123,7 @@ function NotificationRouting({ snapshot, settings }: { snapshot: ConfigSnapshot;
   const feishuChannel = settings.feishuAdminChannel?.value;
   return (
     <SSection label={L.stNotifyRoutingTitle}
-      action={<span style={MONO_VALUE_STYLE}>{L.stNotifyRoutingRight}</span>}>
+      action={<span style={VALUE_STYLE}>{L.stNotifyRoutingRight}</span>}>
       <SRowGroup>
         <RoutingRow
           platform="Slack"
@@ -156,8 +158,8 @@ function RoutingRow(props: {
         </span>
       }
       control={
-        <span style={MONO_VALUE_STYLE}>
-          <span style={{ color: props.channel ? 'var(--proto-muted)' : 'var(--proto-faint)' }}>
+        <span style={VALUE_STYLE}>
+          <span style={{ color: props.channel ? 'var(--proto-muted)' : 'var(--proto-faint)', fontFamily: props.channel ? MONO : undefined }}>
             {props.channel ?? '—'}
           </span>
         </span>
@@ -190,7 +192,7 @@ function NoticeRow({ entry }: { entry: SystemNoticeEntry }) {
         ) : null}
         <div style={{ ...NOTICE_BODY_STYLE, marginTop: entry.title ? 3 : 0 }}>{entry.text}</div>
       </div>
-      <span style={{ ...MONO_VALUE_STYLE, color: 'var(--proto-muted-2)', paddingTop: 2 }}>
+      <span style={{ ...VALUE_STYLE, color: 'var(--proto-muted-2)', paddingTop: 2 }}>
         {relativeAge(entry.ts, lang)}
       </span>
     </div>
@@ -211,7 +213,7 @@ function RecentNotifications() {
   const note = noticeHistoryNote(L, history);
   return (
     <SSection label={L.stRecentNotifications}
-      action={<span style={MONO_VALUE_STYLE}>{noticeHistoryCaption(L, history)}</span>}>
+      action={<span style={VALUE_STYLE}>{noticeHistoryCaption(L, history)}</span>}>
       <SRowGroup>
         {note !== null
           ? <NoticeNote text={note} />
@@ -263,7 +265,7 @@ function ReadOnlyEnvRow({ snapshot, title }: {
       data-env-present={String(present)}
       data-writable="false"
       title={title}
-      control={<SPill tone="neutral" mono>{present ? L.stSet : '—'}</SPill>}
+      control={<SPill tone="neutral">{present ? L.stSet : '—'}</SPill>}
     />
   );
 }
@@ -357,7 +359,7 @@ function DurationFields(props: {
   const L = useVocab();
   return (
     <>
-      <span style={MONO_VALUE_STYLE}>{L.stBuiltinInterval}</span>
+      <span style={VALUE_STYLE}>{L.stBuiltinInterval}</span>
       <input type="number" min={1} value={props.draft.value} style={DURATION_INPUT}
         onChange={(event) => props.onDraft({ ...props.draft, value: Number(event.target.value) })} />
       <Select popupClassName="settings-surface settings-select-popup"
@@ -453,7 +455,7 @@ function GpuMockRow({ snapshot }: { snapshot: ConfigSnapshot }) {
   return (
     <SRow
       title={L.stGpuMock}
-      control={<SPill tone="neutral" mono>{present ? L.stSet : '—'}</SPill>}
+      control={<SPill tone="neutral">{present ? L.stSet : '—'}</SPill>}
     />
   );
 }

@@ -4,8 +4,8 @@ import { shortSessionId } from '@/features/session/metadata/short-session-id';
 
 // Pure mapping from the real tRPC query result (sessions.list) into the prototype's ⌘K flat-row
 // item model (prototype.dc.html L1304–1311 + the `allCmdk` demo shape L2489–2499). Each row =
-// label + sub + right-aligned kbd tag; page rows navigate via React Router and modal rows open in
-// place. §8.3: the row structure is 1:1 with the prototype, real entities are the only variable.
+// label + sub + a kind tag that picks its group; page rows navigate via React Router and modal rows
+// open in place. §8.3: the row structure is 1:1 with the prototype, real entities are the only variable.
 // Sessions target their section route and carry the id in `focusId`.
 
 export type PaletteModal = 'settings';
@@ -15,7 +15,7 @@ export interface CmdkItem {
   id: string;
   label: string;
   sub: string;
-  /** Right-aligned mono type tag: `session` or `board`. */
+  /** Stable kind tag: `session` or `board` (groups the row, and matches a typed kind word). */
   kbd: string;
   route?: string;
   modal?: PaletteModal;
@@ -167,14 +167,43 @@ export function selectPaletteRows(
   return [...nav, ...entities].filter(matches).slice(0, matchCap);
 }
 
-/** The localized kind tag (`PaletteRow.kbd` stays the stable tag); an unknown tag shows as-is. */
-export function paletteKindText(
-  kind: string,
-  L: Pick<Vocab, 'palKindCommand' | 'palKindSession' | 'palKindPage' | 'palKindModal' | 'palKindBoard'>,
+// ── Groups ───────────────────────────────────────────────────────────────────
+// The list reads as a few headed groups instead of a column of kind tags. A group is a run of rows
+// that share a kind, in the order `selectPaletteRows` already chose — so ↑/↓ walks the list exactly
+// as before; the headings only name what each run is. Nav rows split by target: a route is a page,
+// an in-place modal (settings) is an action.
+
+export type PaletteGroupKey = 'page' | 'action' | 'board' | 'session';
+
+export interface PaletteGroup {
+  key: PaletteGroupKey | string;
+  rows: PaletteRow[];
+}
+
+export function paletteGroupKey(row: PaletteRow): PaletteGroupKey | string {
+  if (row.labelKey) return row.modal ? 'action' : 'page';
+  return row.kbd;
+}
+
+/** Consecutive rows of one kind become one group; order is preserved. */
+export function groupPaletteRows(rows: PaletteRow[]): PaletteGroup[] {
+  const groups: PaletteGroup[] = [];
+  for (const row of rows) {
+    const key = paletteGroupKey(row);
+    const last = groups[groups.length - 1];
+    if (last?.key === key) last.rows.push(row);
+    else groups.push({ key, rows: [row] });
+  }
+  return groups;
+}
+
+/** The group heading in the UI language; an unknown kind shows as-is. */
+export function paletteGroupLabel(
+  key: string,
+  L: Pick<Vocab, 'palGroupPage' | 'palGroupAction' | 'palGroupBoard' | 'palGroupSession'>,
 ): string {
-  const kinds: Record<string, string> = {
-    command: L.palKindCommand, session: L.palKindSession, page: L.palKindPage, modal: L.palKindModal,
-    board: L.palKindBoard,
+  const labels: Record<string, string> = {
+    page: L.palGroupPage, action: L.palGroupAction, board: L.palGroupBoard, session: L.palGroupSession,
   };
-  return kinds[kind] ?? kind;
+  return labels[key] ?? key;
 }

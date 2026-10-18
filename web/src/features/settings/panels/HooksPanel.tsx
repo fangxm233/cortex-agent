@@ -54,8 +54,10 @@ const FILTER_LABEL: Record<HookFilterKey, keyof Vocab> = {
 
 // ── left column: chips, search, grouped list ──────────────────────────────────────────────────
 
+// The order is a number, so it is UI face with tabular figures; the hook id and its event are
+// identifiers a person types into config, so they keep the code face.
 const ORDER_STYLE: CSSProperties = {
-  font: `500 12px ${MONO}`, color: 'var(--proto-muted-3)', flex: 'none', paddingTop: 2,
+  fontSize: 12, fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted-3)', flex: 'none', paddingTop: 2,
 };
 
 const EVENT_STYLE: CSSProperties = {
@@ -65,7 +67,7 @@ const EVENT_STYLE: CSSProperties = {
 function hookIdStyle(selected: boolean): CSSProperties {
   return {
     flex: 1, minWidth: 0, font: `600 12px ${MONO}`,
-    color: selected ? 'var(--proto-accent)' : 'var(--proto-ink-2)',
+    color: selected ? 'var(--proto-ink)' : 'var(--proto-ink-2)',
     overflowWrap: 'anywhere',
   };
 }
@@ -153,7 +155,7 @@ function HookGroups({ visible, selectedId, onSelect }: {
           <div
             data-hook-group={group.key}
             style={{
-              fontSize: 12, fontWeight: 600, letterSpacing: '.03em',
+              fontSize: 12, fontWeight: 600,
               color: 'var(--proto-muted-3)', padding: '8px 10px 4px',
             }}
           >

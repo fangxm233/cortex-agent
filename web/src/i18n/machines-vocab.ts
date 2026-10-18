@@ -10,7 +10,7 @@ export const machinesEn = {
   machAdd: 'Add machine',
   machEmpty: 'No machines',
   machRam: 'RAM',
-  machDisk: 'DISK',
+  machDisk: 'Disk',
   machDiskFree: '{n} GB free',
 };
 export const machinesZh: Record<keyof typeof machinesEn, string> = {
