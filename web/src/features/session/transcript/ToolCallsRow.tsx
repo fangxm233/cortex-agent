@@ -9,14 +9,14 @@ import { DebugDetailsModal, DebugInspectButton, type DebugDetail } from './Debug
 import { ToolCallImages } from './ToolCallImages';
 import { ThinkingRow } from './HintRow';
 import { EventIcon, eventRowStyle, type EventIconName } from './EventRow';
-import { bareToolName, callCategory, leadingCategory, toolCategory, toolRunNow, toolRunText, type ToolCategory } from './tool-summary';
+import { bareToolName, leadingCategory, toolCategory, toolRunNow, toolRunText, type ToolCategory } from './tool-summary';
 
 const mono = "'IBM Plex Mono',monospace";
 
 // A run of consecutive tool calls: one quiet line saying what the run did ("Ran 6 commands · Edited
 // parser.ts"), which opens to the calls themselves — one line each, the command or path in mono.
 // The line is the same in both states: opening it turns its caret and hangs the list under it.
-// While the run is what the agent is doing right now, the line leads with the step under way
+// While the run is what the agent is doing right now, the line ends with the step under way
 // ("Running pnpm test", "Thinking") — a thought being written joins the run as its latest entry —
 // and its words roll to the next step rather than jump.
 
@@ -115,15 +115,13 @@ interface RunLine {
   done: string;
 }
 
-/** The run's line: what it did, or — while it is the live step — what it is doing, then what it did
- *  before that. The icon follows whichever leads. */
+/** The run's line: what it did, and — while it is the live step — what it is doing now, last, where
+ *  the eye lands at the end of the line. A long summary gives way before the step does. */
 function runLine(calls: ToolCall[], live: boolean, L: Vocab): RunLine {
-  if (!live) {
-    const icon = imageCount(calls) > 0 ? 'file' : CATEGORY_ICON[leadingCategory(calls)];
-    return { icon, now: null, done: doneText(calls, L) };
-  }
+  const icon = imageCount(calls) > 0 ? 'file' : CATEGORY_ICON[leadingCategory(calls)];
+  if (!live) return { icon, now: null, done: doneText(calls, L) };
   const latest = calls[calls.length - 1];
-  return { icon: CATEGORY_ICON[callCategory(latest)], now: toolRunNow(latest, L), done: doneText(calls.slice(0, -1), L) };
+  return { icon, now: toolRunNow(latest, L), done: doneText(calls.slice(0, -1), L) };
 }
 
 function useCallInspect(sessionId: string | undefined): { selected: DebugDetail | null; clear: () => void; inspect: Inspect } {
@@ -148,8 +146,8 @@ function useCallInspect(sessionId: string | undefined): { selected: DebugDetail 
 function RunLineText({ line }: { line: RunLine }): JSX.Element {
   return (
     <SwapText swapKey={`${line.now ?? ''}\n${line.done}`} style={{ flex: 1 }}>
-      {line.now ? <span data-tool-now="" style={nowStyle}>{line.now}</span> : null}
       {line.done ? <span style={doneStyle}>{line.done}</span> : null}
+      {line.now ? <span data-tool-now="" style={nowStyle}>{line.now}</span> : null}
     </SwapText>
   );
 }
@@ -159,7 +157,7 @@ export function ToolCallsRow({ calls, sessionId, touch = false, live = false }: 
   sessionId?: string;
   /** Mobile transcript: finger-sized row, no hover state, debug inspection always reachable. */
   touch?: boolean;
-  /** The run is what the agent is doing right now: its line leads with the step under way. */
+  /** The run is what the agent is doing right now: its line ends with the step under way. */
   live?: boolean;
 }): JSX.Element {
   const L = useVocab();

@@ -169,12 +169,12 @@ describe('ToolCallsRow as the live step', () => {
   const line = (renderer: ReactTestRenderer): string[] => renderer.root.findByType('button')
     .findAll((n) => n.type === 'span' && typeof n.children[0] === 'string').map((n) => n.children[0] as string);
 
-  it('leads with the step under way, then what the run did before it', () => {
+  it('ends with the step under way, after what the run did before it', () => {
     let renderer!: ReactTestRenderer;
     act(() => { renderer = create(<LangProvider><ToolCallsRow calls={live} sessionId="s1" live /></LangProvider>); });
-    expect(line(renderer)).toEqual(['Thinking', 'Ran 1 command · Read parser.ts']);
+    expect(line(renderer)).toEqual(['Ran 1 command · Read parser.ts', 'Thinking']);
     act(() => renderer.update(<LangProvider><ToolCallsRow calls={live.slice(0, 2)} sessionId="s1" live /></LangProvider>));
-    expect(line(renderer)).toEqual(['Reading parser.ts', 'Ran 1 command']);
+    expect(line(renderer)).toEqual(['Ran 1 command', 'Reading parser.ts']);
     act(() => renderer.update(<LangProvider><ToolCallsRow calls={live.slice(0, 2)} sessionId="s1" /></LangProvider>));
     expect(line(renderer)).toEqual(['Ran 1 command · Read parser.ts']);
     act(() => renderer.unmount());
