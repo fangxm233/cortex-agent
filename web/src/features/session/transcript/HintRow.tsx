@@ -1,6 +1,7 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import type { SystemTurnOrigin } from '@cortex-agent/ui-contract';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
+import { Collapse, useEntryAnimation } from '@/design/Collapse';
 import { useVocab } from '@/i18n';
 import { messageTimeLabel } from './transcript-rows';
 import { systemOriginBody, systemOriginLabel, systemOriginSummary } from './system-origin';
@@ -53,6 +54,7 @@ export function HintRow(props: HintProps): JSX.Element {
   const canOpen = !!props.body;
   const toggle = (): void => setOpen((value) => !value);
   const title = canOpen && props.origin ? (open ? L.wbTeamHideFull : L.wbTeamShowFull) : undefined;
+  const entry = useEntryAnimation('cxmsg .34s cubic-bezier(.22,1,.36,1) both');
   return <div style={{ minWidth: 0 }}>
     <div className={`group${canOpen && !props.touch ? ' hover:bg-[var(--proto-gray)]' : ''}`} data-system-origin={props.origin} data-thinking={props.thinking || undefined}
       role={canOpen ? 'button' : undefined} tabIndex={canOpen ? 0 : undefined}
@@ -62,13 +64,15 @@ export function HintRow(props: HintProps): JSX.Element {
       style={{ display: 'flex', alignItems: 'center', gap: props.touch ? 9 : 10, width: 'calc(100% + 16px)', boxSizing: 'border-box',
         margin: '0 -8px', padding: '0 8px', minHeight: props.touch ? 40 : 30, borderRadius: 8,
         opacity: props.pending ? 0.55 : 1,
-        animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both', cursor: canOpen ? 'pointer' : undefined }}>
+        animation: entry, cursor: canOpen ? 'pointer' : undefined }}>
       <HintSummary {...props} open={open} canOpen={canOpen} />
     </div>
-    {open && canOpen && <div data-system-origin-body={props.origin ? '' : undefined} data-thinking-body={props.thinking || undefined}
-      style={{ ...bodyStyle, ...(props.touch ? touchBodyStyle : {}), ...(props.thinking ? mutedBodyStyle : {}) }}>
-      <ChatMarkdown text={props.body!} wideTables={!props.touch} dropTrailingHr={props.touch} />
-    </div>}
+    <Collapse open={open && canOpen}>
+      <div data-system-origin-body={props.origin ? '' : undefined} data-thinking-body={props.thinking || undefined}
+        style={{ ...bodyStyle, ...(props.touch ? touchBodyStyle : {}), ...(props.thinking ? mutedBodyStyle : {}) }}>
+        <ChatMarkdown text={props.body ?? ''} wideTables={!props.touch} dropTrailingHr={props.touch} />
+      </div>
+    </Collapse>
   </div>;
 }
 

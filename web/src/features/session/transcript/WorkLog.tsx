@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import type { WaitpointInfo } from '@cortex-agent/ui-contract';
+import { Collapse } from '@/design/Collapse';
 import { fmt, useLangOptional, useVocabOptional, type Vocab } from '@/i18n';
 import { formatSpanPrecise } from '@/i18n/time-format';
 import type { WorkStats } from './turn-layout';
@@ -77,11 +78,11 @@ export function WorkLog({ stats, live, touch = false, children, footer }: {
         onClick={() => setOverride(!open)}
         attrs={{ 'data-work-summary': '' }}
       />
-      {open && (
-        <div data-work-log-body="" style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: touch ? '2px 0 6px 25px' : '2px 0 6px 26px', minWidth: 0 }}>
+      <Collapse open={open}>
+        <div data-work-log-body="" style={{ display: 'flex', flexDirection: 'column', gap: touch ? 4 : 0, padding: touch ? '2px 0 6px 25px' : '7px 0 8px 26px', minWidth: 0 }}>
           {children}
         </div>
-      )}
+      </Collapse>
       {footer}
     </div>
   );

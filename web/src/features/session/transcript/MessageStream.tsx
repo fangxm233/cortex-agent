@@ -19,6 +19,8 @@ import type { DecisionItem } from '@cortex-agent/ui-contract';
 import { PlanReadOverlay } from '@/features/session/interaction/PlanReadOverlay';
 import { rewindStats, regenNoteIndexes, messageTimeLabel, assistantTurnCopyTargets, systemOriginDisplay, systemOriginLabel } from './transcript-vm';
 import { useRevealedText } from './useRevealedText';
+import { useNarrationHandoff } from './narration-handoff';
+import { useEntryAnimation } from '@/design/Collapse';
 import { DebugDetailsModal, DebugInspectButton, type DebugDetail } from './DebugDetailsModal';
 import { MessageActions, EditBox, RewindNote, RewindTail, EditedBadge, RegenNote } from './MessageEdit';
 import { ChatNotice } from './ChatNotice';
@@ -222,14 +224,18 @@ function AssistantBlock({ text, attachments, decisions, copyText, regen, preview
 }): JSX.Element {
   const hasAttachments = !!attachments && attachments.length > 0;
   const shown = useRevealedText(text, !!preview, streamKey);
+  const ref = useRef<HTMLDivElement>(null);
+  const entry = useEntryAnimation('cxmsg .34s cubic-bezier(.22,1,.36,1) both');
+  useNarrationHandoff(ref, text, streamKey, narration);
   return (
     <div
+      ref={ref}
       className="group"
       data-narration={narration ? 'true' : undefined}
       style={{
-        position: 'relative', animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both',
+        position: 'relative', animation: entry,
         fontSize: narration ? 14 : 14.5, lineHeight: narration ? 1.7 : 1.75, color: narration ? 'var(--proto-ink-3)' : 'var(--proto-ink-2)',
-        ...(narration ? { margin: '3px 0' } : {}),
+        ...(narration ? { margin: '5px 0' } : {}),
         minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word',
       }}
     >

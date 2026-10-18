@@ -1,4 +1,5 @@
 import { useRef, useState, type CSSProperties, type MouseEvent } from 'react';
+import { Collapse, useEntryAnimation } from '@/design/Collapse';
 import { MENU_FOCUS } from '@/design/MenuChrome';
 import { fmt, useVocab } from '@/i18n';
 import { useTRPCClient } from '@/lib/trpc';
@@ -20,9 +21,9 @@ const CATEGORY_ICON: Record<ToolCategory | 'thought', EventIconName> = {
 };
 
 const panelStyle: CSSProperties = {
-  display: 'flex', flexDirection: 'column', padding: '2px 0 4px 26px', cursor: 'pointer', animation: 'cxfade .2s ease',
+  display: 'flex', flexDirection: 'column', padding: '8px 0 8px 26px', cursor: 'pointer',
 };
-const callStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, minHeight: 24, minWidth: 0 };
+const callStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, minHeight: 25, minWidth: 0 };
 const kindStyle: CSSProperties = {
   fontSize: 11.5, fontWeight: 500, color: 'var(--proto-faint)', flex: 'none', padding: '0 5px', margin: '0 -5px',
   borderRadius: 'var(--r-chip)', border: '1px solid transparent',
@@ -59,7 +60,7 @@ function detailFor(call: ToolCall): DebugDetail | null {
 function CallLine({ call, touch, onInspect }: { call: ToolCall; touch: boolean; onInspect: Inspect }): JSX.Element {
   const category = toolCategory(call.kind);
   return (
-    <div className={call.debug ? 'group/tool-call' : undefined} data-tool-call="" style={{ ...callStyle, minHeight: touch ? 30 : 24 }}>
+    <div className={call.debug ? 'group/tool-call' : undefined} data-tool-call="" style={{ ...callStyle, minHeight: touch ? 30 : 25 }}>
       <span style={{ ...kindStyle, ...toolWarningStyle(call.debug?.overCharacterThreshold === true) }}>
         {category === 'other' ? bareToolName(call.kind) : call.kind}
       </span>
@@ -120,8 +121,9 @@ export function ToolCallsRow({ calls, sessionId, touch = false }: {
     }).catch(() => {});
   };
   const collapse = (): void => { setExpanded(false); buttonRef.current?.focus(); };
+  const entry = useEntryAnimation('cxrise .24s cubic-bezier(.22,1,.36,1) both');
   return (
-    <div data-tool-calls style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+    <div data-tool-calls style={{ display: 'flex', flexDirection: 'column', minWidth: 0, animation: entry }}>
       <button ref={buttonRef} type="button" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}
         className={`${MENU_FOCUS}${touch ? '' : ' hover:bg-[var(--proto-gray)]'}`} style={eventRowStyle(touch, true)}>
         <span style={{ width: 16, height: 16, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--proto-faint)' }}>
@@ -129,14 +131,12 @@ export function ToolCallsRow({ calls, sessionId, touch = false }: {
         </span>
         <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text}</span>
       </button>
-      {expanded ? (
-        <>
-          <div data-tool-calls-panel onClick={collapse} style={panelStyle}>
-            {calls.map((call, index) => <OpenCall key={index} call={call} touch={touch} onInspect={inspect} />)}
-          </div>
-          <DebugDetailsModal detail={selected} onClose={() => setSelected(null)} />
-        </>
-      ) : null}
+      <Collapse open={expanded}>
+        <div data-tool-calls-panel onClick={collapse} style={panelStyle}>
+          {calls.map((call, index) => <OpenCall key={index} call={call} touch={touch} onInspect={inspect} />)}
+        </div>
+      </Collapse>
+      {expanded ? <DebugDetailsModal detail={selected} onClose={() => setSelected(null)} /> : null}
     </div>
   );
 }
