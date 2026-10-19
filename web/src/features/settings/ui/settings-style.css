@@ -10,7 +10,7 @@
   --settings-card-fill: var(--material-card-bg);
   --settings-control-fill: var(--material-control-bg);
   --settings-boundary: var(--proto-line-2);
-  /* A hairline, like the cards': a field must not out-draw the chips and buttons beside it. */
+  /* A hairline: a field must not out-draw the chips and buttons beside it. */
   --settings-control-boundary: var(--proto-line-4);
   --settings-panel-padding: 20px;
   --settings-nav-width: 196px;
@@ -23,19 +23,17 @@
   overflow-wrap: anywhere;
 }
 
-.settings-surface :where(.settings-card, .settings-row-group, .settings-entity-row, .settings-stat) {
+.settings-surface :where(.settings-card, .settings-section, .settings-row-group, .settings-entity-row, .settings-stat) {
   min-width: 0;
   box-sizing: border-box;
 }
 
-.settings-surface .settings-card {
-  background: var(--settings-card-fill);
-  border: 1px solid var(--settings-boundary);
-  border-radius: var(--settings-card-radius);
-  box-shadow: var(--material-card-shadow);
-}
+/* Sections are flat: a heading over a hairline, then rows. Content that is not a run of rows gets
+   the same 12px under the heading's hairline that a row's own padding gives. */
+.settings-surface .settings-section-body > :first-child:not(.settings-row-group) { margin-top: 12px; }
+.settings-surface .settings-section-heading .settings-link-action { min-height: 0; }
 
-.settings-surface :where(.settings-row, .settings-card-header, .settings-section-heading, .settings-entity-row) {
+.settings-surface :where(.settings-row, .settings-section-heading, .settings-entity-row) {
   flex-wrap: wrap;
 }
 
@@ -130,18 +128,24 @@
     flex: none !important;
     overflow: visible !important;
   }
+  /* Stacked, the hairline between list and detail turns from vertical to horizontal. */
   .settings-surface .settings-list-pane {
     width: 100% !important;
     max-width: none !important;
     height: 280px;
     max-height: 45vh;
     flex: none !important;
+    padding-right: 0 !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid var(--proto-line-2);
   }
   .settings-surface .settings-detail-pane {
     width: 100% !important;
     flex: none !important;
     min-height: 360px !important;
     overflow: visible !important;
+    padding-left: 0 !important;
+    padding-top: 16px;
   }
 }
 @container settings-content (max-width: 480px) {

@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { GROUP_STYLE, S_CONTROL_STYLE } from './settings-ui';
+import { S_CONTROL_STYLE } from './settings-ui';
 import './settings-style.css';
 
 // Error changes only the existing boundary, never the control geometry.
@@ -7,14 +7,18 @@ export const CONTROL_ERROR_STYLE: CSSProperties = {
   ...S_CONTROL_STYLE, borderColor: 'var(--proto-danger)',
 };
 
-// Pair these styles with the settings-list-pane/settings-detail-pane/settings-editor-columns
-// classes so the surface's container query can stack editors when the content area is narrow.
+// One split panel, not two cards: the list sits left of a hairline, the detail to its right, and
+// neither is boxed. Pair these styles with the settings-list-pane/settings-detail-pane/
+// settings-editor-columns classes so the surface's container query can stack them when narrow.
 export function listPaneStyle(width: number): CSSProperties {
-  return { ...GROUP_STYLE, width, maxWidth: '100%', flex: 'none', minHeight: 0 };
+  return {
+    display: 'flex', flexDirection: 'column', boxSizing: 'border-box', width, maxWidth: '100%', flex: 'none',
+    minWidth: 0, minHeight: 0, paddingRight: 12, borderRight: '1px solid var(--proto-line-2)',
+  };
 }
 
 export const DETAIL_PANE_STYLE: CSSProperties = {
-  ...GROUP_STYLE, flex: 1, minWidth: 0, minHeight: 0,
+  display: 'flex', flexDirection: 'column', boxSizing: 'border-box', flex: 1, minWidth: 0, minHeight: 0, paddingLeft: 20,
 };
 
 /** The panel root inside the modal's bounded frame, and the row of panes it holds. */
@@ -23,24 +27,24 @@ export const EDITOR_ROOT_STYLE: CSSProperties = {
 };
 
 export const EDITOR_COLUMNS_STYLE: CSSProperties = {
-  display: 'flex', gap: 12, flex: 1, minWidth: 0, minHeight: 0, alignItems: 'stretch',
+  display: 'flex', flex: 1, minWidth: 0, minHeight: 0, alignItems: 'stretch',
 };
 
-/** A pane header: a hairline under it, never a box around it. */
+/** A pane header: a title line and its controls, with no rule under it. */
 export const PANE_HEADER_STYLE: CSSProperties = {
-  flex: 'none', padding: '12px 16px', borderBottom: '1px solid var(--proto-line-2)',
+  flex: 'none', padding: '0 0 10px',
 };
 
 export const PANE_BODY_STYLE: CSSProperties = {
-  flex: 1, minWidth: 0, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable', padding: 16,
+  flex: 1, minWidth: 0, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable', padding: '2px 0 12px',
 };
 
 export const LIST_BODY_STYLE: CSSProperties = {
-  flex: 1, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable', padding: '6px 8px',
+  flex: 1, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable', padding: '2px 0 8px',
 };
 
 export const LIST_EMPTY_STYLE: CSSProperties = {
-  padding: '16px 12px', fontSize: 12, color: 'var(--proto-muted-3)', lineHeight: 1.7,
+  padding: '10px 10px', fontSize: 12, color: 'var(--proto-muted-2)', lineHeight: 1.6,
 };
 
 const PANE_TITLE_STYLE: CSSProperties = {
@@ -87,7 +91,7 @@ export function ListHeader({ title, count, searchAttr, search, placeholder, onSe
 }
 
 const FOOTER_STYLE: CSSProperties = {
-  flex: 'none', borderTop: '1px solid var(--proto-line-2)', padding: '12px 16px',
+  flex: 'none', borderTop: '1px solid var(--proto-line-2)', padding: '10px 0 0',
   display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
 };
 

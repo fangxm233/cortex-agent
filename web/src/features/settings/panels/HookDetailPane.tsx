@@ -2,14 +2,15 @@ import type { CSSProperties, ReactNode } from 'react';
 import type { HookDetail, HookScriptInfo, HooksTestReturn } from '@cortex-agent/ui-contract';
 import { useVocab, type Vocab } from '@/i18n';
 import {
-  MonoKV,
   SButton,
+  SFacts,
   SLinkAction,
   SNotice,
   SPill,
   SSectionLabel,
   S_CONTROL_STYLE,
   Toggle,
+  type SFact,
   type SPillTone,
 } from '@/features/settings/ui/settings-ui';
 import {
@@ -46,10 +47,7 @@ const MOUNT_TONE: Record<HookMountTarget, SPillTone> = {
 };
 
 // Fact sheets are labels and values in the UI face; the values that are literal config (an event
-// name, a matcher, a command, a tool name) are set in the code face one by one.
-const FACTS_STYLE: CSSProperties = {
-  fontSize: 12.5, lineHeight: 1.7, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted)',
-};
+// name, a matcher, a command, a file, a tool name) are set in the code face one by one.
 
 // ── small presentational atoms ────────────────────────────────────────────────────────────────
 
@@ -73,8 +71,8 @@ function Mono({ children }: { children: ReactNode }) {
 
 // ── read-only declaration ─────────────────────────────────────────────────────────────────────
 
-function declarationRows(hook: HookDetail, L: Vocab): { k: string; v: ReactNode }[] {
-  const rows: { k: string; v: ReactNode }[] = [
+function declarationRows(hook: HookDetail, L: Vocab): SFact[] {
+  const rows: SFact[] = [
     { k: L.hkFieldEvent, v: <Mono>{hook.event}</Mono> },
     {
       k: matcherKindForEvent(hook.event) === 'filters' ? L.hkFieldFilters : L.hkFieldMatcher,
@@ -95,13 +93,7 @@ function declarationRows(hook: HookDetail, L: Vocab): { k: string; v: ReactNode 
 
 function ReadOnlyDeclaration({ hook }: { hook: HookDetail }) {
   const L = useVocab();
-  return (
-    <div style={FACTS_STYLE}>
-      {declarationRows(hook, L).map((row) => (
-        <MonoKV key={row.k} k={row.k} value={row.v} />
-      ))}
-    </div>
-  );
+  return <SFacts data-hook-declaration="" rows={declarationRows(hook, L)} />;
 }
 
 // ── the test runner ───────────────────────────────────────────────────────────────────────────
@@ -330,17 +322,14 @@ function RegistryFacts({ hook }: { hook: HookDetail }) {
   return (
     <>
       <SSectionLabel>{L.hkSecRegistry}</SSectionLabel>
-      <div style={FACTS_STYLE}>
-        <MonoKV k={L.hkFieldSource} value={sourceLabel(hook.source, L)} />
-        <MonoKV k={L.hkFieldFile} value={hook.fileName ?? '—'} />
-        <MonoKV k={L.hkFieldOrder} value={String(hook.order)} />
-        <MonoKV k={L.hkFieldVersion} value={hook.version ?? '—'} />
-        <MonoKV
-          k={L.hkFieldBlocking}
-          value={hook.blocking === null ? '—' : `${hook.blocking.mode} · ${hook.blocking.ttlMin} ${minUnit}`}
-        />
-        <MonoKV k={L.hkFieldMountsOn} value={hook.mountsOn.join(' · ') || '—'} />
-      </div>
+      <SFacts data-hook-registry="" rows={[
+        { k: L.hkFieldSource, v: sourceLabel(hook.source, L) },
+        { k: L.hkFieldFile, v: hook.fileName ? <Mono>{hook.fileName}</Mono> : '—' },
+        { k: L.hkFieldOrder, v: String(hook.order) },
+        { k: L.hkFieldVersion, v: hook.version ?? '—' },
+        { k: L.hkFieldBlocking, v: hook.blocking === null ? '—' : `${hook.blocking.mode} · ${hook.blocking.ttlMin} ${minUnit}` },
+        { k: L.hkFieldMountsOn, v: hook.mountsOn.join(' · ') || '—' },
+      ]} />
       {hook.appliesAt !== null ? (
         <div
           data-hook-applies-at={hook.appliesAt}

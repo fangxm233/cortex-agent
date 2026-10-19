@@ -8,7 +8,7 @@ import { connectionPatch, hasConnectionChanges, FIELD_LABELS, type PlatformDraft
 import { PS_BLOCK_STYLE, PS_HINT_STYLE } from '@/features/settings/ui/platform-ui';
 import { PlatformAvatar } from './SettingsPanels';
 import {
-  CARD_STYLE, SButton, SLinkAction, SNotice, SPill, SRow, SRowGroup, SSection, Toggle,
+  SButton, SLinkAction, SNotice, SPill, SRow, SRowGroup, SSection, Toggle,
   type SPillTone,
 } from '@/features/settings/ui/settings-ui';
 import { safeCredentialTransport } from '@/lib/sensitive-transport';
@@ -103,7 +103,7 @@ export function PlatformCard(props: CardProps) {
     if (!dirty || props.pending || !props.secure) return;
     if (await props.saveConnection(patch)) setDraft({});
   };
-  return <article className="settings-platform-card" data-platform={props.platform.platform} style={{ ...CARD_STYLE, minWidth: 0, overflow: 'hidden' }}>
+  return <article className="settings-platform-card" data-platform={props.platform.platform} style={{ minWidth: 0 }}>
     <PlatformHeader platform={props.platform} />
     <ConnectionEditor {...props} enabled={enabled} setEnabled={setEnabled} draft={draft} setDraft={setDraft}
       dirty={dirty} onSave={() => void save()} onReset={reset} />
