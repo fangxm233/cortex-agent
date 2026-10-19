@@ -45,10 +45,12 @@ export function Collapse({ open, children }: { open: boolean; children: ReactNod
     const height = el.getBoundingClientRect().height;
     el.style.overflow = 'hidden';
     const frames = [{ height: '0px', opacity: 0 }, { height: `${height}px`, opacity: 1 }];
-    // Closing holds its last frame until the unmount lands, or the body flashes back for a frame.
+    // Closing holds its last frame, still clipped, until the unmount lands: unclipped, the body
+    // would spill out of its zero height and stretch the scroller for a frame, and a pinned view
+    // would jump to the stretched bottom and back.
     const animation = el.animate(open ? frames : frames.reverse(), { duration: OPEN_MS, easing: EASE, fill: open ? 'none' : 'forwards' });
     animation.onfinish = () => {
-      el.style.overflow = '';
+      if (open) el.style.overflow = '';
       done();
     };
     return () => {
