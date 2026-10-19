@@ -85,7 +85,7 @@ function ParentCrumb({ parent }: { parent: ChatHeaderParent }): JSX.Element {
 // The header folds as its pane narrows, one step at a time and only as far as it must (useFitLevel):
 // the title first gives up width down to TITLE_MIN, then
 //   1 · the project crumb goes,
-//   2 · the board capsule folds to its flag and amber count,
+//   2 · the board capsule folds to its flag and amber count, the browser capsule to its glyph,
 //   3 · the team capsule folds to its dots and a worker count,
 //   4 · the title may shrink below TITLE_MIN,
 //   5 · the capsules go (the last resort of a pane narrower than any header).
@@ -110,6 +110,7 @@ export function ChatHeader({
   parent,
   team,
   board,
+  browser,
 }: {
   title: string;
   running: boolean;
@@ -122,12 +123,14 @@ export function ChatHeader({
   team?: ReactNode;
   /** The bound board's capsule, beside the team's. */
   board?: ReactNode;
+  /** The session's agent browser, while it holds one. */
+  browser?: ReactNode;
 }): JSX.Element {
   const L = useVocab();
   const notes = useNotes();
   const [sessionIdOpen, setSessionIdOpen] = useState(false);
   const { ref, level } = useFitLevel<HTMLDivElement>(FIT_MAX, headerOverflows,
-    [title, projectName ?? '', parent?.title ?? '', team ? 't' : '', board ? 'b' : ''].join('\n'));
+    [title, projectName ?? '', parent?.title ?? '', team ? 't' : '', board ? 'b' : '', browser ? 'a' : ''].join('\n'));
   const fit = useMemo<HeaderCapsuleFit>(() => ({
     board: level >= 2 ? 'compact' : 'full',
     team: level >= 3 ? 'compact' : 'full',
@@ -198,6 +201,7 @@ export function ChatHeader({
           <HeaderCapsuleFitContext.Provider value={fit}>
             {team}
             {board}
+            {browser}
           </HeaderCapsuleFitContext.Provider>
         )}
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, flex: 'none' }}>

@@ -23,13 +23,25 @@ export interface CmdkItem {
   projectId: string;
   /** Board rows: the board to open in the dock. */
   boardId?: string;
+  /** Agent-browser rows: the session whose browser to open in the dock. */
+  browserSessionId?: string;
   keywords: string[];
+}
+
+/** A session's leased browser, as the palette lists it. */
+export interface CmdkBrowser {
+  sessionId: string;
+  device: string;
+  url?: string;
+  title?: string;
 }
 
 export interface CmdkSources {
   sessions: SessionInfo[];
   /** Already ordered: most recently updated first. */
   boards?: BoardInfo[];
+  /** Sessions holding a browser right now. */
+  browsers?: CmdkBrowser[];
 }
 
 export interface CmdkCommand {
@@ -59,6 +71,7 @@ export interface PaletteRow {
   focusId?: string;
   projectId?: string;
   boardId?: string;
+  browserSessionId?: string;
   keywords: string[];
   labelKey?: keyof Vocab;
   subKey?: keyof Vocab;
@@ -97,8 +110,25 @@ function boardItem(b: BoardInfo): CmdkItem {
   };
 }
 
-export function buildCmdkItems({ sessions, boards = [] }: CmdkSources): CmdkItem[] {
-  return [...boards.map(boardItem), ...sessions.map(sessionItem)];
+/** A browser row is labelled by its session (the rail's label) and placed by device and page. */
+function browserItem(b: CmdkBrowser, sessions: SessionInfo[]): CmdkItem {
+  const session = sessions.find((s) => s.sessionId === b.sessionId);
+  let host = '';
+  try {
+    host = b.url ? new URL(b.url).host : '';
+  } catch {
+    host = '';
+  }
+  return {
+    id: `browser:${b.sessionId}`, label: session?.label || shortSessionId(b.sessionId),
+    sub: [b.device, host || b.title].filter(Boolean).join(' · '), kbd: 'browser', route: '/workbench',
+    focusId: b.sessionId, projectId: session?.projectId ?? '', browserSessionId: b.sessionId,
+    keywords: tokens(b.sessionId, b.device, b.url, b.title),
+  };
+}
+
+export function buildCmdkItems({ sessions, boards = [], browsers = [] }: CmdkSources): CmdkItem[] {
+  return [...browsers.map((b) => browserItem(b, sessions)), ...boards.map(boardItem), ...sessions.map(sessionItem)];
 }
 
 // Static navigation command rows (prototype OV/ST legs + section jumps). The prototype also lists
@@ -157,7 +187,7 @@ export function selectPaletteRows(
 
   if (!q) {
     const byKind = (kbd: string) => entities.filter((e) => e.kbd === kbd);
-    return [...nav, ...byKind('board').slice(0, recentBoards), ...byKind('session').slice(0, restPerKind)];
+    return [...nav, ...byKind('browser'), ...byKind('board').slice(0, recentBoards), ...byKind('session').slice(0, restPerKind)];
   }
 
   const kindWords = opts.kindWords ?? {};
@@ -173,7 +203,7 @@ export function selectPaletteRows(
 // as before; the headings only name what each run is. Nav rows split by target: a route is a page,
 // an in-place modal (settings) is an action.
 
-export type PaletteGroupKey = 'page' | 'action' | 'board' | 'session';
+export type PaletteGroupKey = 'page' | 'action' | 'browser' | 'board' | 'session';
 
 export interface PaletteGroup {
   key: PaletteGroupKey | string;
@@ -200,10 +230,10 @@ export function groupPaletteRows(rows: PaletteRow[]): PaletteGroup[] {
 /** The group heading in the UI language; an unknown kind shows as-is. */
 export function paletteGroupLabel(
   key: string,
-  L: Pick<Vocab, 'palGroupPage' | 'palGroupAction' | 'palGroupBoard' | 'palGroupSession'>,
+  L: Pick<Vocab, 'palGroupPage' | 'palGroupAction' | 'palGroupBrowser' | 'palGroupBoard' | 'palGroupSession'>,
 ): string {
   const labels: Record<string, string> = {
-    page: L.palGroupPage, action: L.palGroupAction, board: L.palGroupBoard, session: L.palGroupSession,
+    page: L.palGroupPage, action: L.palGroupAction, browser: L.palGroupBrowser, board: L.palGroupBoard, session: L.palGroupSession,
   };
   return labels[key] ?? key;
 }

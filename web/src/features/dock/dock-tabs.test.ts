@@ -7,6 +7,8 @@ import {
   closeTab,
   evictOverflow,
   fileTabKey,
+  openAgentBrowserTab,
+  openBoardTab,
   openFileTab,
   openWebTab,
   reorderTabs,
@@ -186,5 +188,17 @@ describe('syncBodyOrder', () => {
     const tabs = [web('a'), web('b'), web('c')];
     const order = syncBodyOrder([], tabs);
     expect(syncBodyOrder(order, [tabs[2]!, tabs[1]!, tabs[0]!])).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('openAgentBrowserTab', () => {
+  it('opens one tab per session and focuses it on a second open', () => {
+    let state = openAgentBrowserTab(null, 's1', 'ab-1');
+    state = openBoardTab(state, 'b1', 'board-1');
+    state = openAgentBrowserTab(state, 's2', 'ab-2');
+    expect(state.tabs.map((tab) => tab.id)).toEqual(['ab-1', 'board-1', 'ab-2']);
+    state = openAgentBrowserTab(state, 's1', 'ab-3');
+    expect(state.tabs).toHaveLength(3);
+    expect(state.activeId).toBe('ab-1');
   });
 });

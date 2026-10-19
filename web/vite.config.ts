@@ -40,16 +40,23 @@ const CLIENT_TOKEN = (process.env.CORTEX_CLIENT_TOKEN ?? '').trim();
 // own requests drop Origin and ride the injected token like any non-browser client. A request
 // from any OTHER page keeps its foreign Origin and is refused — the proxy holds the token, so it
 // must not lend it to whatever site the developer happens to have open.
+const dropOwnOrigin = (proxyReq: { removeHeader: (name: string) => void }, req: { headers: Record<string, string | string[] | undefined> }): void => {
+  const origin = req.headers.origin;
+  try {
+    if (typeof origin === 'string' && new URL(origin).host === req.headers.host) proxyReq.removeHeader('origin');
+  } catch {
+    // Unparseable Origin (e.g. `null`): leave it for the server to refuse.
+  }
+};
+
+// WebSocket handshakes (the agent browser stream) get the same Origin treatment but NOT the token:
+// the stream authenticates with a ticket the page fetched over the proxied HTTP routes.
 const proxyAsDevPage = (proxy: HttpProxy.Server): void => {
   proxy.on('proxyReq', (proxyReq, req) => {
     if (CLIENT_TOKEN) proxyReq.setHeader('x-cortex-token', CLIENT_TOKEN);
-    const origin = req.headers.origin;
-    try {
-      if (origin && new URL(origin).host === req.headers.host) proxyReq.removeHeader('origin');
-    } catch {
-      // Unparseable Origin (e.g. `null`): leave it for the server to refuse.
-    }
+    dropOwnOrigin(proxyReq, req);
   });
+  proxy.on('proxyReqWs', (proxyReq, req) => dropOwnOrigin(proxyReq, req));
 };
 
 // `import uri from './x.woff2?data-uri'` → the file as a base64 `data:` URI string. The board
@@ -97,6 +104,7 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:3004',
         changeOrigin: true,
+        ws: true,
         configure: proxyAsDevPage,
       },
     },

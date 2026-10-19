@@ -19,7 +19,8 @@ const BOARDS = [
   { id: 'b-older', projectId: 'orchard', slug: 'older', title: 'Older board', createdAt: '2026-07-01T00:00:00Z', updatedAt: '2026-07-02T00:00:00Z' },
 ];
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: (o: { queryKey: string[] }) => ({ data: o.queryKey[0] === 'boards' ? BOARDS : [{ sessionId: 's1', projectId: 'orchard', label: 'Session' }] }),
+  useQuery: (o: { queryKey: string[] }) => ({ data: o.queryKey[0] === 'boards' ? BOARDS
+    : o.queryKey[0] === 'agent-browser' ? [] : [{ sessionId: 's1', projectId: 'orchard', label: 'Session' }] }),
 }));
 vi.mock('cmdk', () => {
   const wrapper = ({ children }: { children: ReactNode }) => <div>{children}</div>;

@@ -8,6 +8,7 @@ import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { useSettings } from '@/features/settings/useSettings';
 import { useDockIntake } from '@/design/dock-intake';
+import { useAgentBrowsers } from '@/features/agent-browser/useAgentBrowsers';
 import {
   groupPaletteRows, labelSegments, paletteGroupLabel, selectPaletteRows, type PaletteRow,
 } from './palette-items';
@@ -124,6 +125,7 @@ export interface CommandPaletteProps {
 const GROUP_ICON_PATHS: Record<string, string> = {
   page: 'M2.5 2.5h4.5v4.5H2.5zM9 2.5h4.5v4.5H9zM2.5 9h4.5v4.5H2.5zM9 9h4.5v4.5H9z',
   action: 'M8 5.8a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4zM8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6',
+  browser: 'M3.5 3h9a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5v-7A1.5 1.5 0 0 1 3.5 3zM2 6h12M7.5 8.5l2.5 2.5M7.5 8.5v3l1-1',
   board: 'M4 14V2.5M4 3h8l-2 3 2 3H4',
   session: 'M3 4h10v7H7l-3 2.5V11H3z',
 };
@@ -176,10 +178,11 @@ function usePaletteRows(open: boolean, query: string): PaletteRow[] {
   const L = useVocab();
   const sessions = useQuery(trpc.sessions.list.queryOptions({}, { enabled: open, staleTime: STALE }));
   const boards = useQuery(trpc.boards.list.queryOptions({}, { enabled: open, staleTime: STALE }));
+  const browsers = useAgentBrowsers({ enabled: open });
   return useMemo(
-    () => selectPaletteRows(query, { sessions: sessions.data ?? [], boards: boards.data ?? [] },
-      { kindWords: { board: L.palKindBoard, session: L.palKindSession } }),
-    [query, sessions.data, boards.data, L],
+    () => selectPaletteRows(query, { sessions: sessions.data ?? [], boards: boards.data ?? [], browsers: browsers.data ?? [] },
+      { kindWords: { board: L.palKindBoard, session: L.palKindSession, browser: L.palKindBrowser } }),
+    [query, sessions.data, boards.data, browsers.data, L],
   );
 }
 
@@ -188,10 +191,17 @@ function usePaletteTarget(onOpenChange: (open: boolean) => void) {
   const { open: openSettings } = useSettings();
   const { setCurrentProject } = useCurrentProject();
   const { setSelectedSession } = useSelectedSession();
-  const { openBoard } = useDockIntake();
+  const { openBoard, openAgentBrowser } = useDockIntake();
   return (row: PaletteRow) => {
     onOpenChange(false);
     if (row.modal === 'settings') return openSettings();
+    if (row.browserSessionId) {
+      // The session comes up beside its browser, so the chat the agent works in stays in view.
+      navigate('/workbench');
+      if (row.projectId) setCurrentProject(row.projectId);
+      if (row.focusId) setSelectedSession(row.focusId);
+      return openAgentBrowser(row.browserSessionId);
+    }
     if (row.boardId) {
       // The dock lives on the workbench; the board opens there whichever page the palette was on.
       navigate('/workbench');

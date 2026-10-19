@@ -8,13 +8,15 @@ import { ActivityChip, CHIP_TEXT } from '@/features/session/rail/ActivityChip';
 import { BoardIcon } from '@/features/board/BoardIcon';
 import { BOARD_FLAG_COLOR, boardFlagTone, boardSummary } from '@/features/board/board-summary';
 import { useBoardLive } from '@/features/board/useBoard';
+import { AgentBrowserChip } from '@/features/agent-browser/AgentBrowserCapsule';
+import { useAgentBrowser } from '@/features/agent-browser/useAgentBrowsers';
 import { MBottomSheet, M_NUM } from '@/mobile/ui/kit';
 import { hasActiveWorker, MTeamChip } from './MChatTeam';
 import type { MChatViewProps } from './MChatView.types';
 import type { ChatOverlay } from './useChatOverlay';
 
 // The phone's activity strip: one row of capsules hanging above the composer — the task list, the
-// waitpoints, the team and the board — in place of a bar each. Every capsule says what it is in
+// waitpoints, the team, the board and the agent's browser — in place of a bar each. Every capsule says what it is in
 // words (任务 3/7 · 等待 … · 2 个 worker · 看板) beside its glyph: a phone has no hover to explain a
 // bare ring, dot or flag. Every capsule opens a sheet (the board, its full-screen view), so nothing
 // unfolds in place over the transcript.
@@ -82,13 +84,15 @@ function useActivity(props: MChatViewProps) {
 export function MChatActivityStrip({ props, overlay }: { props: MChatViewProps; overlay: ChatOverlay }): JSX.Element | null {
   const { lang, todo, wait, team } = useActivity(props);
   const boardId = props.boardId ?? null;
-  if (!todo && !wait && !team && !boardId) return null;
+  const browser = useAgentBrowser(props.sessionId ?? null, { running: props.status.running });
+  if (!todo && !wait && !team && !boardId && !browser) return null;
   return (
     <div data-activity-strip="" style={STRIP}>
       {todo && <MTodoCapsule vm={todo} onOpen={() => overlay.open('todo')} />}
       {wait && <WaitChip vm={wait} lang={lang} floating onToggle={() => overlay.open('wait')} />}
       {team && <MTeamChip workers={props.workers ?? []} onOpen={() => overlay.open('team')} />}
       {boardId && <MBoardCapsule boardId={boardId} onOpen={() => overlay.openBoard(boardId)} />}
+      {browser && <AgentBrowserChip session={browser} onOpen={() => overlay.open('agentBrowser')} />}
     </div>
   );
 }

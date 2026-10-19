@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, type CSSProperties } from 'react';
 import { WebBody } from '@/features/browser/WebBody';
 import { BoardDockBody } from '@/features/board/BoardDockBody';
+import { AgentBrowserView } from '@/features/agent-browser/AgentBrowserView';
 import { DockDivider } from './DockDivider';
 import { DockCentered, DockFileBody, dockFileBackground } from './DockFileBody';
 import { CloseGlyph, DockTabStrip } from './DockTabStrip';
 import { useDock } from './DockProvider';
 import { useVocabOptional } from '@/i18n';
 import {
+  isAgentBrowserTab,
   isBoardTab,
   isFileTab,
   syncBodyOrder,
@@ -64,16 +66,17 @@ export function DockPane(): JSX.Element | null {
         {state === null
           ? <DockCentered>{L.dockEmptyHint}</DockCentered>
           : bodyOrder.current.map((id) => (
-            <DockTabBody key={id} state={state} id={id} onUpdateWeb={updateWeb} />
+            <DockTabBody key={id} state={state} id={id} paneOpen={open} onUpdateWeb={updateWeb} />
           ))}
       </div>
     </div>
   );
 }
 
-function DockTabBody({ state, id, onUpdateWeb }: {
+function DockTabBody({ state, id, paneOpen, onUpdateWeb }: {
   state: DockState;
   id: string;
+  paneOpen: boolean;
   onUpdateWeb: (id: string, update: (tab: WebDockTab) => WebDockTab) => void;
 }): JSX.Element | null {
   const tab: DockTab | undefined = state.tabs.find((candidate) => candidate.id === id);
@@ -95,7 +98,8 @@ function DockTabBody({ state, id, onUpdateWeb }: {
     <div data-dock-tab-body={tab.id} style={style}>
       {isFileTab(tab) ? <DockFileBody item={tab.item} />
         : isBoardTab(tab) ? <BoardDockBody boardId={tab.boardId} />
-          : <WebBody tab={tab} active={active} onUpdate={update} />}
+          : isAgentBrowserTab(tab) ? <AgentBrowserView sessionId={tab.sessionId} visible={active && paneOpen} />
+            : <WebBody tab={tab} active={active} onUpdate={update} />}
     </div>
   );
 }

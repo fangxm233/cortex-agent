@@ -16,6 +16,8 @@ import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { useProjectSessions } from '@/features/projects/useProjectSessions';
 import { DockedBoardCapsule } from '@/features/board/BoardCapsule';
+import { DockedAgentBrowserCapsule } from '@/features/agent-browser/AgentBrowserCapsule';
+import { useAgentBrowser } from '@/features/agent-browser/useAgentBrowsers';
 import { BoardStreamProvider } from '@/features/board/BoardChatRows';
 import { useAutoOpenNewBoard } from '@/features/board/useAutoOpenNewBoard';
 import { useTeamContext } from '@/features/team/useTeamContext';
@@ -151,6 +153,8 @@ export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
   const chat = useChatSession(sessionId, active, {
     isDraft, projectId: currentProjectId ?? 'general', scheduledRuns: scheduledSessionsQuery.data,
   });
+  // The session's browser, if it holds one: its capsule shows where it runs and what it is doing.
+  const agentBrowser = useAgentBrowser(isDraft || !active ? null : active.sessionId, { running: chat.running });
   const selectionFailed = sessionsQuery.isError || scheduledSessionsQuery.isError;
   const selectionTitle = sessionId ? shortSessionId(sessionId) : selectionFailed ? L.wbSessionsFailed : L.cmLoading;
   const title = isDraft
@@ -216,6 +220,7 @@ export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
         parent={team.lead ? { title: sessionDisplayTitle(team.lead, null), onSelect: () => setSelectedSession(team.lead!.sessionId) } : null}
         team={team.workers.length > 0 ? <TeamCapsule workers={team.workers} onOpen={setSelectedSession} /> : null}
         board={!isDraft && active?.boardId ? <DockedBoardCapsule boardId={active.boardId} /> : null}
+        browser={agentBrowser ? <DockedAgentBrowserCapsule session={agentBrowser} /> : null}
       />
       <div
         data-chat-phase={preFirstMessage ? 'pre-start' : 'active'}

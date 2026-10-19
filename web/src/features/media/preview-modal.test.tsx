@@ -7,7 +7,10 @@ import { usePreviewHost, usePreviewModalChrome, type PreviewHost } from './previ
 const DOC: DocItem = { kind: 'text', name: 'a.md', path: 'workspace/a.md' };
 
 function dockValue(over: Partial<DockIntakeValue>): DockIntakeValue {
-  return { canDock: false, active: false, activeKind: null, activeBoardId: null, openFile: vi.fn(), openWeb: vi.fn(), openBoard: vi.fn(), ...over };
+  return {
+    canDock: false, active: false, activeKind: null, activeBoardId: null, activeAgentBrowserSession: null,
+    openFile: vi.fn(), openWeb: vi.fn(), openBoard: vi.fn(), openAgentBrowser: vi.fn(), ...over,
+  };
 }
 
 function renderHost(dock?: DockIntakeValue): { host: () => PreviewHost<DocItem> } {

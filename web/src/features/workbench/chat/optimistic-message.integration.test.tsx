@@ -186,6 +186,8 @@ vi.mock('@/features/media/MediaViewer', () => ({ useMediaViewer: () => ({ openMe
 vi.mock('@/features/media/DocViewer', () => ({ useDocViewer: () => ({ openDoc: vi.fn() }) }));
 vi.mock('./ChatHeader', () => ({ ChatHeader: (props: any) => <div data-chat-header data-title={props.title} data-metadata-session={props.metadataSession} data-parent={props.parent?.title ?? null}>{props.team}{props.board}</div> }));
 vi.mock('@/features/board/BoardCapsule', () => ({ DockedBoardCapsule: ({ boardId }: { boardId: string }) => <span data-board-capsule={boardId} /> }));
+vi.mock('@/features/agent-browser/useAgentBrowsers', () => ({ useAgentBrowser: () => null }));
+vi.mock('@/features/agent-browser/AgentBrowserCapsule', () => ({ DockedAgentBrowserCapsule: () => null }));
 vi.mock('@/features/session/composer/ContextUsageControl', () => ({ ContextUsageControl: () => null }));
 vi.mock('@/features/workbench/composer/DraftProjectSelector', () => ({ DraftProjectSelector: () => null }));
 vi.mock('@/features/session/transcript/MessageStream', async () => {

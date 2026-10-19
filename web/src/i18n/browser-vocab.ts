@@ -1,4 +1,5 @@
-// Docked browser pane: toolbar, ports panel, empty/refused states and forward failures.
+// Docked browser pane: toolbar, ports panel, empty/refused states and forward failures; and the
+// agent's own browser (live view, takeover).
 export const browserEn = {
   brToolbar: 'Browser controls',
   brReload: 'Reload',
@@ -30,6 +31,25 @@ export const browserEn = {
   brForwardPrivilegedPort: 'Only ports 1024 and above can be forwarded',
   brForwardNoServer: 'No server is configured',
   brForwardNoToken: 'No token is configured',
+  // The agent's own browser: dock tab, header capsule, takeover.
+  abTitle: 'Agent browser',
+  abCapsule: 'Browser',
+  abOpen: 'Open the agent browser',
+  abStarting: 'Starting…',
+  abFailed: 'Browser failed to start',
+  abConnecting: 'Connecting…',
+  abReconnecting: 'Reconnecting…',
+  abNone: 'This session has no open browser.',
+  abTakeOver: 'Take over',
+  abTakeOverTitle: 'Control the page yourself. The agent waits until you hand it back.',
+  abHandBack: 'Hand back',
+  abInControl: 'You are in control',
+  abPasteLabel: 'Text to type into the page',
+  abPastePlaceholder: 'Type or paste text, Enter to send',
+  abPasteSend: 'Send',
+  abActionFailed: 'Failed: {message}',
+  palKindBrowser: 'browser',
+  palGroupBrowser: 'Agent browsers',
 };
 export const browserZh: Record<keyof typeof browserEn, string> = {
   brToolbar: '浏览器控制',
@@ -62,4 +82,22 @@ export const browserZh: Record<keyof typeof browserEn, string> = {
   brForwardPrivilegedPort: '只能转发 1024 及以上的端口',
   brForwardNoServer: '尚未配置服务器',
   brForwardNoToken: '尚未配置令牌',
+  abTitle: 'Agent 浏览器',
+  abCapsule: '浏览器',
+  abOpen: '打开 Agent 浏览器',
+  abStarting: '启动中…',
+  abFailed: '浏览器启动失败',
+  abConnecting: '连接中…',
+  abReconnecting: '正在重新连接…',
+  abNone: '这个会话没有打开的浏览器。',
+  abTakeOver: '接管',
+  abTakeOverTitle: '由你来操作页面，交还之前 agent 会等待。',
+  abHandBack: '交还',
+  abInControl: '你正在操作',
+  abPasteLabel: '要输入到页面的文本',
+  abPastePlaceholder: '输入或粘贴文本，回车发送',
+  abPasteSend: '发送',
+  abActionFailed: '失败：{message}',
+  palKindBrowser: '浏览器',
+  palGroupBrowser: 'Agent 浏览器',
 };

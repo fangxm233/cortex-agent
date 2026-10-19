@@ -1,0 +1,59 @@
+/* The agent's browser reuses the docked browser's toolbar and notice rows (browser.css); only the
+   read-only address, the status dot, the control strip and the stage are its own. */
+.agent-browser-address { cursor: default; font-family: var(--font-ui); font-size: 12.5px; }
+.agent-browser-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--proto-muted-3);
+}
+.agent-browser-dot[data-status='live'] { background: var(--proto-success); }
+.agent-browser-dot:is([data-status='starting'], [data-status='connecting'], [data-status='retrying']) { background: var(--proto-amber-fg); }
+.agent-browser-dot[data-status='error'] { background: var(--proto-danger); }
+.agent-browser-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 50%;
+  color: var(--proto-ink);
+  font-weight: 550;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-browser-url {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--proto-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-browser-device { flex: none; color: var(--proto-muted); white-space: nowrap; }
+
+.agent-browser-control { gap: 8px; padding: 6px 8px; }
+.agent-browser-in-control { flex: none !important; color: var(--proto-accent); font-family: var(--font-ui); font-size: 12.5px; }
+.agent-browser-paste { flex: 1 1 auto; height: 28px; }
+
+.agent-browser-stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  background: var(--material-inset-bg);
+}
+.agent-browser-stage[data-taken-over='true'] { box-shadow: inset 0 0 0 2px var(--proto-accent); }
+.agent-browser-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  max-width: none;
+  margin: 0;
+  pointer-events: none;
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+.agent-browser-error-detail { max-width: 420px; overflow-wrap: anywhere; color: var(--proto-muted); }

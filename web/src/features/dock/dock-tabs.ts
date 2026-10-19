@@ -28,7 +28,14 @@ export interface BoardDockTab {
   boardId: string;
 }
 
-export type DockTab = FileDockTab | WebDockTab | BoardDockTab;
+/** A session's agent browser, live. Like a board, its label reads the session's record live. */
+export interface AgentBrowserDockTab {
+  kind: 'agent-browser';
+  id: string;
+  sessionId: string;
+}
+
+export type DockTab = FileDockTab | WebDockTab | BoardDockTab | AgentBrowserDockTab;
 
 // ── Generic tab container ─────────────────────────────────────────────────────
 // Add / select / reorder / close only ever touch `id` and `activeId`, so the container is generic
@@ -105,6 +112,10 @@ export function isBoardTab(tab: DockTab): tab is BoardDockTab {
   return tab.kind === 'board';
 }
 
+export function isAgentBrowserTab(tab: DockTab): tab is AgentBrowserDockTab {
+  return tab.kind === 'agent-browser';
+}
+
 /** pdf/text/html render through the DocViewer bodies; image/video render as media. */
 export function isDocItem(item: FileItem): item is DocItem {
   return item.kind === 'pdf' || item.kind === 'text' || item.kind === 'html';
@@ -172,6 +183,17 @@ export function openBoardTab(state: DockState | null, boardId: string, id: strin
     if (existing) return selectTab(state, existing.id);
   }
   const tab: BoardDockTab = { kind: 'board', id, boardId };
+  if (state === null) return { tabs: [tab], activeId: id };
+  return evictOverflow(addTab(state, tab));
+}
+
+/** Show a session's agent browser: focus its tab when it is already open, else append one. */
+export function openAgentBrowserTab(state: DockState | null, sessionId: string, id: string): DockState {
+  if (state !== null) {
+    const existing = state.tabs.find((tab) => isAgentBrowserTab(tab) && tab.sessionId === sessionId);
+    if (existing) return selectTab(state, existing.id);
+  }
+  const tab: AgentBrowserDockTab = { kind: 'agent-browser', id, sessionId };
   if (state === null) return { tabs: [tab], activeId: id };
   return evictOverflow(addTab(state, tab));
 }

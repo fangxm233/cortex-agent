@@ -6,7 +6,10 @@ import { browserTabChip, browserTabForwardSource, currentUrl, type BrowserTabChi
 import { useVocabOptional, type Vocab } from '@/i18n';
 import { BoardTabTitle } from '@/features/board/BoardDockBody';
 import { BoardIcon } from '@/features/board/BoardIcon';
-import { dockTabLabel, isBoardTab, isFileTab, isWebTab, type DockState, type DockTab, type WebDockTab } from './dock-tabs';
+import { AgentBrowserTabTitle } from '@/features/agent-browser/AgentBrowserTabTitle';
+import {
+  dockTabLabel, isAgentBrowserTab, isBoardTab, isFileTab, isWebTab, type DockState, type DockTab, type WebDockTab,
+} from './dock-tabs';
 import './dock-chrome.css';
 
 // Keep the strip at the chat header's 50px height. Only chrome reorders; the pane's
@@ -84,16 +87,21 @@ const DockTabItem = forwardRef<HTMLDivElement, DockTabItemProps>(function DockTa
 function TabButtons({ tab, active, onSelect, onClose, isPresent }: DockTabItemProps & { isPresent: boolean }): JSX.Element {
   const L = useVocabOptional();
   const closeTab = L.dockCloseTab;
-  const label = isBoardTab(tab) ? null : dockTabLabel(tab, L.brNewTab);
+  const plain = isFileTab(tab) || isWebTab(tab) ? tab : null;
+  const label = plain ? dockTabLabel(plain, L.brNewTab) : null;
   const web = isWebTab(tab) ? tab : null;
   const source = web ? browserTabForwardSource(web) : null;
   const where = web ? browserTabChip(web) : null;
+  const title = plain ? tabTooltip(plain, label!, source, L) : isAgentBrowserTab(tab) ? L.abTitle : undefined;
   return (
     <>
       <button type="button" className="dock-tab-select" aria-pressed={active} data-dock-tab={tab.id}
-        data-tab-kind={tab.kind} data-active={active ? 'true' : 'false'} onClick={() => onSelect(tab.id)} title={isBoardTab(tab) ? undefined : tabTooltip(tab, label!, source, L)}>
+        data-tab-kind={tab.kind} data-active={active ? 'true' : 'false'} onClick={() => onSelect(tab.id)} title={title}>
         <TabIcon tab={tab} copy={L} />
-        <span style={TAB_LABEL_STYLE}>{isBoardTab(tab) ? <BoardTabTitle boardId={tab.boardId} /> : label}</span>
+        <span style={TAB_LABEL_STYLE}>
+          {isBoardTab(tab) ? <BoardTabTitle boardId={tab.boardId} />
+            : isAgentBrowserTab(tab) ? <AgentBrowserTabTitle sessionId={tab.sessionId} /> : label}
+        </span>
         {web && where && <TabWhere tab={web} chip={where} source={source} copy={L} />}
       </button>
       <button type="button" className="dock-control dock-tab-close" disabled={!isPresent} data-close-tab={tab.id}
@@ -125,13 +133,15 @@ function TabIcon({ tab, copy }: { tab: DockTab; copy: Pick<Vocab, 'boardTitle'> 
       <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
         {isFileTab(tab)
           ? <><path d="M4 2.5h5l3 3v8H4z" /><path d="M9 2.5v3h3" /></>
-          : <><circle cx="8" cy="8" r="5.5" /><path d="M2.5 8h11M8 2.5c1.6 1.6 2.4 3.4 2.4 5.5S9.6 11.9 8 13.5C6.4 11.9 5.6 10.1 5.6 8S6.4 4.1 8 2.5z" /></>}
+          : isAgentBrowserTab(tab)
+            ? <><rect x="2" y="3" width="12" height="10" rx="1.5" /><path d="M2 6h12M7.5 8.5l2.5 2.5M7.5 8.5v3l1-1" /></>
+            : <><circle cx="8" cy="8" r="5.5" /><path d="M2.5 8h11M8 2.5c1.6 1.6 2.4 3.4 2.4 5.5S9.6 11.9 8 13.5C6.4 11.9 5.6 10.1 5.6 8S6.4 4.1 8 2.5z" /></>}
       </svg>
     </span>
   );
 }
 
-function tabTooltip(tab: Exclude<DockTab, { kind: 'board' }>, label: string, source: string | null, copy: Pick<Vocab, 'brForwardedFrom'>): string {
+function tabTooltip(tab: Exclude<DockTab, { kind: 'board' } | { kind: 'agent-browser' }>, label: string, source: string | null, copy: Pick<Vocab, 'brForwardedFrom'>): string {
   if (isFileTab(tab)) return tab.item.path ?? label;
   if (source) return `${label}\n${copy.brForwardedFrom.replace('{source}', source)}`;
   const url = currentUrl(tab.history);

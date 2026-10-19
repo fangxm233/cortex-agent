@@ -7,6 +7,7 @@ import {
 import { MChatSessionMenu } from './MChatSessionMenu';
 import { MTeamSheet } from './MChatTeam';
 import { MBoardSheet } from './MChatBoard';
+import { MAgentBrowserSheet } from './MChatAgentBrowser';
 import { MTodoSheet, MWaitSheet } from './MChatActivity';
 import type { MChatSelectionView } from './m-chat-selection';
 import type { MChatViewProps } from './MChatView.types';
@@ -29,7 +30,7 @@ function OriginalMessageSheet({ text, onClose }: { text: string; onClose: () => 
 }
 
 /** The ⋯ menu and what it opens, the header's context-usage sheet, the activity strip's task, wait,
- *  team and board sheets, and the 已编辑 original. */
+ *  team, board and agent-browser sheets, and the 已编辑 original. */
 function SessionOverlays({ props, overlay }: OverlayProps): JSX.Element {
   const statsRows = props.sessionStatsRows?.length ? props.sessionStatsRows : null;
   return (
@@ -57,6 +58,9 @@ function SessionOverlays({ props, overlay }: OverlayProps): JSX.Element {
       {overlay.boardId && (
         <MBoardSheet boardId={overlay.boardId} onClose={() => overlay.close('board')}
           onOpenSession={(s) => props.onOpenBoardSession?.(s.sessionId)} />
+      )}
+      {overlay.is('agentBrowser') && props.sessionId && (
+        <MAgentBrowserSheet sessionId={props.sessionId} onClose={() => overlay.close('agentBrowser')} />
       )}
     </>
   );

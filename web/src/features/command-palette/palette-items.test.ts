@@ -153,3 +153,24 @@ describe('labelSegments', () => {
     expect(labelSegments('Overview', '  ')).toEqual([{ text: 'Overview', match: false }]);
   });
 });
+
+describe('agent browser rows', () => {
+  const browsers = [{ sessionId: 'sess_1', device: 'my-pc', url: 'https://example.com/login' }];
+
+  it('lists live browsers first, labelled by their session and placed by device and page', () => {
+    const rows = selectPaletteRows('', { sessions: [session({ label: 'Fix login' })], boards: [board('busy')], browsers });
+    const browser = rows[NAV_COMMAND_ITEMS.length]!;
+    expect(browser).toMatchObject({
+      id: 'browser:sess_1', kbd: 'browser', label: 'Fix login', sub: 'my-pc · example.com',
+      browserSessionId: 'sess_1', focusId: 'sess_1', projectId: 'cortex-self',
+    });
+    expect(groupPaletteRows(rows).map((g) => g.key)).toEqual(['page', 'action', 'browser', 'board', 'session']);
+    expect(paletteGroupLabel('browser', en)).toBe('Agent browsers');
+  });
+
+  it('finds a browser by its page or its kind word', () => {
+    expect(selectPaletteRows('example.com', { sessions: [session()], browsers }).map((r) => r.id)).toEqual(['browser:sess_1']);
+    expect(selectPaletteRows('浏览器', { sessions: [session()], browsers }, { kindWords: { browser: '浏览器' } }).map((r) => r.id))
+      .toEqual(['browser:sess_1']);
+  });
+});
