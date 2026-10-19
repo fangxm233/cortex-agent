@@ -1,5 +1,4 @@
-import { type ReactNode } from 'react';
-import { MDrillHeader, MScreen, MScrollBody, MCard, MC, M_NUM } from '@/mobile/ui/kit';
+import { MDrillHeader, MScreen, MScrollBody, MGroup, MGroupLabel, MC, M_GUTTER, M_NUM } from '@/mobile/ui/kit';
 import { fmt, useVocabOptional, type Vocab } from '@/i18n';
 import type { MMemoryVm, MMemoryFileRow, MMemoryDirCard } from './m-memory-vm';
 
@@ -38,10 +37,16 @@ function Chevron({ open = false, color = MC.muted }: { open?: boolean; color?: s
   );
 }
 
+// Row text x: dividers start here, so they never run under the doc glyph.
+const ROW_PAD_X = 14;
+const FILE_TEXT_X = ROW_PAD_X + 12 + 9;
+/** Files inside an opened dir sit one step in from the dir name. */
+const NESTED_PAD_X = ROW_PAD_X + 14;
+
 // A read-only, tappable file row (scheme L536-537): doc icon + filename + real rel time + a
 // trailing chevron that signals it drills into the read-only file viewer.
 // GAP: descriptor + `+N −M` / `草稿` badges are scheme mocks (no DTO field) → omitted.
-function FileRow({ row, last, onOpen }: { row: MMemoryFileRow; last: boolean; onOpen: (path: string) => void }) {
+function FileRow({ row, nested = false, onOpen }: { row: MMemoryFileRow; nested?: boolean; onOpen: (path: string) => void }) {
   return (
     <div
       role="button"
@@ -50,10 +55,9 @@ function FileRow({ row, last, onOpen }: { row: MMemoryFileRow; last: boolean; on
         display: 'flex',
         alignItems: 'center',
         gap: 9,
-        padding: '10px 13px',
+        padding: `10px ${ROW_PAD_X}px 10px ${nested ? NESTED_PAD_X : ROW_PAD_X}px`,
         minHeight: 44,
         boxSizing: 'border-box',
-        borderBottom: last ? undefined : '1px solid var(--proto-alt)',
         cursor: 'pointer',
       }}
     >
@@ -66,14 +70,6 @@ function FileRow({ row, last, onOpen }: { row: MMemoryFileRow; last: boolean; on
       </span>
       <Chevron color={MC.muted} />
     </div>
-  );
-}
-
-function Card({ children }: { children: ReactNode }) {
-  return (
-    <MCard tone="default" padding={0} style={{ overflow: 'hidden' }}>
-      {children}
-    </MCard>
   );
 }
 
@@ -94,7 +90,7 @@ function DirAccordion({
   onOpen: (path: string) => void;
 }) {
   return (
-    <Card>
+    <div data-memory-dir={dir.name}>
       <div
         role="button"
         aria-expanded={open}
@@ -102,10 +98,9 @@ function DirAccordion({
         style={{
           display: 'flex',
           alignItems: 'center',
-          padding: '9px 13px',
+          padding: `9px ${ROW_PAD_X}px`,
           minHeight: 44,
           boxSizing: 'border-box',
-          borderBottom: open ? '1px solid var(--proto-line-2)' : undefined,
           cursor: 'pointer',
         }}
       >
@@ -117,13 +112,13 @@ function DirAccordion({
       </div>
       {open &&
         (dir.entries.length === 0 ? (
-          <div style={{ padding: '10px 13px', fontSize: 13, color: MC.muted }}>{copy.memEmptyDir}</div>
+          <div style={{ padding: `0 ${ROW_PAD_X}px 12px ${NESTED_PAD_X}px`, fontSize: 13, color: MC.muted }}>{copy.memEmptyDir}</div>
         ) : (
-          dir.entries.map((row, i) => (
-            <FileRow key={row.path} row={row} last={i === dir.entries.length - 1} onOpen={onOpen} />
-          ))
+          <MGroup inset={NESTED_PAD_X + FILE_TEXT_X - ROW_PAD_X}>
+            {dir.entries.map((row) => <FileRow key={row.path} row={row} nested onOpen={onOpen} />)}
+          </MGroup>
         ))}
-    </Card>
+    </div>
   );
 }
 
@@ -160,7 +155,7 @@ export function MMemoryView({
   );
   return (
     <MScreen label="1j memory" header={header}>
-      <MScrollBody gap={10}>
+      <MScrollBody gap={0} padding={`12px ${M_GUTTER}px 0`}>
         {vm.isEmpty ? (
           <div style={{ padding: '40px 0', textAlign: 'center', color: MC.muted, fontSize: 13 }}>
             {copy.memEmpty}
@@ -168,26 +163,26 @@ export function MMemoryView({
         ) : (
           <>
             {vm.core.length > 0 && (
-              <Card>
-                <div style={{ display: 'flex', alignItems: 'center', padding: '9px 13px', borderBottom: '1px solid var(--proto-line-2)' }}>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: MC.ink }}>{copy.memCore}</span>
-                </div>
-                {vm.core.map((row, i) => (
-                  <FileRow key={row.path} row={row} last={i === vm.core.length - 1} onOpen={onOpenFile} />
-                ))}
-              </Card>
+              <section style={{ marginBottom: 18 }}>
+                <MGroupLabel style={{ fontSize: 13 }}>{copy.memCore}</MGroupLabel>
+                <MGroup inset={FILE_TEXT_X}>
+                  {vm.core.map((row) => <FileRow key={row.path} row={row} onOpen={onOpenFile} />)}
+                </MGroup>
+              </section>
             )}
-            {vm.dirs.map((d: MMemoryDirCard) => (
-              <DirAccordion
-                key={d.name}
-                dir={d}
-                copy={copy}
-                open={openDirs.has(d.name)}
-                onToggle={onToggleDir}
-                onOpen={onOpenFile}
-              />
-            ))}
-            <div style={{ fontSize: 12.5, color: MC.muted, padding: '0 4px' }}>{copy.memFooter}</div>
+            <MGroup>
+              {vm.dirs.map((d: MMemoryDirCard) => (
+                <DirAccordion
+                  key={d.name}
+                  dir={d}
+                  copy={copy}
+                  open={openDirs.has(d.name)}
+                  onToggle={onToggleDir}
+                  onOpen={onOpenFile}
+                />
+              ))}
+            </MGroup>
+            <div style={{ fontSize: 12.5, color: MC.muted, padding: `12px ${ROW_PAD_X}px 0` }}>{copy.memFooter}</div>
           </>
         )}
       </MScrollBody>
