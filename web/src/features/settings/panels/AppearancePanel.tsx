@@ -133,7 +133,7 @@ function ColorSection() {
         } />
         {/* No row title: the section is already headed with this name, and the controls open
             with their own "Presets" heading. */}
-        <div data-palette-row="" style={{ padding: '12px 16px' }}>
+        <div data-palette-row="" style={{ padding: '12px var(--settings-row-inset, 0px)' }}>
           <PaletteControls
             palette={palette} copy={paletteCopy} activePreset={activePreset}
             onPickPreset={applyPreset} onChange={setPaletteValue} onReset={resetPalette}

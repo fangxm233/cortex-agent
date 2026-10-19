@@ -4,7 +4,7 @@ import type { PluginAssignmentTarget, UiPluginCatalogEntry, MutateArgs } from '@
 import { Modal, useToast } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { trpcErrorCode, useTRPC } from '@/lib/trpc';
-import { SButton, SNotice, SPill, Toggle } from '@/features/settings/ui/settings-ui';
+import { SButton, SMeta, SNotice, SRowGroup, SStatus, Toggle } from '@/features/settings/ui/settings-ui';
 import {
   EmptyMessage, McpServerSummary, ROW,
   pluginTitle, scopeNoticeText,
@@ -27,7 +27,6 @@ import {
 const MONO = "'IBM Plex Mono',monospace";
 
 const WRAP: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 12 };
-const LIST: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10 };
 
 type ToastFn = ReturnType<typeof useToast>['toast'];
 type AssignMutation = { mutateAsync: (payload: MutateArgs<'plugins.assign'>) => Promise<unknown> };
@@ -123,6 +122,14 @@ async function submitAssign(
   args.onSaved?.();
 }
 
+function choiceMeta(plugin: UiPluginCatalogEntry, L: Vocab): string {
+  return [
+    ...(plugin.origin === 'builtin' ? [L.plOriginBuiltin] : []),
+    L.plSkillCount.replace('{n}', String(plugin.skills.length)),
+    ...(plugin.mcp.servers.length > 0 ? [L.plMcpCount.replace('{n}', String(plugin.mcp.servers.length))] : []),
+  ].join(' · ');
+}
+
 function PluginChoice(props: {
   plugin: UiPluginCatalogEntry;
   target: PluginAssignmentTarget | null;
@@ -143,17 +150,13 @@ function PluginChoice(props: {
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)', minWidth: 0, overflowWrap: 'anywhere' }}>{pluginTitle(props.plugin)}</span>
-          {props.plugin.origin === 'builtin' ? <SPill tone="strong" data-plugin-builtin="">{L.plOriginBuiltin}</SPill> : null}
-          <SPill>{L.plSkillCount.replace('{n}', String(props.plugin.skills.length))}</SPill>
-          {props.plugin.mcp.servers.length > 0
-            ? <SPill tone="strong">{L.plMcpCount.replace('{n}', String(props.plugin.mcp.servers.length))}</SPill>
-            : null}
-          {props.plugin.assignable ? null : <SPill tone="danger">{L.plUnassignable}</SPill>}
+          <SMeta data-plugin-builtin={props.plugin.origin === 'builtin' ? '' : undefined}>{choiceMeta(props.plugin, L)}</SMeta>
+          {props.plugin.assignable ? null : <SStatus tone="danger">{L.plUnassignable}</SStatus>}
         </div>
         {props.plugin.manifest.description
           ? <div style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--proto-muted-2)' }}>{props.plugin.manifest.description}</div>
           : null}
-        {scopeNote ? <SNotice tone="muted" data-plugin-scope={props.plugin.scope}>{scopeNote}</SNotice> : null}
+        {scopeNote ? <div data-plugin-scope={props.plugin.scope} style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--proto-muted)' }}>{scopeNote}</div> : null}
       </div>
     </div>
   );
@@ -175,7 +178,7 @@ function AckModal(props: {
           <SButton tone="primary" disabled={props.pending} onClick={props.onConfirm}>{L.plAckConfirm}</SButton>
         </>
       )}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <SRowGroup>
         {props.plugins.map((plugin) => (
           <div key={plugin.id} style={ROW}>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)', overflowWrap: 'anywhere' }}>{pluginTitle(plugin)}</div>
@@ -183,7 +186,7 @@ function AckModal(props: {
             <div style={{ marginTop: 10 }}><McpServerSummary plugin={plugin} /></div>
           </div>
         ))}
-      </div>
+      </SRowGroup>
     </Modal>
   );
 }
@@ -221,14 +224,12 @@ function AssignBody(props: PluginAssignViewProps) {
       {/* The marker stays on a plain wrapper: hung on the notice it would appear twice, once on the
           component and once on the element it renders. */}
       {state.conflicted ? <div data-plugin-conflict=""><SNotice tone="amber">{L.plStaleDraft}</SNotice></div> : null}
-      <div style={LIST}>
-        {props.plugins.length > 0
-          ? props.plugins.map((plugin) => (
-            <PluginChoice key={plugin.id} plugin={plugin} target={props.target} draft={props.draft}
-              pending={props.pending} onToggle={props.onTogglePlugin} />
-          ))
-          : <EmptyMessage text={L.plNoCatalog} dataAttr="data-plugins-empty" />}
-      </div>
+      {props.plugins.length > 0
+        ? <SRowGroup>{props.plugins.map((plugin) => (
+          <PluginChoice key={plugin.id} plugin={plugin} target={props.target} draft={props.draft}
+            pending={props.pending} onToggle={props.onTogglePlugin} />
+        ))}</SRowGroup>
+        : <EmptyMessage text={L.plNoCatalog} dataAttr="data-plugins-empty" />}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         <SButton tone="neutral" disabled={!resettable} data-action="reset"
           data-disabled={resettable ? 'false' : 'true'} onClick={props.onReset}>{L.plReset}</SButton>

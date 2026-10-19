@@ -1,15 +1,14 @@
-import '@/features/settings/ui/desktop-panels.css';
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { fmt, useVocab } from '@/i18n';
 import {
+  ROW_STYLE,
   SButton,
-  SCard,
-  SCardHeader,
   SDot,
   SHeaderActions,
+  SMeter,
   SNotice,
+  SRowGroup,
   SSection,
-  SStat,
   S_CONTROL_DISABLED_STYLE,
   S_CONTROL_STYLE,
   Toggle,
@@ -42,6 +41,18 @@ const SEVERITY_FILL: Record<UsageSeverity, string> = {
 const META_TEXT: CSSProperties = {
   fontSize: 12, lineHeight: 1.5, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted-2)', overflowWrap: 'anywhere',
 };
+// A quota window is one line: name · meter · percent · reset · throttle, in fixed slots so the
+// meters of a provider line up.
+const WINDOW_LINE: CSSProperties = { display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 12, rowGap: 4 };
+const WINDOW_NAME: CSSProperties = {
+  width: 104, flex: 'none', fontSize: 13, fontWeight: 500, color: 'var(--proto-ink)', overflowWrap: 'anywhere',
+};
+const WINDOW_METER: CSSProperties = { flex: '1 1 120px', minWidth: 80 };
+const WINDOW_PERCENT: CSSProperties = {
+  minWidth: 40, flex: 'none', textAlign: 'right', fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums',
+  color: 'var(--proto-ink)',
+};
+const WINDOW_RESET: CSSProperties = { width: 132, flex: 'none' };
 const POLICY_TEXT: CSSProperties = { fontSize: 13, lineHeight: 1.5, color: 'var(--proto-muted)', overflowWrap: 'anywhere' };
 // The kit control scale, widened on the right only: the `%` suffix is painted over the field.
 const POLICY_INPUT: CSSProperties = { ...S_CONTROL_STYLE, width: 84, paddingRight: 24 };
@@ -63,19 +74,12 @@ function Observation({ provider }: { provider: ProviderUsageView }) {
   );
 }
 
-function ProviderHeader({ provider }: { provider: ProviderUsageView }) {
+function ProviderMeta({ provider }: { provider: ProviderUsageView }) {
   return (
-    <div data-usage-provider={provider.provider} data-usage-billing={provider.billing ?? ''}>
-      <SCardHeader
-        title={provider.displayName}
-        right={(
-          <span style={{ ...META_TEXT, display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-            <span>{provider.modes.join(' · ')}</span>
-            <Observation provider={provider} />
-          </span>
-        )}
-      />
-    </div>
+    <span style={{ ...META_TEXT, display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+      <span>{provider.modes.join(' · ')}</span>
+      <Observation provider={provider} />
+    </span>
   );
 }
 
@@ -245,49 +249,50 @@ function PolicyEditor(props: PolicyEditorProps) {
   );
 }
 
-function WindowFootnote(props: { window: UsageWindowView; usage: ReturnType<typeof useUsage> }) {
-  const [expanded, setExpanded] = useState(false);
-  const { policy } = props.window;
-  const error = policy ? props.usage.getPolicyError(policy.target) : null;
-  const open = expanded || error !== null;
-  const reset = <ResetLine window={props.window} />;
-  if (!policy) return reset;
+function policyRowAttrs(policy: UsageWindowPolicyView | null): Record<string, string> {
+  if (!policy) return {};
+  return {
+    'data-usage-policy-row': usagePolicyTargetKey(policy.target),
+    'data-usage-policy-provider': policy.target.provider,
+    'data-usage-policy-window-type': policy.target.windowType ?? '',
+    'data-usage-policy-window-label': policy.target.windowLabel ?? '',
+  };
+}
+
+function WindowLine(props: { window: UsageWindowView; open: boolean; onToggle: () => void }) {
+  const L = useVocab();
+  const view = props.window;
   return (
-    <div
-      data-usage-policy-row={usagePolicyTargetKey(policy.target)} data-usage-policy-provider={policy.target.provider}
-      data-usage-policy-window-type={policy.target.windowType ?? ''} data-usage-policy-window-label={policy.target.windowLabel ?? ''}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-        {reset}
-        <PolicySummary policy={policy} open={open} onToggle={() => setExpanded(!open)} />
-      </div>
-      {open
-        ? (
-          <PolicyEditor
-            policy={policy} controlsState={props.usage.policyControlsState}
-            isPolicySaving={props.usage.isPolicySaving} onSavePolicy={props.usage.savePolicy}
-          />
-        )
-        : null}
-      {error ? <PolicyError target={policy.target} message={error.message} /> : null}
+    <div style={WINDOW_LINE}>
+      <span style={WINDOW_NAME}>{view.label}</span>
+      <span style={WINDOW_METER}>
+        {view.utilization === null ? null : (
+          <SMeter percent={view.utilization * 100} tone={SEVERITY_FILL[view.severity]}
+            marker={view.policy?.enabled ? view.policy.thresholdPercent : undefined} />
+        )}
+      </span>
+      <span style={WINDOW_PERCENT}>{view.utilizationLabel ?? L.usageUnavailable}</span>
+      <div style={WINDOW_RESET}><ResetLine window={view} /></div>
+      {view.policy ? <PolicySummary policy={view.policy} open={props.open} onToggle={props.onToggle} /> : null}
     </div>
   );
 }
 
-function WindowStat(props: { window: UsageWindowView; usage: ReturnType<typeof useUsage> }) {
-  const L = useVocab();
+function WindowRow(props: { window: UsageWindowView; usage: ReturnType<typeof useUsage> }) {
+  const [expanded, setExpanded] = useState(false);
   const view = props.window;
-  const detailed = view.policy !== null || view.resetsAt !== null;
+  const { policy } = view;
+  const error = policy ? props.usage.getPolicyError(policy.target) : null;
+  const open = expanded || error !== null;
   return (
-    <div className="settings-usage-window" data-usage-window={view.type} data-usage-severity={view.severity}>
-      <SStat
-        value={view.utilizationLabel ?? L.usageUnavailable}
-        caption={view.label}
-        percent={view.utilization === null ? undefined : view.utilization * 100}
-        tone={SEVERITY_FILL[view.severity]}
-        marker={view.policy?.enabled ? view.policy.thresholdPercent : undefined}
-        footnote={detailed ? <WindowFootnote window={view} usage={props.usage} /> : undefined}
-      />
+    <div className="settings-usage-window" data-usage-window={view.type} data-usage-severity={view.severity}
+      {...policyRowAttrs(policy)} style={{ padding: ROW_STYLE.padding }}>
+      <WindowLine window={view} open={open} onToggle={() => setExpanded(!open)} />
+      {policy && open ? (
+        <PolicyEditor policy={policy} controlsState={props.usage.policyControlsState}
+          isPolicySaving={props.usage.isPolicySaving} onSavePolicy={props.usage.savePolicy} />
+      ) : null}
+      {policy && error ? <PolicyError target={policy.target} message={error.message} /> : null}
     </div>
   );
 }
@@ -369,7 +374,7 @@ function ResetCredits({ resets, reset }: { resets: UsageResetsView; reset: Usage
   const provider = resets.provider;
   const canUse = provider !== null && resets.available > 0 && !confirming;
   return (
-    <div data-usage-resets={provider ?? ''} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div data-usage-resets={provider ?? ''} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: ROW_STYLE.padding }}>
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, minHeight: 28 }}>
         <ResetSummary resets={resets} />
         <ResetOutcome attempt={attempt} />
@@ -392,77 +397,77 @@ function ResetCredits({ resets, reset }: { resets: UsageResetsView; reset: Usage
   );
 }
 
-function QuotaBlock({ provider, usage }: { provider: ProviderUsageView; usage: ReturnType<typeof useUsage> }) {
-  const L = useVocab();
-  if (provider.quotaState === 'unsupported') return null;
+function SpendFigure({ value, caption }: { value: string; caption: string }) {
   return (
-    <section data-usage-quota={provider.provider} data-usage-quota-state={provider.quotaState} style={{ padding: '14px 16px' }}>
-      <SSection label={L.usageQuota}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {provider.quotaState === 'available'
-            ? (
-              <div className="settings-adaptive-cards settings-usage-windows">
-                {provider.windows.map((window) => (
-                  <WindowStat
-                    key={`${window.type}:${window.label}:${window.resetsAt ?? 'none'}`}
-                    window={window} usage={usage}
-                  />
-                ))}
-              </div>
-            )
-            : <SNotice tone="muted">{L.usageNeverObserved}</SNotice>}
-          {provider.resets ? <ResetCredits resets={provider.resets} reset={usage.reset} /> : null}
-          {provider.legacyFallback
-            ? (
-              <LegacyFallbackNotice
-                fallback={provider.legacyFallback}
-                isPolicySaving={usage.isPolicySaving}
-                getPolicyError={usage.getPolicyError}
-                onSavePolicy={usage.savePolicy}
-              />
-            )
-            : null}
-        </div>
-      </SSection>
-    </section>
+    <span data-usage-spend-figure={caption} data-usage-spend-value={value}
+      style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, fontVariantNumeric: 'tabular-nums' }}>
+      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{value}</span>
+      <span style={META_TEXT}>{caption}</span>
+    </span>
   );
 }
 
-function SpendBlock({ provider }: { provider: ProviderUsageView }) {
+function SpendRow({ provider }: { provider: ProviderUsageView }) {
   const L = useVocab();
   if (!provider.spend) return null;
   return (
-    <section data-usage-spend={provider.provider} style={{ borderTop: '1px solid var(--proto-line-2)', padding: '14px 16px' }}>
-      <SSection label={L.usageGatewaySpend}>
-        <div className="settings-adaptive-cards settings-usage-spend">
-          <SStat value={provider.spend.today} caption={L.usageToday} />
-          <SStat value={provider.spend.month} caption={L.usageMonth} />
-          {provider.spend.all !== null && <SStat value={provider.spend.all} caption={L.usageAllTime} />}
-        </div>
-      </SSection>
-    </section>
-  );
-}
-
-function NoteBlock({ provider }: { provider: ProviderUsageView }) {
-  if (!provider.note || provider.noteTone !== 'error') return null;
-  return (
-    <div style={{ padding: '0 16px 14px' }}>
-      <SNotice tone="danger" data-usage-note="error" icon={<SDot color="var(--proto-danger)" size={6} />}>
-        {provider.note}
-      </SNotice>
+    <div data-usage-spend={provider.provider} style={{ ...WINDOW_LINE, padding: ROW_STYLE.padding }}>
+      <span style={WINDOW_NAME}>{L.usageGatewaySpend}</span>
+      <span style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 18, rowGap: 4 }}>
+        <SpendFigure value={provider.spend.today} caption={L.usageToday} />
+        <SpendFigure value={provider.spend.month} caption={L.usageMonth} />
+        {provider.spend.all !== null && <SpendFigure value={provider.spend.all} caption={L.usageAllTime} />}
+      </span>
     </div>
   );
 }
 
-function ProviderCard({ provider, usage }: { provider: ProviderUsageView; usage: ReturnType<typeof useUsage> }) {
+function quotaRows(provider: ProviderUsageView, usage: ReturnType<typeof useUsage>, L: ReturnType<typeof useVocab>): ReactNode[] {
+  if (provider.quotaState === 'unsupported') return [];
+  const rows: ReactNode[] = provider.quotaState === 'available'
+    ? provider.windows.map((window) => (
+      <WindowRow key={`${window.type}:${window.label}:${window.resetsAt ?? 'none'}`} window={window} usage={usage} />
+    ))
+    : [<div key="never" style={{ ...ROW_STYLE, ...META_TEXT }}>{L.usageNeverObserved}</div>];
+  if (provider.resets) rows.push(<ResetCredits key="resets" resets={provider.resets} reset={usage.reset} />);
+  return rows;
+}
+
+/** Quota windows, banked resets and gateway spend share one run of rows under the provider. */
+function ProviderRows({ provider, usage }: { provider: ProviderUsageView; usage: ReturnType<typeof useUsage> }) {
+  const L = useVocab();
+  const rows = quotaRows(provider, usage, L);
+  if (provider.spend) rows.push(<SpendRow key="spend" provider={provider} />);
+  if (rows.length === 0) return null;
+  const quota = provider.quotaState === 'unsupported'
+    ? {} : { 'data-usage-quota': provider.provider, 'data-usage-quota-state': provider.quotaState };
+  return <section className="settings-flush" {...quota}><SRowGroup>{rows}</SRowGroup></section>;
+}
+
+function ProviderNotices({ provider, usage }: { provider: ProviderUsageView; usage: ReturnType<typeof useUsage> }) {
+  const legacy = provider.quotaState === 'unsupported' ? null : provider.legacyFallback;
+  const error = provider.note && provider.noteTone === 'error' ? provider.note : null;
+  if (!legacy && !error) return null;
   return (
-    <SCard>
-      <ProviderHeader provider={provider} />
-      <QuotaBlock provider={provider} usage={usage} />
-      <SpendBlock provider={provider} />
-      <NoteBlock provider={provider} />
-    </SCard>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+      {legacy ? (
+        <LegacyFallbackNotice fallback={legacy} isPolicySaving={usage.isPolicySaving}
+          getPolicyError={usage.getPolicyError} onSavePolicy={usage.savePolicy} />
+      ) : null}
+      {error ? (
+        <SNotice tone="danger" data-usage-note="error" icon={<SDot color="var(--proto-danger)" size={6} />}>{error}</SNotice>
+      ) : null}
+    </div>
+  );
+}
+
+function ProviderSection({ provider, usage }: { provider: ProviderUsageView; usage: ReturnType<typeof useUsage> }) {
+  return (
+    <SSection data-usage-provider={provider.provider} data-usage-billing={provider.billing ?? ''}
+      label={provider.displayName} action={<ProviderMeta provider={provider} />}>
+      <ProviderRows provider={provider} usage={usage} />
+      <ProviderNotices provider={provider} usage={usage} />
+    </SSection>
   );
 }
 
@@ -518,10 +523,10 @@ function UsageContent({ usage }: { usage: ReturnType<typeof useUsage> }): ReactN
     );
   }
   if (usage.view.providers.length === 0) return <SNotice tone="muted">{L.usageEmpty}</SNotice>;
-  // One column of provider cards; each card lays its quota windows out as an adaptive grid.
+  // One section per provider, each a run of quota rows.
   return (
-    <div data-usage-cards style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {usage.view.providers.map((provider) => <ProviderCard key={provider.key} provider={provider} usage={usage} />)}
+    <div data-usage-cards style={{ display: 'flex', flexDirection: 'column', gap: 'var(--settings-section-gap, 20px)' }}>
+      {usage.view.providers.map((provider) => <ProviderSection key={provider.key} provider={provider} usage={usage} />)}
     </div>
   );
 }
@@ -533,7 +538,7 @@ export function UsagePanel() {
     <>
       <SHeaderActions><div data-usage-header><RefreshToolbar usage={usage} /></div></SHeaderActions>
       <UsageContent usage={usage} />
-      <div style={{ marginTop: 12 }}><UsageSharingCard controller={sharing} variant="settings" /></div>
+      <UsageSharingCard controller={sharing} variant="settings" />
     </>
   );
 }

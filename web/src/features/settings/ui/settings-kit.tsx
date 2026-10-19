@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, createContext, useContext, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import './settings-style.css';
 
@@ -21,22 +21,17 @@ export function SHeaderActions({ children }: { children: ReactNode }) {
 }
 
 // ── Grouped rows ────────────────────────────────────────────────────────────
-// Cards transmit the sheet's tint without adding a backdrop-filter per row.
+// Content is grouped by headings, hairlines and spacing, never a box: a group has no fill, border,
+// shadow or radius. `--settings-row-inset` lets a host indent rows from its own edge (0 on desktop).
 export const GROUP_STYLE: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  borderRadius: 'var(--settings-card-radius, 12px)',
-  background: 'var(--settings-card-fill, var(--material-card-bg))',
-  border: '1px solid var(--settings-boundary, var(--proto-line-2))',
-  boxShadow: 'var(--material-card-shadow)', boxSizing: 'border-box', minWidth: 0,
-  overflow: 'hidden',
+  display: 'flex', flexDirection: 'column', boxSizing: 'border-box', minWidth: 0,
 };
 
 function dividerStyle(last: boolean): CSSProperties {
   return last ? {} : { borderBottom: '1px solid var(--proto-line-2)' };
 }
 
-/** A card of rows. Children are separated by hairlines; the last one is flush with the card edge. */
+/** A run of rows. Children are separated by hairlines; the last one has none. */
 export function SRowGroup({ children, style, className, ...rest }: {
   children: ReactNode;
   style?: CSSProperties;
@@ -54,7 +49,7 @@ export function SRowGroup({ children, style, className, ...rest }: {
 }
 
 export const ROW_STYLE: CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
+  display: 'flex', alignItems: 'center', gap: 12, padding: '12px var(--settings-row-inset, 0px)',
 };
 
 const ROW_TITLE_STYLE: CSSProperties = { fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' };
@@ -83,23 +78,53 @@ export function SRow({ title, desc, control, align = 'center', children, classNa
 }
 
 // ── Section heading ─────────────────────────────────────────────────────────
-const SECTION_LABEL_STYLE: CSSProperties = {
-  fontSize: 12.5, fontWeight: 600, color: 'var(--proto-muted)',
+const HEADING_STYLE: CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 8, minHeight: 22, padding: '0 0 8px',
+  borderBottom: '1px solid var(--proto-line-3)',
+};
+const HEADING_TITLE_STYLE: CSSProperties = { fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)', minWidth: 0 };
+const HEADING_META_STYLE: CSSProperties = {
+  marginLeft: 'auto', fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted-2)',
 };
 
-/** The sentence-case label above a card, with an optional trailing action. Hierarchy comes from
- *  weight and colour; an uppercase tracked label would read as a code token. */
-export function SSection({ label, action, children }: {
+/** A section's title over a hairline, with optional meta or an action on the right. Plain text on
+ *  the right gets the quiet meta styling; an element is placed as-is. */
+export function SSectionHeading({ title, right, className }: {
+  title: ReactNode;
+  right?: ReactNode;
+  className?: string;
+}) {
+  const plain = typeof right === 'string' || typeof right === 'number';
+  return (
+    <div className={settingsClassName('settings-section-heading', className)} style={HEADING_STYLE}>
+      <span className="settings-section-title" style={HEADING_TITLE_STYLE}>{title}</span>
+      {right != null ? <span style={plain ? HEADING_META_STYLE : { marginLeft: 'auto' }}>{right}</span> : null}
+    </div>
+  );
+}
+
+/** A heading and the rows (or content) it names. Hierarchy comes from weight and the hairline; an
+ *  uppercase tracked label would read as a code token. */
+export function SSection({ label, action, children, className, ...rest }: {
   label: ReactNode;
   action?: ReactNode;
   children: ReactNode;
-}) {
+} & Record<string, unknown>) {
   return (
-    <div>
-      <div className="settings-section-heading" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px 8px' }}>
-        <span style={SECTION_LABEL_STYLE}>{label}</span>
-        {action != null && <span style={{ marginLeft: 'auto' }}>{action}</span>}
-      </div>
+    <div {...rest} className={settingsClassName('settings-section', className)} style={{ minWidth: 0 }}>
+      <SSectionHeading title={label} right={action} />
+      <div className="settings-section-body">{children}</div>
+    </div>
+  );
+}
+
+/** A quiet label inside a section that names the rows under it (a backend, an event family). */
+export function SSubheading({ children, ...rest }: { children: ReactNode } & Record<string, unknown>) {
+  return (
+    <div {...rest} className="settings-subheading" style={{
+      display: 'flex', alignItems: 'center', gap: 6, padding: '14px 0 2px',
+      fontSize: 12, fontWeight: 600, color: 'var(--proto-muted-2)', minWidth: 0,
+    }}>
       {children}
     </div>
   );
@@ -155,36 +180,51 @@ export function SSegmented<T extends string>({ value, options, onChange, dataAtt
   );
 }
 
-// ── Chips and pills ─────────────────────────────────────────────────────────
-export type SPillTone = 'strong' | 'amber' | 'success' | 'danger' | 'neutral';
+// ── Status and meta ─────────────────────────────────────────────────────────
+export type SStatusTone = 'success' | 'amber' | 'danger' | 'neutral';
 
-// `strong` marks the one that is current (the default model, the account in use, a built-in): the
-// neutral tint with ink text — a stronger word, not an accent block. Colour stays for status.
-const PILL_TONE: Record<SPillTone, CSSProperties> = {
-  strong: { background: 'var(--proto-gray)', color: 'var(--proto-ink-3)' },
-  amber: { background: 'var(--proto-amber-bg)', color: 'var(--proto-amber-fg)' },
-  success: { background: 'var(--proto-success-bg)', color: 'color-mix(in srgb, var(--proto-success) 85%, var(--proto-ink))' },
-  danger: { background: 'var(--proto-danger-bg)', color: 'var(--proto-danger)' },
-  neutral: { background: 'var(--proto-gray)', color: 'var(--proto-muted)' },
+// Neutral is a hollow ring: a state that is off or unset, not one that is wrong.
+const STATUS_DOT: Record<SStatusTone, CSSProperties> = {
+  success: { background: 'var(--proto-success)' },
+  amber: { background: 'var(--proto-amber)' },
+  danger: { background: 'var(--proto-danger)' },
+  neutral: { border: '1.5px solid var(--proto-faint)' },
+};
+const STATUS_TEXT: Record<SStatusTone, string> = {
+  success: 'var(--proto-muted-2)', amber: 'var(--proto-amber-fg)',
+  danger: 'var(--proto-danger)', neutral: 'var(--proto-muted-2)',
 };
 
-/** The one badge shape in settings: a soft tinted capsule, never outlined, in the UI face. */
-export function SPill({ tone = 'neutral', children, ...rest }: {
-  tone?: SPillTone;
+/** A state as a dot and a word — the one way settings reports a condition. */
+export function SStatus({ tone = 'neutral', children, ...rest }: {
+  tone?: SStatusTone;
   children: ReactNode;
 } & Record<string, unknown>) {
   return (
-    <span {...rest} style={{
-      display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none',
-      fontSize: 11, fontWeight: 550, fontVariantNumeric: 'tabular-nums',
-      lineHeight: 1.5, padding: '1px 7px', borderRadius: 'var(--r-pill)',
-      whiteSpace: 'nowrap', ...PILL_TONE[tone],
+    <span {...rest} className="settings-status" style={{
+      display: 'inline-flex', alignItems: 'center', gap: 6, flex: 'none', fontSize: 12, fontWeight: 500,
+      lineHeight: 1.5, whiteSpace: 'nowrap', color: STATUS_TEXT[tone],
+    }}>
+      <span aria-hidden="true" style={{
+        width: 7, height: 7, borderRadius: '50%', boxSizing: 'border-box', flex: 'none', ...STATUS_DOT[tone],
+      }} />
+      {children}
+    </span>
+  );
+}
+
+/** One line of quiet meta beside a name: origin, counts, a marker such as "default". */
+export function SMeta({ children, style, ...rest }: { children: ReactNode; style?: CSSProperties } & Record<string, unknown>) {
+  return (
+    <span {...rest} className="settings-meta" style={{
+      fontSize: 12, fontWeight: 400, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted-2)', minWidth: 0, ...style,
     }}>
       {children}
     </span>
   );
 }
 
+// ── Counts and chips ────────────────────────────────────────────────────────
 /** A count beside a heading or a tab: a plain number, not a filled badge. `amber` is for a count
  *  of things that need the user (issues to fix); `quiet` is a plain tally. */
 export function SCount({ children, tone = 'amber' }: { children: ReactNode; tone?: 'amber' | 'quiet' }) {
@@ -250,27 +290,38 @@ export function SSelectChip({ children, onClick, disabled, className, ...rest }:
 // ── Notices ─────────────────────────────────────────────────────────────────
 export type SNoticeTone = 'amber' | 'danger' | 'accent' | 'muted';
 
-const NOTICE_TONE: Record<SNoticeTone, { bg: string; fg: string; ring: string }> = {
+// Only what needs the user is boxed (amber, danger); the other tones are one line of text.
+const BOXED_NOTICE: Partial<Record<SNoticeTone, { bg: string; fg: string; ring: string }>> = {
   amber: { bg: 'var(--proto-amber-bg)', fg: 'var(--proto-amber-fg)', ring: 'var(--proto-amber-border)' },
   danger: { bg: 'var(--proto-danger-bg)', fg: 'var(--proto-danger)', ring: 'var(--proto-danger-bg)' },
-  accent: { bg: 'var(--proto-accent-bg)', fg: 'var(--proto-accent)', ring: 'var(--proto-accent-border)' },
-  muted: { bg: 'var(--proto-alt)', fg: 'var(--proto-muted)', ring: 'var(--proto-line-2)' },
+};
+const LINE_NOTICE_COLOR: Record<SNoticeTone, string> = {
+  amber: 'var(--proto-amber-fg)', danger: 'var(--proto-danger)',
+  accent: 'var(--proto-accent)', muted: 'var(--proto-muted-2)',
 };
 
-/** An inline advisory strip. One shape, four tones — the tone is the whole message. */
+function noticeStyle(tone: SNoticeTone): CSSProperties {
+  const box = BOXED_NOTICE[tone];
+  const base: CSSProperties = {
+    display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, fontSize: 13, lineHeight: 1.6,
+  };
+  if (!box) return { ...base, gap: 8, color: LINE_NOTICE_COLOR[tone] };
+  return {
+    ...base, padding: '10px 14px', borderRadius: 'var(--settings-control-radius, 8px)',
+    background: box.bg, border: `1px solid ${box.ring}`, color: box.fg,
+  };
+}
+
+/** An advisory. Amber and danger are the one boxed panel in settings (they ask for attention);
+ *  accent and muted are a plain line of text. */
 export function SNotice({ tone = 'muted', icon, action, children, className, ...rest }: {
   tone?: SNoticeTone;
   icon?: ReactNode;
   action?: ReactNode;
   children: ReactNode;
 } & Record<string, unknown>) {
-  const spec = NOTICE_TONE[tone];
   return (
-    <div {...rest} className={settingsClassName('settings-notice', className)} style={{
-      display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '12px 16px',
-      borderRadius: 'var(--settings-card-radius, 12px)', background: spec.bg,
-      border: `1px solid ${spec.ring}`, fontSize: 13, lineHeight: 1.6, color: spec.fg,
-    }}>
+    <div {...rest} data-notice-tone={tone} className={settingsClassName('settings-notice', className)} style={noticeStyle(tone)}>
       {icon}
       <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{children}</span>
       {action}
@@ -314,9 +365,9 @@ export function SLinkAction({ onClick, tone = 'accent', disabled, children, clas
 }
 
 // ── Meter ───────────────────────────────────────────────────────────────────
-/** A spend/quota bar. The track is a line tint so it reads as recessed on glass. An optional
+/** A thin spend/quota bar. The track is a line tint so it reads as recessed on glass. An optional
  *  marker draws a thin tick at a percentage, e.g. where a limit kicks in. */
-export function SMeter({ percent, tone = 'var(--proto-accent)', height = 6, marker }: {
+export function SMeter({ percent, tone = 'var(--proto-accent)', height = 4, marker }: {
   percent: number;
   tone?: string;
   height?: number;
@@ -341,9 +392,10 @@ export function SMeter({ percent, tone = 'var(--proto-accent)', height = 6, mark
 }
 
 // ── Entity row ──────────────────────────────────────────────────────────────
-/** A standalone card for one entity in a list: status dot, name over a meta line, trailing controls.
- *  The meta line is UI face with tabular figures; `metaCode` sets it in the code face for a line
- *  that is literal config (an API id, a URL), and a caller can wrap a single path in `SCode`. */
+/** One entity in a list: a 16px status column, name over a meta line, trailing controls. Rows are
+ *  flat; put a run of them in an `SRowGroup` for the hairlines between them. The meta line is UI
+ *  face with tabular figures; `metaCode` sets it in the code face for a line that is literal config
+ *  (an API id, a URL), and a caller can wrap a single path in `SCode`. */
 export function SEntityRow({ dot, name, meta, metaCode, trailing, dim, onClick, className, ...rest }: {
   dot?: ReactNode;
   name: ReactNode;
@@ -355,16 +407,14 @@ export function SEntityRow({ dot, name, meta, metaCode, trailing, dim, onClick, 
 } & Record<string, unknown>) {
   return (
     <div {...rest} className={settingsClassName('settings-entity-row', className)} role={onClick ? 'button' : undefined} onClick={onClick} style={{
-      ...GROUP_STYLE, flexDirection: 'row', alignItems: 'center', gap: 12,
-      padding: '12px 16px', opacity: dim ? 0.55 : 1,
-      cursor: onClick ? 'pointer' : undefined,
+      ...ROW_STYLE, opacity: dim ? 0.55 : 1, minWidth: 0, cursor: onClick ? 'pointer' : undefined,
     }}>
-      {dot}
+      {dot != null && <span style={{ width: 16, flex: 'none', display: 'inline-flex', justifyContent: 'center' }}>{dot}</span>}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>{name}</div>
         {meta != null && (
           <div style={{ fontSize: 12, fontFamily: metaCode ? MONO : undefined, fontVariantNumeric: 'tabular-nums',
-            color: 'var(--proto-muted-2)', marginTop: 4, overflowWrap: 'anywhere' }}>
+            color: 'var(--proto-muted-2)', marginTop: 2, overflowWrap: 'anywhere' }}>
             {meta}
           </div>
         )}
@@ -385,7 +435,7 @@ export function SEntityName({ children }: { children: ReactNode }) {
 }
 
 // ── Stat ────────────────────────────────────────────────────────────────────
-/** A headline number over its meter: the shape budget and usage both report in. */
+/** A headline number, its caption and a thin meter — unboxed, so a pair can sit side by side. */
 export function SStat({ value, caption, action, percent, tone, marker, footnote }: {
   value: ReactNode;
   caption?: ReactNode;
@@ -396,16 +446,39 @@ export function SStat({ value, caption, action, percent, tone, marker, footnote 
   footnote?: ReactNode;
 }) {
   return (
-    <div className="settings-stat" style={{ ...GROUP_STYLE, padding: '12px 16px' }}>
+    <div className="settings-stat" style={{ minWidth: 0 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 8 }}>
         <span style={{ fontSize: 20, fontWeight: 550, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-ink)' }}>{value}</span>
         {caption != null && <span style={{ fontSize: 12, color: 'var(--proto-muted-2)' }}>{caption}</span>}
         {action != null && <span style={{ marginLeft: 'auto' }}>{action}</span>}
       </div>
-      {percent != null && <div style={{ marginTop: 12 }}><SMeter percent={percent} tone={tone} marker={marker} /></div>}
+      {percent != null && <div style={{ marginTop: 8 }}><SMeter percent={percent} tone={tone} marker={marker} /></div>}
       {footnote != null && (
-        <div style={{ marginTop: 12, fontSize: 12, lineHeight: 1.6, color: 'var(--proto-muted-2)' }}>{footnote}</div>
+        <div style={{ marginTop: 8, fontSize: 12, lineHeight: 1.6, color: 'var(--proto-muted-2)' }}>{footnote}</div>
       )}
     </div>
+  );
+}
+
+// ── Facts ───────────────────────────────────────────────────────────────────
+export interface SFact {
+  k: string;
+  v: ReactNode;
+}
+
+/** A read-only key/value sheet: labels in a quiet column, values beside them. */
+export function SFacts({ rows, ...rest }: { rows: SFact[] } & Record<string, unknown>) {
+  return (
+    <dl {...rest} className="settings-facts" style={{
+      display: 'grid', gridTemplateColumns: 'minmax(88px, max-content) minmax(0, 1fr)', columnGap: 16, rowGap: 3,
+      margin: 0, fontSize: 12.5, lineHeight: 1.6, fontVariantNumeric: 'tabular-nums', minWidth: 0,
+    }}>
+      {rows.map((row) => (
+        <Fragment key={row.k}>
+          <dt style={{ color: 'var(--proto-muted-2)' }}>{row.k}</dt>
+          <dd style={{ margin: 0, color: 'var(--proto-ink-2)', minWidth: 0, overflowWrap: 'anywhere' }}>{row.v}</dd>
+        </Fragment>
+      ))}
+    </dl>
   );
 }

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import type { EnvironmentDetail, EnvironmentEntry, EnvironmentIssue } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
-import { SLinkAction, SPill } from '@/features/settings/ui/settings-ui';
+import { SLinkAction, SStatus } from '@/features/settings/ui/settings-ui';
 import { useEnvironmentsController } from '@/features/settings/controllers/useEnvironmentsController';
 import {
   EDITOR_COLUMNS_STYLE,
@@ -60,9 +60,9 @@ function EnvironmentRow({
         {entry.name}
       </span>
       {!entry.valid ? (
-        <SPill data-invalid="" title={`${entry.errorCount}`} tone="danger">
+        <SStatus data-invalid="" title={`${entry.errorCount}`} tone="danger">
           {L.ttInvalidBadge}
-        </SPill>
+        </SStatus>
       ) : null}
     </div>
   );

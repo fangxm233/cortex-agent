@@ -15,11 +15,12 @@ import {
   type ConnectedProviderVm,
   type CredentialHealth,
 } from '@/features/settings/vm/accounts-vm';
-import { SLinkAction, SPill, SRowGroup, S_CONTROL_STYLE } from './settings-ui';
+import { SLinkAction, SMeta, SRowGroup, SStatus, S_CONTROL_STYLE } from './settings-ui';
 
 // One row family for every place accounts are listed: Settings → Accounts, the mobile Accounts
 // screen and the provider setup page. Inline styles on shared tokens, so each host only supplies
-// the surrounding page.
+// the surrounding page. Rows and grids are unboxed; a host that wants rows inset from its edge sets
+// `--settings-row-inset`.
 
 export interface AccountRowHandlers {
   onLogin: (target: AccountActionTarget) => void;
@@ -30,7 +31,7 @@ export interface AccountRowHandlers {
 
 const ROW_STYLE: CSSProperties = {
   display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 10, rowGap: 6,
-  padding: '8px 12px', minHeight: 40, boxSizing: 'border-box', minWidth: 0,
+  padding: '8px var(--settings-row-inset, 0px)', minHeight: 40, boxSizing: 'border-box', minWidth: 0,
 };
 const LEAD_STYLE: CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 auto', minWidth: 0,
@@ -80,19 +81,19 @@ export function AccountButton({ children, disabled, onClick, ...rest }: {
   );
 }
 
-function HealthPill({ health, expiresAt }: { health: CredentialHealth; expiresAt: string | null }) {
+function HealthStatus({ health, expiresAt }: { health: CredentialHealth; expiresAt: string | null }) {
   const L = useVocab();
   const lang = useLang();
-  if (health === 'expired') return <SPill data-account-health="expired" tone="danger">{L.accountsExpired}</SPill>;
+  if (health === 'expired') return <SStatus data-account-health="expired" tone="danger">{L.accountsExpired}</SStatus>;
   if (health !== 'expiring') return null;
   return (
-    <SPill data-account-health="expiring" tone="amber">
+    <SStatus data-account-health="expiring" tone="amber">
       {expiryText(expiresAt, Date.now(), lang, L) ?? L.accountsExpired}
-    </SPill>
+    </SStatus>
   );
 }
 
-/** Expiry far enough out to be informational; near or past dates are carried by the pill. */
+/** Expiry far enough out to be informational; near or past dates are carried by the status. */
 function quietExpiry(health: CredentialHealth, expiresAt: string | null, L: Vocab, lang: 'en' | 'zh'): string | null {
   if (health === 'expiring' || health === 'expired') return null;
   return expiryText(expiresAt, Date.now(), lang, L);
@@ -223,7 +224,7 @@ export function ConnectedProviderRow({ provider, handlers, confirm }: {
         <ProviderMark provider={provider.provider} label={provider.label} />
         <span style={NAME_STYLE}>{provider.label}</span>
         {meta ? <span data-account-meta style={META_STYLE}>{meta}</span> : null}
-        <HealthPill health={provider.health} expiresAt={provider.expiresAt} />
+        <HealthStatus health={provider.health} expiresAt={provider.expiresAt} />
       </span>
       <ManageActions backend="pi" provider={provider.provider} label={provider.label}
         activeType={provider.authType} health={provider.health} inUse={provider.inUse}
@@ -270,7 +271,7 @@ function ClaudeSlotRow({ account, slot, handlers, confirm }: {
       <span style={LEAD_STYLE}>
         <span style={NAME_STYLE}>{name}</span>
         {meta ? <span data-account-meta style={META_STYLE}>{meta}</span> : null}
-        <HealthPill health={slot.health} expiresAt={slot.expiresAt} />
+        <HealthStatus health={slot.health} expiresAt={slot.expiresAt} />
       </span>
       <ManageActions backend="claude" provider={account.provider} label={account.label}
         activeType={slot.authType} health={slot.health} inUse={slot.inUse}
@@ -298,7 +299,7 @@ export function ClaudeHeading({ inUse }: { inUse: boolean }) {
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
       <ProviderIcon provider="claude-code" label="Claude Code" size={14} />
       Claude Code
-      {inUse ? <SPill tone="strong">{L.accountsInUse}</SPill> : null}
+      {inUse ? <SMeta>{L.accountsInUse}</SMeta> : null}
     </span>
   );
 }
@@ -344,24 +345,15 @@ export function AvailableProviderRow({ provider, handlers }: {
   );
 }
 
-const GRID_CARD_STYLE: CSSProperties = {
-  borderRadius: 'var(--settings-card-radius, 12px)',
-  background: 'var(--settings-card-fill, var(--material-card-bg))',
-  border: '1px solid var(--settings-boundary, var(--proto-line-2))',
-  boxShadow: 'var(--material-card-shadow)', overflow: 'hidden', minWidth: 0,
-};
-
-// Each cell draws its own right and bottom hairline; the grid is pulled 1px past the card edge so
-// the outermost lines are clipped, whatever the column count at this width.
+// Two columns of rows with a gap between them. Each cell draws a hairline above itself; the grid
+// clips its top edge, so the first row has none, whatever the column count at this width.
 function gridStyle(minColumn: number): CSSProperties {
   return {
     display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${minColumn}px), 1fr))`,
-    margin: '0 -1px -1px 0',
+    columnGap: 24, clipPath: 'inset(0 -12px -12px -12px)', minWidth: 0,
   };
 }
-const CELL_STYLE: CSSProperties = {
-  boxShadow: 'inset -1px 0 0 var(--proto-line-2), inset 0 -1px 0 var(--proto-line-2)', minWidth: 0,
-};
+const CELL_STYLE: CSSProperties = { boxShadow: '0 -1px 0 var(--proto-line-2)', minWidth: 0 };
 
 /** `minColumn` is the narrowest a cell may get before the grid drops a column. */
 export function AvailableGrid({ providers, handlers, minColumn = 300 }: {
@@ -372,14 +364,12 @@ export function AvailableGrid({ providers, handlers, minColumn = 300 }: {
     return <div style={{ fontSize: 12, color: 'var(--proto-muted-2)', padding: '2px 2px 0' }}>{L.accountsNoProviders}</div>;
   }
   return (
-    <div data-account-group="available" style={GRID_CARD_STYLE}>
-      <div style={gridStyle(minColumn)}>
-        {providers.map(provider => (
-          <div key={provider.provider} style={CELL_STYLE}>
-            <AvailableProviderRow provider={provider} handlers={handlers} />
-          </div>
-        ))}
-      </div>
+    <div data-account-group="available" style={gridStyle(minColumn)}>
+      {providers.map(provider => (
+        <div key={provider.provider} style={CELL_STYLE}>
+          <AvailableProviderRow provider={provider} handlers={handlers} />
+        </div>
+      ))}
     </div>
   );
 }
@@ -389,6 +379,6 @@ export function ProviderSearch({ value, onChange }: { value: string; onChange: (
   return (
     <input data-accounts-filter type="search" aria-label={L.accountsFilter} value={value}
       onChange={event => onChange(event.target.value)} placeholder={L.accountsFilterPlaceholder}
-      style={{ ...S_CONTROL_STYLE, minHeight: 32, padding: '5px 10px', marginBottom: 8 }} />
+      style={{ ...S_CONTROL_STYLE, minHeight: 32, padding: '5px 10px', marginBottom: 4 }} />
   );
 }

@@ -2,7 +2,8 @@
    cannot carry: a container-responsive grid, a pseudo-class and a viewport query. */
 
 .ps-panel { display: flex; flex-direction: column; gap: 22px; }
-.ps-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr)); gap: 16px; align-items: start; }
+/* Not `.ps-grid`: Tailwind reads that name as a padding-inline-start utility. */
+.settings-platform-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
 .ps-panel :is(input, select, button, a, summary):focus-visible { outline: 2px solid var(--proto-accent); outline-offset: 3px; }
 
 /* The mobile platform screen renders this same panel. iOS zooms the page when a focused field is

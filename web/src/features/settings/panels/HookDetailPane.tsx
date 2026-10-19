@@ -2,15 +2,16 @@ import type { CSSProperties, ReactNode } from 'react';
 import type { HookDetail, HookScriptInfo, HooksTestReturn } from '@cortex-agent/ui-contract';
 import { useVocab, type Vocab } from '@/i18n';
 import {
-  MonoKV,
   SButton,
+  SFacts,
   SLinkAction,
+  SMeta,
   SNotice,
-  SPill,
   SSectionLabel,
+  SStatus,
   S_CONTROL_STYLE,
   Toggle,
-  type SPillTone,
+  type SFact,
 } from '@/features/settings/ui/settings-ui';
 import {
   CONTROL_ERROR_STYLE,
@@ -34,37 +35,22 @@ import {
   validateHookForm,
   type HookCapability,
   type HookFormState,
-  type HookMountTarget,
 } from '@/features/settings/vm/hooks-panel-vm';
 
 const MONO = "'IBM Plex Mono',monospace";
-
-const MOUNT_TONE: Record<HookMountTarget, SPillTone> = {
-  claude: 'strong',
-  pi: 'success',
-  server: 'amber',
-};
-
-// Fact sheets are labels and values in the UI face; the values that are literal config (an event
-// name, a matcher, a command, a tool name) are set in the code face one by one.
-const FACTS_STYLE: CSSProperties = {
-  fontSize: 12.5, lineHeight: 1.7, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted)',
-};
-
-// ── small presentational atoms ────────────────────────────────────────────────────────────────
-
-/** The list row carries mount targets too, which is why it is exported from the pane below. */
-export function MountBadge({ target }: { target: HookMountTarget }) {
-  return <SPill data-hook-mount={target} tone={MOUNT_TONE[target]}>{target}</SPill>;
-}
 
 function sourceLabel(source: HookDetail['source'], L: Vocab): string {
   return source === 'builtin' ? L.hkSourceBuiltin : L.hkSourceUser;
 }
 
-function SourceBadge({ source }: { source: HookDetail['source'] }) {
+/** Where a hook comes from and where it mounts, as one line of meta beside its id. */
+function HookOrigin({ hook }: { hook: HookDetail }) {
   const L = useVocab();
-  return <SPill data-hook-source={source} tone="neutral">{sourceLabel(source, L)}</SPill>;
+  return (
+    <SMeta data-hook-source={hook.source} data-hook-mounts={hook.mountsOn.join(' ')}>
+      {[sourceLabel(hook.source, L), ...hook.mountsOn].join(' · ')}
+    </SMeta>
+  );
 }
 
 function Mono({ children }: { children: ReactNode }) {
@@ -73,8 +59,11 @@ function Mono({ children }: { children: ReactNode }) {
 
 // ── read-only declaration ─────────────────────────────────────────────────────────────────────
 
-function declarationRows(hook: HookDetail, L: Vocab): { k: string; v: ReactNode }[] {
-  const rows: { k: string; v: ReactNode }[] = [
+// Fact sheets are labels and values in the UI face; the values that are literal config (an event
+// name, a matcher, a command, a file, a tool name) are set in the code face one by one.
+
+function declarationRows(hook: HookDetail, L: Vocab): SFact[] {
+  const rows: SFact[] = [
     { k: L.hkFieldEvent, v: <Mono>{hook.event}</Mono> },
     {
       k: matcherKindForEvent(hook.event) === 'filters' ? L.hkFieldFilters : L.hkFieldMatcher,
@@ -95,21 +84,14 @@ function declarationRows(hook: HookDetail, L: Vocab): { k: string; v: ReactNode 
 
 function ReadOnlyDeclaration({ hook }: { hook: HookDetail }) {
   const L = useVocab();
-  return (
-    <div style={FACTS_STYLE}>
-      {declarationRows(hook, L).map((row) => (
-        <MonoKV key={row.k} k={row.k} value={row.v} />
-      ))}
-    </div>
-  );
+  return <SFacts data-hook-declaration="" rows={declarationRows(hook, L)} />;
 }
 
 // ── the test runner ───────────────────────────────────────────────────────────────────────────
 
-// The log stays sealed while its frame and toolbar share the card material.
+// The log is output, so it sits recessed like a field rather than raised like a card.
 const RESULT_CARD_STYLE: CSSProperties = {
-  marginTop: 10, background: 'var(--material-card-bg)', borderRadius: 'var(--r-control)',
-  boxShadow: 'var(--material-card-shadow)', overflow: 'hidden',
+  marginTop: 10, background: 'var(--material-inset-bg)', borderRadius: 'var(--r-control)', overflow: 'hidden',
 };
 
 function TestStream({ label, text, tone }: { label: string; text: string; tone?: 'danger' }) {
@@ -118,7 +100,7 @@ function TestStream({ label, text, tone }: { label: string; text: string; tone?:
   const color = empty ? 'var(--proto-muted-3)'
     : tone === 'danger' ? 'var(--proto-danger)' : 'var(--proto-ink-2)';
   return (
-    <div style={{ borderTop: '1px solid var(--proto-line-2)', padding: '8px 12px', background: 'var(--proto-card)' }}>
+    <div style={{ borderTop: '1px solid var(--proto-line-2)', padding: '8px 12px' }}>
       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-muted-3)', marginBottom: 4 }}>{label}</div>
       <pre style={{
         margin: 0, font: `400 12px/1.65 ${MONO}`, color, whiteSpace: 'pre-wrap',
@@ -136,7 +118,7 @@ function TestResult({ result }: { result: HooksTestReturn }) {
     <div data-hook-test-result="" style={RESULT_CARD_STYLE}>
       <div style={{
         display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 12px',
-        background: 'var(--material-inset-bg)', overflowWrap: 'anywhere', fontSize: 12, fontWeight: 500,
+        overflowWrap: 'anywhere', fontSize: 12, fontWeight: 500,
         fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted)',
       }}>
         <span
@@ -283,9 +265,8 @@ function DetailHeader({ hook, draft, creating, dirty, saving, onToggleEnabled }:
       <span style={{ font: `600 13px ${MONO}`, color: 'var(--proto-ink)', minWidth: 0, overflowWrap: 'anywhere' }}>
         {creating ? draft.id || L.hkCreate : hook?.id}
       </span>
-      {hook ? <SourceBadge source={hook.source} /> : null}
-      {hook?.mountsOn.map((target) => <MountBadge key={target} target={target} />)}
-      {dirty && !creating ? <SPill tone="amber">{L.hkDirty}</SPill> : null}
+      {hook ? <HookOrigin hook={hook} /> : null}
+      {dirty && !creating ? <SStatus data-hook-dirty="" tone="amber">{L.hkDirty}</SStatus> : null}
       {hook !== null && canToggle ? (
         <span
           data-hook-toggle=""
@@ -330,17 +311,14 @@ function RegistryFacts({ hook }: { hook: HookDetail }) {
   return (
     <>
       <SSectionLabel>{L.hkSecRegistry}</SSectionLabel>
-      <div style={FACTS_STYLE}>
-        <MonoKV k={L.hkFieldSource} value={sourceLabel(hook.source, L)} />
-        <MonoKV k={L.hkFieldFile} value={hook.fileName ?? '—'} />
-        <MonoKV k={L.hkFieldOrder} value={String(hook.order)} />
-        <MonoKV k={L.hkFieldVersion} value={hook.version ?? '—'} />
-        <MonoKV
-          k={L.hkFieldBlocking}
-          value={hook.blocking === null ? '—' : `${hook.blocking.mode} · ${hook.blocking.ttlMin} ${minUnit}`}
-        />
-        <MonoKV k={L.hkFieldMountsOn} value={hook.mountsOn.join(' · ') || '—'} />
-      </div>
+      <SFacts data-hook-registry="" rows={[
+        { k: L.hkFieldSource, v: sourceLabel(hook.source, L) },
+        { k: L.hkFieldFile, v: hook.fileName ? <Mono>{hook.fileName}</Mono> : '—' },
+        { k: L.hkFieldOrder, v: String(hook.order) },
+        { k: L.hkFieldVersion, v: hook.version ?? '—' },
+        { k: L.hkFieldBlocking, v: hook.blocking === null ? '—' : `${hook.blocking.mode} · ${hook.blocking.ttlMin} ${minUnit}` },
+        { k: L.hkFieldMountsOn, v: hook.mountsOn.join(' · ') || '—' },
+      ]} />
       {hook.appliesAt !== null ? (
         <div
           data-hook-applies-at={hook.appliesAt}
@@ -381,7 +359,7 @@ function DetailFooter(props: HookDetailPaneProps & {
 }) {
   const L = useVocab();
   return (
-    <PaneFooter hint={props.hooksDir}>
+    <PaneFooter hint={<span style={{ fontFamily: MONO }}>{props.hooksDir}</span>}>
       {props.hook !== null && !props.testOpen ? (
         <SButton data-action="open-test" tone="neutral" onClick={props.onOpenTest}>{L.hkTest}</SButton>
       ) : null}

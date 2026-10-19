@@ -2,7 +2,7 @@ import '@/features/settings/ui/desktop-panels.css';
 import { useEffect, useState, type CSSProperties } from 'react';
 import type { HookDetail, HooksTestReturn } from '@cortex-agent/ui-contract';
 import { useVocab, type Vocab } from '@/i18n';
-import { SChip, SLinkAction, SPill } from '@/features/settings/ui/settings-ui';
+import { SChip, SLinkAction, SStatus } from '@/features/settings/ui/settings-ui';
 import {
   CHIP_COUNT_STYLE,
   EDITOR_COLUMNS_STYLE,
@@ -14,7 +14,7 @@ import {
   listPaneStyle,
   listRowStyle,
 } from '@/features/settings/ui/master-detail-ui';
-import { HookDetailPane, MountBadge, type HookDetailPaneProps } from './HookDetailPane';
+import { HookDetailPane, type HookDetailPaneProps } from './HookDetailPane';
 import {
   HOOK_FILTER_KEYS,
   buildHookCreateArgs,
@@ -25,6 +25,7 @@ import {
   formStateFromDetail,
   groupHooks,
   samplePayloadForEvent,
+  type HookNamespace,
   type HookFilterKey,
   type HookFormState,
 } from '@/features/settings/vm/hooks-panel-vm';
@@ -44,6 +45,10 @@ import { useHooksController } from '@/features/settings/controllers/useHooksCont
 const MONO = "'IBM Plex Mono',monospace";
 const LIST_WIDTH = 300;
 
+const GROUP_LABEL: Record<HookNamespace, keyof Vocab> = {
+  agent: 'hookGroupAgent', cc: 'hookGroupCc', pi: 'hookGroupPi', cortex: 'hookGroupCortex', other: 'hookGroupOther',
+};
+
 const FILTER_LABEL: Record<HookFilterKey, keyof Vocab> = {
   all: 'hkFilterAll',
   agent: 'hkFilterAgent',
@@ -60,8 +65,8 @@ const ORDER_STYLE: CSSProperties = {
   fontSize: 12, fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted-3)', flex: 'none', paddingTop: 2,
 };
 
-const EVENT_STYLE: CSSProperties = {
-  font: `400 12px ${MONO}`, color: 'var(--proto-muted-2)', marginTop: 3, overflowWrap: 'anywhere',
+const META_STYLE: CSSProperties = {
+  fontSize: 12, color: 'var(--proto-muted-2)', marginTop: 2, overflowWrap: 'anywhere',
 };
 
 function hookIdStyle(selected: boolean): CSSProperties {
@@ -72,18 +77,14 @@ function hookIdStyle(selected: boolean): CSSProperties {
   };
 }
 
-/** Where the hook mounts, and whether it is live — the two things a row is scanned for. */
+/** The event, where it mounts, and — only when it is off — that it is off. */
 function HookRowMeta({ hook }: { hook: HookDetail }) {
   const L = useVocab();
+  const extra = [...hook.mountsOn, ...(hook.enabled ? [] : [L.stHookDisabled])];
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 6 }}>
-      {hook.mountsOn.map((target) => <MountBadge key={target} target={target} />)}
-      <span style={{
-        marginLeft: 'auto', fontSize: 12, fontWeight: 600, flex: 'none',
-        color: hook.enabled ? 'var(--proto-success)' : 'var(--proto-muted-2)',
-      }}>
-        {hook.enabled ? L.stHookEnabled : L.stHookDisabled}
-      </span>
+    <div data-hook-meta="" style={META_STYLE}>
+      <span style={{ fontFamily: MONO }}>{hook.event}</span>
+      {extra.length > 0 ? ` · ${extra.join(' · ')}` : null}
     </div>
   );
 }
@@ -98,9 +99,10 @@ function HookRow({ hook, selected, onSelect }: {
     <div
       data-hook-row={hook.id}
       data-hook-active={selected ? '' : undefined}
+      data-hook-enabled={hook.enabled ? '' : undefined}
       onClick={() => onSelect(hook.id)}
       role="button"
-      style={listRowStyle(selected, 'flex-start')}
+      style={{ ...listRowStyle(selected, 'flex-start'), opacity: hook.enabled ? 1 : 0.6 }}
     >
       <span data-hook-order={hook.order} style={ORDER_STYLE}>
         {String(hook.order).padStart(2, '0')}
@@ -109,10 +111,9 @@ function HookRow({ hook, selected, onSelect }: {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={hookIdStyle(selected)}>{hook.id}</span>
           {hook.scriptExists === false ? (
-            <SPill data-hook-broken="" title={L.hkScriptMissing} tone="danger">{L.hkBroken}</SPill>
+            <SStatus data-hook-broken="" title={L.hkScriptMissing} tone="danger">{L.hkBroken}</SStatus>
           ) : null}
         </div>
-        <div style={EVENT_STYLE}>{hook.event}</div>
         <HookRowMeta hook={hook} />
       </div>
     </div>
@@ -148,6 +149,7 @@ function HookGroups({ visible, selectedId, onSelect }: {
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) {
+  const L = useVocab();
   return (
     <>
       {groupHooks(visible).map((group) => (
@@ -155,11 +157,11 @@ function HookGroups({ visible, selectedId, onSelect }: {
           <div
             data-hook-group={group.key}
             style={{
-              fontSize: 12, fontWeight: 600,
-              color: 'var(--proto-muted-3)', padding: '8px 10px 4px',
+              fontSize: 12, fontWeight: 600, fontVariantNumeric: 'tabular-nums',
+              color: 'var(--proto-muted-2)', padding: '8px 10px 4px',
             }}
           >
-            {`${group.key}:`}
+            {`${L[GROUP_LABEL[group.key]]} · ${group.hooks.length}`}
           </div>
           {group.hooks.map((hook) => (
             <HookRow key={hook.id} hook={hook} selected={hook.id === selectedId} onSelect={onSelect} />

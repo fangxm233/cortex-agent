@@ -286,7 +286,7 @@ export const enBase = {
   stModelsSaved: 'Models saved',
   stModelsWriteFailed: 'Could not save models',
   stNoMachinesFile: 'No machines registered',
-  stMachineLocal: '— local',
+  stMachineLocal: 'this machine',
   stAddMachine: '+ Add machine',
   stNoEnvironments: 'No environments yet',
   stServers: 'Servers',

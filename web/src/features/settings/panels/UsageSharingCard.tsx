@@ -1,13 +1,13 @@
 import { useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
 import { useVocab, type Vocab } from '@/i18n';
 import {
-  SButton, SCard, SCardHeader, SDot, SFieldRow, SNotice, S_CONTROL_STYLE, Toggle,
+  SButton, SDot, SFieldRow, SNotice, SSection, S_CONTROL_STYLE, Toggle,
 } from '@/features/settings/ui/settings-ui';
 import {
   LEADERBOARD_URL, type UsageSharingController, type UsageSharingField, type UsageSharingIssue,
 } from '@/features/settings/vm/usage-sharing-vm';
 
-/** `setup` sits among the setup page's cards; `settings` among the Settings panel's cards. */
+/** `setup` sits among the setup page's cards; `settings` is a section of the Settings panel. */
 export type UsageSharingVariant = 'setup' | 'settings';
 
 const NOTE: CSSProperties = { fontSize: 12, lineHeight: 1.6, color: 'var(--proto-muted)', margin: 0 };
@@ -79,10 +79,9 @@ function SetupFrame({ toggle, children }: FrameProps) {
 
 function SettingsFrame({ toggle, children }: FrameProps) {
   const L = useVocab();
-  return <SCard data-usage-sharing="settings">
-    <SCardHeader title={L.usageShareTitle} right={toggle} />
-    <div style={{ padding: '12px 16px' }}>{children}</div>
-  </SCard>;
+  return <div data-usage-sharing="settings">
+    <SSection label={L.usageShareTitle} action={toggle}>{children}</SSection>
+  </div>;
 }
 
 const FRAMES: Record<UsageSharingVariant, typeof SetupFrame> = { setup: SetupFrame, settings: SettingsFrame };

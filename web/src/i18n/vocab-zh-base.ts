@@ -285,7 +285,7 @@ export const zhBase = {
   stModelsSaved: '模型已保存',
   stModelsWriteFailed: '模型保存失败',
   stNoMachinesFile: '暂无已注册机器',
-  stMachineLocal: '— 本地',
+  stMachineLocal: '本机',
   stAddMachine: '+ 添加机器',
   stNoEnvironments: '暂无环境',
   stServers: '服务器',

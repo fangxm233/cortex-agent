@@ -4,7 +4,7 @@ import type { PluginsSkillFile, UiPluginCatalogEntry, UiPluginSkill } from '@cor
 import { Modal, Select } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import { SButton, SFieldRow, SNotice, SPill, S_CONTROL_STYLE } from '@/features/settings/ui/settings-ui';
+import { SButton, SFieldRow, SMeta, SNotice, SRowGroup, SStatus, SSubheading, S_CONTROL_STYLE } from '@/features/settings/ui/settings-ui';
 import { EmptyMessage, ROW } from '@/features/settings/ui/plugin-ui';
 import { isCanonicalName } from '@/features/settings/vm/plugin-authoring-vm';
 import type { PluginAuthoringActions } from '@/features/settings/controllers/usePluginAuthoring';
@@ -36,12 +36,10 @@ function isBuiltinSkill(origin: SkillOrigin): boolean {
 function OriginPill(props: { origin: SkillOrigin }) {
   const L = useVocab();
   if (props.origin === 'local') return null;
-  const modified = props.origin === 'overridden';
-  return (
-    <SPill tone={modified ? 'amber' : 'strong'} data-plugin-skill-origin={props.origin}>
-      {modified ? L.plOriginModified : L.plOriginBuiltin}
-    </SPill>
-  );
+  if (props.origin === 'overridden') {
+    return <SStatus tone="amber" data-plugin-skill-origin={props.origin}>{L.plOriginModified}</SStatus>;
+  }
+  return <SMeta data-plugin-skill-origin={props.origin}>{L.plOriginBuiltin}</SMeta>;
 }
 
 /** The open editor, keyed by skill so switching rows always reloads from disk. */
@@ -159,8 +157,8 @@ function CreateSkillForm(props: { pluginId: string; busy: boolean; actions: Plug
   const nameBad = name.length > 0 && !isCanonicalName(name);
   const ready = isCanonicalName(name) && description.trim().length > 0;
   return (
-    <div data-plugin-skill-create="" style={{ ...ROW, gap: 8 }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.plSkillNewTitle}</div>
+    <div data-plugin-skill-create="" style={{ display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px solid var(--proto-line-2)' }}>
+      <SSubheading>{L.plSkillNewTitle}</SSubheading>
       <SFieldRow label={L.plSkillNewName} hint={nameBad ? L.plNameInvalid : undefined} hintTone="danger">
         <input data-field="skill-name" value={name} placeholder={L.plSkillNewNamePh}
           onChange={(event) => setName(event.target.value)} style={S_CONTROL_STYLE} />
@@ -305,14 +303,14 @@ export function PluginSkillsTab(props: {
       {note ? <SNotice tone="muted" data-plugin-builtin-note="">{note}</SNotice> : null}
       {props.plugin.skills.length === 0
         ? <EmptyMessage text={L.plNoSkills} dataAttr="data-plugin-skills-empty" />
-        : props.plugin.skills.map((skill) => (
+        : <SRowGroup>{props.plugin.skills.map((skill) => (
           <SkillRow key={skill.name} plugin={props.plugin} skill={skill} busy={props.actions.busy}
             actions={props.actions} open={open === skill.name}
             onToggle={() => setOpen((current) => (current === skill.name ? null : skill.name))}
             onMove={() => setMoving(skill.name)}
             onDelete={() => setDeleting(skill.name)}
             onRevert={() => setReverting(skill.name)} />
-        ))}
+        ))}</SRowGroup>}
       <CreateSkillForm pluginId={props.plugin.id} busy={props.actions.busy} actions={props.actions} />
       {moving ? (
         <MoveSkillModal plugin={props.plugin} plugins={props.plugins} skill={moving}
