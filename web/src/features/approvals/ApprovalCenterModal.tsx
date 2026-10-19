@@ -243,86 +243,65 @@ function PendingList({
       >
         {L.apPending} · {count}
       </div>
-      <div style={{ padding: '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {entries.map((e) => {
-          const card = toListCard(e);
-          const sel = e.id === selectedId;
-          return (
-            <div
-              key={e.id}
-              role="button"
-              tabIndex={0}
-              aria-pressed={sel}
-              className={focusClass}
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter' && event.key !== ' ') return;
-                event.preventDefault();
-                event.currentTarget.click();
-              }}
-              data-approval-id={e.id}
-              onClick={() => onSelect(e.id)}
-              // Selected = the gray tint and a firmer hairline, the same selection grammar as a row.
-              style={{
-                background: sel ? 'var(--proto-gray)' : 'var(--material-card-bg)',
-                boxShadow: 'var(--material-card-shadow)',
-                border: `1px solid ${sel ? 'var(--proto-line-3)' : 'var(--proto-line-2)'}`,
-                borderRadius: 'var(--r-card)',
-                padding: '10px 12px',
-                overflowWrap: 'anywhere',
-                cursor: 'pointer',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
-                <span
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: '50%',
-                    background: 'var(--proto-amber)',
-                    flex: 'none',
-                    marginTop: 5,
-                  }}
-                />
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: sel ? 'var(--proto-ink)' : 'var(--proto-ink-2)',
-                      lineHeight: 1.4,
-                    }}
-                  >
-                    {card.title}
-                  </div>
-                  {/* meta row: tag OMITTED (no safety-class field); project = real projectId chip
-                      (null = global entry, omitted); origin = real provenance when present; age =
-                      queuedAt date */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 7,
-                      marginTop: 6,
-                      flexWrap: 'wrap',
-                    }}
-                  >
-                    {card.project && (
-                      <span style={{ ...META_TEXT, fontWeight: 550 }}>{card.project}</span>
-                    )}
-                    {card.origin && (
-                      <span style={META_TEXT}>{card.origin}</span>
-                    )}
-                    {card.age && (
-                      <span style={{ ...META_TEXT, marginLeft: 'auto' }}>
-                        {card.age}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+      <div style={{ padding: '0 8px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {entries.map((e) => (
+          <PendingRow key={e.id} entry={e} selected={e.id === selectedId} onSelect={onSelect} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const ROW_HOVER = 'hover:[background:var(--proto-line-2)]';
+
+function activateOnKey(event: React.KeyboardEvent<HTMLDivElement>): void {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  event.preventDefault();
+  event.currentTarget.click();
+}
+
+// A plain row in the rail's grammar: the 16px status column, the title, then a meta line. Selection
+// is the gray tint alone; no card, border or shadow.
+function PendingRow({ entry, selected, onSelect }: {
+  entry: ApprovalInfo;
+  selected: boolean;
+  onSelect: (id: string) => void;
+}) {
+  const card = toListCard(entry);
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
+      className={selected ? focusClass : `${focusClass} ${ROW_HOVER}`}
+      onKeyDown={activateOnKey}
+      data-approval-id={entry.id}
+      onClick={() => onSelect(entry.id)}
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 8,
+        background: selected ? 'var(--proto-gray)' : undefined,
+        borderRadius: 'var(--r-chip)',
+        padding: '8px 10px 8px 6px',
+        overflowWrap: 'anywhere',
+        cursor: 'pointer',
+      }}
+    >
+      <span style={{ width: 16, flex: 'none', display: 'flex', justifyContent: 'center', paddingTop: 6 }}>
+        <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--proto-amber)' }} />
+      </span>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: selected ? 'var(--proto-ink)' : 'var(--proto-ink-2)', lineHeight: 1.4 }}>
+          {card.title}
+        </div>
+        {/* meta row: tag OMITTED (no safety-class field); project = real projectId (null = global
+            entry, omitted); origin = real provenance when present; age = queuedAt date */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 3, flexWrap: 'wrap' }}>
+          {card.project && <span style={{ ...META_TEXT, fontWeight: 550 }}>{card.project}</span>}
+          {card.origin && <span style={META_TEXT}>{card.origin}</span>}
+          {card.age && <span style={{ ...META_TEXT, marginLeft: 'auto' }}>{card.age}</span>}
+        </div>
       </div>
     </div>
   );

@@ -27,7 +27,7 @@ export const enBase = {
   mHeartbeat: 'heartbeat',
   aprEmptyTitle: 'All clear',
   issuesTitle: 'Issues',
-  isListLabel: 'ISSUES',
+  isListLabel: 'Issues',
   isRecorded: 'recorded',
   isEmptyTitle: 'No issues',
   isEmptyDesc: 'Issues agents register during runs appear here',
