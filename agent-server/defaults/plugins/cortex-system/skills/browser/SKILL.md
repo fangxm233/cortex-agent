@@ -1,9 +1,9 @@
 ---
 name: browser
-description: "Use whenever a task needs a real web browser: verifying or inspecting a web UI (a dev server, a Cortex page, a deployed site), taking a screenshot of a page, reading a page that needs JavaScript or a login, clicking through or operating a website, filling in forms, or checking what a user sees on their own machine. Drive it with the `cortex-browser` CLI. Do not hand-write CDP, puppeteer, playwright or headless-Chrome scripts, and do not launch your own Chrome or Xvfb."
+description: "Use whenever a task needs a real web browser: verifying or inspecting a web UI (a dev server, a Cortex page, a deployed site), taking a screenshot of a page, reading a page that needs JavaScript or a login, clicking through or operating a website, filling in forms, or checking what a user sees on their own machine. Drive it with the `cortex-browser` CLI."
 metadata:
   author: "Cortex"
-  version: "1.1.0"
+  version: "1.1.1"
   date: "2026-10-19"
 ---
 
@@ -40,8 +40,7 @@ page changes: refs from an old snapshot go stale.
 - Commands still run on the server, so screenshots and other files land on the server either way.
 
 When `cortex-browser` exits non-zero (device offline, Chrome failed to start, unknown device), the
-message says why and what to do. Report that to the user. Switching to a headless script or another
-machine without asking hides the failure they need to fix.
+message says why and what to do.
 
 ## Showing the user
 

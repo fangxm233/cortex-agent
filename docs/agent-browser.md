@@ -66,9 +66,7 @@ The choice sticks: once a session has used a device, later calls go there withou
 a device when you ask for your machine, or when the page only exists there.
 
 When the browser cannot be used, `cortex-browser` exits non-zero and says why and what to do: the
-device is offline or unknown, Chrome failed to start, or you are controlling the browser. The
-skill tells the agent to report the failure to you, not to switch to a headless script or another
-machine.
+device is offline or unknown, Chrome failed to start, or you are controlling the browser.
 
 ## Watching it in the app
 

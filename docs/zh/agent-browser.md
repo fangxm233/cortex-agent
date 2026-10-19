@@ -50,7 +50,6 @@ Chrome 本身也会退出。
 你要求用你自己的机器，或者页面只在那台机器上存在时，agent 会选择对应的设备。
 
 浏览器用不了时，`cortex-browser` 以非零码退出，并说明原因和下一步：设备离线或未知、Chrome 启动失败，或者你正在操作这个浏览器。
-Skill 要求 agent 把失败告诉你，而不是改用 headless 脚本或换一台机器。
 
 ## 在 App 里观看 {#watching-it-in-the-app}
 
