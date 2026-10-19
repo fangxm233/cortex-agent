@@ -1,31 +1,66 @@
-import '@/features/settings/ui/desktop-panels.css';
+import type { CSSProperties } from 'react';
 import type { MachineInfo } from '@cortex-agent/ui-contract';
 import { promptDialog, useToast } from '@/design';
 import { useMachinesResource } from '@/features/machines/useMachinesResource';
-import { useVocab } from '@/i18n';
+import { machineHeartbeatText } from '@/features/machines/machines-menu-vm';
+import { useLang, useVocab } from '@/i18n';
 import {
+  ROW_STYLE,
   SCode,
   SCount,
-  SDot,
-  SEntityName,
-  SEntityRow,
   SLinkAction,
+  SMeta,
   SNotice,
-  SPill,
+  SRowGroup,
   SSection,
 } from '@/features/settings/ui/settings-ui';
 
-function MachineEntity({ machine }: { machine: MachineInfo }) {
+const NAME_STYLE: CSSProperties = {
+  width: 88, flex: 'none', fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)', overflowWrap: 'anywhere',
+};
+const META_STYLE: CSSProperties = {
+  flex: '1 1 200px', minWidth: 0, fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted-2)',
+  overflowWrap: 'anywhere',
+};
+
+/** Online is a green dot with a soft halo; offline is a hollow ring — the machines menu's dot. */
+function OnlineDot({ online }: { online: boolean }) {
   const L = useVocab();
-  const ssh = machine.sshConfigured;
-  return <SEntityRow
-    dot={<SDot color={ssh ? 'var(--proto-success)' : 'var(--proto-line-3)'} />}
-    name={<SEntityName>{machine.name}</SEntityName>}
-    meta={<>
-      {machine.cortexPath ? <SCode>{machine.cortexPath}</SCode> : '—'}
-      {` · ${machine.os === 'windows' ? L.stWinOs : L.stUnixOs} · ${L.mGpu} ${machine.gpuCount ?? '—'}`}
-    </>}
-    trailing={<SPill tone={ssh ? 'success' : 'neutral'}>{ssh ? L.stConfigured : L.stMachineLocal}</SPill>} />;
+  const label = online ? L.mOnline : L.mOffline;
+  return (
+    <span style={{ width: 16, flex: 'none', display: 'inline-flex', justifyContent: 'center' }}>
+      <span role="img" aria-label={label} title={label} data-machine-status={online ? 'online' : 'offline'} style={{
+        width: 7, height: 7, borderRadius: '50%', boxSizing: 'border-box',
+        ...(online
+          ? { background: 'var(--proto-success)', boxShadow: '0 0 0 3px color-mix(in srgb, var(--proto-success) 15%, transparent)' }
+          : { border: '1.5px solid var(--proto-faint)' }),
+      }} />
+    </span>
+  );
+}
+
+/** The right-hand word: this machine, its last heartbeat, or offline. */
+function machineTrailing(machine: MachineInfo, heartbeat: string, L: ReturnType<typeof useVocab>): string {
+  if (!machine.sshConfigured) return L.stMachineLocal;
+  if (machine.online && heartbeat) return heartbeat;
+  return machine.online ? L.mOnline : L.mOffline;
+}
+
+function MachineRow({ machine }: { machine: MachineInfo }) {
+  const L = useVocab();
+  const lang = useLang();
+  const trailing = machineTrailing(machine, machineHeartbeatText(machine, lang), L);
+  return (
+    <div data-settings-machine={machine.name} style={{ ...ROW_STYLE, flexWrap: 'wrap', rowGap: 2 }}>
+      <OnlineDot online={machine.online} />
+      <span style={NAME_STYLE}>{machine.name}</span>
+      <span style={META_STYLE}>
+        {machine.cortexPath ? <SCode>{machine.cortexPath}</SCode> : '—'}
+        {` · ${machine.os === 'windows' ? L.stWinOs : L.stUnixOs} · ${L.mGpu} ${machine.gpuCount ?? '—'}`}
+      </span>
+      <SMeta>{trailing}</SMeta>
+    </div>
+  );
 }
 
 function AddMachineAction({ disabled, onAdd }: { disabled: boolean; onAdd: () => void }) {
@@ -55,16 +90,14 @@ export function MachinesPanelView(props: MachinesPanelViewProps) {
   const L = useVocab();
   const message = props.loading ? L.stLoadingConfig
     : props.error ? `${L.stFailedLoadConfig} ${props.error.message}` : L.stNoMachinesFile;
-  return <>
+  return (
     <SSection label={<MachinesHeading count={props.machines.length} />}
       action={<AddMachineAction disabled={props.addPending} onAdd={props.onAdd} />}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {props.machines.length === 0
-          ? <SNotice tone={props.error ? 'danger' : 'muted'}>{message}</SNotice>
-          : props.machines.map((machine) => <MachineEntity key={machine.name} machine={machine} />)}
-      </div>
+      {props.machines.length === 0
+        ? <SNotice tone={props.error ? 'danger' : 'muted'}>{message}</SNotice>
+        : <SRowGroup>{props.machines.map((machine) => <MachineRow key={machine.name} machine={machine} />)}</SRowGroup>}
     </SSection>
-  </>;
+  );
 }
 
 export function MachinesPanel() {

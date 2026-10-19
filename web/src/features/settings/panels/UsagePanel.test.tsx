@@ -2,7 +2,6 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConfigSnapshot, ConfigSettingEntry, SystemUsageStatus } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
-import { SStat } from '@/features/settings/ui/settings-ui';
 
 const NOW = Math.floor(Date.now() / 1000);
 const usage: SystemUsageStatus = [
@@ -259,7 +258,8 @@ describe('desktop Settings Usage panel', () => {
   it('shows today, the last 30 days, and the lifetime total only when the gateway reports one', () => {
     const renderer = mount();
     const stats = (provider: string) => renderer.root.findByProps({ 'data-usage-spend': provider })
-      .findAllByType(SStat).map((stat) => [stat.props.value, stat.props.caption]);
+      .findAll((node) => typeof node.type === 'string' && node.props['data-usage-spend-figure'] !== undefined)
+      .map((figure) => [figure.props['data-usage-spend-value'], figure.props['data-usage-spend-figure']]);
 
     expect(stats('deepseek')).toEqual([['$1.25', 'today'], ['$9.50', 'last 30 days'], ['$120.50', 'all time']]);
     expect(stats('zai')).toEqual([['$0.00', 'today'], ['$2.00', 'last 30 days']]);

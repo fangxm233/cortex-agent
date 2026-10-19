@@ -10,9 +10,9 @@ export function psFieldStyle(disabled: boolean): CSSProperties {
   return { ...(disabled ? S_CONTROL_DISABLED_STYLE : S_CONTROL_STYLE), outline: undefined };
 }
 
-/** A stacked block of a platform card, hairline-separated from the block above it. */
+/** A stacked block of a platform section, hairline-separated from the block above it. */
 export const PS_BLOCK_STYLE: CSSProperties = {
-  padding: '14px 16px',
+  marginTop: 12,
   borderTop: '1px solid var(--proto-line-2)',
 };
 

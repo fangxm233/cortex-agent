@@ -1,7 +1,7 @@
 // The native shell's first-run screens: choosing where Cortex runs, connecting a server, and the
 // local install.
 export const onboardingEn = {
-  onbChooseEyebrow: 'YOUR WORKSPACE, CONNECTED',
+  onbChooseEyebrow: 'Your workspace, connected',
   onbChooseTitle: 'Start with Cortex.',
   onbChooseIntro: 'Choose where Cortex runs. Your projects, conversations and agents stay together.',
   onbLocalTitle: 'On this computer',
@@ -16,7 +16,7 @@ export const onboardingEn = {
   onbRemoteDesc: 'Already running Cortex? Bring your workspace with you.',
   onbLaterNote: 'Accounts and models can be connected once you’re inside.',
   onbAllOptions: 'All setup options',
-  onbRemoteEyebrow: 'EXISTING SERVER',
+  onbRemoteEyebrow: 'Existing server',
   onbRemoteHeading: 'Connect your workspace.',
   onbRemoteIntro: 'Use the address and client token from your Cortex server.',
   onbServerAddress: 'Server address',
@@ -32,7 +32,7 @@ export const onboardingEn = {
   onbConnecting: 'Connecting to your server…',
   onbVerified: 'Connection verified. Ready to connect.',
   onbConnected: 'Connected. Opening your workspace…',
-  onbSetupEyebrow: 'READY TO CONFIGURE',
+  onbSetupEyebrow: 'Ready to configure',
   onbSetupTitle: 'Make this workspace yours.',
   onbSetupIntro: 'Just the essentials for this computer. Accounts, models and projects come next.',
   onbThisComputer: 'This computer',
@@ -66,8 +66,8 @@ export const onboardingEn = {
   onbStatusDone: 'Ready',
   onbStatusError: 'Failed',
   onbStatusWarning: 'Skipped',
-  onbAlmostThere: 'ALMOST THERE',
-  onbLocalInstallation: 'LOCAL INSTALLATION',
+  onbAlmostThere: 'Almost there',
+  onbLocalInstallation: 'Local installation',
   onbOpeningTitle: 'Opening your workspace.',
   onbPreparingTitle: 'Getting Cortex ready.',
   onbOpeningIntro: 'Saving your settings, starting the server and connecting — all in one go.',

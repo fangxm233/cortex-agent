@@ -5,8 +5,8 @@ import {
   SButton,
   SCount,
   SDot,
+  SMeta,
   SNotice,
-  SPill,
   SSectionLabel,
   SSegmented,
   S_CONTROL_STYLE,
@@ -61,9 +61,9 @@ export function showsPromptTab(creating: boolean, detail: EnvironmentDetail | nu
 function OriginBadge({ origin }: { origin: EnvironmentDetail['origin'] }) {
   const L = useVocab();
   return (
-    <SPill data-origin={origin} title={L[ORIGIN_TITLE[origin]]} tone="neutral">
+    <SMeta data-origin={origin} title={L[ORIGIN_TITLE[origin]]}>
       {L[ORIGIN_LABEL[origin]]}
-    </SPill>
+    </SMeta>
   );
 }
 
@@ -89,7 +89,7 @@ function Muted({ children, style }: { children: ReactNode; style?: CSSProperties
 
 const EDITOR_STYLE: CSSProperties = {
   ...S_CONTROL_STYLE,
-  // Source text needs a sealed reading surface, unlike the surrounding card.
+  // Source text needs a sealed reading surface, unlike the unboxed pane around it.
   background: 'var(--proto-card)',
   fontFamily: MONO,
   minHeight: 320,

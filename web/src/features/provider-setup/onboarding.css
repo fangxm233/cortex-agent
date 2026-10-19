@@ -1,6 +1,7 @@
 /* The native shell's connect and local-install screens, on top of the provider-setup frame. */
 .provider-setup .onb .setup-intro + .setup-card { margin-top: 0; }
-.provider-setup .onb .setup-card-body { padding: 24px; }
+.provider-setup .onb .setup-card-body { padding: 0; }
+.provider-setup .onb .setup-card-header + .setup-card-body { padding-top: 16px; }
 .provider-setup .onb .setup-footnote { margin-top: 22px; }
 .provider-setup .onb .setup-log { max-height: 190px; }
 .provider-setup .onb summary { cursor: pointer; color: var(--proto-muted); font-size: 12px; }
@@ -14,11 +15,13 @@
 }
 .provider-setup .onb-choice-desc { margin-top: 3px; color: var(--proto-muted); font-size: 12px; }
 .provider-setup .onb-facts { display: flex; gap: 16px; flex-wrap: wrap; margin: 20px 0; color: var(--proto-muted); font-size: 12px; }
+/* The other way in is a row under a hairline, tinted on hover like any other row. */
 .provider-setup .onb-remote-choice {
-  width: 100%; display: flex; align-items: center; gap: 14px; text-align: left; padding: 20px 24px;
-  color: var(--proto-ink); font: inherit;
+  width: 100%; display: flex; align-items: center; gap: 14px; text-align: left; padding: 16px 8px; margin-top: 28px;
+  color: var(--proto-ink); font: inherit; background: transparent; border: 0; border-top: 1px solid var(--proto-line-3);
+  border-radius: 0;
 }
-.provider-setup .onb-remote-choice:hover { border-color: var(--proto-accent-border); }
+.provider-setup .onb-remote-choice:hover { background: var(--proto-line-2); }
 .provider-setup .onb-remote-choice .onb-choice-icon {
   background: var(--material-control-bg); box-shadow: var(--material-control-shadow); color: var(--proto-muted); border-color: var(--proto-line);
 }
@@ -55,18 +58,15 @@
 .provider-setup .onb-advanced .onb-field { margin-top: 16px; margin-bottom: 0; max-width: 180px; }
 .provider-setup .onb-action-bar {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 16px 24px; border-top: 1px solid var(--proto-line-2);
+  padding: 14px 0 0; border-top: 1px solid var(--proto-line-2);
 }
 .provider-setup .onb-action-bar .setup-hint { font-size: 11px; }
 .provider-setup .onb-action-bar .setup-primary { flex: none; }
 .provider-setup .onb-connection-status { margin-top: 16px; color: var(--proto-muted); font-size: 12px; overflow-wrap: anywhere; }
 .provider-setup .onb-connection-status[data-tone='error'] { color: var(--state-fail); }
 .provider-setup .onb-connection-status[data-tone='ok'] { color: var(--proto-accent); }
-.provider-setup .onb-notice {
-  padding: 12px 14px; margin-bottom: 20px; border: 1px solid var(--proto-line); border-radius: 8px;
-  background: var(--material-inset-bg); color: var(--proto-muted); font-size: 12px;
-}
-.provider-setup .onb-progress-body { padding: 8px 24px; }
+.provider-setup .onb-notice { margin-bottom: 20px; color: var(--proto-muted); font-size: 12px; }
+.provider-setup .onb-progress-body { padding: 0; }
 .provider-setup .onb-status-row { display: flex; align-items: center; gap: 12px; padding: 15px 0; }
 .provider-setup .onb-status-row + .onb-status-row { border-top: 1px solid var(--proto-line-2); }
 .provider-setup .onb-status-row strong { font-size: 12px; font-weight: 550; }
@@ -84,17 +84,16 @@
 .provider-setup [data-status='warning'] .onb-status-icon { color: var(--state-wait); }
 @keyframes onb-spin { to { transform: rotate(360deg); } }
 .provider-setup .onb-probe-details { color: var(--proto-muted); font-size: 11px; margin-top: 3px; }
-.provider-setup .onb-log-details { border-top: 1px solid var(--proto-line-2); padding: 14px 24px; }
+.provider-setup .onb-log-details { border-top: 1px solid var(--proto-line-2); padding: 12px 0 0; }
+/* The one boxed panel on these screens: a failed step the user has to act on. */
 .provider-setup .onb-error-box {
-  margin-top: 16px; padding: 14px 16px; border: 1px solid var(--state-fail); border-radius: 8px;
-  background: var(--material-card-bg); box-shadow: var(--material-card-shadow);
+  margin-top: 16px; padding: 14px 16px; border: 1px solid var(--state-fail); border-radius: var(--r-control);
+  background: var(--proto-danger-bg);
 }
 .provider-setup .onb-error-box strong { font-size: 12px; color: var(--state-fail); }
 .provider-setup .onb-error-box p { font-size: 12px; margin-top: 5px; color: var(--proto-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 .provider-setup .onb-error-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
 @media (max-width: 600px) {
-  .provider-setup .onb .setup-card-body { padding: 20px; }
-  .provider-setup .onb-action-bar { padding: 16px 20px; }
   .provider-setup .onb-action-bar .setup-hint { max-width: 150px; }
   .provider-setup .onb-choice-heading { flex-wrap: wrap; }
 }

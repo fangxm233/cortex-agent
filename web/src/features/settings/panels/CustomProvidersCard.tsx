@@ -12,17 +12,17 @@ import {
 import { useCustomProvidersController } from '@/features/settings/controllers/useCustomProvidersController';
 import {
   SButton,
-  SCard,
-  SCardHeader,
   SCount,
   SDot,
   SEntityName,
   SEntityRow,
   SFieldRow,
   SLinkAction,
+  SMeta,
   SNotice,
-  SPill,
+  SRowGroup,
   SSection,
+  SSubheading,
   S_CONTROL_DISABLED_STYLE,
   S_CONTROL_STYLE,
 } from '@/features/settings/ui/settings-ui';
@@ -66,14 +66,14 @@ function ProviderRow({ provider, ...actions }: {
       name={(
         <>
           <SEntityName>{provider.name}</SEntityName>
-          {provider.routed ? null : <SPill tone="amber">{L.cpvUnrouted}</SPill>}
+          {provider.routed ? null : <SMeta data-cpv-unrouted="" style={{ color: 'var(--proto-amber-fg)' }}>{L.cpvUnrouted}</SMeta>}
         </>
       )}
       meta={providerMeta(provider)}
       metaCode
       trailing={(
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, minWidth: 0, maxWidth: '100%' }}>
-          <SPill tone="neutral">{provider.hasApiKey ? L.cpvKeyStored : L.cpvNoKey}</SPill>
+          <SMeta>{provider.hasApiKey ? L.cpvKeyStored : L.cpvNoKey}</SMeta>
           <ProviderActions {...actions} />
         </div>
       )}
@@ -174,9 +174,9 @@ type Controller = ReturnType<typeof useCustomProvidersController>;
 function EditorCard({ controller, draft }: { controller: Controller; draft: CustomProviderFormState }) {
   const L = useVocab();
   return (
-    <SCard style={{ overflow: 'hidden' }}>
-      <SCardHeader title={controller.creating ? L.cpvCreateTitle : L.cpvEditTitle} />
-      <div style={{ padding: '10px 16px 14px' }}>
+    <div data-cpv-editor="" style={{ borderTop: '1px solid var(--proto-line-2)', paddingBottom: 4 }}>
+      <SSubheading>{controller.creating ? L.cpvCreateTitle : L.cpvEditTitle}</SSubheading>
+      <div style={{ paddingTop: 8 }}>
         <Editor draft={draft} creating={controller.creating}
           errors={controller.errors} onChange={controller.changeDraft} />
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
@@ -187,15 +187,15 @@ function EditorCard({ controller, draft }: { controller: Controller; draft: Cust
             onClick={controller.save}>{L.cpvSave}</SButton>
         </div>
       </div>
-    </SCard>
+    </div>
   );
 }
 
 function ProviderList({ controller }: { controller: Controller }) {
   const L = useVocab();
-  if (controller.providers.length === 0) return <SNotice tone="muted">{L.cpvNone}</SNotice>;
+  if (controller.providers.length === 0) return <div style={{ marginTop: 8 }}><SNotice tone="muted">{L.cpvNone}</SNotice></div>;
   return (
-    <>
+    <SRowGroup>
       {controller.providers.map(provider => (
         <ProviderRow key={provider.name} provider={provider}
           editDisabled={controller.savePending} deleteDisabled={controller.removePending}
@@ -203,7 +203,7 @@ function ProviderList({ controller }: { controller: Controller }) {
           onEdit={() => controller.openEdit(provider)}
           onDelete={() => controller.requestDelete(provider.name)} />
       ))}
-    </>
+    </SRowGroup>
   );
 }
 
@@ -228,13 +228,9 @@ export function CustomProvidersCard() {
   );
   return (
     <SSection label={label} action={add}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--proto-muted-2)', padding: '0 2px' }}>
-          {L.cpvSubtitle}
-        </div>
-        <ProviderList controller={controller} />
-        {controller.draft ? <EditorCard controller={controller} draft={controller.draft} /> : null}
-      </div>
+      <div style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--proto-muted-2)' }}>{L.cpvSubtitle}</div>
+      <ProviderList controller={controller} />
+      {controller.draft ? <EditorCard controller={controller} draft={controller.draft} /> : null}
     </SSection>
   );
 }

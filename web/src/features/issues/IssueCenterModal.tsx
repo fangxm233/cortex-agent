@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import type { IssueInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { Button, EmptyState, useToast } from '@/design';
+import { Button, EmptyState, IconButton, useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
@@ -32,7 +32,16 @@ const ALL_CLEAR_ICON = (
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700 }}>✓</span>
 );
 
-const mono = "'IBM Plex Mono',monospace";
+const META_TEXT: React.CSSProperties = { fontSize: 12, color: 'var(--proto-muted)', fontVariantNumeric: 'tabular-nums' };
+
+function CloseGlyph() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"
+      strokeLinecap="round" aria-hidden="true">
+      <path d="m4.5 4.5 7 7m0-7-7 7" />
+    </svg>
+  );
+}
 
 // ── pure presentational view ──────────────────────────────────────────────────────────────────
 
@@ -102,47 +111,25 @@ function IssueCenterView(props: IssueCenterViewProps) {
           flexDirection: 'column',
         }}
       >
-        {/* header (24b) — neutral count pill, NOT amber (issues never block) */}
+        {/* header (24b): title, a plain neutral count (issues never block, so no amber), and the
+            same quiet × as the approval centre — Escape still closes */}
         <div
           style={{
             flex: 'none',
             display: 'flex',
             alignItems: 'center',
             gap: 9,
-            padding: '12px 20px',
+            padding: '12px 14px 12px 20px',
             borderBottom: '1px solid var(--proto-line-2)',
           }}
         >
-          <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.issuesTitle}</span>
+          <span style={{ fontSize: 16, fontWeight: 620, color: 'var(--proto-ink)' }}>{L.issuesTitle}</span>
           {hasItems && (
-            <span
-              style={{
-                font: `600 11px ${mono}`,
-                color: 'var(--proto-muted)',
-                background: 'var(--material-control-bg)',
-                boxShadow: 'var(--material-control-shadow)',
-                padding: '2px 9px',
-                borderRadius: 'var(--r-pill)',
-                marginLeft: 2,
-              }}
-            >
-              {count}
-            </span>
+            <span data-issue-count="" style={{ ...META_TEXT, fontSize: 13, color: 'var(--proto-muted-3)' }}>{count}</span>
           )}
-          <button type="button" className="content-text-action"
-            onClick={props.onClose}
-            style={{
-              marginLeft: 'auto',
-              font: `500 11px ${mono}`,
-              color: 'var(--proto-muted)',
-              border: '1px solid var(--proto-line-2)',
-              borderRadius: 'var(--r-control)',
-              padding: '2px 6px',
-              cursor: 'pointer',
-            }}
-          >
-            {L.dmEsc}
-          </button>
+          <IconButton label={L.cmClose} size={28} onClick={props.onClose} style={{ marginLeft: 'auto' }}>
+            <CloseGlyph />
+          </IconButton>
         </div>
 
         {/* body */}
@@ -203,58 +190,54 @@ function IssueQueue({
     >
       <div
         style={{
-          padding: '14px 18px 9px',
-          fontSize: 11,
-          fontWeight: 700,
-          letterSpacing: '.06em',
-          color: 'var(--proto-muted)',
+          padding: '13px 18px 8px',
+          fontSize: 12,
+          fontWeight: 550,
+          color: 'var(--proto-muted-3)',
+          fontVariantNumeric: 'tabular-nums',
           flex: 'none',
         }}
       >
         {L.isListLabel} · {count}
       </div>
-      <div style={{ flex: 1, overflow: 'auto', scrollbarGutter: 'stable', minHeight: 0, padding: '0 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {entries.map((e) => {
-          const sel = e.id === selectedId;
-          return (
-            <div
-              key={e.id}
-              data-issue-id={e.id}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(e.id); } }}
-              onClick={() => onSelect(e.id)}
-              style={{
-                background: 'var(--material-card-bg)',
-                border: `1px solid ${sel ? 'var(--proto-accent-border)' : 'var(--proto-line-2)'}`,
-                borderRadius: 'var(--r-card)',
-                padding: '11px 13px',
-                boxShadow: 'var(--material-card-shadow)',
-                cursor: 'pointer',
-                flex: 'none',
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  color: sel ? 'var(--proto-ink)' : 'var(--proto-ink-2)',
-                  lineHeight: 1.35,
-                }}
-              >
-                {e.title}
-              </div>
-              {e.date && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 6 }}>
-                  <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>
-                    {e.date}
-                  </span>
-                </div>
-              )}
-            </div>
-          );
-        })}
+      <div style={{ flex: 1, overflow: 'auto', scrollbarGutter: 'stable', minHeight: 0, padding: '0 8px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {entries.map((e) => (
+          <IssueRow key={e.id} entry={e} selected={e.id === selectedId} onSelect={onSelect} />
+        ))}
       </div>
+    </div>
+  );
+}
+
+const ROW_HOVER = 'hover:[background:var(--proto-line-2)]';
+
+// A plain row: title over its date, selection as the gray tint (the rail's grammar). No status
+// column by design — being listed is the status.
+function IssueRow({ entry, selected, onSelect }: { entry: IssueInfo; selected: boolean; onSelect: (id: string) => void }) {
+  return (
+    <div
+      data-issue-id={entry.id}
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
+      className={selected ? undefined : ROW_HOVER}
+      onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(entry.id); } }}
+      onClick={() => onSelect(entry.id)}
+      style={{
+        background: selected ? 'var(--proto-gray)' : undefined,
+        borderRadius: 'var(--r-chip)',
+        padding: '8px 10px',
+        cursor: 'pointer',
+        flex: 'none',
+        overflowWrap: 'anywhere',
+      }}
+    >
+      <div style={{ fontSize: 12.5, fontWeight: 600, color: selected ? 'var(--proto-ink)' : 'var(--proto-ink-2)', lineHeight: 1.35 }}>
+        {entry.title}
+      </div>
+      {entry.date && (
+        <div style={{ ...META_TEXT, marginTop: 3, textAlign: 'right' }}>{entry.date}</div>
+      )}
     </div>
   );
 }
@@ -262,11 +245,9 @@ function IssueQueue({
 // ── right detail pane (24b: read-only grid, verbatim field labels) ────────────────────────────
 
 const GRID_LABEL: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: '.05em',
+  fontSize: 12,
+  fontWeight: 550,
   color: 'var(--proto-muted)',
-  paddingTop: 2,
 };
 
 function DetailPane({
@@ -303,8 +284,7 @@ function DetailPane({
               alignItems: 'center',
               gap: 14,
               marginTop: 8,
-              font: `400 11px ${mono}`,
-              color: 'var(--proto-muted)',
+              ...META_TEXT,
             }}
           >
             <span>
@@ -351,7 +331,7 @@ function DetailPane({
           gap: 10,
         }}
       >
-        <span style={{ font: `400 11px ${mono}`, color: 'var(--proto-muted)', lineHeight: 1.6, flex: 1, minWidth: 0 }}>
+        <span style={{ fontSize: 12, color: 'var(--proto-muted)', lineHeight: 1.6, flex: 1, minWidth: 0 }}>
           {L.isFootNote}
         </span>
         {!armed && (

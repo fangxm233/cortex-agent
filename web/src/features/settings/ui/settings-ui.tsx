@@ -1,61 +1,9 @@
 import { useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 
-import { settingsClassName } from './settings-kit';
+import { SSectionHeading, settingsClassName } from './settings-kit';
 import './settings-style.css';
 
 export * from './settings-kit';
-
-// Cards carry tint and a shallow highlight; only portaled shells blur.
-export const CARD_STYLE: CSSProperties = {
-  background: 'var(--settings-card-fill, var(--material-card-bg))',
-  borderRadius: 'var(--settings-card-radius, 12px)',
-  border: '1px solid var(--settings-boundary, var(--proto-line-2))',
-  boxShadow: 'var(--material-card-shadow)', boxSizing: 'border-box', minWidth: 0,
-};
-
-// Rest props are forwarded so callers can hang `data-*` hooks off the card. TypeScript does not
-// type-check hyphenated JSX attributes, so without this they would be dropped silently.
-export function SCard({
-  children,
-  style,
-  className,
-  ...rest
-}: { children: ReactNode; style?: CSSProperties } & Record<string, unknown>) {
-  return <div {...rest} className={settingsClassName('settings-card', className)} style={{ ...CARD_STYLE, ...style }}>{children}</div>;
-}
-
-// The header reads at the same 13px/600 as a row title: a card header IS a row, just one that
-// happens to name the rows below it. `right` gets the quiet meta styling only when it is plain text
-// (a count, a caption) — an element is placed as-is so callers can hang a button or a pill there.
-export function SCardHeader({ title, right }: { title: ReactNode; right?: ReactNode }) {
-  const plain = typeof right === 'string' || typeof right === 'number';
-  return (
-    <div className="settings-card-header"
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '12px 16px',
-        borderBottom: '1px solid var(--proto-line-2)',
-      }}
-    >
-      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{title}</span>
-      {right != null ? (
-        <span style={{ marginLeft: 'auto', fontSize: plain ? 12 : undefined, fontVariantNumeric: plain ? 'tabular-nums' : undefined,
-          color: plain ? 'var(--proto-muted-3)' : undefined }}>{right}</span>
-      ) : null}
-    </div>
-  );
-}
-
-export function MonoKV({ k, value, valueColor }: { k: string; value: ReactNode; valueColor?: string }) {
-  return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-      <span style={{ color: 'var(--proto-muted-3)' }}>{k}</span>
-      <span style={{ marginLeft: 'auto', color: valueColor }}>{value}</span>
-    </div>
-  );
-}
 
 function isActionKey(key: string): boolean {
   return key === 'Enter' || key === ' ' || key === 'Spacebar';
@@ -145,17 +93,11 @@ export function RadioDot({ selected }: { selected: boolean }) {
   );
 }
 
+/** A section heading inside a detail pane, spaced from what comes before it. */
 export function SSectionLabel({ children }: { children: ReactNode }) {
   return (
-    <div
-      style={{
-        fontSize: 12.5,
-        fontWeight: 600,
-        color: 'var(--proto-muted)',
-        margin: '20px 0 8px',
-      }}
-    >
-      {children}
+    <div className="settings-section-label" style={{ margin: '20px 0 10px' }}>
+      <SSectionHeading title={children} />
     </div>
   );
 }

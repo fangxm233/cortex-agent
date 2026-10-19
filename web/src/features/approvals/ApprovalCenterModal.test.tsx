@@ -57,8 +57,13 @@ describe('ApprovalCenterModal', () => {
     const selected = renderer.root.findByProps({ 'data-approval-id': 'apr-1' });
     expect(selected.props.tabIndex).toBe(0);
     expect(selected.props['aria-pressed']).toBe(true);
-    expect(selected.props.style.boxShadow).toBe('var(--material-card-shadow)');
+    // A plain row: the selection is the gray tint, with no card border, shadow or blur.
+    expect(selected.props.style.background).toBe('var(--proto-gray)');
+    expect(selected.props.style.boxShadow).toBeUndefined();
+    expect(selected.props.style.border).toBeUndefined();
     expect(selected.props.style.backdropFilter).toBeUndefined();
+    const other = renderer.root.findByProps({ 'data-approval-id': 'apr-2' });
+    expect(other.props.style.background).toBeUndefined();
     const click = vi.fn();
     const preventDefault = vi.fn();
     act(() => selected.props.onKeyDown({ key: ' ', preventDefault, currentTarget: { click } }));

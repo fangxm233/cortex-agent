@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type { ConfigBudget, ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
@@ -9,7 +9,6 @@ import {
   SDot,
   SLinkAction,
   SNotice,
-  SRow,
   SRowGroup,
   SSection,
   SStat,
@@ -40,7 +39,13 @@ import { useBudgetSpend, useProjectList } from '@/features/settings/controllers/
 // Money is a number, not code: UI face with tabular figures so amounts line up.
 const AMOUNT_STYLE: CSSProperties = { fontSize: 18, fontWeight: 550, fontVariantNumeric: 'tabular-nums' };
 const NOTE_STYLE: CSSProperties = { fontSize: 12, lineHeight: 1.5, color: 'var(--proto-muted-2)' };
-const SCOPE_TAG_STYLE: CSSProperties = { fontSize: 12, color: 'var(--proto-muted-3)', overflowWrap: 'anywhere' };
+// Today and this month sit side by side, and fall to one column when the pane is narrow.
+const STATS_STYLE: CSSProperties = {
+  display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '14px 28px',
+};
+const LIMIT_LABEL_STYLE: CSSProperties = {
+  width: 96, flex: 'none', paddingTop: 7, fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)',
+};
 const CHIPS_STYLE: CSSProperties = { display: 'flex', gap: 8, flexWrap: 'wrap', minWidth: 0, maxWidth: '100%' };
 const PANEL_STYLE: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 };
 
@@ -62,8 +67,8 @@ function SpendSection({ scopeLabel, today, month, limits, unpricedCount }: {
   const dailyPct = meterPct(today, limits.daily);
   const monthlyPct = meterPct(month, limits.monthly);
   return (
-    <SSection label={L.stCurrentSpend} action={<span style={SCOPE_TAG_STYLE}>{scopeLabel}</span>}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <SSection label={L.stCurrentSpend} action={scopeLabel}>
+      <div className="settings-budget-stats" style={STATS_STYLE}>
         <SStat
           value={formatBudgetUsd(today)} caption={`${L.today} / ${formatBudgetUsd(limits.daily)}`}
           percent={dailyPct} tone={budgetMeterTone(dailyPct)}
@@ -73,11 +78,13 @@ function SpendSection({ scopeLabel, today, month, limits, unpricedCount }: {
           caption={`${L.month} / ${formatBudgetUsd(limits.monthly)}`}
           percent={monthlyPct} tone={budgetMeterTone(monthlyPct)}
         />
-        {unpricedCount > 0 && (
-          <div style={NOTE_STYLE} data-budget-unpriced>
-            {L.stBudgetUnpricedRuns.replace('{n}', String(unpricedCount))}
-          </div>
-        )}
+      </div>
+      {unpricedCount > 0 && (
+        <div style={{ ...NOTE_STYLE, marginTop: 12 }} data-budget-unpriced>
+          {L.stBudgetUnpricedRuns.replace('{n}', String(unpricedCount))}
+        </div>
+      )}
+      <div style={{ marginTop: 14 }}>
         <SNotice tone="amber" icon={<SDot size={6} />}>{L.stObNote}</SNotice>
       </div>
     </SSection>
@@ -137,10 +144,25 @@ function LimitControl(props: Pick<LimitRowProps, 'field' | 'draft' | 'pending' |
   );
 }
 
+/** A limit line: its label in a fixed column, the content beside it, a control on the right. */
+function LabeledRow({ label, control, children, ...rest }: {
+  label: ReactNode;
+  control?: ReactNode;
+  children: ReactNode;
+} & Record<string, unknown>) {
+  return (
+    <div {...rest} style={{ ...ROW_STYLE, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+      <span style={LIMIT_LABEL_STYLE}>{label}</span>
+      <div style={{ flex: '1 1 240px', minWidth: 0 }}>{children}</div>
+      {control}
+    </div>
+  );
+}
+
 function LimitRow(props: LimitRowProps) {
   return (
-    <SRow title={props.label} control={<LimitControl {...props} />}>
-      <div style={{ ...CHIPS_STYLE, alignItems: 'center', gap: 10, marginTop: 6 }}>
+    <LabeledRow label={props.label} control={<LimitControl {...props} />}>
+      <div style={{ ...CHIPS_STYLE, alignItems: 'center', gap: 10 }}>
         <span
           data-budget-limit={props.field}
           style={{ ...AMOUNT_STYLE, color: props.inherited ? 'var(--proto-muted-2)' : 'var(--proto-ink)' }}
@@ -149,7 +171,7 @@ function LimitRow(props: LimitRowProps) {
         </span>
         <div style={CHIPS_STYLE}><LimitChips {...props} /></div>
       </div>
-    </SRow>
+    </LabeledRow>
   );
 }
 
@@ -161,7 +183,7 @@ function ScopeRow({ scope, projects, budget, onSelect }: {
 }) {
   const L = useVocab();
   return (
-    <SRow title={L.stBudgetScope} desc={L.stBudgetScopeNote} control={
+    <LabeledRow label={L.stBudgetScope}>
       <div style={CHIPS_STYLE}>
         <SChip role="button" data-budget-scope="global" active={scope == null}
           onClick={() => onSelect(null)}>
@@ -175,7 +197,8 @@ function ScopeRow({ scope, projects, budget, onSelect }: {
           </SChip>
         ))}
       </div>
-    } />
+      <div style={{ ...NOTE_STYLE, marginTop: 6 }}>{L.stBudgetScopeNote}</div>
+    </LabeledRow>
   );
 }
 
@@ -265,7 +288,7 @@ function LimitsSection({ scope, projects, budget, resolved, actions, onScope }: 
       <SRowGroup>
         <ScopeRow scope={scope} projects={projects} budget={budget} onSelect={onScope} />
         {resolved.inherited ? (
-          <div style={{ ...ROW_STYLE, padding: '11px 16px' }} data-budget-inherited>
+          <div style={ROW_STYLE} data-budget-inherited>
             <span style={NOTE_STYLE}>{L.stBudgetInherited}</span>
           </div>
         ) : null}

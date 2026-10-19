@@ -1,14 +1,13 @@
 import type { CSSProperties } from 'react';
 import type { UiPluginCatalogEntry, UiPluginMcpServer } from '@cortex-agent/ui-contract';
 import { useVocab, type Vocab } from '@/i18n';
-import { GROUP_STYLE, ROW_STYLE, SRowGroup } from './settings-ui';
+import { ROW_STYLE, SRowGroup } from './settings-ui';
 
 const MONO = "'IBM Plex Mono',monospace";
 
-// Plugin tiles share the kit's glass fill and boundary, including button tiles.
+// A plugin, skill or server entry: an unboxed row; put a run of them in an `SRowGroup`.
 export const ROW: CSSProperties = {
-  ...GROUP_STYLE,
-  padding: '12px 16px', minWidth: 0, overflowWrap: 'anywhere',
+  display: 'flex', flexDirection: 'column', padding: ROW_STYLE.padding, minWidth: 0, overflowWrap: 'anywhere',
 };
 
 export function pluginTitle(plugin: UiPluginCatalogEntry): string {
@@ -58,7 +57,7 @@ export function McpSummaryLine({ server }: { server: UiPluginMcpServer }) {
     ? `${server.summary.command} · ${L.plArgsLabel} ${server.summary.argsCount} · ${L.plEnvLabel} ${joinValues(server.summary.envKeys)}`
     : `${server.summary.origin} · ${L.plHeadersLabel} ${joinValues(server.summary.headerKeys)}`;
   return (
-    // Recessed, not raised: this tile always sits inside a card that already carries the fill.
+    // Recessed, not raised: this is the config an operator consents to, shown like a field.
     <div data-plugin-server={server.name} style={{
       display: 'flex', flexDirection: 'column', gap: 4, padding: '11px 14px',
       borderRadius: 'var(--r-control)', background: 'var(--material-inset-bg)',

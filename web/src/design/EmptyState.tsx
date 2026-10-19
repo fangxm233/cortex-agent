@@ -1,9 +1,7 @@
 import type { ReactNode } from 'react';
 
-// Empty-state primitive: centered card with a clear title,
-// optional description, optional action. Generalizes the shell EmptyPane.
-// Opaque like `Card`, and for the same reason: it is content sitting in a pane, not a sheet
-// floating over one.
+// Empty-state primitive: a centered title, optional description and optional action, set straight
+// on the pane. No card: an empty state is nothing to act on, so it gets no box (v2).
 
 export interface EmptyStateProps {
   title: ReactNode;
@@ -17,8 +15,7 @@ export function EmptyState({ title, description, icon, action, className }: Empt
   return (
     <div
       className={[
-        'flex flex-col items-center justify-center gap-1g rounded-[var(--r-card)] border border-card',
-        'bg-surface-card p-6g text-center shadow-card',
+        'flex flex-col items-center justify-center gap-1g p-6g text-center',
         className,
       ]
         .filter(Boolean)

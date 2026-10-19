@@ -164,7 +164,7 @@ export function ProviderSetupView({ controller, usageSharing, ...exit }: {
   const [target, setTarget] = useState<LoginFlowTarget | null>(null);
   const loginDone = useCallback((state: LoginFlowState) => { void controller.loginDone(state.flowId); }, [controller]);
   return <><main className="setup-workspace">
-    <header><div className="setup-eyebrow">{L.setupEyebrow}</div><h1>{L.setupTitle}</h1>
+    <header><div className="setup-eyebrow" data-tone="ok">{L.setupEyebrow}</div><h1>{L.setupTitle}</h1>
       <p className="setup-intro">{L.setupDescription}</p></header>
     <ClaudeSection controller={controller} login={setTarget} />
     <PiSection controller={controller} login={setTarget} />
