@@ -154,7 +154,9 @@ export interface BoardDocumentParts {
 export function assembleBoardDocument(parts: BoardDocumentParts): string {
   const pending = parts.pendingContent.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const body = parts.body.replaceAll('{{boardPendingContent}}', () => pending);
-  const base = `:root{color-scheme:${parts.theme}}html,body{background:transparent}`;
+  // The frame is sized to its content and the parent scrolls. A frame that can scroll even 1px
+  // (height rounding) would take the first touch swipe in each direction, so it never scrolls itself.
+  const base = `:root{color-scheme:${parts.theme}}html,body{background:transparent}html{overflow:hidden}`;
   return '<!DOCTYPE html><html><head>'
     + '<meta charset="utf-8">'
     + '<meta name="viewport" content="width=device-width,initial-scale=1">'

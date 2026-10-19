@@ -66,8 +66,8 @@ describe('assembleBoardDocument', () => {
     expect(doc.endsWith('<body><div class="card">BODY</div></body></html>')).toBe(true);
   });
 
-  it('declares the colour scheme, a transparent canvas and the view CSP', () => {
-    expect(doc).toContain(':root{color-scheme:dark}html,body{background:transparent}');
+  it('declares the colour scheme, a transparent canvas, a root that never scrolls and the view CSP', () => {
+    expect(doc).toContain(':root{color-scheme:dark}html,body{background:transparent}html{overflow:hidden}');
     expect(doc).toMatch(/<meta http-equiv="Content-Security-Policy" content="default-src 'none'/);
   });
 
