@@ -17,8 +17,9 @@ const log = createLogger('browser-broker');
  *
  * A lease ties one session to one device's shared Chrome (server-local, or a device's through the
  * reverse channel) and to one agent-browser session pinned to its own tab there. It holds one
- * reference on that Chrome, is renewed by every call, and is released after {@link LEASE_IDLE_MS}
- * without one. Page state survives between turns because nothing here is torn down per turn.
+ * reference on that Chrome, is renewed by every call, and is released, closing its tab, after
+ * {@link LEASE_IDLE_MS} without one. Page state survives between turns because nothing here is torn
+ * down per turn.
  */
 
 export const LEASE_IDLE_MS = 10 * 60_000;
@@ -194,7 +195,7 @@ export function createBrowserBroker(deps: BrokerDeps): BrowserBroker {
       if (leases.get(lease.sessionId) !== lease) return;
       log.info(`${lease.sessionId}: browser idle for ${Math.round(deps.idleMs / 60_000)} min — releasing`);
       void serial(sessionChains, lease.sessionId, async () => {
-        if (leases.get(lease.sessionId) === lease && !lease.takenOver) retire(lease);
+        if (leases.get(lease.sessionId) === lease && !lease.takenOver) await retire(lease);
       });
     }, deps.idleMs);
     lease.idleTimer.unref?.();
@@ -205,9 +206,16 @@ export function createBrowserBroker(deps: BrokerDeps): BrowserBroker {
     arm(lease);
   }
 
-  /** End a lease: drop its Chrome reference and its agent-browser daemon. The tab stays, so a
-   *  later lease in the same session finds its page again if Chrome is still up. */
-  function retire(lease: Lease): void {
+  /**
+   * End a lease: drop its Chrome reference, close the session's tab and stop its agent-browser
+   * daemon. Closing the tab makes an idle release look the same as Chrome being reclaimed, and
+   * keeps a Chrome that other sessions hold open from collecting abandoned tabs. Logins live in
+   * the profile, not the tab. The next call in the session finds its tab gone and opens a new one.
+   *
+   * The reference goes first: if this was the last tab, Chrome exits, and with no reference left
+   * it is not restarted.
+   */
+  async function retire(lease: Lease): Promise<void> {
     if (lease.idleTimer) clearTimeout(lease.idleTimer);
     lease.idleTimer = null;
     if (leases.get(lease.sessionId) === lease) leases.delete(lease.sessionId);
@@ -216,12 +224,13 @@ export function createBrowserBroker(deps: BrokerDeps): BrowserBroker {
       lease.holdsRef = false;
       deps.release(lease.device);
     }
-    if (lease.cdpEndpoint && runtime) {
-      // With --cdp even here: a call without it makes agent-browser launch a Chrome of its own.
-      void deps.run(runtime.bin, agentBrowserArgs(lease.cdpEndpoint, lease.abSession, ['close']), runtime.env)
+    notify();
+    if (!lease.cdpEndpoint || !runtime) return;
+    // With --cdp even here: a call without it makes agent-browser launch a Chrome of its own.
+    for (const command of [['tab', 'close'], ['close']]) {
+      await deps.run(runtime.bin, agentBrowserArgs(lease.cdpEndpoint, lease.abSession, command), runtime.env)
         .catch(() => undefined);
     }
-    notify();
   }
 
   /** Record a failure on the lease and keep it listed, without a Chrome reference, until the next
@@ -316,7 +325,7 @@ export function createBrowserBroker(deps: BrokerDeps): BrowserBroker {
       const target = device || lease?.device || BROWSER_DEVICE_SERVER;
       if (lease && (lease.device !== target || lease.state === 'error')) {
         const takenOver = lease.takenOver;
-        retire(lease);
+        await retire(lease);
         lease = undefined;
         if (takenOver) log.info(`${sessionId}: switching device ends the takeover`);
       }

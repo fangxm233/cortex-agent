@@ -139,7 +139,7 @@ describe('runBrowserCli', () => {
     expect(await runBrowserCli(['snapshot'], options)).toBe(0);
     expect(calls.execs.map((e) => e.args.slice(5).join(' '))).toEqual(['snapshot', 'tab new', 'snapshot']);
     expect(calls.execs.map((e) => !!e.quiet)).toEqual([false, true, false]);
-    expect(calls.err).toContain('previous tab was gone');
+    expect(calls.err).toContain("previous tab is gone");
     expect(calls.err).not.toContain('tab_gone');
   });
 

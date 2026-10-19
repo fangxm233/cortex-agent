@@ -104,14 +104,14 @@ describe('leaseBrowser', () => {
     expect(again.abSession).toBe('cortex-s-desk');
   });
 
-  it('switching device releases the old Chrome and closes its agent-browser daemon', async () => {
+  it('switching device releases the old Chrome, closes its tab and its agent-browser daemon', async () => {
     await broker.leaseBrowser({ sessionId: 's' });
     await broker.leaseBrowser({ sessionId: 's', device: 'desk' });
     expect(w.refs.get('server')).toBe(0);
     expect(w.refs.get('desk')).toBe(1);
-    const close = w.runs.find((r) => command(r)[0] === 'close');
-    expect(close).toContain('cortex-s-server');
-    expect(close).toContain('--cdp');
+    expect(w.runs.map(command)).toEqual([['tab', 'close'], ['close']]);
+    expect(w.runs[0]).toContain('cortex-s-server');
+    expect(w.runs[0]).toContain('--cdp');
   });
 
   it('shows the lease as starting while Chrome launches, then ready', async () => {
@@ -182,6 +182,21 @@ describe('idle release', () => {
     await vi.advanceTimersByTimeAsync(2000);
     expect(w.refs.get('server')).toBe(0);
     expect(broker.listBrowserSessions()).toEqual([]);
+    expect(w.runs.map(command)).toEqual([['tab', 'close'], ['close']]);
+  });
+
+  it('releases the Chrome reference before closing the tab', async () => {
+    const order: string[] = [];
+    const deps = makeDeps(w);
+    const b = createBrowserBroker({
+      ...deps,
+      release: (d) => { order.push('release'); deps.release(d); },
+      run: async (bin, args, env) => { order.push(command(args).join(' ')); return deps.run(bin, args, env); },
+    });
+    await b.leaseBrowser({ sessionId: 's' });
+    await vi.advanceTimersByTimeAsync(IDLE + 1);
+    expect(order).toEqual(['release', 'tab close', 'close']);
+    b.shutdown();
   });
 
   it('keeps the browser while the user has taken over', async () => {

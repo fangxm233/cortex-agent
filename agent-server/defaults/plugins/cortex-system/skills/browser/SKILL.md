@@ -3,15 +3,16 @@ name: browser
 description: "Use whenever a task needs a real web browser: verifying or inspecting a web UI (a dev server, a Cortex page, a deployed site), taking a screenshot of a page, reading a page that needs JavaScript or a login, clicking through or operating a website, filling in forms, or checking what a user sees on their own machine. Drive it with the `cortex-browser` CLI. Do not hand-write CDP, puppeteer, playwright or headless-Chrome scripts, and do not launch your own Chrome or Xvfb."
 metadata:
   author: "Cortex"
-  version: "1.0.0"
+  version: "1.1.0"
   date: "2026-10-19"
 ---
 
 # Browser
 
 `cortex-browser` is agent-browser attached to a Chrome that Cortex manages. Every session (and
-every worker or subagent) gets its own tab, kept between turns until the session has been idle for
-10 minutes. Logins made in that Chrome persist for later sessions.
+every worker or subagent) gets its own tab, kept between turns. After 10 minutes without a
+`cortex-browser` call the tab is closed, and the next call starts on a blank page, so reopen the URL
+you need. Logins live in the browser profile, not the tab, and survive that and later sessions.
 
 ## Commands
 
