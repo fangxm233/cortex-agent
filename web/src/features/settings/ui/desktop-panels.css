@@ -1,12 +1,35 @@
 .settings-surface .settings-models { container: settings-models / inline-size; }
 .settings-surface .settings-model-controls {
-  display: grid;
-  grid-template-columns: minmax(60px, 1fr) auto auto;
-  gap: 12px;
+  display: flex;
   align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: 0;
 }
 .settings-surface .settings-model-row > * { min-width: 0; overflow-wrap: anywhere; }
-.settings-surface .settings-model-cell::before { display: none; }
+/* "Set as default" waits for the row to be pointed at or focused; on the default row it never shows. */
+.settings-surface .settings-model-default { opacity: 0; transition: opacity .12s; }
+.settings-surface .settings-model-row:is(:hover, :focus-within) .settings-model-default { opacity: 1; }
+.settings-surface .settings-model-row[data-current] .settings-model-default { visibility: hidden; }
+@media (hover: none) {
+  .settings-surface .settings-model-default { opacity: 1; }
+}
+.settings-surface .settings-model-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--proto-muted-3);
+  cursor: pointer;
+}
+.settings-surface .settings-model-remove:not(:disabled):hover { background: var(--proto-gray); color: var(--proto-ink); }
+.settings-surface .settings-model-remove:disabled { opacity: .45; }
 
 .settings-surface .settings-key-value-fields {
   display: grid;
@@ -46,15 +69,8 @@
 .settings-modal .settings-platform-group { border: 0 !important; box-shadow: none !important; background: transparent !important; }
 .settings-modal .settings-platform-summary { min-height: 34px; font-size: 13px !important; }
 
-@container settings-models (max-width: 620px) {
+@container settings-models (max-width: 520px) {
   .settings-surface .settings-model-controls { width: 100%; }
-  .settings-surface .settings-model-cell::before {
-    content: attr(data-label);
-    display: block;
-    margin-bottom: 4px;
-    font: 500 12px/1.4 var(--font-sans, sans-serif);
-    color: var(--proto-muted-2);
-  }
 }
 @container settings-platform-card (max-width: 440px) {
   .settings-modal .settings-field-row { flex-direction: column; gap: 4px !important; }
