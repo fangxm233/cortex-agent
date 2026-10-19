@@ -9,6 +9,7 @@ import { stopClientManager } from '@domain/remote/client-manager.js';
 import { stopMachineRegistryWatcher } from '@domain/remote/machine-registry.js';
 import { stopAllDevicePorts } from '@domain/remote/device-port.js';
 import { forgetDeviceBrowsers } from '@domain/remote/device-browser.js';
+import { shutdownBrowserBroker } from '@domain/browser/broker.js';
 import { stopDiskMonitor } from '@domain/monitor/disk-monitor.js';
 import { stopEventLoopMonitor } from '@domain/monitor/event-loop-monitor.js';
 import { stopGateway } from '@domain/costs/gateway-manager.js';
@@ -45,6 +46,8 @@ function serviceSteps(h: ShutdownHandles): ShutdownStep[] {
     { name: 'machine watcher', run: stopMachineRegistryWatcher },
     { name: 'models watcher', run: () => h.stopModelsWatcher?.() },
     { name: 'board watcher', run: () => h.stopBoardWatcher?.() },
+    // Leases first: their timers would otherwise fire against a browser that is already gone.
+    { name: 'browser leases', run: shutdownBrowserBroker },
     // A Chrome that outlives the daemon keeps the profile locked, so the next launch would attach to
     // an instance nothing is supervising.
     { name: 'browser', run: stopBrowser },
