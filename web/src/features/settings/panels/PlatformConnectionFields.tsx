@@ -69,7 +69,7 @@ export function PlatformConnectionFields(props: {
   const L = useVocab();
   const optional = (field: PlatformFieldSnapshot) => ['FEISHU_ENCRYPT_KEY', 'FEISHU_VERIFICATION_TOKEN'].includes(field.key);
   const render = (field: PlatformFieldSnapshot) => <ConnectionField key={field.key} field={field} {...props} />;
-  return <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 14 }}>
+  return <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
     {props.fields.filter(field => !optional(field)).map(render)}
     {props.fields.some(optional) && <details style={{ color: 'var(--proto-muted)' }}>
       <summary className="settings-platform-summary" style={SUMMARY_STYLE}>{L.psOptional}</summary>

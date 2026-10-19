@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';
 import { PS_BLOCK_STYLE, psFieldStyle } from '@/features/settings/ui/platform-ui';
-import { SButton, SFieldRow, SRow, SRowGroup, SSection, Toggle } from '@/features/settings/ui/settings-ui';
+import { SButton, SFieldRow, SRow, SRowGroup, SSubheading, Toggle } from '@/features/settings/ui/settings-ui';
 
 export type PlatformRuntimePatch = {
   adminChannel?: string | null; feishuAdminChannel?: string | null; feishuSkillsInWeb?: boolean;
@@ -19,7 +19,7 @@ function SkillSwitch(props: RuntimeProps) {
   const on = entry?.value === true;
   const locked = props.pending || typeof entry?.value !== 'boolean';
   return <section data-platform-runtime="feishuSkillsInWeb" style={PS_BLOCK_STYLE}>
-    <SRowGroup className="settings-platform-group">
+    <SRowGroup>
       <SRow title={L.psSkills} desc={L.psSkillsHint} align="flex-start" control={
         <Toggle on={on} inert={locked} ariaLabel={L.psSkills}
           onClick={locked ? undefined : () => void props.onSave({ feishuSkillsInWeb: !on })} />
@@ -40,16 +40,17 @@ function DestinationEditor(props: RuntimeProps) {
   const locked = props.pending || !entry;
   const label = props.platform === 'feishu' ? L.psFeishuRoute : L.psSlackRoute;
   return <section data-platform-runtime={key} style={PS_BLOCK_STYLE}>
-    <SSection label={L.psRouting}>
+    <SSubheading>{L.psRouting}</SSubheading>
+    <div style={{ paddingTop: 8 }}>
       <SFieldRow label={label} hint={<>{L.psRouteHint} {props.platform === 'feishu' && L.psFeishuRouteHint}</>}>
         <input name={key} value={draft} maxLength={256} disabled={locked} aria-label={label}
           onChange={e => setDraft(e.target.value)} aria-invalid={!valid} style={psFieldStyle(locked)} />
       </SFieldRow>
-      <div style={{ marginTop: 12 }}>
-        <SButton tone="neutral" disabled={locked || !valid || draft === current}
-          onClick={() => void props.onSave({ [key]: draft || null })}>{L.psSaveRoute}</SButton>
-      </div>
-    </SSection>
+    </div>
+    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+      <SButton tone="neutral" disabled={locked || !valid || draft === current}
+        onClick={() => void props.onSave({ [key]: draft || null })}>{L.psSaveRoute}</SButton>
+    </div>
   </section>;
 }
 

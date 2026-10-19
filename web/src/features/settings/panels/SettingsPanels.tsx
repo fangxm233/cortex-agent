@@ -13,28 +13,6 @@ export function PresenceStatus({ present }: { present: boolean }) {
   );
 }
 
-export function PlatformAvatar({ glyph }: { glyph: string }) {
-  return (
-    <span
-      style={{
-        width: 22,
-        height: 22,
-        borderRadius: 'var(--r-chip)',
-        background: 'var(--proto-gray)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: 10.5,
-        fontWeight: 700,
-        color: 'var(--proto-muted)',
-        flex: 'none',
-      }}
-    >
-      {glyph}
-    </span>
-  );
-}
-
 function ServerRows({ servers }: { servers: string[] }) {
   const L = useVocab();
   if (servers.length === 0) {

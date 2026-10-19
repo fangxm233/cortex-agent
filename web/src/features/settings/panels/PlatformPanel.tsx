@@ -5,19 +5,18 @@ import { apiBase } from '@/lib/desktop-config';
 import { PlatformConnectionFields } from './PlatformConnectionFields';
 import { PlatformRuntimeFields, type PlatformRuntimePatch } from './PlatformRuntimeFields';
 import { connectionPatch, hasConnectionChanges, FIELD_LABELS, type PlatformDraft } from '@/features/settings/vm/platform-settings-vm';
-import { PS_BLOCK_STYLE, PS_HINT_STYLE } from '@/features/settings/ui/platform-ui';
-import { PlatformAvatar } from './SettingsPanels';
+import { PS_HINT_STYLE } from '@/features/settings/ui/platform-ui';
 import {
-  SButton, SLinkAction, SNotice, SPill, SRow, SRowGroup, SSection, Toggle,
-  type SPillTone,
+  SButton, SLinkAction, SNotice, SRow, SRowGroup, SSectionHeading, SStatus, Toggle,
+  type SStatusTone,
 } from '@/features/settings/ui/settings-ui';
 import { safeCredentialTransport } from '@/lib/sensitive-transport';
 import { usePlatformSettings, type PlatformWriteFeedback } from '@/features/settings/controllers/usePlatformSettings';
 import '@/features/settings/ui/platform-settings.css';
 import '@/features/settings/ui/desktop-panels.css';
 
-const HEADING_STYLE: CSSProperties = { margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' };
-const GUIDE_STYLE: CSSProperties = { marginLeft: 'auto', fontSize: 'var(--settings-platform-hint-size, 11.5px)', fontWeight: 600, color: 'var(--proto-accent)' };
+const HEADING_STYLE: CSSProperties = { margin: 0, fontSize: 'inherit', fontWeight: 'inherit', color: 'inherit' };
+const GUIDE_STYLE: CSSProperties = { fontSize: 'var(--settings-platform-hint-size, 11.5px)', fontWeight: 600, color: 'var(--proto-accent)' };
 const PROSE_STYLE: CSSProperties = { margin: 0, fontSize: 'var(--settings-platform-body-size, 12.5px)', lineHeight: 1.7, color: 'var(--proto-muted-2)' };
 
 interface CardProps {
@@ -28,8 +27,8 @@ interface CardProps {
   onDirtyChange: (platform: string, dirty: boolean) => void;
 }
 
-// Configuration completeness, not connection state — three states the pill tones apart.
-function statusPill(platform: PlatformSettingsSnapshot, L: Vocab): { tone: SPillTone; label: string } {
+// Configuration completeness, not connection state — three states the dot tones apart.
+function platformStatus(platform: PlatformSettingsSnapshot, L: Vocab): { tone: SStatusTone; label: string } {
   if (!platform.enabled) return { tone: 'neutral', label: L.psDisabled };
   if (platform.missing.length) return { tone: 'amber', label: L.psMissing };
   return { tone: 'success', label: L.psReady };
@@ -45,18 +44,18 @@ function PlatformHeaderNotes({ platform }: { platform: PlatformSettingsSnapshot 
 
 function PlatformHeader({ platform }: { platform: PlatformSettingsSnapshot }) {
   const L = useVocab();
-  const feishuGlyph = L.setFeishuGlyph;
   const title = platform.platform === 'feishu' ? L.psFeishu : L.psSlack;
-  const status = statusPill(platform, L);
+  const status = platformStatus(platform, L);
   const guide = platform.platform === 'feishu' ? 'https://open.feishu.cn/document/develop-an-echo-bot/introduction'
     : 'https://fangxm233.github.io/cortex-agent/slack-setup/';
-  return <header style={{ padding: '14px 16px' }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-      <PlatformAvatar glyph={platform.platform === 'feishu' ? feishuGlyph : 'S'} />
-      <h2 style={HEADING_STYLE}>{title}</h2>
-      <SPill tone={status.tone}>{status.label}</SPill>
-      <a href={guide} target="_blank" rel="noreferrer" style={GUIDE_STYLE}>{L.psGuide}</a>
-    </div>
+  return <header>
+    <SSectionHeading
+      title={<span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+        <h2 style={HEADING_STYLE}>{title}</h2>
+        <SStatus data-platform-status={status.tone} tone={status.tone}>{status.label}</SStatus>
+      </span>}
+      right={<a href={guide} target="_blank" rel="noreferrer" style={GUIDE_STYLE}>{L.psGuide}</a>}
+    />
     <PlatformHeaderNotes platform={platform} />
   </header>;
 }
@@ -69,22 +68,20 @@ function ConnectionEditor(props: CardProps & {
 }) {
   const L = useVocab();
   const locked = props.pending || !props.secure;
-  return <form style={PS_BLOCK_STYLE} onSubmit={event => { event.preventDefault(); props.onSave(); }}>
-    <SSection label={L.psSetup}>
-      <SRowGroup className="settings-platform-group">
-        <SRow title={L.psEnabled} desc={L.psEnableHint} align="flex-start" control={
-          <Toggle on={props.enabled} inert={locked} ariaLabel={L.psEnabled}
-            onClick={locked ? undefined : () => props.setEnabled(!props.enabled)} />
-        } />
-      </SRowGroup>
-    </SSection>
+  return <form onSubmit={event => { event.preventDefault(); props.onSave(); }}>
+    <SRowGroup>
+      <SRow title={L.psEnabled} desc={L.psEnableHint} align="flex-start" control={
+        <Toggle on={props.enabled} inert={locked} ariaLabel={L.psEnabled}
+          onClick={locked ? undefined : () => props.setEnabled(!props.enabled)} />
+      } />
+    </SRowGroup>
     <PlatformConnectionFields fields={props.platform.fields} draft={props.draft} disabled={locked}
       onChange={(key, value) => props.setDraft({ ...props.draft, [key]: value })} />
-    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 14, marginTop: 16 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', gap: 14, marginTop: 12 }}>
+      <SLinkAction disabled={!props.dirty || props.pending} onClick={props.onReset}>{L.psReset}</SLinkAction>
       <SButton tone="primary" disabled={!props.dirty || locked} onClick={props.onSave}>
         {props.pending ? L.psSaving : L.psSave}
       </SButton>
-      <SLinkAction disabled={!props.dirty || props.pending} onClick={props.onReset}>{L.psReset}</SLinkAction>
     </div>
   </form>;
 }
@@ -125,7 +122,7 @@ export function PlatformPanelView(props: {
   return <div className="ps-panel">
     {!props.secure && <SNotice tone="amber" role="alert">{L.psHttps}</SNotice>}
     {props.feedback && <SNotice tone="accent" role="status">{feedback[props.feedback]}</SNotice>}
-    <div className="ps-grid">{props.snapshot.platforms.map(platform => <PlatformCard key={platform.platform}
+    <div className="settings-platform-list">{props.snapshot.platforms.map(platform => <PlatformCard key={platform.platform}
       {...props} platform={platform} settings={props.snapshot.settings} />)}</div>
     <p style={PROSE_STYLE}>{L.psRestart}</p>
   </div>;

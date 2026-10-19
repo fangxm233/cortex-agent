@@ -63,10 +63,7 @@
   --settings-platform-body-size: 13px;
   gap: 20px;
 }
-.settings-modal .ps-grid { gap: 12px; }
 .settings-modal .settings-platform-card { container: settings-platform-card / inline-size; }
-/* Inner platform groups stay unboxed inside their already-glass parent card. */
-.settings-modal .settings-platform-group { border: 0 !important; box-shadow: none !important; background: transparent !important; }
 .settings-modal .settings-platform-summary { min-height: 34px; font-size: 13px !important; }
 
 @container settings-models (max-width: 520px) {
