@@ -152,13 +152,14 @@ Cortex 给智能体的是真实的工具：shell、文件、GPU 和其他机器�
 | [调度](https://fangxm233.github.io/cortex-agent/zh/scheduling/) | 间隔、每日、每周和一次性定时任务 |
 | [后端](https://fangxm233.github.io/cortex-agent/zh/backends/) | Claude Code 与 PI、provider、模型选择、花费统计、子智能体 |
 | [配置](https://fangxm233.github.io/cortex-agent/zh/configuration/) | `config/.env`、`settings.json`、模型与收藏、执行环境 |
-| [CLI 参考](https://fangxm233.github.io/cortex-agent/zh/cli-reference/) | `cortex`、`cortex-signal` 和 `cortex-hook` |
+| [CLI 参考](https://fangxm233.github.io/cortex-agent/zh/cli-reference/) | `cortex`、`cortex-browser`、`cortex-signal` 和 `cortex-hook` |
 | [技能与插件](https://fangxm233.github.io/cortex-agent/zh/skills-and-plugins/) | 编写、覆盖和打包技能 |
 | [安全与审批](https://fangxm233.github.io/cortex-agent/zh/safety-and-approvals/) | 安全边界、审批队列和交互卡片 |
 | [钩子](https://fangxm233.github.io/cortex-agent/zh/hooks/) | 钩子生命周期、内置钩子和自定义钩子 |
 | [等待点](https://fangxm233.github.io/cortex-agent/zh/waitpoints/) | 不轮询地等待外部任务 |
 | [MCP](https://fangxm233.github.io/cortex-agent/zh/mcp/) | Cortex 的 MCP 工具和第三方 MCP 服务器 |
 | [跨机器](https://fangxm233.github.io/cortex-agent/zh/cross-machine/) | 部署 `cortex-client` 和使用远程工具 |
+| [Agent 浏览器](https://fangxm233.github.io/cortex-agent/zh/agent-browser/) | agent 用 `cortex-browser` 操作的 Chrome、实时观看和接管 |
 | [架构](https://fangxm233.github.io/cortex-agent/zh/architecture/) | 服务端分层、协议和事件总线 |
 
 ## 开发 Cortex

@@ -8,7 +8,7 @@ The repository is a pnpm workspace. Two packages are published to npm; the other
 
 | Package | Path | Purpose |
 |---------|------|---------|
-| `@cortex-agent/server` | `agent-server/` | Main server: Slack and Feishu adapters, the Web UI host, the TUI gateway, LLM orchestration, scheduling, MCP tools. Provides four CLI binaries: `cortex`, `cortex-hook`, `cortex-evidence-export`, `cortex-signal`. The published package also carries the built web app and the client bundle |
+| `@cortex-agent/server` | `agent-server/` | Main server: Slack and Feishu adapters, the Web UI host, the TUI gateway, LLM orchestration, scheduling, MCP tools. Provides five CLI binaries: `cortex`, `cortex-browser`, `cortex-hook`, `cortex-evidence-export`, `cortex-signal`. The published package also carries the built web app and the client bundle |
 | `@cortex-agent/client` | `client/` | Lightweight remote agent daemon (`cortex-client`). Connects via WebSocket and executes shell/file commands locally |
 | `@cortex-agent/web` | `web/` | Vite + React app for the browser, desktop and mobile layouts. Built to `web/dist` and served by the server's Web UI host |
 | `@cortex-agent/desktop` | `desktop/` | Tauri v2 desktop and Android shell. Serves the web app through the `cortexui://` scheme, from its bundled copy or a newer bundle downloaded from the server |
@@ -35,7 +35,7 @@ L5  entry/         → everything (composition root)
 `orchestration/` must also be free of import cycles.
 
 - **`agent-adapter/`** — the two-LLM-backend abstraction (Claude Code and PI). `domain/runs/adapters.ts` is the one place the adapters are assembled.
-- **`platform/`** — the messaging and transport layer: the Slack and Feishu adapters, the TUI gateway, the composite adapter that runs several platforms at once (`adapters/`), the Web UI HTTP host (`ui-http/`), and the managed browser (`browser/`).
+- **`platform/`** — the messaging and transport layer: the Slack and Feishu adapters, the TUI gateway, the composite adapter that runs several platforms at once (`adapters/`), the Web UI HTTP host (`ui-http/`), and the server's Chrome and the agent-browser process runner (`browser/`).
 
 A further directory, **`tui/`**, is the Ink terminal client that `cortex tui` runs. It talks to the server only over the TUI gateway's WebSocket, sharing the gateway's protocol types and the i18n strings, and has no layer rule of its own.
 
@@ -130,6 +130,7 @@ The thickest layer. Contains one subdirectory per domain concern.
 | `hooks/` | Read-only view of the hook registry for the Web UI |
 | `monitor/` | GPU and disk resource monitoring |
 | `system/` | Host-level concerns: doctor checks, update state and prompts, system notices and their history, and `rebuild-hold.ts` — the supervisor-pushed "no new turns" state consulted by admission |
+| `browser/` | The agent browser broker (`broker.ts`): one lease per session that binds it to its own tab in the server's or a device's Chrome, closes the tab after 10 idle minutes, and holds the user's takeover state (see [agent-browser.md](./agent-browser.md)) |
 | `remote/` | Remote device management via WebSocket. SSH-based client bootstrap; clients self-update from server-pushed bundles |
 | `mcp/` | The bundled Cortex MCP server and its tool modules (see [mcp.md](./mcp.md)) |
 | `ui-service/` | The backend of the Web UI: the tRPC `AppRouter` (`app-router.ts`), its query and mutation handlers, and the event-bus subscription that streams live events to the UI (`subscribe.ts`) |
@@ -145,13 +146,13 @@ layer) is detailed in [hooks.md](./hooks.md).
 |------|---------|
 | `conduit-queue.ts` | Per-conduit serial Promise queue. Ensures only one turn runs per conversation at a time and lets `!cancel` discard a pending tail |
 | `orchestrator.ts` | Hands each inbound message to `AgentRunner` |
-| `agent-runner.ts` | Admission for the default-agent path: routing, mid-turn injection, queueing, and the session/lease/browser resolution a turn needs. The turn body itself belongs to `turn/turn.ts` |
+| `agent-runner.ts` | Admission for the default-agent path: routing, mid-turn injection, queueing, and the session and lease resolution a turn needs. The turn body itself belongs to `turn/turn.ts` |
 | `session-gateway.ts` | `deliverToSession()` — the one door into a conversation turn for everything that is not an inbound platform message (web sends, scheduled fires, agent results, resumes, waitpoint wakes) |
 | `session-events.ts` | Publishes the `session.*` events the Web UI and TUI render: messages, deltas, status, turns, todos, context usage |
 | `runtime.ts` | The `PlatformAdapter` + `EventBus` orchestration holds, injected once by the composition root |
 | `conversation-request.ts` | `prepareConversationRequest()` — assembles a plain chat turn's `RunRequest`: agent spec plus the first-turn ambient blocks |
 | `turn/turn.ts` | `Turn` / `openTurn()` — the single owner of one conversation turn: status message, ledger turn tracking, session lease, `startRun`, observer fan-out, terminal render, the `running:true/false` bracket |
-| `turn/turn-prep.ts` | What a caller resolves before `openTurn`: the turn's files, its session record and use lease, the browser endpoint the session opted into |
+| `turn/turn-prep.ts` | What a caller resolves before `openTurn`: the turn's files and its session record and use lease |
 | `turn/terminal.ts` | A turn's terminal rendering: status seal, the ledger's turn completion, the error body, error-session persistence |
 | `turn/turn-tracking.ts` | The ledger half of a turn's bookkeeping: begin, snapshot, accept, and the supersede-while-pending window |
 | `turn/active-turns.ts` | Per-channel turn state: the streaming callback a turn registered, the edit-supersede flag |
@@ -167,7 +168,7 @@ layer) is detailed in [hooks.md](./hooks.md).
 | `human-answer-backstop.ts` | Leaf registry of channels waiting on a human's free-text reply, consulted by every entry into a session so the answer is consumed instead of opening a turn |
 | `routing/message-router.ts` | Platform message entry point: registers the inbound message handler on the adapter and delegates to the orchestrator |
 | `routing/commands/` | `!command` handlers, one module per family: `cancel`, `channel`, `compact`, `cost`, `device`, `lang`, `login` (with `login-custom`), `mode`, `nvtop`, `orient`, `restart`, `schedule`, `sendfile`, `session`, `status`, `tail`, `usage` (with `usage-reset`). `index.ts` maps the command words — `!agent`, `!backend`, `!model`, `!thinking`, `!new`, `!resume`, `!usage` and the rest — to them |
-| `routing/webhook.ts` | The loopback webhook server (`WEBHOOK_PORT`, default 3001): hook callbacks, `cortex-signal`, subagent, team and board callbacks |
+| `routing/webhook.ts` | The loopback webhook server (`WEBHOOK_PORT`, default 3001): hook callbacks, `cortex-signal`, `cortex-browser` leases (`browser-webhook.ts`), subagent, team and board callbacks |
 | `routing/hook-bridge.ts` | PreToolUse hook → EventBus bridge. Publishes `plan.submitted` and `ask-user.requested` |
 | `routing/hook-bridge-subscribers.ts` | Subscribers that turn a question or a submitted plan into an interaction record, which each surface renders as a card |
 | `interactions/` | AskUserQuestion flow, plan approval state machine, button/modal action routing |
@@ -181,7 +182,7 @@ layer) is detailed in [hooks.md](./hooks.md).
 | `daemon.ts` | Process supervisor. Forks `app.js`, watches `$CORTEX_REPO/src` for auto-rebuild (when `CORTEX_REPO` is set), watches `.restart` trigger file, crash recovery with exponential backoff (1s→30s max). Publishes per-step rebuild progress, waits for an idle app before install/restart, and holds new turns across that window (see below) |
 | `daemon-notice.ts` | The app side of the downward IPC: turns `rebuild-aborted` into a system notice and `rebuild-hold` into the admission hold, and lifts the hold if the supervisor disconnects |
 | `cortex-cli.ts`, `cli.ts` | `cortex` CLI entry point. Dispatches to `init`, `config`, `auth`, `doctor`, `feishu`, `restart`, `setup-gateway`, `ui`, `client`, `install`, `schedule`, `memory`, `start`, `daemon`, `tui`, each implemented in its own `*-cli.ts` module (see [cli-reference.md](./cli-reference.md)) |
-| `hook-cli.ts`, `signal-cli.ts`, `production-evidence-export-cli.ts` | The `cortex-hook`, `cortex-signal` and `cortex-evidence-export` binaries |
+| `browser-cli.ts`, `hook-cli.ts`, `signal-cli.ts`, `production-evidence-export-cli.ts` | The `cortex-browser`, `cortex-hook`, `cortex-signal` and `cortex-evidence-export` binaries |
 | `init.ts` | Interactive first-time initialization |
 | `start-ui-http.ts`, `ui-http-gate.ts`, `ui-service-wiring.ts` | Start the Web UI host when `CORTEX_UI_HTTP` is on, and wire the `UiService` it serves |
 | `startup-helpers.ts` | Cleanup logs, ensure MCP config |
@@ -292,7 +293,7 @@ The browser workbench, the desktop app and the mobile app all talk to the server
 - **tRPC** under `/trpc/`. Queries and mutations are plain HTTP requests against the `AppRouter` in `domain/ui-service/app-router.ts`; the web app gets its types from `packages/ui-contract`.
 - **Live events** use one `subscribe` subscription over Server-Sent Events. The client names the event types it wants, optionally scoped to a project or session, and the server forwards matching `CortexEvent`s from the bus through a bounded queue, sending `ui-subscribe.dropped` if the client falls behind. A subscriber to streamed text first receives a snapshot of the assistant message in progress.
 - **Authentication**, checked in order: the `x-cortex-token` header carrying the client token (the desktop and mobile apps), a `cortex_ui` session cookie from token login (`/api/ui/login`, `/api/ui/logout`, `/api/ui/session`), or a Cloudflare Access JWT. Browser origins outside the same origin need an entry in the `uiCorsOrigins` setting.
-- **Other routes**: file download and attachment upload (`/api/files/download`, `/api/attachments/upload`), board assets (`/api/boards/asset`), the web-bundle update the desktop app downloads (`/api/ui-ota/manifest.json`, `/api/ui-ota/bundle.zip`), the native app update manifest (`/api/app-update/manifest.json`), and port forwarding to remote machines (`/api/forward/*`, with the `/forward` WebSocket).
+- **Other routes**: file download and attachment upload (`/api/files/download`, `/api/attachments/upload`), board assets (`/api/boards/asset`), the web-bundle update the desktop app downloads (`/api/ui-ota/manifest.json`, `/api/ui-ota/bundle.zip`), the native app update manifest (`/api/app-update/manifest.json`), port forwarding to remote machines (`/api/forward/*`, with the `/forward` WebSocket), and the agent browser: its sessions, takeover and typed text (`/api/browser/*`) and the live view over the `/api/browser/stream` WebSocket.
 - The same host serves the built web app, so a browser loads the UI and its API from one origin.
 
 The TUI uses a separate WebSocket gateway on port 3003 (`CORTEX_TUI_PORT`), and hooks and signals reach the server through the loopback webhook on port 3001.
@@ -340,6 +341,7 @@ Cortex stores all state on the filesystem under `~/.cortex/`. There is no databa
 | `data/waitpoints.json` | Waitpoints and their signals |
 | `data/team-inbox.json`, `data/team-outbox.json` | Messages between team leads and workers |
 | `data/ui-sessions.json` | Browser login sessions for the Web UI |
+| `browser/profile/` | Profile of the server's agent browser: its cookies and logins |
 | `data/daemon-rebuild.json` | The supervisor's published hot-rebuild record: plan, per-step status and timings, and the terminal outcome of the last rebuild |
 | `data/costs.jsonl` | Per-call cost records (90-day rolling) |
 | `logs/sessions/` | Claude capture logs used for retention protection/cleanup |

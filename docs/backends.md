@@ -157,8 +157,8 @@ assembled per session in `extensions.ts`:
   of its text in each request.
 - **MCP bridge** (`mcp-bridge.ts`) — serves the composition-scoped Cortex tool
   bundles in-process over an in-memory MCP transport pair, bound to a tool
-  context built for that one session. Assigned plugin MCP servers and browser
-  MCP keep their own stdio children or remote connections.
+  context built for that one session. Assigned plugin MCP servers keep their
+  own stdio children or remote connections.
 - **Tool shims** (`tool-shims.ts`) — registers the PI-local `web_fetch`,
   `web_search` and `todo_write` tools, each subject to the session's tool
   allowlist under its Claude name (`WebFetch`, `WebSearch`, `TodoWrite`), and

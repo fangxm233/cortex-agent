@@ -43,7 +43,7 @@ tools are `mcp__cortex-core__remote_*`, and the context tool is
 `mcp__cortex-core__cortex_context`. PI exposes the same tools under their
 unprefixed names.
 
-User-provided MCP is outside this bundle. Portable plugin servers, browser MCP,
+User-provided MCP is outside this bundle. Portable plugin servers,
 remote HTTP/SSE servers, and Claude-native MCP from an assigned legacy plugin
 keep independent configurations, transports, and failure boundaries.
 
@@ -353,8 +353,7 @@ to `CORTEX_MCP_BUNDLES` for the stdio child it spawns: core and ext, plus the
 interaction bundle for user-initiated sessions, the workers bundle for a team
 lead, the worker-report bundle for a worker, and the platform bundle matching
 the session's channel (`slack:`, `feishu:` or `web:`). The plugin MCP
-configuration and, for a browser-enabled direct session, the browser MCP
-config are added as separate config files.
+configuration is added as a separate config file.
 
 PI's bridge computes the same logical selection from the session's own
 environment and hands it directly to the in-process bundled server, alongside

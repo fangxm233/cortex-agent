@@ -624,10 +624,11 @@ machine (at most 32 at a time): each connection to the server-side port makes
 the server send `open-stream`, and the client dials back and pipes the bytes to
 `127.0.0.1:<port>` on the device. Two features use it:
 
-- **A browser on a device.** The composer's browser selector offers this host
-  and every connected device. Choosing a device starts Chrome there and
-  connects the session's browser tools through a forwarded debugging port. The
-  browser is shared by turns on that device and closed after 10 idle minutes.
+- **The agent browser on a device.** `cortex-browser --device <name>` starts
+  Chrome there through the client and reaches its debugging port through a
+  forward. Sessions using that device share its one Chrome, each in its own tab,
+  and Chrome closes 10 minutes after its last tab (see
+  [Agent Browser](./agent-browser.md)).
 - **The docked browser's ports panel** lists ports listening on the server or
   a connected device and previews them in the desktop app, with a remote port
   forwarded first.

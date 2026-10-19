@@ -94,6 +94,7 @@ plugins:
             Waitpoints: 等待点
             MCP: MCP
             Cross-machine: 跨机器
+            Agent Browser: Agent 浏览器
 
 nav:
   - Home: index.md
@@ -114,3 +115,4 @@ nav:
   - Waitpoints: waitpoints.md
   - MCP: mcp.md
   - Cross-machine: cross-machine.md
+  - Agent Browser: agent-browser.md

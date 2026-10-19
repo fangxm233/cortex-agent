@@ -249,8 +249,9 @@ Access in depth.
 | `CORTEX_BG_GRACE_S` | `90` | Seconds a run waits for a background task the backend reported finished but never announced (see [How backends work](./backends.md#how-backends-work)) |
 | `CORTEX_BG_WAIT_MAX_S` | `1800` | Seconds a turn waits on still-running background work before it stops waiting; the work itself continues |
 | `CORTEX_STREAM_DELTA_MS` | `120` | Flush interval, in milliseconds, for streamed assistant text |
-| `CORTEX_BROWSER_BINARY` | auto-detected | Chrome or Chromium binary for the managed browser |
-| `CORTEX_BROWSER_DISPLAY` | auto-detected | X display the managed browser uses, skipping display detection |
+| `CORTEX_AGENT_BROWSER_BIN` | the bundled binary | agent-browser binary that `cortex-browser` runs (see [Agent Browser](./agent-browser.md)). A path that does not exist is an error |
+| `CORTEX_BROWSER_BINARY` | auto-detected | Chrome or Chromium binary for the server's agent browser |
+| `CORTEX_BROWSER_DISPLAY` | auto-detected | X display the server's agent browser uses, skipping display detection |
 | `CORTEX_GPU_MONITOR_MOCK` | — | Mock GPU data JSON for testing (overrides real nvidia-smi queries) |
 
 The event log, tool-call rendering, user-context injection, update check,

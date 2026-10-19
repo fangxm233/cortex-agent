@@ -16,7 +16,7 @@ Cortex 的 agent-server 维护着智能体进程无法直接触及的状态：�
 
 下面的名称是逻辑能力组，而不是独立进程。只要会话的 MCP composition 非空，它就恰好拥有一个由 `agent-server/src/domain/mcp/bundled-server.ts` 构建的 Cortex 自有服务器，且只注册为该会话选中的能力组。Claude Code 把这个服务器作为 stdio 子进程启动；PI 则让它跑在 agent-server 进程内，经一对内存 transport 通信，并绑定专为该会话构建的 tool context。在 Claude 下服务器 key 是 `cortex-core`，因此每个内置工具都带这个前缀——远程工具是 `mcp__cortex-core__remote_*`，上下文工具是 `mcp__cortex-core__cortex_context`。PI 以无前缀的名称暴露同一批工具。
 
-用户提供的 MCP 不在这个 bundle 之内。Portable plugin 服务器、browser MCP、remote HTTP/SSE 服务器，以及已分配的 legacy plugin 中的 Claude-native MCP，各自保留独立的配置、transport 和故障边界。
+用户提供的 MCP 不在这个 bundle 之内。Portable plugin 服务器、remote HTTP/SSE 服务器，以及已分配的 legacy plugin 中的 Claude-native MCP，各自保留独立的配置、transport 和故障边界。
 
 ### cortex-core {#cortex-core}
 
@@ -188,7 +188,7 @@ Claude 会话加载 `mcp-config.json` 或 `mcp-config-empty.json`；其余五个
 
 ### 如何选择正确的配置 {#how-the-right-config-gets-selected}
 
-在 `agent-adapter/claude/spawn-args.ts` 中，`direct` composition 的会话加载 `mcp-config.json`，`none` composition 的会话加载 `mcp-config-empty.json` 并带上 `--strict-mcp-config`。Claude adapter 为它启动的 stdio 子进程把最终的逻辑选择写入 `CORTEX_MCP_BUNDLES`：core 和 ext；用户发起的会话再加 interaction 能力组，团队主会话加 workers 能力组，worker 加 worker-report 能力组，另外加上与会话频道（`slack:`、`feishu:` 或 `web:`）匹配的平台能力组。plugin 的 MCP 配置，以及（对启用浏览器的直接会话而言）browser MCP 配置，作为单独的配置文件加入。
+在 `agent-adapter/claude/spawn-args.ts` 中，`direct` composition 的会话加载 `mcp-config.json`，`none` composition 的会话加载 `mcp-config-empty.json` 并带上 `--strict-mcp-config`。Claude adapter 为它启动的 stdio 子进程把最终的逻辑选择写入 `CORTEX_MCP_BUNDLES`：core 和 ext；用户发起的会话再加 interaction 能力组，团队主会话加 workers 能力组，worker 加 worker-report 能力组，另外加上与会话频道（`slack:`、`feishu:` 或 `web:`）匹配的平台能力组。plugin 的 MCP 配置作为单独的配置文件加入。
 
 PI 的 bridge 根据会话自身的环境计算出相同的逻辑选择，直接交给进程内的内置服务器，同时为每个 plugin 服务器建立一条独立连接；在 PI 上，interaction、workers 和 worker-report 能力组要求 `direct` composition。子智能体在 allowlist 下运行：Claude 子智能体获得 core（不含 `agent` 和 `agent_stop`）和 ext，PI 子智能体只获得 core，且没有 plugin 服务器。内置服务器注册工具之前，会先对照已选能力组校验 allowlist。
 

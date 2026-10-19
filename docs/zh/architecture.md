@@ -8,7 +8,7 @@ Cortex 是一个面向机器人学与 AI/ML 的自主研究智能体系统。它
 
 | 包 | 路径 | 用途 |
 |---------|------|---------|
-| `@cortex-agent/server` | `agent-server/` | 主服务器：Slack 与飞书适配器、Web UI 宿主、TUI 网关、LLM 编排、定时任务、MCP 工具。提供四个 CLI 可执行文件：`cortex`、`cortex-hook`、`cortex-evidence-export`、`cortex-signal`。发布的包还携带构建好的 web 应用和客户端 bundle |
+| `@cortex-agent/server` | `agent-server/` | 主服务器：Slack 与飞书适配器、Web UI 宿主、TUI 网关、LLM 编排、定时任务、MCP 工具。提供五个 CLI 可执行文件：`cortex`、`cortex-browser`、`cortex-hook`、`cortex-evidence-export`、`cortex-signal`。发布的包还携带构建好的 web 应用和客户端 bundle |
 | `@cortex-agent/client` | `client/` | 轻量级远程智能体守护进程（`cortex-client`）。通过 WebSocket 连接，在本地执行 shell/文件命令 |
 | `@cortex-agent/web` | `web/` | 基于 Vite + React 的浏览器应用，含桌面与移动端布局。构建到 `web/dist`，由服务器的 Web UI 宿主提供 |
 | `@cortex-agent/desktop` | `desktop/` | Tauri v2 桌面与 Android 外壳。通过 `cortexui://` scheme 提供 web 应用，来源是自带的副本，或从服务器下载的更新 bundle |
@@ -35,7 +35,7 @@ L5  entry/         → everything (composition root)
 `orchestration/` 还必须没有导入环。
 
 - **`agent-adapter/`** —— 两个 LLM 后端的抽象（Claude Code 和 PI）。`domain/runs/adapters.ts` 是组装这些适配器的唯一位置。
-- **`platform/`** —— 消息与传输层：Slack 和飞书适配器、TUI 网关、同时运行多个平台的组合适配器（`adapters/`）、Web UI HTTP 宿主（`ui-http/`），以及托管浏览器（`browser/`）。
+- **`platform/`** —— 消息与传输层：Slack 和飞书适配器、TUI 网关、同时运行多个平台的组合适配器（`adapters/`）、Web UI HTTP 宿主（`ui-http/`），以及服务器上的 Chrome 和 agent-browser 进程调用（`browser/`）。
 
 另一个目录 **`tui/`** 是 `cortex tui` 运行的 Ink 终端客户端。它只通过 TUI 网关的 WebSocket 与服务器通信，共用网关的协议类型和 i18n 字符串，没有自己的分层规则。
 
@@ -130,6 +130,7 @@ L5  entry/         → everything (composition root)
 | `hooks/` | 供 Web UI 使用的钩子注册表只读视图 |
 | `monitor/` | GPU 和磁盘资源监控 |
 | `system/` | 主机层面的事务：doctor 检查、更新状态与提示、系统通知及其历史，以及 `rebuild-hold.ts` —— 由监督器下推、供准入判断读取的"不开新回合"状态 |
+| `browser/` | Agent 浏览器的 broker（`broker.ts`）：每个会话一个租约，把会话绑定到服务器或设备上 Chrome 里它自己的 tab，空闲 10 分钟后关掉这个 tab，并记录用户的接管状态（见 [agent-browser.md](./agent-browser.md)） |
 | `remote/` | 通过 WebSocket 的远程设备管理。基于 SSH 的客户端引导；客户端根据服务器推送的 bundle 自我更新 |
 | `mcp/` | 内置的 Cortex MCP 服务器及其工具模块（参见 [mcp.md](./mcp.md)） |
 | `ui-service/` | Web UI 的后端：tRPC `AppRouter`（`app-router.ts`）、其 query 与 mutation 处理器，以及把实时事件流式推送给 UI 的事件总线订阅（`subscribe.ts`） |
@@ -144,13 +145,13 @@ L5  entry/         → everything (composition root)
 |------|---------|
 | `conduit-queue.ts` | 按 conduit 的串行 Promise 队列。确保每个对话同一时刻只运行一个回合，并允许 `!cancel` 丢弃排队中的尾部 |
 | `orchestrator.ts` | 把每条入站消息交给 `AgentRunner` |
-| `agent-runner.ts` | 默认智能体路径的准入：路由、回合中注入、排队，以及一个回合所需的会话/租约/浏览器解析。回合本体属于 `turn/turn.ts` |
+| `agent-runner.ts` | 默认智能体路径的准入：路由、回合中注入、排队，以及一个回合所需的会话与租约解析。回合本体属于 `turn/turn.ts` |
 | `session-gateway.ts` | `deliverToSession()` —— 除入站平台消息外，所有进入对话回合的事物（web 发送、定时触发、智能体结果、恢复、waitpoint 唤醒）的唯一入口 |
 | `session-events.ts` | 发布 Web UI 和 TUI 渲染的 `session.*` 事件：消息、增量、状态、回合、todo、上下文用量 |
 | `runtime.ts` | `PlatformAdapter` + `EventBus` 的编排持有者，由组合根注入一次 |
 | `conversation-request.ts` | `prepareConversationRequest()` —— 为普通聊天回合组装 `RunRequest`：智能体 spec 加首回合的环境信息块 |
 | `turn/turn.ts` | `Turn` / `openTurn()` —— 一个对话回合的唯一所有者：状态消息、账本回合追踪、会话租约、`startRun`、观察者扇出、终态渲染、`running:true/false` 括号 |
-| `turn/turn-prep.ts` | 调用方在 `openTurn` 之前要解析的内容：回合的文件、会话记录与使用租约、会话选用的浏览器端点 |
+| `turn/turn-prep.ts` | 调用方在 `openTurn` 之前要解析的内容：回合的文件、会话记录与使用租约 |
 | `turn/terminal.ts` | 回合的终态渲染：状态封存、账本的回合完成、错误正文、错误会话持久化 |
 | `turn/turn-tracking.ts` | 回合簿记中账本的那一半：开始、快照、接受，以及等待期间的替代窗口 |
 | `turn/active-turns.ts` | 按频道的回合状态：回合注册的流式回调、编辑替代标记 |
@@ -166,7 +167,7 @@ L5  entry/         → everything (composition root)
 | `human-answer-backstop.ts` | 等待人工自由文本回复的频道的叶子注册表，每个进入会话的入口都会查询它，使回复被消费而不是开启新回合 |
 | `routing/message-router.ts` | 平台消息入口：在适配器上注册入站消息处理器，并委托给 orchestrator |
 | `routing/commands/` | `!command` 处理器，每个命令族一个模块：`cancel`、`channel`、`compact`、`cost`、`device`、`lang`、`login`（含 `login-custom`）、`mode`、`nvtop`、`orient`、`restart`、`schedule`、`sendfile`、`session`、`status`、`tail`、`usage`（含 `usage-reset`）。`index.ts` 把命令词——`!agent`、`!backend`、`!model`、`!thinking`、`!new`、`!resume`、`!usage` 等——映射到这些模块 |
-| `routing/webhook.ts` | 回环 webhook 服务器（`WEBHOOK_PORT`，默认 3001）：钩子回调、`cortex-signal`、子代理、团队和看板回调 |
+| `routing/webhook.ts` | 回环 webhook 服务器（`WEBHOOK_PORT`，默认 3001）：钩子回调、`cortex-signal`、`cortex-browser` 租约（`browser-webhook.ts`）、子代理、团队和看板回调 |
 | `routing/hook-bridge.ts` | PreToolUse 钩子 → EventBus 桥接。发布 `plan.submitted` 和 `ask-user.requested` |
 | `routing/hook-bridge-subscribers.ts` | 把问题或提交的计划转为交互记录的订阅者，各个界面将其渲染为卡片 |
 | `interactions/` | AskUserQuestion 流程、计划审批状态机、按钮/模态框动作路由 |
@@ -180,7 +181,7 @@ L5  entry/         → everything (composition root)
 | `daemon.ts` | 进程监督器。Fork `app.js`，监视 `$CORTEX_REPO/src` 以自动重建（设置了 `CORTEX_REPO` 时），监视 `.restart` 触发文件，带指数退避的崩溃恢复（1s→30s 上限）。发布逐步骤的重建进度，在 install/restart 之前等待 app 空闲，并在这段窗口内拦住新回合（见下文） |
 | `daemon-notice.ts` | 下行 IPC 的 app 侧：把 `rebuild-aborted` 变成系统通知、把 `rebuild-hold` 变成准入侧的闸门，并在监督器断开连接时解除闸门 |
 | `cortex-cli.ts`、`cli.ts` | `cortex` CLI 入口。分派到 `init`、`config`、`auth`、`doctor`、`feishu`、`restart`、`setup-gateway`、`ui`、`client`、`install`、`schedule`、`memory`、`start`、`daemon`、`tui`，各自在独立的 `*-cli.ts` 模块中实现（参见 [cli-reference.md](./cli-reference.md)） |
-| `hook-cli.ts`、`signal-cli.ts`、`production-evidence-export-cli.ts` | `cortex-hook`、`cortex-signal` 和 `cortex-evidence-export` 可执行文件 |
+| `browser-cli.ts`、`hook-cli.ts`、`signal-cli.ts`、`production-evidence-export-cli.ts` | `cortex-browser`、`cortex-hook`、`cortex-signal` 和 `cortex-evidence-export` 可执行文件 |
 | `init.ts` | 交互式首次初始化 |
 | `start-ui-http.ts`、`ui-http-gate.ts`、`ui-service-wiring.ts` | 在 `CORTEX_UI_HTTP` 开启时启动 Web UI 宿主，并连接它所提供的 `UiService` |
 | `startup-helpers.ts` | 清理日志、确保 MCP 配置 |
@@ -290,7 +291,7 @@ WebSocket 协议用于**远程设备命令执行**，不承载聊天或 UI 流�
 - **tRPC** 位于 `/trpc/` 下。query 和 mutation 是针对 `domain/ui-service/app-router.ts` 中 `AppRouter` 的普通 HTTP 请求；web 应用从 `packages/ui-contract` 获取类型。
 - **实时事件**通过 Server-Sent Events 上的单个 `subscribe` 订阅传递。客户端指定想要的事件类型，可限定到某个项目或会话，服务器经有界队列转发总线上匹配的 `CortexEvent`，客户端跟不上时发送 `ui-subscribe.dropped`。订阅流式文本的客户端会先收到一份进行中的助手消息快照。
 - **认证**按顺序检查：携带客户端 token 的 `x-cortex-token` 头（桌面和移动应用）、token 登录得到的 `cortex_ui` 会话 cookie（`/api/ui/login`、`/api/ui/logout`、`/api/ui/session`），或 Cloudflare Access JWT。非同源的浏览器来源需要在 `uiCorsOrigins` 设置中添加条目。
-- **其他路由**：文件下载与附件上传（`/api/files/download`、`/api/attachments/upload`）、看板资源（`/api/boards/asset`）、桌面应用下载的 web bundle 更新（`/api/ui-ota/manifest.json`、`/api/ui-ota/bundle.zip`）、原生应用更新清单（`/api/app-update/manifest.json`），以及到远程机器的端口转发（`/api/forward/*`，配合 `/forward` WebSocket）。
+- **其他路由**：文件下载与附件上传（`/api/files/download`、`/api/attachments/upload`）、看板资源（`/api/boards/asset`）、桌面应用下载的 web bundle 更新（`/api/ui-ota/manifest.json`、`/api/ui-ota/bundle.zip`）、原生应用更新清单（`/api/app-update/manifest.json`）、到远程机器的端口转发（`/api/forward/*`，配合 `/forward` WebSocket），以及 agent 浏览器：会话列表、接管和输入文本（`/api/browser/*`），实时画面走 `/api/browser/stream` WebSocket。
 - 同一个宿主还提供构建好的 web 应用，因此浏览器从同一个源加载 UI 及其 API。
 
 TUI 使用端口 3003（`CORTEX_TUI_PORT`）上单独的 WebSocket 网关，钩子和信号则通过端口 3001 上的回环 webhook 到达服务器。
@@ -338,6 +339,7 @@ Cortex 把所有状态存放在 `~/.cortex/` 下的文件系统中。没有数�
 | `data/waitpoints.json` | Waitpoint 及其信号 |
 | `data/team-inbox.json`、`data/team-outbox.json` | 团队 lead 与 worker 之间的消息 |
 | `data/ui-sessions.json` | Web UI 的浏览器登录会话 |
+| `browser/profile/` | 服务器上 agent 浏览器的 profile：cookie 和登录状态 |
 | `data/daemon-rebuild.json` | 监督器发布的热重建记录：计划、逐步骤状态与耗时，以及上次重建的终态结果 |
 | `data/costs.jsonl` | 每次调用的费用记录（90 天滚动） |
 | `logs/sessions/` | 用于保留保护/清理的 Claude capture 日志 |

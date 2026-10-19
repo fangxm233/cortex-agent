@@ -36,7 +36,7 @@ Legacy 目录原样传给 backend。因此 Claude 可以解析 Claude 原生的�
 
 ## 内置插件 {#built-in-plugins}
 
-Cortex 在安装目录的 `agent-server/defaults/plugins/` 下自带三个可移植插件：`cortex-system`（审批、定时任务、项目初始化、客户端管理、学习用户偏好）、`cortex-board`（看板）和 `cortex-feishu`（飞书文档，在飞书会话中加载；开启 `settings.feishuSkillsInWeb` 后也在 web 会话中加载）。Cortex 直接从安装目录读取它们，从不复制到 `$CORTEX_HOME`，因此它们始终与正在运行的版本一致。
+Cortex 在安装目录的 `agent-server/defaults/plugins/` 下自带三个可移植插件：`cortex-system`（审批、定时任务、项目初始化、客户端管理、[agent 浏览器](agent-browser.md)、学习用户偏好）、`cortex-board`（看板）和 `cortex-feishu`（飞书文档，在飞书会话中加载；开启 `settings.feishuSkillsInWeb` 后也在 web 会话中加载）。Cortex 直接从安装目录读取它们，从不复制到 `$CORTEX_HOME`，因此它们始终与正在运行的版本一致。
 
 如果 `$CORTEX_HOME/plugins/<id>/` 的目录名恰好是某个内置插件的 id，它就是该插件的用户层，而不是一个独立的插件。内置 manifest 依然生效，用户层逐项修改插件：
 

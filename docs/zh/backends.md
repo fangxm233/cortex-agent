@@ -59,7 +59,7 @@ PI 在 Cortex 服务器进程内运行。引擎（`@earendil-works/pi-coding-age
 **Cortex 的粘合层。** Cortex 附加的一切都是按会话在 `extensions.ts` 中装配的一组 inline PI extension：
 
 - **图片优先**（`image-first.ts`）——在每次请求中把工具结果里的图片移到文本之前。
-- **MCP 桥接**（`mcp-bridge.ts`）——把按 composition 限定的 Cortex 工具 bundle 以进程内方式经一对内存 MCP transport 提供出来，并绑定到专为该会话构建的 tool context。被指派的 plugin MCP server 与 browser MCP 仍各自保有独立的 stdio 子进程或远程连接。
+- **MCP 桥接**（`mcp-bridge.ts`）——把按 composition 限定的 Cortex 工具 bundle 以进程内方式经一对内存 MCP transport 提供出来，并绑定到专为该会话构建的 tool context。被指派的 plugin MCP server 仍各自保有独立的 stdio 子进程或远程连接。
 - **工具垫片**（`tool-shims.ts`）——注册 PI 本地的 `web_fetch`、`web_search` 与 `todo_write` 工具，每个都按其 Claude 名称（`WebFetch`、`WebSearch`、`TodoWrite`）受会话的工具允许列表约束；在会话可以委派时，还注册 `agent` 与 `agent_stop` 委派工具（参见[子智能体](#subagents)）。
 - **钩子桥接**（`hook-bridge.ts`）——把钩子注册表中面向 `pi` 后端的条目挂成 PI 原生事件处理器，Cortex 钩子脚本因此能看到 PI 的工具事件。参见 [hooks.md](./hooks.md)。
 - **额度探针**（`quota-probe.ts`）——在经网关路由的运行中从响应头读取 provider 额度，并把每次读数交给限流器。

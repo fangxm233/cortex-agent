@@ -194,13 +194,14 @@ conversational rather than a sandbox:
 | [Scheduling](https://fangxm233.github.io/cortex-agent/scheduling/) | Interval, daily, weekly, and one-off schedules |
 | [Backends](https://fangxm233.github.io/cortex-agent/backends/) | Claude Code and PI, providers, model selection, cost reporting, subagents |
 | [Configuration](https://fangxm233.github.io/cortex-agent/configuration/) | `config/.env`, `settings.json`, models and favorites, execution environments |
-| [CLI reference](https://fangxm233.github.io/cortex-agent/cli-reference/) | `cortex`, `cortex-signal`, and `cortex-hook` |
+| [CLI reference](https://fangxm233.github.io/cortex-agent/cli-reference/) | `cortex`, `cortex-browser`, `cortex-signal`, and `cortex-hook` |
 | [Skills & plugins](https://fangxm233.github.io/cortex-agent/skills-and-plugins/) | Writing, overriding, and packaging skills |
 | [Safety & approvals](https://fangxm233.github.io/cortex-agent/safety-and-approvals/) | The safety boundary, approval queue, and interactive cards |
 | [Hooks](https://fangxm233.github.io/cortex-agent/hooks/) | Hook lifecycle, built-in hooks, and custom hooks |
 | [Waitpoints](https://fangxm233.github.io/cortex-agent/waitpoints/) | Waiting on external jobs without polling |
 | [MCP](https://fangxm233.github.io/cortex-agent/mcp/) | Cortex's MCP tools and third-party servers |
 | [Cross-machine](https://fangxm233.github.io/cortex-agent/cross-machine/) | Deploying `cortex-client` and using remote tools |
+| [Agent browser](https://fangxm233.github.io/cortex-agent/agent-browser/) | The Chrome agents drive with `cortex-browser`, watching it live, and taking over |
 | [Architecture](https://fangxm233.github.io/cortex-agent/architecture/) | Server layers, protocols, and the event bus |
 
 ## Developing Cortex

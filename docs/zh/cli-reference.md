@@ -1,15 +1,16 @@
 # CLI 参考 {#cli-reference}
 
-Cortex 提供四个可执行文件，在 `agent-server/package.json` 中注册：
+Cortex 提供五个可执行文件，在 `agent-server/package.json` 中注册：
 
 | 可执行文件 | 入口点 | 用途 |
 |---|---|---|
 | `cortex` | `dist/entry/cortex-cli.js` | 服务器管理和初始化 |
+| `cortex-browser` | `dist/entry/browser-cli.js` | 操作当前会话的 agent 浏览器 |
 | `cortex-evidence-export` | `dist/entry/production-evidence-export-cli.js` | 导出生产 benchmark evidence v2 |
 | `cortex-hook` | `dist/entry/hook-cli.js` | 检查、切换、试运行 hook，以及阻塞式用户询问 |
 | `cortex-signal` | `dist/entry/signal-cli.js` | 让外部程序解决一个 waitpoint |
 
-四个都接受 `--help`（或 `-h`）打印用法。
+五个都接受 `--help`（或 `-h`）打印用法。
 
 ---
 
@@ -287,6 +288,54 @@ cortex schedule remove a1b2c3d4 --dry-run
 | 130 | `init` 或 `auth login` 被取消，或拒绝安装 Claude Code |
 
 `cortex start` 和 `cortex tui` 以它们所运行进程的退出码退出。
+
+---
+
+## cortex-browser {#cortex-browser}
+
+```
+cortex-browser [--device <name>] <agent-browser command> [args...]
+```
+
+操作调用方会话在 [agent 浏览器](./agent-browser.md)里的那个 tab。Agent 在自己的 shell 里运行它；除 `--device` 外的所有参数都原样交给随 Cortex 固定版本的 [agent-browser](https://agent-browser.dev)，并连到该会话自己的 tab 上。输出和退出码都来自 agent-browser。`cortex-browser skills get core` 打印与所带版本匹配的 agent-browser 命令指南，加 `--full` 列出全部命令和选项。
+
+选项：
+- `--device <name>` — 用谁的 Chrome：`server` 或一台已连接的设备。选定后对该会话一直生效（默认：该会话上次用的设备，没有则为 `server`）
+- `--help`、`-h` — 显示用法；`cortex-browser <command> --help` 显示单个 agent-browser 命令的用法
+
+每次调用都通过回环 webhook（`http://127.0.0.1:$WEBHOOK_PORT/webhook/browser`，用 `CORTEX_WEBHOOK_TOKEN` 认证）向守护进程要该会话的浏览器。会话取自 `CORTEX_SESSION_ID`（或 `CORTEX_EXECUTION_ID`）。Agent 的 shell 里这三个变量都已设好，因此在那里无需任何配置。`skills`、`help` 和 `--version` 不需要浏览器即可运行。
+
+文件类命令（`screenshot`、`pdf`、`download`、`upload`、`record`、`trace`、`har`、`state` 等）的相对路径，以及 `--screenshot-dir`、`--download-path`、`--baseline` 的相对路径，都按调用方的工作目录解析。
+
+`--cdp`、`--session` 和 tab 绑定由 `cortex-browser` 自己设置；会让调用离开本会话 tab 的参数会被拒绝：`--cdp`、`--session`、`--no-pin-tab`、`--auto-connect`、`--provider`/`-p`、`--namespace`、`--engine` 和 `--executable-path`。`connect`、`install`、`upgrade`、`dashboard`、`mcp` 和 `close --all` 也会被拒绝，并说明原因和替代做法。
+
+如果该会话的 tab 已经不在了（空闲 10 分钟后被关闭，或 Chrome 重启过），这次调用会新开一个空白 tab，在 stderr 上打印一条说明，然后在新 tab 里执行命令。
+
+### 退出码 {#cortex-browser-exit-codes}
+
+| 退出码 | 含义 |
+|---|---|
+| 0 | 成功 |
+| 1 | agent-browser 命令失败，或浏览器无法使用：设备未知或离线、Chrome 启动失败、用户正在操作浏览器、守护进程不可达或拒绝了 token。原因和提示写在 stderr |
+| 2 | 用法错误（被拒绝的参数或命令、`--device` 缺少设备名），或环境里没有会话 |
+
+连上浏览器之后，退出码就是 agent-browser 自己的。
+
+### 示例 {#cortex-browser-examples}
+
+```bash
+# 打开页面并列出可点击的元素
+cortex-browser open http://127.0.0.1:5173 && cortex-browser snapshot -i
+
+# 点击快照里的一个 ref，再截图看结果
+cortex-browser click @e2 && cortex-browser screenshot ./after-click.png
+
+# 使用用户机器上的 Chrome（它的 localhost、它的登录状态）
+cortex-browser --device my-pc open https://example.com
+
+# 查看与版本匹配的命令参考
+cortex-browser skills get core --full
+```
 
 ---
 

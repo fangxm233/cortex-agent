@@ -399,7 +399,7 @@ send_file({ device: "trainer", files: [{ file_path: "/home/x/runs/loss.png" }, {
 
 服务器可以把设备上的某个 loopback 端口映射到自己机器上的 loopback 端口（同时最多 32 个）：每当有连接打到服务器侧端口，服务器就发送 `open-stream`，客户端随即回连，把字节转发到设备上的 `127.0.0.1:<port>`。有两项功能用到它：
 
-- **设备上的浏览器。** 输入框的浏览器选择器会列出本机和每台已连接的设备。选择某台设备后，会在该设备上启动 Chrome，并通过转发的调试端口把 session 的浏览器工具接上去。该浏览器由在这台设备上运行的各个 turn 共享，空闲 10 分钟后关闭。
+- **设备上的 agent 浏览器。** `cortex-browser --device <name>` 通过客户端在该设备上启动 Chrome，并经转发访问它的调试端口。使用这台设备的各个 session 共用这一个 Chrome，各占一个 tab；最后一个 tab 关闭 10 分钟后 Chrome 退出（见 [Agent 浏览器](./agent-browser.md)）。
 - **停靠浏览器的端口面板**会列出服务器或已连接设备上正在监听的端口，并在桌面 App 中预览；远程端口会先完成转发。
 
 ### 长时间运行的任务 {#long-running-jobs}

@@ -20,6 +20,7 @@ Cortex 围绕长智能体运行的三种失败模式而设计：
 - **定时与间隔调度** —— 安排 Cortex 定期扫描、摘编或巡查。
 - **可编辑的技能与插件** —— 技能就是普通的 `SKILL.md` 文件，Cortex 和你都可以编写、覆盖或还原它们，直接改文件或在**设置 → 插件**中操作（[技能与插件](skills-and-plugins.md)）。
 - **跨机器统一代理** —— 通过 `cortex-client` 连接任意 Mac、Windows 或 Linux 机器。
+- **由 agent 操作的浏览器** —— agent 在服务器或你自己机器上的 Chrome 里打开、阅读和操作网页；你可以实时观看，遇到登录时接管（[Agent 浏览器](agent-browser.md)）。
 - **Web、原生应用、聊天平台与终端访问** —— 浏览器工作台、Linux/macOS/Windows 桌面应用、Android 应用、Slack、飞书和 TUI 共用同一服务器。工作台把会话、worker、看板、审批、机器和项目记忆并排呈现。
 
 ## Cortex 使用方式 {#ways-to-use-cortex}

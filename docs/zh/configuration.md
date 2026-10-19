@@ -183,8 +183,9 @@ Web UI 宿主服务浏览器工作台、桌面 App 和手机 App。[浏览器访
 | `CORTEX_BG_GRACE_S` | `90` | 后端报告已完成但从未宣告的后台任务，运行会等待它的秒数（见[后端如何工作](./backends.md#how-backends-work)） |
 | `CORTEX_BG_WAIT_MAX_S` | `1800` | 一轮等待仍在运行的后台工作的秒数，超过即停止等待；工作本身继续 |
 | `CORTEX_STREAM_DELTA_MS` | `120` | 流式助手文本的刷新间隔（毫秒） |
-| `CORTEX_BROWSER_BINARY` | 自动检测 | 托管浏览器使用的 Chrome 或 Chromium 二进制 |
-| `CORTEX_BROWSER_DISPLAY` | 自动检测 | 托管浏览器使用的 X display，跳过 display 检测 |
+| `CORTEX_AGENT_BROWSER_BIN` | 随附的二进制 | `cortex-browser` 运行的 agent-browser 二进制（见 [Agent 浏览器](./agent-browser.md)）。路径不存在时直接报错 |
+| `CORTEX_BROWSER_BINARY` | 自动检测 | 服务器上 agent 浏览器使用的 Chrome 或 Chromium 二进制 |
+| `CORTEX_BROWSER_DISPLAY` | 自动检测 | 服务器上 agent 浏览器使用的 X display，跳过 display 检测 |
 | `CORTEX_GPU_MONITOR_MOCK` | — | 用于测试的模拟 GPU 数据 JSON（覆盖真实的 nvidia-smi 查询） |
 
 事件日志、工具调用渲染、用户上下文注入、更新检查、压缩提示、回合完成提醒与自动恢复这些开关是设置项——见 [`config/settings.json`](#configsettingsjson)。

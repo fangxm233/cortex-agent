@@ -36,7 +36,7 @@ Legacy directories are passed through to the backend. Claude can therefore inter
 
 ## Built-in plugins
 
-Cortex ships three portable plugins in its install, under `agent-server/defaults/plugins/`: `cortex-system` (approvals, schedules, project setup, client management, learning user preferences), `cortex-board` (boards) and `cortex-feishu` (Feishu documents, loaded in Feishu sessions and, with `settings.feishuSkillsInWeb`, in web sessions). Cortex reads them from the install and never copies them into `$CORTEX_HOME`, so they always match the running version.
+Cortex ships three portable plugins in its install, under `agent-server/defaults/plugins/`: `cortex-system` (approvals, schedules, project setup, client management, the [agent browser](agent-browser.md), learning user preferences), `cortex-board` (boards) and `cortex-feishu` (Feishu documents, loaded in Feishu sessions and, with `settings.feishuSkillsInWeb`, in web sessions). Cortex reads them from the install and never copies them into `$CORTEX_HOME`, so they always match the running version.
 
 A directory `$CORTEX_HOME/plugins/<id>/` whose name is a built-in plugin's id is that plugin's user layer, not a plugin of its own. The built-in manifest stays in force, and the layer changes the plugin piece by piece:
 

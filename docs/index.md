@@ -20,6 +20,7 @@ Cortex is designed around three failure modes of long agent runs:
 - **Cron and interval scheduling** — schedule Cortex to scan, digest, or sweep on a recurring basis.
 - **Editable skills and plugins** — skills are plain `SKILL.md` files that Cortex and you can write, override, or revert, on disk or from **Settings → Plugins** ([Skills & Plugins](skills-and-plugins.md)).
 - **One agent across your machines** — connect any Mac, Windows, or Linux machine via `cortex-client`.
+- **A browser the agent drives** — agents open, read and operate web pages in a Chrome on the server or on your own machine; you watch it live and take over for logins ([Agent Browser](agent-browser.md)).
 - **Web, native app, chat, and terminal access** — use the browser workbench, Linux/macOS/Windows desktop app, Android app, Slack, Feishu, or TUI against the same server. The workbench shows sessions, workers, boards, approvals, machines, and project memory side by side.
 
 ## Ways to use Cortex

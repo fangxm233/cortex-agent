@@ -1,15 +1,16 @@
 # CLI Reference
 
-Cortex ships four binaries, registered in `agent-server/package.json`:
+Cortex ships five binaries, registered in `agent-server/package.json`:
 
 | Binary | Entry point | Purpose |
 |---|---|---|
 | `cortex` | `dist/entry/cortex-cli.js` | Server management and initialization |
+| `cortex-browser` | `dist/entry/browser-cli.js` | Drive the session's agent browser |
 | `cortex-evidence-export` | `dist/entry/production-evidence-export-cli.js` | Production benchmark evidence v2 export |
 | `cortex-hook` | `dist/entry/hook-cli.js` | Hook inspection, switching, test runs, and blocking user asks |
 | `cortex-signal` | `dist/entry/signal-cli.js` | Resolve a waitpoint from an external program |
 
-All four accept `--help` (or `-h`) to print their usage.
+All five accept `--help` (or `-h`) to print their usage.
 
 ---
 
@@ -448,6 +449,67 @@ Options:
 | 130 | `init` or `auth login` cancelled, or the Claude Code install declined |
 
 `cortex start` and `cortex tui` exit with the code of the process they run.
+
+---
+
+## cortex-browser
+
+```
+cortex-browser [--device <name>] <agent-browser command> [args...]
+```
+
+Drive the calling session's tab in the [agent browser](./agent-browser.md). Agents run it from
+their shell; every argument except `--device` is passed to the pinned
+[agent-browser](https://agent-browser.dev), attached to the session's own tab. Its output and exit
+code are agent-browser's. `cortex-browser skills get core` prints agent-browser's command guide for
+the shipped version, and `--full` adds every command and option.
+
+Options:
+- `--device <name>` — whose Chrome: `server` or a connected device. The choice sticks for the session (default: the session's last device, else `server`)
+- `--help`, `-h` — show usage; `cortex-browser <command> --help` shows one agent-browser command
+
+Each call asks the daemon for the session's browser over the loopback webhook
+(`http://127.0.0.1:$WEBHOOK_PORT/webhook/browser`, authenticated with `CORTEX_WEBHOOK_TOKEN`). The
+session comes from `CORTEX_SESSION_ID` (or `CORTEX_EXECUTION_ID`). Agent shells carry all three,
+so the command needs no setup there. `skills`, `help` and `--version` run without a browser.
+
+Relative paths given to file commands (`screenshot`, `pdf`, `download`, `upload`, `record`,
+`trace`, `har`, `state`, …) and to `--screenshot-dir`, `--download-path` and `--baseline` resolve
+against the caller's working directory.
+
+`cortex-browser` sets `--cdp`, `--session` and the tab binding itself, and refuses flags that would
+leave the session's tab: `--cdp`, `--session`, `--no-pin-tab`, `--auto-connect`, `--provider`/`-p`,
+`--namespace`, `--engine` and `--executable-path`. It also refuses `connect`, `install`,
+`upgrade`, `dashboard`, `mcp` and `close --all`, each with the reason and what to use instead.
+
+When the session's tab is gone (closed after 10 idle minutes, or Chrome restarted), the call opens
+a new blank tab, prints a note on stderr, and runs the command there.
+
+### Exit codes {#cortex-browser-exit-codes}
+
+| Code | Meaning |
+|---|---|
+| 0 | Success |
+| 1 | The agent-browser command failed, or no browser could be used: unknown or offline device, Chrome failed to start, the user is controlling the browser, the daemon is unreachable or rejected the token. The reason and a hint are on stderr |
+| 2 | Usage error (a refused flag or command, `--device` without a name) or no session in the environment |
+
+Once the browser is attached, the exit code is agent-browser's own.
+
+### Examples {#cortex-browser-examples}
+
+```bash
+# Open a page and list what can be clicked
+cortex-browser open http://127.0.0.1:5173 && cortex-browser snapshot -i
+
+# Click a ref from the snapshot, then capture the result
+cortex-browser click @e2 && cortex-browser screenshot ./after-click.png
+
+# Use the Chrome on the user's machine (its localhost, its logins)
+cortex-browser --device my-pc open https://example.com
+
+# Read the version-matched command reference
+cortex-browser skills get core --full
+```
 
 ---
 
