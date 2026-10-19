@@ -20,6 +20,7 @@ import {
   type ClaudeSessionLaunch, type ClaudeSessionOptions,
 } from './session-options.js';
 import { computeTranscriptPath, readRestoredSessionCost, resolveResumeAgainstTranscript } from './transcript-path.js';
+import { clearToolResultsForColdResume } from './transcript-clear.js';
 import {
   buildPrompt,
   clearActivePlanFile,
@@ -258,12 +259,13 @@ class ClaudeSession implements TurnHost {
 
   private spawnProcess(): void {
     this.validateSupplementalMcpConfig();
+    const { cwd, processSpawner, cliPath } = this.options;
+    const transcriptPath = computeTranscriptPath(cwd, this.sessionId);
+    if (this.needsResume) clearToolResultsForColdResume(transcriptPath, this.sessionId);
     const { args, env } = claudeProcessLaunch({
       channel: this.channel, sessionId: this.sessionId, needsResume: this.needsResume, options: this.options,
     });
-    const { cwd, processSpawner, cliPath } = this.options;
-    const restoredCost = this.needsResume
-      ? readRestoredSessionCost(computeTranscriptPath(cwd, this.sessionId), this.sessionId) : 0;
+    const restoredCost = this.needsResume ? readRestoredSessionCost(transcriptPath, this.sessionId) : 0;
     this.turns.resetCostBaseline(restoredCost);
     log.info(`Spawning persistent process: ${this.sessionId.substring(0, 8)} ${this.needsResume ? `(resume, restored cost $${restoredCost.toFixed(2)})` : '(new)'}`);
     const spawned = spawnClaudeProcess(processSpawner, args, { cwd, env }, cliPath);
