@@ -43,9 +43,9 @@ const CONN_DOT: Record<ReturnType<typeof mConnTone>, string> = { done: MC.done, 
 function RebuildSection({ rebuild }: { rebuild: DaemonRebuildVm }) {
   const L = useVocab();
   const statusKey = REBUILD_STATUS_KEYS[rebuild.status];
-  const title = <>{L.dmRebuild}<span style={{ fontWeight: 500, ...NUM }}>
+  const title = <span>{L.dmRebuild}<span style={{ fontWeight: 500, ...NUM }}>
     {' · '}{fmt(L.dmnRebuildProgress, { done: rebuild.completed, total: rebuild.total })} · {rebuild.elapsed}
-  </span></>;
+  </span></span>;
   return (
     <MSettingsSection title={title} trailing={
       <StatusWord color={dotColor(rebuildStatusTone(rebuild.status))}>{statusKey ? L[statusKey] : rebuild.status}</StatusWord>

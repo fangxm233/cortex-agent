@@ -27,7 +27,6 @@ export const daemonEn = {
   dmnHoldHint: 'Keep holding…',
   dmnFooterNote: 'Soft restart waits for idle agents · Force kill: hold 2s, interrupts running agents',
   dmnDisconnectNote: 'Clears the saved login and returns to sign-in',
-  dmnProcessesTitle: 'Processes',
 };
 export const daemonZh: Record<keyof typeof daemonEn, string> = {
   dmnTitle: 'Daemon',
@@ -56,5 +55,4 @@ export const daemonZh: Record<keyof typeof daemonEn, string> = {
   dmnHoldHint: '继续按住…',
   dmnFooterNote: '软重启等 Agent 空闲后执行 · 强制终止需长按 2s，会打断运行中的 Agent',
   dmnDisconnectNote: '清除已保存的登录信息并返回登录页',
-  dmnProcessesTitle: '进程',
 };
