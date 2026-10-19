@@ -16,7 +16,7 @@ const log = createLogger('device-browser');
  */
 
 /** Chrome's own startup, plus the device round trip. Generous: a cold Chrome on a busy laptop is
- *  slow, and the alternative to waiting is a turn with no browser tools. */
+ *  slow, and the alternative to waiting is a failed `cortex-browser` call. */
 const LAUNCH_TIMEOUT_MS = 90_000;
 
 /** One HTTP GET through the tunnel. If this is slow, the tunnel is broken, not the browser. */

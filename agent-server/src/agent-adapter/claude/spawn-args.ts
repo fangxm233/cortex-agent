@@ -57,9 +57,6 @@ export interface ClaudeSpawnOptions {
   loadFeishuMcp?: boolean;
   /** Select Web tools in the bundled server for Web-originated direct sessions. */
   loadWebMcp?: boolean;
-  /** Path to a Playwright MCP config for a browser-enabled session. Absent → the session gets zero
-   *  browser tools, which is the default and the reason this is opt-in at all. */
-  browserMcpConfigPath?: string | null;
   /** Selected thinking level → `--effort <level>`
    *  (low/medium/high/xhigh/max). Absent → no flag. */
   thinking?: string | null;
@@ -84,12 +81,6 @@ const MCP_CONFIGS: Record<McpComposition, readonly string[]> = {
   none: [EMPTY_MCP_CONFIG],
 };
 
-function appendBrowserMcpConfig(
-  configs: string[], options: ClaudeSpawnOptions, isDirect: boolean,
-): void {
-  if (options.browserMcpConfigPath && isDirect) configs.push(options.browserMcpConfigPath);
-}
-
 function resolveMcpConfigs(
   options: ClaudeSpawnOptions,
   composition: McpComposition,
@@ -100,7 +91,6 @@ function resolveMcpConfigs(
   if (options.supplementalMcpConfigPath && composition === 'direct') {
     configs.push(options.supplementalMcpConfigPath);
   }
-  appendBrowserMcpConfig(configs, options, composition === 'direct');
   const bundles = resolveClaudeMcpBundles(options);
   // Only an explicitly declared allowlist materializes a gated config (subagents). A direct session
   // declares none and therefore registers its bundles whole — deliberate since DR-0037 v4: no tool

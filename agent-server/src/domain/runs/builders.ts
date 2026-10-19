@@ -13,8 +13,8 @@ import type { RunRequest } from './request.js';
 import { bareSpec } from './spec-loader.js';
 
 /** The policy every direct run opens under: the engine runs the turn and returns, with no inline
- *  wait for background work (`background: 'none'`), cost recorded, hooks and ambient rules on, the
- *  direct MCP surface, and no browser attached.
+ *  wait for background work (`background: 'none'`), cost recorded, hooks and ambient rules on, and
+ *  the direct MCP surface.
  *
  *  `captureTranscripts` must stay true: Claude writes a per-turn transcript file unless told not
  *  to, `captureTranscriptLogs` defaults to ON, and only a frozen subagent child opts out.
@@ -27,7 +27,6 @@ export const DIRECT_RUN_POLICY: RunRequest['policy'] = {
   hooks: true,
   loadRules: true,
   mcpComposition: 'direct',
-  browserCdpEndpoint: null,
   captureTranscripts: true,
 };
 

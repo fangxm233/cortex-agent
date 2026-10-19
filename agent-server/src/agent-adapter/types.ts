@@ -68,7 +68,7 @@ export interface EngineSpec {
              /** Selected skills/MCP servers that failed to materialize; for the user, not the engine. */
              warnings?: string[] };
   mcp: { composition?: McpComposition; servers?: McpServerConfig[]; allowlist?: string[];
-         configPaths?: string[]; browserCdpEndpoint?: string };
+         configPaths?: string[] };
   env: { sets?: Record<string, string>; unsets?: string[]; pinned?: NodeJS.ProcessEnv;
          context?: CortexContextEnv };
   route: { anthropicBaseUrl?: string; gatewayBaseUrl?: string; gatewayPath?: string };

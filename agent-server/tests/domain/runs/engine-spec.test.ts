@@ -47,10 +47,7 @@ const cases: Case[] = [
       prompt: { system: undefined, append: undefined },
       tools: { canonical: undefined, rawClaude: undefined },
       plugins: { dirs: undefined, skillDirs: undefined, fingerprint: undefined },
-      mcp: {
-        composition: 'direct', servers: undefined, allowlist: undefined, configPaths: undefined,
-        browserCdpEndpoint: undefined,
-      },
+      mcp: { composition: 'direct', servers: undefined, allowlist: undefined, configPaths: undefined },
       env: {
         sets: undefined, unsets: undefined, pinned: undefined,
         context: {
@@ -93,10 +90,7 @@ const cases: Case[] = [
       prompt: { system: undefined, append: undefined },
       tools: { canonical: undefined, rawClaude: undefined },
       plugins: { dirs: undefined, skillDirs: undefined, fingerprint: undefined },
-      mcp: {
-        composition: 'direct', servers: undefined, allowlist: undefined, configPaths: undefined,
-        browserCdpEndpoint: undefined,
-      },
+      mcp: { composition: 'direct', servers: undefined, allowlist: undefined, configPaths: undefined },
       env: {
         sets: undefined, unsets: undefined, pinned: undefined,
         context: {
@@ -148,7 +142,6 @@ const cases: Case[] = [
       mcp: {
         composition: 'direct', servers: undefined, allowlist: undefined,
         configPaths: ['/fixture/mcp-empty.json'],
-        browserCdpEndpoint: undefined,
       },
       env: {
         sets: undefined, unsets: undefined,
@@ -172,14 +165,13 @@ const cases: Case[] = [
     },
   },
   {
-    name: 'browser session with a mode route',
+    name: 'web session with a mode route',
     options: {
-      channel: 'web:browser-fixture',
-      sessionKey: 'web:browser-fixture',
+      channel: 'web:route-fixture',
+      sessionKey: 'web:route-fixture',
       sessionId: '55555555-5555-4555-8555-555555555555',
-      trackSessionId: 'tracked-browser',
-      executionId: 'exec-browser',
-      browserCdpEndpoint: 'ws://127.0.0.1:9222/devtools/browser/abc',
+      trackSessionId: 'tracked-route',
+      executionId: 'exec-route',
       isUserInitiated: true,
       callbackSource: 'web',
       scheduleTaskId: 'sched-1',
@@ -195,25 +187,22 @@ const cases: Case[] = [
       CLAUDE_CODE_OAUTH_TOKEN: null,
     },
     expected: {
-      engineKey: 'web:browser-fixture',
+      engineKey: 'web:route-fixture',
       cwd: undefined,
       resume: { backendSessionId: '55555555-5555-4555-8555-555555555555', resume: true },
       model: { id: 'claude-fixture', provider: undefined, thinking: 'medium', benchmarkMaxOutputTokens: undefined },
       prompt: { system: undefined, append: undefined },
       tools: { canonical: undefined, rawClaude: undefined },
       plugins: { dirs: undefined, skillDirs: undefined, fingerprint: undefined },
-      mcp: {
-        composition: 'direct', servers: undefined, allowlist: undefined, configPaths: undefined,
-        browserCdpEndpoint: 'ws://127.0.0.1:9222/devtools/browser/abc',
-      },
+      mcp: { composition: 'direct', servers: undefined, allowlist: undefined, configPaths: undefined },
       env: {
         sets: { ANTHROPIC_API_KEY: 'sk-route-fixture' },
         unsets: ['CLAUDE_CODE_OAUTH_TOKEN'],
         pinned: undefined,
         context: {
           project: null,
-          trackSessionId: 'tracked-browser',
-          executionId: 'exec-browser',
+          trackSessionId: 'tracked-route',
+          executionId: 'exec-route',
           selection: { backend: 'claude', provider: null, model: 'claude-fixture', thinking: 'medium', mode: 'plan' },
         },
       },
@@ -227,7 +216,7 @@ const cases: Case[] = [
         streamDeltas: undefined, captureTranscripts: undefined,
         isUserInitiated: true,
       },
-      context: { channel: 'web:browser-fixture', callbackSource: 'web', scheduleTaskId: 'sched-1' },
+      context: { channel: 'web:route-fixture', callbackSource: 'web', scheduleTaskId: 'sched-1' },
       backend: { kind: 'claude', claudeAgent: 'my-agent', outputStyle: 'concise' },
       process: { spawner: undefined, cliPath: undefined },
     },

@@ -16,7 +16,6 @@ import {
   type ConversationHeader,
   type PendingSessionDelete,
   type SessionDeleteCleanup,
-  type SessionBrowserOption,
   type SessionOrigin,
   type SessionPatchFields,
   type SessionPatchUnsetKey,
@@ -77,7 +76,7 @@ export type SessionRegistryData = Record<string, Session>;
 export type SessionRegistryRepoOptions = SessionRegistryJournalOptions;
 
 type UpdateFields = Partial<Pick<Session,
-  'lastUsedAt' | 'label' | 'selection' | 'backend' | 'agentName' | 'backendSessionId' | 'contextUsage' | 'browser'
+  'lastUsedAt' | 'label' | 'selection' | 'backend' | 'agentName' | 'backendSessionId' | 'contextUsage'
 >> & { sessionId?: never };
 
 export interface RegisterSessionOpts {
@@ -92,7 +91,6 @@ export interface RegisterSessionOpts {
   agentName?: string | null;
   backendSessionId?: string | null;
   scheduleId?: string | null;
-  browser?: SessionBrowserOption | null;
   boardId?: string | null;
   teamLeadId?: string | null;
   workerName?: string | null;
@@ -195,7 +193,6 @@ export class SessionRegistryRepo {
       agentName: opts.agentName ?? null,
       backendSessionId: opts.backendSessionId ?? null,
       scheduleId: opts.scheduleId ?? null,
-      browser: opts.browser ?? null,
       boardId: opts.boardId ?? null,
       ...(opts.teamLeadId
         ? {
@@ -233,7 +230,6 @@ export class SessionRegistryRepo {
       backendSessionId: updates.backendSessionId !== undefined
         ? updates.backendSessionId
         : current.backendSessionId,
-      browser: updates.browser !== undefined ? updates.browser : current.browser,
       contextUsage: updates.contextUsage !== undefined ? updates.contextUsage : current.contextUsage,
     } as SessionRecord);
   }

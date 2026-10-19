@@ -1,14 +1,9 @@
 import type { DownloadedFile, IncomingMessage } from '@platform/index.js';
 import type { AttachmentFailure, InboundFiles } from '../routing/file-handler.js';
 import { inboundAttachmentMeta } from '../attachments-store.js';
-import { createLogger } from '@core/log.js';
 import { resolveWorkspaceRelPath } from '@core/paths.js';
 import { sessionStore, type Session } from '@store/session-registry-repo.js';
 import { acquireSessionUse } from '@domain/sessions/session-use.js';
-import { acquireBrowser, releaseBrowser, backendSupportsBrowser, BROWSER_DEVICE_SERVER } from '@platform/browser/managed-browser.js';
-import { acquireDeviceBrowser, releaseDeviceBrowser } from '@domain/remote/device-browser.js';
-
-const log = createLogger('turn-prep');
 
 export interface SessionUseLease {
   session: Session;
@@ -66,55 +61,4 @@ export async function collectTurnFiles(
     platformAttachments: platformAttachments.length > 0 ? platformAttachments : undefined,
     failures,
   };
-}
-
-/**
- * A browser-enabled session holds the shared Chrome for the duration of its turn. Acquiring outside
- * the adapter keeps the spawn path synchronous and gives us one obvious place to pair with a
- * release. A browser that cannot start degrades the turn to "no browser tools" instead of failing
- * it — the session is still worth running.
- */
-async function acquireTurnBrowser(args: {
-  backend: string;
-  browser: { device: string } | null;
-}): Promise<{ held: string | null; cdpEndpoint: string | null }> {
-  const { backend, browser } = args;
-  if (!browser) return { held: null, cdpEndpoint: null };
-  if (!backendSupportsBrowser(backend)) {
-    log.warn(`session opted into the browser but the ${backend} backend cannot use it — skipping`);
-    return { held: null, cdpEndpoint: null };
-  }
-  const device = browser.device;
-  try {
-    // `server` is this host's own Chrome; anything else is a Chrome the device launches for us,
-    // reachable only because the reverse channel maps its debugging port onto a local one. Both
-    // hand back a plain http://127.0.0.1:<port>, so nothing downstream knows the difference.
-    const cdpEndpoint = device === BROWSER_DEVICE_SERVER
-      ? (await acquireBrowser()).cdpEndpoint
-      : (await acquireDeviceBrowser(device)).cdpEndpoint;
-    return { held: device, cdpEndpoint };
-  } catch (error) {
-    log.warn(`browser session requested on "${device}" but Chrome could not start: ${(error as Error).message}`);
-    return { held: null, cdpEndpoint: null };
-  }
-}
-
-/** Release whatever {@link acquireTurnBrowser} took. No-op when it took nothing. */
-function releaseTurnBrowser(held: string | null): void {
-  if (held === BROWSER_DEVICE_SERVER) releaseBrowser();
-  else if (held) releaseDeviceBrowser(held);
-}
-
-/** Run one turn holding the browser its session opted into (`session.browser`), released when the
- *  turn is over. The turn receives the CDP endpoint, or null when it runs without one. */
-export async function withTurnBrowser<T>(
-  args: { backend: string; browser: { device: string } | null },
-  turn: (cdpEndpoint: string | null) => Promise<T>,
-): Promise<T> {
-  const browser = await acquireTurnBrowser(args);
-  try {
-    return await turn(browser.cdpEndpoint);
-  } finally {
-    releaseTurnBrowser(browser.held);
-  }
 }

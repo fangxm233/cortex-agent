@@ -90,7 +90,6 @@ function spawnPolicy(request: RunRequest): Pick<EngineSpec, 'flags' | 'process' 
       allowlist: request.policy.mcpToolAllowlist === undefined
         ? undefined : canonicalizeMcpToolAllowlist(request.policy.mcpToolAllowlist),
       configPaths: request.isolation?.mcpConfigPaths,
-      browserCdpEndpoint: request.policy.browserCdpEndpoint ?? undefined,
     },
     flags: {
       // The request states what the run WANTS; the spec states what the engine is TOLD. `hooks`

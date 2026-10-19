@@ -79,11 +79,8 @@ export interface ClaudeSpawnCompatibility {
   mcpConfigPaths: string[];
   mcpToolAllowlist: string[] | null;
   supplementalMcpConfigIdentity: string | null;
-  /** Turning the browser on or off must force a FRESH process: a pooled Claude keeps whatever MCP
-   *  set it was spawned with, so without this the toggle would silently no-op until the process died. */
-  browserMcpConfigIdentity: string | null;
-  /** `--disable-slash-commands`. Part of the identity for the same reason as the browser: the skill
-   *  surface is fixed at spawn, so two agents that differ only here must not share a process. */
+  /** `--disable-slash-commands`. Part of the identity because the skill surface is fixed at spawn,
+   *  so two agents that differ only here must not share a process. */
   disableSkills: boolean;
   /** `--setting-sources`. Null = the CLI's own default set; `[]` = load none. Both are decided at
    *  spawn and cannot be re-pointed afterwards. */
@@ -113,7 +110,6 @@ function compatibilityFromOptions(options: ClaudeSessionOptions): ClaudeSpawnCom
     mcpConfigPaths: cloneTextArray(options.mcpConfigPaths),
     mcpToolAllowlist: optionalTextArray(options.mcpToolAllowlist),
     supplementalMcpConfigIdentity: options.supplementalMcpConfigIdentity ?? null,
-    browserMcpConfigIdentity: options.browserMcpConfigIdentity ?? null,
     disableSkills: options.disableSkills === true,
     settingSources: optionalTextArray(options.settingSources),
   };
@@ -136,7 +132,6 @@ export function claudeCompatibilityIdentity(compatibility: ClaudeSpawnCompatibil
     ['tools', compatibility.tools],
     ['pluginCapabilityFingerprint', compatibility.pluginCapabilityFingerprint],
     ['supplementalMcpConfigIdentity', compatibility.supplementalMcpConfigIdentity],
-    ['browserMcpConfigIdentity', compatibility.browserMcpConfigIdentity],
     ['disableSkills', compatibility.disableSkills],
     ['pluginDirs', compatibility.pluginDirs],
     ['mcpConfigPaths', compatibility.mcpConfigPaths],

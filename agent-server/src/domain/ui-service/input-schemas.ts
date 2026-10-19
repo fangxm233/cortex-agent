@@ -182,17 +182,9 @@ export const projectsCreateInput = z.object({
   name: z.string(),
 });
 
-/** Per-session browser opt-in. `device` names where Chrome runs; 'server' is the only value until
- *  the cortex-client reverse channel exists. Absent → the session gets no browser tools. */
-export const sessionBrowserInput = z.object({
-  device: z.string(),
-});
-
 export const sessionsCreateInput = z.object({
   /** Project the new session belongs to. Omitted → the default project (handler fallback). */
   projectId: z.string().optional(),
-  /** Opt in to browser control for this session. Omitted → no browser tools are loaded. */
-  browser: sessionBrowserInput.nullish(),
 });
 
 export const sessionsSendInput = z.object({
@@ -307,8 +299,6 @@ export const sessionsCreateAndSendInput = z.object({
   agentName: z.string().min(1).optional(),
   /** Complete engine choice applied before the first turn. Omitted → system default. */
   selection: engineSelectionInput.optional(),
-  /** Opt in to browser control for this session. Omitted → no browser tools are loaded. */
-  browser: sessionBrowserInput.nullish(),
   /** First user message text. */
   text: z.string(),
   /** Temporary upload directory id (draft mode). Attachments were uploaded under this id

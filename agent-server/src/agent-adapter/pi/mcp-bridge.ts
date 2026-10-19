@@ -82,7 +82,7 @@ export type OpenBundledMcpServer = (
 export interface McpBridgeDeps {
   /** The session's environment: composition markers, channel, Cortex context, tool gate. */
   env: NodeJS.ProcessEnv;
-  /** Plugin (and browser) servers for this session, already filtered by composition. */
+  /** Plugin servers for this session, already filtered by composition. */
   pluginServers?: readonly McpServerConfig[];
   spawnClient(state: ServerState): Promise<McpClientHandle>;
   reportFailure(error: unknown): void;

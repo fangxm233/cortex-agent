@@ -40,7 +40,7 @@ export interface ConversationSessionIds {
  * One turn on a session's live engine. Every surface that opens such a turn — a user message, an
  * edit retry, an ask-user answer — builds its request here, because the pool respawns the engine
  * when two requests disagree on anything that decides it (agent tools and plugins, worker tools,
- * the browser, the interaction bridge).
+ * the interaction bridge).
  */
 export interface PrepareConversationRequestOptions {
   ids: ConversationSessionIds;
@@ -53,8 +53,6 @@ export interface PrepareConversationRequestOptions {
   /** Attachments the platform refused to hand over; named in the prompt so the agent cannot
    *  answer as though the user had sent nothing. */
   failedFiles?: AttachmentFailure[];
-  /** CDP endpoint of the browser this session opted into, or null for the usual no-browser session. */
-  browserCdpEndpoint?: string | null;
   /** Execution trigger of a surface other than a plain message (`edit-retry`, `ask-user-question`).
    *  Absent ⇒ the session's own (see {@link conversationTrigger}). */
   trigger?: string;
@@ -123,7 +121,7 @@ export function resolveConversationProject(args: {
  */
 export function conversationRunPolicy(
   agentConfig: ResolvedEnvironment,
-  opts: { channel: string; browserCdpEndpoint?: string | null },
+  opts: { channel: string },
 ): RunRequest['policy'] {
   return {
     ...DIRECT_RUN_POLICY,
@@ -134,7 +132,6 @@ export function conversationRunPolicy(
     settingSources: agentConfig.settingSources,
     mcpComposition: agentConfig.mcpComposition ?? 'direct',
     mcpToolAllowlist: agentConfig.mcpToolAllowlist,
-    browserCdpEndpoint: opts.browserCdpEndpoint ?? null,
   };
 }
 
@@ -289,10 +286,10 @@ async function composeConversationPrompt(
   return `${formatAttachmentFailures(opts.failedFiles ?? [])}${composed}`;
 }
 
-/** The options that decide a turn's engine: whose session, on which channel, with which browser,
- *  opened by which surface. A command on the live engine (compaction) has exactly these. */
+/** The options that decide a turn's engine: whose session, on which channel, opened by which
+ *  surface. A command on the live engine (compaction) has exactly these. */
 export type ConversationEngineOptions = Pick<
-  PrepareConversationRequestOptions, 'ids' | 'channel' | 'session' | 'browserCdpEndpoint' | 'trigger'
+  PrepareConversationRequestOptions, 'ids' | 'channel' | 'session' | 'trigger'
 >;
 
 interface ConversationShape {
@@ -328,7 +325,7 @@ function conversationContext(
 function conversationShape(opts: ConversationEngineOptions): ConversationShape {
   const { session, channel } = opts;
   const { agentConfig } = resolveConversationAgent([session?.agentName ?? null, getDefaultAgent(channel)]);
-  const policy = conversationRunPolicy(agentConfig, { channel, browserCdpEndpoint: opts.browserCdpEndpoint });
+  const policy = conversationRunPolicy(agentConfig, { channel });
   // Team mode: a lead's engine loads the worker tools, a worker's loads `mark_routine`.
   const teamLead = isTeamLead(session);
   const teamWorker = isTeamWorker(session);

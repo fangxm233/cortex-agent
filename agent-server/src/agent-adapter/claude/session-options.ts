@@ -9,7 +9,6 @@ import {
   type ClaudeSpawnOptions,
 } from './spawn-args.js';
 import { writeClaudeSupplementalMcpConfig } from './mcp-config.js';
-import { writeBrowserMcpConfig } from './browser-mcp.js';
 
 // A Claude session's options and the process launch they produce. One EngineSpec is translated
 // once into `ClaudeSessionOptions`; every (re)spawn of the session runs `claudeProcessLaunch` on
@@ -41,10 +40,6 @@ export interface ClaudeSessionOptions {
   mcpToolAllowlist?: string[];
   supplementalMcpConfigPath?: string | null;
   supplementalMcpConfigIdentity?: string | null;
-  /** Playwright MCP config for a browser-enabled session. Kept separate from the supplemental
-   *  (plugin) config because a session can legitimately have both. */
-  browserMcpConfigPath?: string | null;
-  browserMcpConfigIdentity?: string | null;
   pluginCapabilityFingerprint?: string | null;
   disableHooks?: boolean;
   /** Drop the CLI's whole skill layer; see {@link ClaudeSpawnOptions.disableSkills}. */
@@ -99,7 +94,6 @@ function surfaceSpawnOptions(options: ClaudeSessionOptions) {
     mcpConfigPaths: options.mcpConfigPaths,
     mcpToolAllowlist: options.mcpToolAllowlist,
     supplementalMcpConfigPath: options.supplementalMcpConfigPath ?? null,
-    browserMcpConfigPath: options.browserMcpConfigPath ?? null,
     disableHooks: options.disableHooks === true,
     disableSkills: options.disableSkills === true,
     settingSources: options.settingSources,
@@ -193,11 +187,6 @@ function sessionRuntimeOptions(
   composition: McpComposition,
 ): Partial<ClaudeSessionOptions> & Pick<ClaudeSessionOptions, 'mcpComposition' | 'cwd'> {
   const supplemental = supplementalMcpConfig(spec, composition);
-  // Browser tools ride on the direct composition only: an agent configured with composition
-  // `none` gets no Cortex MCP servers, the browser included.
-  const browser = spec.mcp.browserCdpEndpoint && composition === 'direct'
-    ? writeBrowserMcpConfig(spec.mcp.browserCdpEndpoint)
-    : null;
   return {
     anthropicBaseUrl: spec.route.anthropicBaseUrl,
     routeEnv: spec.env.sets,
@@ -208,8 +197,6 @@ function sessionRuntimeOptions(
     mcpToolAllowlist: spec.mcp.allowlist,
     supplementalMcpConfigPath: supplemental?.path ?? null,
     supplementalMcpConfigIdentity: supplemental?.identity ?? null,
-    browserMcpConfigPath: browser?.path ?? null,
-    browserMcpConfigIdentity: browser?.identity ?? null,
     pluginCapabilityFingerprint: spec.plugins.fingerprint ?? null,
     disableHooks: spec.flags.disableHooks,
     disableSkills: spec.flags.disableSkills,

@@ -23,14 +23,6 @@ export interface PendingSessionDelete {
   cleanup: SessionDeleteCleanup;
 }
 
-/** Per-session browser opt-in (plan/embedded-browser.md §17). Absent/null means the session gets
- *  ZERO browser tools — the whole point of making this opt-in is that ~24 Playwright tools are not
- *  worth their context cost in a session that never browses. `device` names WHERE the browser runs;
- *  only 'server' exists until the cortex-client reverse channel lands. */
-export interface SessionBrowserOption {
-  device: string;
-}
-
 export interface SessionRecord {
   sessionId: string;
   projectId: string;
@@ -60,7 +52,6 @@ export interface SessionRecord {
    *  the next turn; compaction clears it, because compaction drops the delivered copy. */
   boardBlockFor?: string | null;
   contextUsage?: unknown;
-  browser?: SessionBrowserOption | null;
   /** Team mode: the lead session that owns this worker. Non-null means this session is a worker. */
   teamLeadId?: string | null;
   /** The worker's short name, unique within its lead's team. */
@@ -558,7 +549,6 @@ function assertSessionRecord(raw: unknown, expectedId: string): SessionRecord {
     boardId: toOptionalNullableString(row?.boardId ?? row?.commissionId),
     boardBlockFor: toOptionalNullableString(row?.boardBlockFor ?? row?.commissionBlockFor),
     contextUsage: row?.contextUsage,
-    browser: toOptionalBrowserValue(row?.browser),
     teamLeadId: toOptionalNullableString(row?.teamLeadId),
     workerName: toOptionalNullableString(row?.workerName),
     workerBrief: toOptionalNullableString(row?.workerBrief),
@@ -607,16 +597,6 @@ function toOptionalNullableString(value: unknown): string | null | undefined {
   return toNullableString(value);
 }
 
-/** Replay guard for the browser opt-in. Was missing from both asserts (fields not whitelisted
- *  here are silently dropped on replay), so every restart lost per-session browser opt-ins. */
-function toOptionalBrowserValue(value: unknown): SessionBrowserOption | null | undefined {
-  if (value === undefined) return undefined;
-  if (value === null) return null;
-  const device = (value as Record<string, unknown>).device;
-  if (typeof device !== 'string' || !device) throw new Error('Invalid session registry browser option');
-  return { device };
-}
-
 function toKindValue(value: unknown): SessionKind {
   if (value === 'local' || value === 'scheduled') return value;
   throw new Error('Invalid session registry kind');
@@ -653,7 +633,7 @@ function toTurnStatus(value: unknown): TurnStatus {
 }
 
 /** Whitelist for the `patch` payload. Every field a record can carry (minus identity) has a strict
- *  converter here; a key not listed is DROPPED on replay (the toOptionalBrowserValue trap, §8.1). */
+ *  converter here; a key not listed is DROPPED on replay (§8.1). */
 const PATCH_FIELD_READERS: { [K in SessionPatchUnsetKey]: (value: unknown) => SessionRecord[K] } = {
   projectId: toStringValue,
   channel: toStringValue,
@@ -673,7 +653,6 @@ const PATCH_FIELD_READERS: { [K in SessionPatchUnsetKey]: (value: unknown) => Se
   boardId: toOptionalNullableString,
   boardBlockFor: toOptionalNullableString,
   contextUsage: value => value,
-  browser: toOptionalBrowserValue,
   teamLeadId: toOptionalNullableString,
   workerName: toOptionalNullableString,
   workerBrief: toOptionalNullableString,
@@ -688,13 +667,15 @@ const PATCH_KEY_SET = new Set<string>(PATCH_KEYS);
 /** Patch keys written by earlier versions. Journals keep them until compaction, so replay maps them
  *  onto current fields (null: dropped). A record row is mapped the same way in assertSessionRecord.
  *  A legacy `commissionBlockFor` holds `active:<id>`, which never equals a boardId, so such a session
- *  receives the [Board] block once. `workerRetiredAt` went when workers began folding by idle time. */
+ *  receives the [Board] block once. `workerRetiredAt` went when workers began folding by idle time;
+ *  `browser` held a per-session browser opt-in that no longer exists. */
 const LEGACY_PATCH_KEYS: Readonly<Record<string, SessionPatchUnsetKey | null>> = {
   commissionId: 'boardId',
   commissionBlockFor: 'boardBlockFor',
   commissionDraft: null,
   workerRetiredAt: null,
   profileName: null,
+  browser: null,
 };
 
 function patchKeyOf(key: string): SessionPatchUnsetKey | null {
@@ -760,7 +741,7 @@ function assertPartialTurn(raw: unknown): Partial<TurnRecord> {
 }
 
 /** Whitelist for the `conversation set` payload. A key not listed is DROPPED on replay (the same
- *  toOptionalBrowserValue trap that silently lost fields, §8.1) — keep in lock-step with the header. */
+ *  trap that silently lost fields, §8.1) — keep in lock-step with the header. */
 const CONVERSATION_FIELD_READERS: { [K in keyof ConversationFields]: (value: unknown) => ConversationHeader[K] } = {
   sessionId: toTurnNullableString,
   backend: toStringValue,

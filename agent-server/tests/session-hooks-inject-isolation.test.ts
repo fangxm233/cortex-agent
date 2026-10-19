@@ -153,7 +153,7 @@ test('runHookInjection (onMessageEnd) — reuses the finished turn\'s request so
     spec: { tools: 'Bash,Read', pluginDirs: ['/plugins/coder'] },
     prompt: { text: 'hello', attachments: [] },
     context: { channel, project: 'proj', trigger: 'user', isUserInitiated: true, teamLead: true },
-    policy: { background: 'hold', mcpComposition: 'direct', browserCdpEndpoint: 'http://127.0.0.1:9222' },
+    policy: { background: 'hold', mcpComposition: 'direct' },
   } as unknown as RunRequest;
   const spec: SessionHookSpec = {
     name: 'onMessageEnd',

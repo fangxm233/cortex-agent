@@ -1,7 +1,6 @@
 import { resolveMcpComposition } from '../types.js';
 import type { CortexContextEnv, EngineSpec, McpComposition, McpServerConfig } from '../types.js';
 import { fromCanonical } from '@core/tool-names.js';
-import { browserMcpServer } from '../browser-mcp-server.js';
 import { MCP_TOOL_ALLOWLIST_ENV } from '@core/mcp-tool-gate.js';
 
 export const PI_MCP_COMPOSITION_ENV = 'CORTEX_PI_MCP_COMPOSITION';
@@ -119,7 +118,7 @@ export interface PiSessionRequest {
   disableHooks: boolean;
   /** Gateway-routed runs report provider quota read off response headers. */
   reportsProviderQuota: boolean;
-  /** Plugin/browser MCP servers, already filtered by composition. Empty when none apply. */
+  /** Plugin MCP servers, already filtered by composition. Empty when none apply. */
   pluginMcpServers: McpServerConfig[];
   /**
    * The session's CORTEX_* environment. Both in-process MCP context and child processes (hook
@@ -161,21 +160,13 @@ function subagentMarker(spec: EngineSpec): string | undefined {
   return spec.env.sets?.CORTEX_PI_SUBAGENT === '1' ? '1' : undefined;
 }
 
-/**
- * Plugin MCP servers for this session. Browser control rides along like any other plugin server,
- * gated on `direct` for the same reason Claude gates it: an unattended worker sharing one browser
- * is a cross-run side channel, not a feature.
- */
+/** Plugin MCP servers for this session; only the direct composition carries them. */
 export function pluginMcpServers(
   spec: EngineSpec,
   composition: McpComposition,
 ): McpServerConfig[] {
   if (composition !== 'direct') return [];
-  const servers = [...(spec.mcp.servers ?? [])];
-  if (spec.mcp.browserCdpEndpoint && composition === 'direct') {
-    servers.push(browserMcpServer(spec.mcp.browserCdpEndpoint));
-  }
-  return servers;
+  return [...(spec.mcp.servers ?? [])];
 }
 
 export function buildSessionRequest(

@@ -16,7 +16,6 @@ import {
 } from './turn/turn-tracking.js';
 import { handleAgentError } from './turn/terminal.js';
 import { openTurn, type TurnSessionLease } from './turn/turn.js';
-import { withTurnBrowser } from './turn/turn-prep.js';
 import { prepareConversationRequest } from './conversation-request.js';
 
 export function reprocessMessage(channel: string, text: string, adapter: PlatformAdapter, opts: { originalTs: string; sessionId: string | null; supersededStatusTimestamps?: string[] }): void {
@@ -82,8 +81,7 @@ export async function runRetryAgent(args: RetryTurnArgs): Promise<void> {
   if (!leased) return;
   const backendSessionId = session ? effectiveBackendSessionId(session) : null;
   const projectId = session?.projectId ?? 'general';
-  const backend = resolveRunSelection({ channel, session }).backend;
-  await withTurnBrowser({ backend, browser: session?.browser ?? null }, (cdpEndpoint) => openTurn({
+  await openTurn({
     channel, adapter, threadAnchorId: null,
     session: { sessionId, backendSessionId, projectId, lease: leased.lease },
     // RAW text: what the ledger recorded and what an auto-resume would replay.
@@ -95,10 +93,9 @@ export async function runRetryAgent(args: RetryTurnArgs): Promise<void> {
     startTime,
     // The retry replays a message a human wrote, on the session's live engine: a user turn.
     prepareRequest: (ids) => prepareConversationRequest({
-      ids, channel, session, userMessage: text || '',
-      browserCdpEndpoint: cdpEndpoint, trigger: 'edit-retry',
+      ids, channel, session, userMessage: text || '', trigger: 'edit-retry',
     }),
-  }));
+  });
 }
 
 interface RetryTurnArgs {

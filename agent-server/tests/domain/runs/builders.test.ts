@@ -73,7 +73,6 @@ function legacyContinuation(i: {
       hooks: true,
       loadRules: true,
       mcpComposition: 'direct',
-      browserCdpEndpoint: null,
       captureTranscripts: true,
     },
   };

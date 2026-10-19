@@ -283,10 +283,6 @@ export interface SessionInfo {
    *  other half of "what will the next turn be". Null when the session follows its channel's
    *  selection and, beneath that, the global default. Kept in sync by the agent-switch rule. */
   agentName?: string | null;
-  /** Browser control this session opted into at creation, or null. Fixed for the session's life:
-   *  the agent's tool set is decided when its process spawns, so this is a fact to display, not a
-   *  setting to flip. */
-  browser?: { device: string } | null;
   /** Latest backend context occupancy, or null until a supported backend reports one. Optional only
    *  for rolling compatibility with older servers/fixtures; current sessions.list always supplies it. */
   contextUsage?: SessionContextUsage | null;
@@ -1843,7 +1839,7 @@ export interface UiServiceDeps {
    * id. Injected in the entry layer (app.ts) to the domain `createDirectSession` primitive with the
    * real session/ledger singletons, so the ui-service domain never imports store internals.
    */
-  createDirectSession: (opts: { projectId: string; sessionId?: string; agentName?: string | null; selection?: EngineSelection; browser?: { device: string } | null }) => Promise<{ sessionId: string; channel: string }>;
+  createDirectSession: (opts: { projectId: string; sessionId?: string; agentName?: string | null; selection?: EngineSelection }) => Promise<{ sessionId: string; channel: string }>;
   /**
    * Convert a scheduled run's session into a normal direct web session before a reply is sent
    * (design 27b: replying adopts the run — it leaves the schedule grouping and becomes a normal

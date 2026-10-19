@@ -249,7 +249,7 @@ const BASE: ClaudeSpawnCompatibility = {
   cwd: '/w', routeIdentity: 'r1', composition: 'direct', interactionBridge: false, teamLead: false,
   teamWorker: false, tools: 'Bash,Read', pluginCapabilityFingerprint: 'fp',
   pluginDirs: ['/a', '/b'], mcpConfigPaths: ['/m1'], mcpToolAllowlist: ['x'],
-  supplementalMcpConfigIdentity: 's', browserMcpConfigIdentity: null,
+  supplementalMcpConfigIdentity: 's',
   disableSkills: false, settingSources: null,
 };
 
@@ -272,7 +272,6 @@ const VARIANTS: ClaudeSpawnCompatibility[] = [
   { ...BASE, mcpToolAllowlist: [] },
   { ...BASE, mcpToolAllowlist: ['x', 'y'] },
   { ...BASE, supplementalMcpConfigIdentity: null },
-  { ...BASE, browserMcpConfigIdentity: 'b' },
   // The skill surface and the setting sources are fixed at spawn like the MCP set: two agents that
   // differ only here must not share a pooled process, so they must differ in the identity too.
   { ...BASE, disableSkills: true },

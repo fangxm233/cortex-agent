@@ -7,14 +7,12 @@ import { resolveRunSelection } from '@domain/runs/config-resolver.js';
 import type { EngineSelection } from '@domain/agents/engine-selection.js';
 import * as sessionBackup from './session-backup.js';
 import type { SessionOrigin } from '@store/session-registry-repo.js';
-import type { SessionBrowserOption } from '@store/session-registry-journal.js';
 
 export interface SessionRegistryWriter {
   registerSession(opts: {
     sessionId: string; channel: string; backend: string;
     kind: 'local' | 'scheduled'; origin?: SessionOrigin; projectId: string;
     label?: string | null; selection?: EngineSelection | null; agentName?: string | null;
-    browser?: SessionBrowserOption | null;
     boardId?: string | null;
     teamLeadId?: string | null; workerName?: string | null; workerBrief?: string | null;
     scheduleId?: string | null;
@@ -30,7 +28,6 @@ export interface RegisterSessionRecordOpts {
   selection?: EngineSelection | null;
   /** The agent template; absent means the channel/global default. */
   agentName?: string | null;
-  browser?: SessionBrowserOption | null;
   boardId?: string | null;
   teamLeadId?: string | null;
   workerName?: string | null;
@@ -47,7 +44,7 @@ export async function registerSessionRecord(store: SessionRegistryWriter, opts: 
     sessionId: opts.sessionId, channel: opts.channel, backend: selection.backend,
     kind: scheduled ? 'scheduled' : 'local', origin: scheduled ? 'scheduled' : 'direct',
     projectId: opts.projectId, label: opts.label ?? null, selection,
-    agentName: opts.agentName ?? null, browser: opts.browser ?? null, boardId: opts.boardId ?? null,
+    agentName: opts.agentName ?? null, boardId: opts.boardId ?? null,
     ...(opts.teamLeadId
       ? { teamLeadId: opts.teamLeadId, workerName: opts.workerName ?? null, workerBrief: opts.workerBrief ?? null }
       : {}),
@@ -66,7 +63,7 @@ interface CreateDirectSessionOpts {
   projectId: string; sessionId?: string; agentName?: string | null;
   selection?: EngineSelection | null;
   seedDefault?: boolean;
-  browser?: SessionBrowserOption | null; boardId?: string | null;
+  boardId?: string | null;
   teamLeadId?: string | null; workerName?: string | null; workerBrief?: string | null;
   label?: string | null; scheduleId?: string | null;
 }

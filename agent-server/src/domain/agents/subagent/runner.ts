@@ -235,7 +235,6 @@ function claudeChildRequest(request: SubagentRunRequest, config: EngineSelection
       loadRules: false,           // loadCortexRules: false
       mcpComposition: 'direct',
       mcpToolAllowlist,
-      browserCdpEndpoint: null,
       captureTranscripts: false,  // captureTranscriptLogs: false
     },
   };

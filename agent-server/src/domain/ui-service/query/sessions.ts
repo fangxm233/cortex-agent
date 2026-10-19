@@ -176,7 +176,6 @@ export async function handleSessionsList(
       selection: s.selection ?? null,
       // The environment half of the same question: which agent template the session runs as.
       agentName: s.agentName ?? null,
-      browser: s.browser ?? null,
       contextUsage: s.contextUsage ?? null,
       todos: deps.getSessionTodos(s.sessionId) ?? null,
       contextCompactionSupported: supportsCompaction({ backend: s.backend }),

@@ -5,7 +5,6 @@ import type { EngineSelection, UiServiceDeps } from '../../../src/domain/ui-serv
 
 interface CreateCall {
   projectId: string;
-  browser?: { device: string } | null;
 }
 
 function makeDeps(sink: CreateCall[], sessionId = 'sess-new'): UiServiceDeps {
@@ -23,8 +22,7 @@ test('sessions.create returns the new session id', async () => {
   const res = await handleCreateSession(makeDeps(sink), { projectId: 'nimbus' });
   assert.equal(res.ok, true);
   if (res.ok) assert.deepEqual(res.data, { sessionId: 'sess-new' });
-  // browser null is the default — a session gets browser tools only when it asks.
-  assert.deepEqual(sink, [{ projectId: 'nimbus', browser: null }], 'creates under the requested project');
+  assert.deepEqual(sink, [{ projectId: 'nimbus' }], 'creates under the requested project');
 });
 
 // ── sessions.createAndSend ──────────────────────────────────────

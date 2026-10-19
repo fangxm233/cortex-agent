@@ -28,7 +28,7 @@ const RESTART_WINDOW_MS = 60_000;
 const MAX_RESTARTS_PER_WINDOW = 3;
 
 export interface ManagedBrowser {
-  /** What `@playwright/mcp --cdp-endpoint` receives. */
+  /** What agent-browser attaches to with `--cdp`. */
   cdpEndpoint: string;
   port: number;
   display: BrowserDisplay;
@@ -57,19 +57,6 @@ let restartTimes: number[] = [];
 /** The device name meaning "this host". Kept next to the local browser rather than in the remote
  *  domain, because it is precisely the value that means "no device is involved". */
 export const BROWSER_DEVICE_SERVER = 'server';
-
-/**
- * Can this backend actually receive the browser tools?
- *
- * All three spawn paths compose it now, by three different routes: Claude print and Claude TUI both
- * append a `--mcp-config` file, and PI writes the same server descriptor into the envelope its MCP
- * bridge reads. The check stays rather than becoming `true` because the cost of getting it wrong is
- * asymmetric — starting Chrome for a backend that cannot drive it burns a browser nobody can use
- * and leaves the user staring at a window their agent cannot see.
- */
-export function backendSupportsBrowser(backend: string): boolean {
-  return backend === 'claude' || backend === 'pi';
-}
 
 /** Acquire the shared browser, starting it on first use. Every caller MUST pair this with
  *  {@link releaseBrowser} — the refcount is what keeps Chrome alive. */

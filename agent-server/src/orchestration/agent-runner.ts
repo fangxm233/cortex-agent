@@ -18,7 +18,7 @@ import { prepareConversationRequest } from './conversation-request.js';
 import { openTurn, buildInjectDeps } from './turn/turn.js';
 import { recordHistory } from './transcript-sink.js';
 import {
-  acquireSessionUseLease, collectTurnFiles, withTurnBrowser, type SessionUseLease,
+  acquireSessionUseLease, collectTurnFiles, type SessionUseLease,
 } from './turn/turn-prep.js';
 import { downloadMessageFiles, type InboundFiles } from './routing/file-handler.js';
 import { acquireTurnMutationLock, type TurnMutationRelease } from './turn-mutation-lock.js';
@@ -170,8 +170,8 @@ export class AgentRunner {
   }
 
   /**
-   * Resolve what a turn needs but is not part of it — the files, the session record (found or
-   * created) with its use lease, the browser the session opted into — and open the turn.
+   * Resolve what a turn needs but is not part of it — the files and the session record (found or
+   * created) with its use lease — and open the turn.
    */
   private async _executeReal(
     ctx: AgentRunnerCtx,
@@ -184,7 +184,7 @@ export class AgentRunner {
     const backend = resolveBackendForChannel(channel);
     const { lease, backendSessionId } = await bindTurnSession(ctx, backend);
     const session = lease.session;
-    await withTurnBrowser({ backend: session.selection?.backend ?? backend, browser: session.browser ?? null }, (cdpEndpoint) => openTurn({
+    await openTurn({
       channel, adapter, threadAnchorId,
       session: {
         sessionId: session.sessionId, backendSessionId,
@@ -203,9 +203,9 @@ export class AgentRunner {
       prepareRequest: (turnIds) => prepareConversationRequest({
         ids: turnIds, channel, session, userMessage: agentMessage,
         files: turnFiles.files, failedFiles: turnFiles.failures,
-        browserCdpEndpoint: cdpEndpoint, onPromptBuilt: debugPromptRecorder(session.sessionId, channel),
+        onPromptBuilt: debugPromptRecorder(session.sessionId, channel),
       }),
-    }));
+    });
   }
 }
 

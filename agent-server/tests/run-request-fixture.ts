@@ -116,7 +116,6 @@ export function runRequestFixture(
       loadRules: partial.loadCortexRules ?? true,
       mcpComposition: partial.mcpComposition as RunRequest['policy']['mcpComposition'],
       mcpToolAllowlist: partial.mcpToolAllowlist,
-      browserCdpEndpoint: partial.browserCdpEndpoint ?? null,
       captureTranscripts: partial.captureTranscriptLogs as boolean,
     },
     isolation: {

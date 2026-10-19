@@ -8,8 +8,8 @@ import type { OpenStreamFrame } from './client-protocol.js';
 const log = createLogger('device-port');
 
 /**
- * Why a real local socket at all (plan/embedded-browser.md §18.1): the consumer is Playwright,
- * which takes a `--cdp-endpoint` URL, does `GET /json/version`, then opens a WebSocket. It needs
+ * Why a real local socket at all (plan/embedded-browser.md §18.1): the consumer is agent-browser,
+ * which takes a `--cdp` URL, does `GET /json/version`, then opens a WebSocket. It needs
  * something it can dial. So the server binds a loopback port and every byte written to it comes
  * out of a TCP connection on the device — no CDP awareness anywhere in the path, which is what
  * makes the same tunnel serve TensorBoard, Jupyter and dashboards for free.

@@ -11,7 +11,6 @@ import type { AgentCompactResult, Backend } from '../agent-adapter/types.js';
 import { conduitQueues, enqueueAndWait } from './conduit-queue.js';
 import { conversationEngineRequest } from './conversation-request.js';
 import { publishSessionContextCompacted } from './session-events.js';
-import { withTurnBrowser } from './turn/turn-prep.js';
 
 export type CompactSessionOutcome =
   | { ok: true; status: 'compacted' | 'not-needed'; contextUsage: SessionContextUsage | null }
@@ -63,22 +62,21 @@ const defaultDeps: CompactSessionDeps = {
 
 /**
  * Compaction asks the pool for the session's engine exactly as the session's next turn would: the
- * same request (agent, selection, policy, route) and the same browser, held for the command. Anything
- * else is a different identity, and the pool would respawn the process — compacting a fresh one
- * and leaving the next turn to respawn it again.
+ * same request (agent, selection, policy, route). Anything else is a different identity, and the pool
+ * would respawn the process — compacting a fresh one and leaving the next turn to respawn it again.
  */
 function compactLiveEngine(session: Session, backendSessionId: string): Promise<AgentCompactResult> {
   const { backend, channel } = session;
-  return withTurnBrowser({ backend, browser: session.browser ?? null }, (cdpEndpoint) => compactAgentContext({
+  return compactAgentContext({
     backend: backend as Backend,
     request: conversationEngineRequest({
       ids: {
         sessionId: session.sessionId, backendSessionId,
         projectId: session.projectId ?? 'general',
       },
-      channel, session, browserCdpEndpoint: cdpEndpoint, trigger: 'manual-compact',
+      channel, session, trigger: 'manual-compact',
     }),
-  }));
+  });
 }
 
 function currentUsage(session: Session): SessionContextUsage | null {

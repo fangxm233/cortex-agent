@@ -70,7 +70,6 @@ export interface RunRequest {
     settingSources?: string[];
     mcpComposition: McpComposition;
     mcpToolAllowlist?: string[];
-    browserCdpEndpoint?: string | null;
     captureTranscripts: boolean;
   };
   /** Present only on a production benchmark session's runs: the trial facts each attempt is

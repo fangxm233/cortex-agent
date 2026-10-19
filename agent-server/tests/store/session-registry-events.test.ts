@@ -171,6 +171,29 @@ test('a journal written before boards replays: legacy commission keys map onto b
   assert.deepEqual(last.fields, { boardId: 'b-9' });
 });
 
+test('a journal with the retired per-session browser option replays and drops it', async () => {
+  const filePath = nextPath();
+  const record = (id: string, extra: Record<string, unknown> = {}) => ({
+    sessionId: id, projectId: 'proj', channel: `web:${id}`, backend: 'claude', kind: 'local', origin: 'direct',
+    createdAt: '2026-09-01T00:00:00.000Z', lastUsedAt: '2026-09-01T00:00:00.000Z', label: null, selection: null,
+    ...extra,
+  });
+  const lines = [
+    { v: 1, op: 'put', id: 's-b', record: record('s-b', { browser: { device: 'server' } }) },
+    { v: 1, op: 'patch', id: 's-b', fields: { browser: { device: 'my-pc' }, label: 'kept' } },
+    { v: 1, op: 'patch', id: 's-b', fields: { lastUsedAt: '2026-09-02T00:00:00.000Z' }, unset: ['browser'] },
+    { v: 1, op: 'put', id: 's-null', record: record('s-null', { browser: null }) },
+  ];
+  await fs.writeFile(filePath, lines.map(l => JSON.stringify(l)).join('\n') + '\n');
+
+  const repo = new SessionRegistryRepo(filePath);
+  const s = await repo.getById('s-b') as Session & Record<string, unknown>;
+  assert.equal(s.label, 'kept');
+  assert.equal(s.lastUsedAt, '2026-09-02T00:00:00.000Z');
+  assert.equal(Object.hasOwn(s, 'browser'), false);
+  assert.equal(Object.hasOwn(await repo.getById('s-null') as object, 'browser'), false);
+});
+
 test('a journal written while workers could be retired replays: workerRetiredAt is dropped', async () => {
   const filePath = nextPath();
   const record = {
@@ -238,7 +261,7 @@ test('every TurnRecord and patch field round-trips through write → replay → 
   const filePath = nextPath();
   const repo = new SessionRegistryRepo(filePath, { shouldCompact: () => false });
   await repo.registerSession(registerOpts('sess-rt', {
-    browser: { device: 'server' }, scheduleId: 'sched-1', boardId: 'b-0',
+    scheduleId: 'sched-1', boardId: 'b-0',
     teamLeadId: 'sess-lead', workerName: 'scout',
   }));
   await repo.updateSession('sess-rt', {
@@ -264,7 +287,6 @@ test('every TurnRecord and patch field round-trips through write → replay → 
     assert.equal(rec.boardId, 'b-1');
     assert.equal(rec.channel, 'C999');
     assert.equal(rec.origin, 'direct');
-    assert.deepEqual(rec.browser, { device: 'server' });
     assert.equal(rec.teamLeadId, 'sess-lead');
     assert.equal(rec.workerName, 'scout');
     assert.deepEqual(rec.contextUsage, usage(9.9));

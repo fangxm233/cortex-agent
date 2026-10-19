@@ -2,9 +2,7 @@ import { createLogger } from '@core/log.js';
 import type { PlatformAdapter } from '@platform/index.js';
 import { sessionStore, effectiveBackendSessionId } from '@store/session-registry-repo.js';
 import { acquireSessionUse } from '@domain/sessions/session-use.js';
-import { resolveBackendForChannel } from '@domain/agents/index.js';
 import { openTurn } from '../turn/turn.js';
-import { withTurnBrowser } from '../turn/turn-prep.js';
 import { prepareConversationRequest } from '../conversation-request.js';
 import * as askUserQuestion from './ask-user-question.js';
 
@@ -48,8 +46,7 @@ async function openAnswerTurn(
   const { channel } = group;
   // Cost/execution attribution uses the session's bound project, NOT a re-derivation from the text.
   const session = await sessionStore.getById(group.sessionId);
-  const backend = resolveBackendForChannel(channel);
-  await withTurnBrowser({ backend, browser: session?.browser ?? null }, (cdpEndpoint) => openTurn({
+  await openTurn({
     channel, adapter, threadAnchorId: null,
     session: {
       sessionId: group.sessionId,
@@ -61,8 +58,7 @@ async function openAnswerTurn(
     ledger: null,
     trigger: 'ask-user-question',
     prepareRequest: (ids) => prepareConversationRequest({
-      ids, channel, session, userMessage: responseText,
-      browserCdpEndpoint: cdpEndpoint, trigger: 'ask-user-question',
+      ids, channel, session, userMessage: responseText, trigger: 'ask-user-question',
     }),
-  }));
+  });
 }

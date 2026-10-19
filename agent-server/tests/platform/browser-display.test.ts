@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { decideDisplay, pickFreeDisplay, type DisplayProbe } from '@platform/browser/display.js';
-import { resolveChromeBinary, backendSupportsBrowser } from '@platform/browser/managed-browser.js';
+import { resolveChromeBinary } from '@platform/browser/managed-browser.js';
 
 const base: DisplayProbe = {
   platform: 'linux',
@@ -114,21 +114,5 @@ describe('pickFreeDisplay', () => {
     fs.writeFileSync(path.join(tmp, '.X11-unix', 'X100'), '');
     expect(pickFreeDisplay(99, tmp)).toBe(101);
     expect(pickFreeDisplay(102, tmp)).toBe(102);
-  });
-});
-
-describe('backendSupportsBrowser', () => {
-  it('accepts every spawn path that composes the browser MCP server', () => {
-    // Claude print and TUI both append a --mcp-config file; PI writes the same descriptor into the
-    // envelope its MCP bridge reads.
-    expect(backendSupportsBrowser('claude')).toBe(true);
-    expect(backendSupportsBrowser('pi')).toBe(true);
-  });
-
-  it('still refuses a backend nobody has wired', () => {
-    // Starting Chrome for a backend that cannot drive it burns a browser nobody can use, so this
-    // stays a check rather than becoming `true`.
-    expect(backendSupportsBrowser('codex')).toBe(false);
-    expect(backendSupportsBrowser('')).toBe(false);
   });
 });

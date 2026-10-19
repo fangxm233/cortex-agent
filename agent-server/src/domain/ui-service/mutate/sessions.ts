@@ -39,9 +39,7 @@ export async function handleCreateSession(
   args: MutateArgs<'sessions.create'>,
 ): Promise<Result<SessionsCreateReturn>> {
   const projectId = args.projectId ?? deps.projectStore.getDefault().id;
-  const { sessionId } = await deps.createDirectSession({
-    projectId, browser: args.browser ?? null,
-  });
+  const { sessionId } = await deps.createDirectSession({ projectId });
   return { ok: true, data: { sessionId } };
 }
 
@@ -172,7 +170,6 @@ export async function handleCreateAndSend(
     agentName: args.agentName ?? null,
     // Apply the complete engine choice before the first turn.
     selection: args.selection,
-    browser: args.browser ?? null,
   });
 
   // If the client uploaded files under a draft upload id, move them to the real
