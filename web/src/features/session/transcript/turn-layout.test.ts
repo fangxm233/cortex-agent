@@ -108,6 +108,14 @@ describe('layoutTurns', () => {
     expect(shape(layoutTurns(rows, { live: true }))).toEqual(['row:0:opener', 'work:1,2,3:live', 'row:4:pinned']);
   });
 
+  it('opens the next turn with a message sent to an idle session, before the session reads it', () => {
+    const settled = [user('go'), tools(1), say('note'), tools(1), say('Done.')];
+    const sent = layoutTurns([...settled, user('next', { pending: true })]);
+    expect(shape(sent)).toEqual(['row:0:opener', 'work:1,2,3', 'row:4:answer', 'row:5:opener']);
+    // Read by the session, it is laid out exactly as it was sent: committing it moves nothing.
+    expect(layoutTurns([...settled, user('next')])).toEqual(sent);
+  });
+
   it('keeps a live turn in the order it happened, cards included, and lifts the cards out once it settles', () => {
     const decision = say('', { decisions: [{ id: 'd1' } as never] });
     const rows = [user('go'), tools(1), say('recording the choices'), tools(1), decision, tools(1), say('next up')];

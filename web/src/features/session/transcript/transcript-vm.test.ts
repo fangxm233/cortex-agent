@@ -1022,6 +1022,21 @@ describe('buildTranscriptRows — pending user rows are pinned to the bottom', (
     expect(buildTranscriptRows(oneTurn, [], { pendingUser: [] })).toEqual(buildTranscriptRows(oneTurn, []));
   });
 
+  it('dates a message sent on a new day as it is sent, so committing it keeps every row in place', () => {
+    const now = new Date('2026-07-08T12:00:00.000Z');
+    const sentTs = '2026-07-08T07:42:00.000Z';
+    const sent = buildTranscriptRows(oneTurn, [], { now, pendingUser: [{ ts: sentTs, text: 'next day' }] });
+    const read = buildTranscriptRows(oneTurn, [{ sessionId: 's1', role: 'user', text: 'next day', ts: sentTs }], { now });
+    expect(sent.map((r) => r.kind)).toEqual(['divider', 'user', 'divider', 'user']);
+    expect(read.map((r) => r.kind)).toEqual(sent.map((r) => r.kind));
+    expect(sent[2]).toEqual(read[2]);
+  });
+
+  it('adds no divider before a message sent the same day', () => {
+    const rows = buildTranscriptRows(oneTurn, [], { pendingUser: [{ ts: '2026-07-07T07:50:00.000Z', text: 'same day' }] });
+    expect(rows.map((r) => r.kind)).toEqual(['divider', 'user', 'user']);
+  });
+
   it('once committed, the message is an ordinary row above later output', () => {
     // What the hook produces at handover: out of `pendingUser`, into the tail under committedTs.
     const tail: LiveSessionMessage[] = [

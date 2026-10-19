@@ -80,8 +80,12 @@ function isInvisible(row: ChatRow): boolean {
   return row.kind === 'assistant' && !row.preview && !row.text.trim() && !row.attachments?.length && !row.decisions?.length;
 }
 
-function isHumanTurn(row: ChatRow): boolean {
-  return row.kind === 'user' && !row.pending && (!row.systemOrigin || systemOriginDisplay(row.systemOrigin) === 'bubble');
+/** A message the agent has not read yet waits at the tail of a running turn, but sent to an idle
+ *  session it is what sets the next turn going. It opens that turn from the moment it is sent, so
+ *  the bubble does not move when the session reads it. */
+function isHumanTurn(row: ChatRow, live: boolean): boolean {
+  if (row.kind !== 'user' || (row.pending && live)) return false;
+  return !row.systemOrigin || systemOriginDisplay(row.systemOrigin) === 'bubble';
 }
 
 /** A row that means the agent was mid-action: a system turn landing right after it was folded in. */
@@ -102,8 +106,8 @@ function hintOpens(row: Extract<ChatRow, { kind: 'user' }>, body: ChatRow[]): bo
   return true;
 }
 
-function opens(row: ChatRow, body: ChatRow[]): boolean {
-  if (row.kind === 'divider' || isHumanTurn(row)) return true;
+function opens(row: ChatRow, body: ChatRow[], live: boolean): boolean {
+  if (row.kind === 'divider' || isHumanTurn(row, live)) return true;
   if (row.kind === 'user' && row.systemOrigin && !row.pending) return hintOpens(row, body);
   // A worker's report or request woke the lead; routine updates arrive while it works.
   if (row.kind === 'team-updates') return !row.pending && row.updates.some((u) => u.kind !== 'progress');
@@ -243,7 +247,7 @@ function joinWorkAfterAnswer(slots: Slot[], answer: number): void {
 
 function layoutSegment(rows: ChatRow[], from: number, to: number, segment: number, live: boolean, out: TurnItem[]): void {
   let start = from;
-  if (opens(rows[from], [])) {
+  if (opens(rows[from], [], live)) {
     out.push({ kind: 'row', index: from, role: rows[from].kind === 'divider' ? 'plain' : 'opener', segment });
     start = from + 1;
   }
@@ -286,7 +290,7 @@ export function layoutTurns(rows: ChatRow[], opts: TurnLayoutOpts = {}): TurnIte
   const starts: number[] = [];
   const body: ChatRow[] = [];
   for (let i = 0; i < rows.length; i++) {
-    if (i === 0 || opens(rows[i], body)) {
+    if (i === 0 || opens(rows[i], body, !!opts.live)) {
       starts.push(i);
       body.length = 0;
       if (rows[i].kind !== 'divider') continue;

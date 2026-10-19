@@ -350,11 +350,16 @@ function openBlock(state: BuildState, m: FlatMessage, id: string, spawn?: Subage
   return entry;
 }
 
+interface MessageRoute {
+  sink: RowSink;
+  block: SubagentBlockState | null;
+}
+
 /**
  * Where a message's row goes: the top-level sink or its subagent block. Null when the message only
  * updates a block (a reported end, a spawning call, a summarized child) and adds no row of its own.
  */
-function routeMessage(state: BuildState, m: FlatMessage): { sink: RowSink; block: SubagentBlockState | null } | null {
+function routeMessage(state: BuildState, m: FlatMessage): MessageRoute | null {
   // A backend-reported subagent end: a state correction, not a row. Seal the block and drop the
   // message — it carries no prose, and rendering it would add an empty line to the transcript.
   if (m.subagentEnded && m.subagentId) {
@@ -529,9 +534,35 @@ function appendThinkingPreview(rows: ChatRow[], text: string): void {
   rows[rows.length - 1] = { ...last, calls: [...last.calls, { kind: 'thinking', input: text, thinking: true, preview: true }] };
 }
 
+/** Marks the last assistant row while the session is still producing output. */
+function markStreaming(rows: ChatRow[]): void {
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const r = rows[i];
+    if (r.kind !== 'assistant') continue;
+    rows[i] = { ...r, streaming: true };
+    return;
+  }
+}
+
+/** A message the model has not read yet. Dated like a committed message, so one sent on a new day
+ *  brings that day's divider with it instead of the divider landing above it once it commits. Only
+ *  a parseable stamp dates it: older servers key these rows with an opaque value. */
+function appendPending(rows: ChatRow[], p: PendingUserMessage, team: TeamBuild, dated: DayDividers): void {
+  if (!Number.isNaN(Date.parse(p.ts))) dated(p.ts);
+  const update = p.systemOrigin ? parseWorkerMessage(p.systemOrigin, p.text, p.ts ?? null) : null;
+  if (update) {
+    addWorkerUpdate(team, rows, update, true);
+    return;
+  }
+  rows.push({
+    kind: 'user', text: p.text, attachments: p.attachments, ts: p.ts, pending: true,
+    ...(p.systemOrigin ? { systemOrigin: p.systemOrigin } : {}),
+  });
+}
+
 /** Rows after every persisted/live message: the in-flight block, the streaming flag, then the
  *  messages the model has not read yet. */
-function appendTail(rows: ChatRow[], opts: BuildOpts, team: TeamBuild): void {
+function appendTail(rows: ChatRow[], opts: BuildOpts, team: TeamBuild, dated: DayDividers): void {
   // The in-flight block, after every persisted/live message and after any tool row of this turn.
   // Flagged `preview`: this is the only row whose text is still arriving, so it is the only one the
   // smooth reveal paces.
@@ -539,28 +570,51 @@ function appendTail(rows: ChatRow[], opts: BuildOpts, team: TeamBuild): void {
   if (opts.streamingText) {
     rows.push({ kind: 'assistant', text: opts.streamingText, streaming: true, preview: true });
   }
-  if (opts.streaming) {
-    for (let i = rows.length - 1; i >= 0; i--) {
-      const r = rows[i];
-      if (r.kind === 'assistant') {
-        rows[i] = { ...r, streaming: true };
-        break;
-      }
-    }
-  }
+  if (opts.streaming) markStreaming(rows);
   // Last of all: the messages the model has not read yet. Everything above them — including the
   // block being written right now — was produced without them, so they cannot sit any higher.
-  for (const p of opts.pendingUser ?? []) {
-    const update = p.systemOrigin ? parseWorkerMessage(p.systemOrigin, p.text, p.ts ?? null) : null;
-    if (update) {
-      addWorkerUpdate(team, rows, update, true);
-      continue;
-    }
-    rows.push({
-      kind: 'user', text: p.text, attachments: p.attachments, ts: p.ts, pending: true,
-      ...(p.systemOrigin ? { systemOrigin: p.systemOrigin } : {}),
-    });
+  for (const p of opts.pendingUser ?? []) appendPending(rows, p, team, dated);
+}
+
+/** Puts a divider in the top-level stream before the first row of each calendar day. */
+type DayDividers = (ts: string) => void;
+
+function dayDividers(state: BuildState, opts: BuildOpts): DayDividers {
+  const now = opts.now ?? new Date();
+  const format = opts.formatDivider ?? defaultDivider;
+  let current: string | null = null;
+  return (ts) => {
+    const day = dayStamp(ts);
+    if (day === current) return;
+    // Dividers live only in the top-level stream. Flushing nested sinks here would split one
+    // subagent tool run into multiple rows even though no divider appears inside its card.
+    flushTools(state.top);
+    state.rows.push({ kind: 'divider', text: format(ts, now) });
+    current = day;
+  };
+}
+
+/** A thought or a tool call joins its sink's run of steps; false for anything else. */
+function bufferStep(route: MessageRoute, m: FlatMessage): boolean {
+  if (m.type === 'thinking') {
+    if (m.text?.trim()) route.sink.toolBuf.push({ kind: 'thinking', input: m.text, thinking: true });
+    return true;
   }
+  if (m.type !== 'tool') return false;
+  if (route.block && !route.block.summary) route.block.row.toolCount += 1;
+  route.sink.toolBuf.push(toolEntry(m));
+  return true;
+}
+
+/** One persisted or live message into the sink it belongs to. True when it became a user row. */
+function placeMessage(state: BuildState, m: FlatMessage, stripScheduledPrefix: boolean): boolean {
+  const route = routeMessage(state, m);
+  if (!route) return false;
+  if (!route.block && (placeTeamMessage(state, m) || placeBoardMessage(state, m) || placeWaitMessage(state, m))) return false;
+  if (bufferStep(route, m)) return false;
+  flushTools(route.sink);
+  route.sink.rows.push(messageRow(m, stripScheduledPrefix && m.type === 'user'));
+  return m.type === 'user';
 }
 
 /**
@@ -575,44 +629,21 @@ export function buildTranscriptRows(
   liveTail: LiveSessionMessage[],
   opts: BuildOpts = {},
 ): ChatRow[] {
-  const now = opts.now ?? new Date();
-  const formatDivider = opts.formatDivider ?? defaultDivider;
   const flat = flattenMessages(transcript, liveTail);
   const state = createBuildState(transcript, flat);
-  let curDay: string | null = null;
-  let firstUserSeen = false;
+  const dated = dayDividers(state, opts);
+  // Only the session's first user row loses the scheduled-run prefix.
+  let stripPrefix = opts.stripScheduledPrefix === true;
   for (const m of flat) {
-    const day = dayStamp(m.ts);
-    if (day !== curDay) {
-      // Dividers live only in the top-level stream. Flushing nested sinks here would split one
-      // subagent tool run into multiple rows even though no divider appears inside its card.
-      flushTools(state.top);
-      state.rows.push({ kind: 'divider', text: formatDivider(m.ts, now) });
-      curDay = day;
-    }
-    const route = routeMessage(state, m);
-    if (!route) continue;
-    if (!route.block && (placeTeamMessage(state, m) || placeBoardMessage(state, m) || placeWaitMessage(state, m))) continue;
-    if (m.type === 'thinking') {
-      if (m.text?.trim()) route.sink.toolBuf.push({ kind: 'thinking', input: m.text, thinking: true });
-      continue;
-    }
-    if (m.type === 'tool') {
-      if (route.block && !route.block.summary) route.block.row.toolCount += 1;
-      route.sink.toolBuf.push(toolEntry(m));
-      continue;
-    }
-    flushTools(route.sink);
-    const isFirstUser = m.type === 'user' && !firstUserSeen;
-    if (m.type === 'user') firstUserSeen = true;
-    route.sink.rows.push(messageRow(m, isFirstUser && opts.stripScheduledPrefix === true));
+    dated(m.ts);
+    if (placeMessage(state, m, stripPrefix)) stripPrefix = false;
   }
   flushAll(state);
   // Legacy compatibility only: a known running child can outlive its parent's turn.
   const sessionLive = opts.running ?? (opts.streaming === true || !!opts.streamingText || !!opts.thinkingText);
   if (!sessionLive) closeOpenBlocks(state.blocks);
   if (state.summaryAuthority) applySummaries(state.blocks, sessionLive);
-  appendTail(state.rows, opts, state.team);
+  appendTail(state.rows, opts, state.team, dated);
   finishTeamRows(state.rows);
   return state.rows;
 }

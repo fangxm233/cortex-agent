@@ -24,6 +24,8 @@ describe('thinking transcript rows', () => {
     expect(built).toMatchObject([
       { kind: 'thinking', text: 'first\nlatest', preview: true },
       { kind: 'assistant', text: 'answer', preview: true },
+      // Nothing above it is dated yet, so the message brings its day's divider.
+      { kind: 'divider' },
       { kind: 'user', text: 'next', pending: true },
     ]);
   });
