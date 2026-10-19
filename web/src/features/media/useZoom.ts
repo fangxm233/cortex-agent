@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useMousePan } from './useMousePan';
 
-/** Pinch-to-zoom + wheel zoom + pan hook for image/PDF viewers.
+/** Pinch-to-zoom + wheel zoom + pan (touch, and mouse drag in transform mode) hook for image/PDF viewers.
  *
  * Two modes:
  * - 'transform': manages scale + translate via CSS transform (for images in a fixed container).
@@ -204,6 +205,13 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
   const containerRef = useCallback((node: HTMLDivElement | null) => { setEl(node); }, []);
   const contentRef = useCallback((node: HTMLElement | null) => { contentElRef.current = node; }, []);
 
+  const getZoom = useCallback(() => zoomRef.current, []);
+  const hasContent = useCallback(() => contentElRef.current !== null, []);
+  const setTranslate = useCallback((t: { x: number; y: number }) => {
+    setZoom((prev) => (prev.scale > 1 ? { ...prev, ...t } : prev));
+  }, []);
+  const dragging = useMousePan(el, mode === 'transform', { getZoom, hasContent, setTranslate });
+
   // --- css-zoom scroll correction: runs before paint so there's no flash. ---
   useLayoutEffect(() => {
     if (!el || mode !== 'css-zoom' || !anchorRef.current) return;
@@ -402,7 +410,12 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
 
   const style: React.CSSProperties =
     mode === 'transform'
-      ? { transform: `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.scale})`, transformOrigin: '0 0', touchAction: 'none' }
+      ? {
+          transform: `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.scale})`,
+          transformOrigin: '0 0',
+          touchAction: 'none',
+          cursor: zoom.scale > 1 ? (dragging ? 'grabbing' : 'grab') : undefined,
+        }
       : { transform: `scale(${zoom.scale})`, transformOrigin: 'top left' };
 
   return {
