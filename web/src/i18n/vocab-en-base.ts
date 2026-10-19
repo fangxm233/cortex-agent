@@ -247,7 +247,7 @@ export const enBase = {
   dmRestartFailed: 'Restart failed',
   dmDisconnect: 'Disconnect',
   dmDisconnectDesc: 'Clear the saved server & token and return to the login screen',
-  dmRebuild: 'rebuild',
+  dmRebuild: 'Rebuild',
 
   rpLoadingMachines: 'Loading machines…',
   rpFailedLoadMachines: 'Failed to load machines.',
