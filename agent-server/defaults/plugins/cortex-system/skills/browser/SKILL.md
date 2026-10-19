@@ -23,6 +23,9 @@ cortex-browser skills get core          # workflow and common commands
 cortex-browser skills get core --full   # every command and option
 ```
 
+The guide is written for plain `agent-browser`: run its examples as `cortex-browser`, and skip its
+advice on `--session`, `--cdp`, `connect` and launching browsers, which Cortex handles.
+
 The usual loop: `cortex-browser open <url>`, then `cortex-browser snapshot -i` to list interactive
 elements as refs (`@e1`, `@e2` …), then `click @e2` / `fill @e3 "text"`. Snapshot again after the
 page changes: refs from an old snapshot go stale.
