@@ -4,7 +4,7 @@ import type { UiPluginCatalogEntry } from '@cortex-agent/ui-contract';
 import { Select } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import { SButton, SFieldRow, SNotice, S_CONTROL_STYLE } from '@/features/settings/ui/settings-ui';
+import { SButton, SFieldRow, SNotice, SRowGroup, S_CONTROL_STYLE } from '@/features/settings/ui/settings-ui';
 import { EmptyMessage, ROW } from '@/features/settings/ui/plugin-ui';
 import {
   draftsFromRead, emptyDraft, mcpDraftIssues, replaceDraft, sameMcpDrafts, toInput,
@@ -168,11 +168,11 @@ function McpServerForms(props: { plugin: UiPluginCatalogEntry; actions: PluginAu
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {drafts.length === 0
         ? <EmptyMessage text={L.plMcpNoServers} dataAttr="data-plugin-mcp-empty" />
-        : drafts.map((draft) => (
+        : <SRowGroup>{drafts.map((draft) => (
           <ServerForm key={draft.id} draft={draft}
             onChange={(patch) => setDrafts(replaceDraft(drafts, draft.id, patch))}
             onRemove={() => setDrafts(drafts.filter((item) => item.id !== draft.id))} />
-        ))}
+        ))}</SRowGroup>}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         <SButton tone="neutral" data-action="mcp-add"
           onClick={() => { setDrafts([...drafts, emptyDraft(`new${nextId}`)]); setNextId(nextId + 1); }}>

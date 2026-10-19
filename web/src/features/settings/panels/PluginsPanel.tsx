@@ -6,9 +6,13 @@ import { Modal } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import {
-  ROW_STYLE, SButton, SCard, SCardHeader, SFieldRow, SNotice, SPill, SRow, SRowGroup, SSection, SSegmented,
+  ROW_STYLE, SButton, SCode, SFacts, SFieldRow, SLinkAction, SMeta, SNotice, SRowGroup, SSection, SSegmented, SStatus,
   S_CONTROL_STYLE,
 } from '@/features/settings/ui/settings-ui';
+import {
+  DETAIL_PANE_STYLE, EDITOR_COLUMNS_STYLE, EDITOR_ROOT_STYLE, LIST_BODY_STYLE, ListHeader, PANE_BODY_STYLE,
+  PANE_HEADER_STYLE, PaneFooter, listPaneStyle, listRowStyle,
+} from '@/features/settings/ui/master-detail-ui';
 import {
   EmptyMessage, IssueList,
   manifestSourceText, pluginKindText, pluginTitle, scopeNoticeText,
@@ -24,25 +28,6 @@ import { usePluginAuthoring, type PluginAuthoringActions } from '@/features/sett
 
 const MONO = "'IBM Plex Mono',monospace";
 const LIST_WIDTH = 244;
-
-const PANEL: CSSProperties = {
-  flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column',
-};
-const CARDS: CSSProperties = {
-  display: 'flex', gap: 14, flex: 1, minHeight: 0, alignItems: 'stretch',
-};
-const LIST_CARD: CSSProperties = {
-  width: LIST_WIDTH, flex: 'none', minHeight: 0,
-  display: 'flex', flexDirection: 'column', overflow: 'hidden',
-};
-const DETAIL_CARD: CSSProperties = {
-  flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden',
-};
-// The detail header holds still while the tab body scrolls under it, so the two are parted by a
-// hairline: inside a card a divider stays a border, only the card itself outlines with a ring.
-const DETAIL_HEADER: CSSProperties = {
-  padding: '14px 16px', flex: 'none', borderBottom: '1px solid var(--proto-line-2)',
-};
 
 const MODAL_TEXT: CSSProperties = { fontSize: 13, lineHeight: 1.6, color: 'var(--proto-muted-2)' };
 
@@ -65,19 +50,15 @@ function PluginListRow(props: {
   return (
     <div role="button" data-plugin-item={props.plugin.id} data-active={props.active ? '' : undefined}
       onClick={() => props.onSelect(props.plugin.id)}
-      style={{
-        padding: '9px 12px', borderRadius: 'var(--r-control)', cursor: 'pointer',
-        background: props.active ? 'var(--proto-gray)' : 'transparent',
-        display: 'flex', flexDirection: 'column', gap: 3, flex: 'none',
-      }}>
+      style={{ ...listRowStyle(props.active, 'stretch'), flexDirection: 'column', gap: 2 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{
-          font: `600 13px ${MONO}`, minWidth: 0, overflowWrap: 'anywhere',
-          color: 'var(--proto-ink)',
+          font: `600 12px ${MONO}`, minWidth: 0, overflowWrap: 'anywhere',
+          color: props.active ? 'var(--proto-ink)' : 'var(--proto-ink-2)',
         }}>{props.plugin.id}</span>
-        {props.plugin.valid ? null : <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--proto-danger)' }}>!</span>}
+        {props.plugin.valid ? null : <SStatus tone="danger">{L.plInvalid}</SStatus>}
       </div>
-      <div style={{ fontSize: 12, color: 'var(--proto-muted-3)' }}>
+      <div style={{ fontSize: 12, color: 'var(--proto-muted-2)' }}>
         {L.plSkillCount.replace('{n}', String(props.plugin.skills.length))}
         {props.plugin.mcp.servers.length > 0 ? ` · ${L.plMcpCount.replace('{n}', String(props.plugin.mcp.servers.length))}` : ''}
       </div>
@@ -162,26 +143,24 @@ function PluginList(props: {
   const L = useVocab();
   const [creating, setCreating] = useState(false);
   return (
-    <SCard className="settings-list-pane" style={LIST_CARD}>
-      <SCardHeader title={L.plCatalogTitle} right={`${props.plugins.length}`} />
-      <div style={{ padding: '12px 14px', flex: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <input data-plugin-search="" value={props.search} placeholder={L.plSearchPh}
-          onChange={(event) => props.onSearch(event.target.value)} style={S_CONTROL_STYLE} />
-        <SButton tone="neutral" data-action="plugin-create" disabled={props.actions.busy}
-          onClick={() => setCreating(true)} style={{ width: '100%' }}>
-          {L.plNewPlugin}
-        </SButton>
-        {creating ? <CreatePluginModal actions={props.actions} onClose={() => setCreating(false)} /> : null}
-      </div>
-      <div style={{ flex: 1, overflow: 'auto', scrollbarGutter: 'stable', minHeight: 0, padding: '0 8px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <div className="settings-list-pane" style={listPaneStyle(LIST_WIDTH)}>
+      <ListHeader title={L.plCatalogTitle} count={props.plugins.length} searchAttr="data-plugin-search"
+        search={props.search} placeholder={L.plSearchPh} onSearch={props.onSearch} />
+      <div style={LIST_BODY_STYLE}>
         {props.visible.length > 0
           ? props.visible.map((plugin) => (
             <PluginListRow key={plugin.id} plugin={plugin}
               active={plugin.id === props.selectedId} onSelect={props.onSelect} />
           ))
-          : <div style={{ padding: '4px 8px' }}><EmptyMessage text={L.plNoCatalog} dataAttr="data-plugins-empty" /></div>}
+          : <div style={{ padding: '4px 10px' }}><EmptyMessage text={L.plNoCatalog} dataAttr="data-plugins-empty" /></div>}
       </div>
-    </SCard>
+      <PaneFooter>
+        <SLinkAction data-action="plugin-create" disabled={props.actions.busy} onClick={() => setCreating(true)}>
+          + {L.plNewPlugin}
+        </SLinkAction>
+      </PaneFooter>
+      {creating ? <CreatePluginModal actions={props.actions} onClose={() => setCreating(false)} /> : null}
+    </div>
   );
 }
 
@@ -189,8 +168,8 @@ function UsageRow({ item }: { item: PluginUsage }) {
   const L = useVocab();
   return (
     <div data-plugin-usage={item.key} style={{ ...ROW_STYLE, flexWrap: 'wrap', overflowWrap: 'anywhere', gap: 8 }}>
-      <SPill>{L.plTargetAgent}</SPill>
-      <span style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--proto-ink-2)', minWidth: 0 }}>{item.name}</span>
+      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)', minWidth: 0 }}>{item.name}</span>
+      <SMeta>{L.plTargetAgent}</SMeta>
     </div>
   );
 }
@@ -205,13 +184,13 @@ function OverviewTab({ plugin, usage }: { plugin: UiPluginCatalogEntry; usage: r
   const L = useVocab();
   const scopeNote = scopeNoticeText(plugin, L);
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {scopeNote ? <SNotice tone="muted" data-plugin-scope={plugin.scope}>{scopeNote}</SNotice> : null}
-      <SRowGroup>
-        <SRow title={L.plRootDirLabel} desc={plugin.rootDir} />
-        <SRow title={L.plManifestSourceLabel} desc={manifestSourceText(plugin.manifest.source, L)} />
-        <SRow title={L.plManifestDescLabel} desc={plugin.manifest.description ?? L.plUnknownValue} />
-      </SRowGroup>
+      <SFacts data-plugin-facts="" rows={[
+        { k: L.plRootDirLabel, v: <SCode>{plugin.rootDir}</SCode> },
+        { k: L.plManifestSourceLabel, v: manifestSourceText(plugin.manifest.source, L) },
+        { k: L.plManifestDescLabel, v: plugin.manifest.description ?? L.plUnknownValue },
+      ]} />
       <SSection label={L.plUsedByLabel}><UsageList usage={usage} /></SSection>
       <SSection label={L.plIssuesLabel}><IssueList plugin={plugin} /></SSection>
     </div>
@@ -229,18 +208,23 @@ function PluginTabs(props: { tab: PluginTab; onTab: (tab: PluginTab) => void }) 
   );
 }
 
+function pluginMeta(plugin: UiPluginCatalogEntry, L: Vocab): string {
+  return [
+    plugin.manifest.version ?? L.plUnknownValue,
+    pluginKindText(plugin.kind, L),
+    plugin.origin === 'builtin' ? L.plOriginBuiltin : L.plOriginLocal,
+  ].join(' · ');
+}
+
+/** Name, then version · kind · origin as one meta line; validity is said only when it fails. */
 function PluginHeader(props: { plugin: UiPluginCatalogEntry; busy: boolean; onDelete: () => void }) {
   const L = useVocab();
   const plugin = props.plugin;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)', minWidth: 0, overflowWrap: 'anywhere' }}>{pluginTitle(plugin)}</span>
-      <SPill>{plugin.manifest.version ?? L.plUnknownValue}</SPill>
-      <SPill>{pluginKindText(plugin.kind, L)}</SPill>
-      <SPill data-plugin-origin={plugin.origin} tone={plugin.origin === 'builtin' ? 'strong' : 'neutral'}>
-        {plugin.origin === 'builtin' ? L.plOriginBuiltin : L.plOriginLocal}
-      </SPill>
-      <SPill tone={plugin.valid ? 'success' : 'danger'}>{plugin.valid ? L.plValid : L.plInvalid}</SPill>
+      <SMeta data-plugin-origin={plugin.origin}>{pluginMeta(plugin, L)}</SMeta>
+      {plugin.valid ? null : <SStatus data-plugin-invalid="" tone="danger">{L.plInvalid}</SStatus>}
       <SButton tone="danger" data-action="plugin-delete" disabled={props.busy}
         style={{ marginLeft: 'auto' }} onClick={props.onDelete}>
         {L.plDeletePlugin}
@@ -265,19 +249,19 @@ function PluginDetail(props: {
   );
   if (!props.plugin) {
     return (
-      <SCard className="settings-detail-pane" style={{ ...DETAIL_CARD, alignItems: 'center', justifyContent: 'center' }}>
-        <span data-plugin-detail-empty="" style={{ fontSize: 13, color: 'var(--proto-muted-2)' }}>{L.plSelectPrompt}</span>
-      </SCard>
+      <div className="settings-detail-pane" style={{ ...DETAIL_PANE_STYLE, alignItems: 'center', justifyContent: 'center' }}>
+        <span data-plugin-detail-empty="" style={{ fontSize: 12, color: 'var(--proto-muted-2)' }}>{L.plSelectPrompt}</span>
+      </div>
     );
   }
   const plugin = props.plugin;
   return (
-    <SCard className="settings-detail-pane" data-plugin-detail={plugin.id} style={DETAIL_CARD}>
-      <div style={DETAIL_HEADER}>
+    <div className="settings-detail-pane" data-plugin-detail={plugin.id} style={DETAIL_PANE_STYLE}>
+      <div style={PANE_HEADER_STYLE}>
         <PluginHeader plugin={plugin} busy={props.actions.busy} onDelete={() => setDeleting(true)} />
         <PluginTabs tab={props.tab} onTab={props.onTab} />
       </div>
-      <div className="settings-detail-fields" style={{ flex: 1, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable', padding: 16 }}>
+      <div className="settings-detail-fields" style={PANE_BODY_STYLE}>
         {props.tab === 'overview' ? <OverviewTab plugin={plugin} usage={usage} /> : null}
         {props.tab === 'skills'
           ? <PluginSkillsTab plugin={plugin} plugins={props.plugins} actions={props.actions} />
@@ -287,7 +271,7 @@ function PluginDetail(props: {
       {deleting
         ? <DeletePluginModal plugin={plugin} actions={props.actions} onClose={() => setDeleting(false)} />
         : null}
-    </SCard>
+    </div>
   );
 }
 
@@ -310,13 +294,13 @@ export function PluginsPanelView(props: PluginsPanelViewProps) {
   const visible = filterPlugins(props.plugins, props.search);
   const selected = resolvePluginSelection(visible, props.selectedId);
   return (
-    <div data-settings-panel="plugins" style={PANEL}>
+    <div data-settings-panel="plugins" style={EDITOR_ROOT_STYLE}>
       {props.state === 'loading' ? <EmptyMessage text={L.plLoading} dataAttr="data-plugins-loading" /> : null}
       {props.state === 'error'
         ? <EmptyMessage text={`${L.plLoadFailed} ${props.errorMessage ?? ''}`.trim()} dataAttr="data-plugins-error" />
         : null}
       {props.state === 'ready' ? (
-        <div className="settings-editor-columns" data-plugin-cards="" style={CARDS}>
+        <div className="settings-editor-columns" data-plugin-cards="" style={EDITOR_COLUMNS_STYLE}>
           <PluginList plugins={props.plugins} visible={visible} search={props.search}
             selectedId={selected?.id ?? null} actions={props.actions}
             onSearch={props.onSearch} onSelect={props.onSelect} />
