@@ -12,7 +12,6 @@ import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 import { SelectionPane } from '@/design/SelectionPane';
 import { useVocabOptional } from '@/i18n';
 import { HEADER_BOTTOM_VAR } from './useHeaderClearance';
-import { useBrowserDeviceOptions } from '@/features/browser/BrowserOptIn';
 
 export function MoreMenu({ onClose, onSessionId, onSessionStats, metadataItems }: {
   onClose: () => void;
@@ -317,54 +316,6 @@ export function AgentSheet({ rows, onClose, onPick }: {
         </SheetCard>
       </div>
     </MBottomSheet>
-  );
-}
-
-/** One creation-time option (a browser device). `attr` is the test/selector hook. */
-function OptionRow({ item, attr, last, current, onPick }: {
-  item: { value: string | null; label: string; sub: string };
-  attr: 'data-device';
-  last: boolean;
-  current: string | null;
-  onPick: (value: string | null) => void;
-}): JSX.Element {
-  return (
-    <div {...{ [attr]: item.value ?? '__off__' }} onClick={() => onPick(item.value)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderBottom: last ? undefined : '1px solid var(--proto-line-soft)', cursor: 'pointer' }}>
-      <div style={{ minWidth: 0, flex: 1, overflowWrap: 'anywhere' }}><span style={{ fontSize: 15, fontWeight: item.value === current ? 600 : 500, color: MC.ink }}>{item.label}</span>{item.sub && <div style={{ fontSize: 12.5, color: MC.muted, marginTop: 3 }}>{item.sub}</div>}</div>
-      {item.value === current && <span style={{ fontSize: 15, fontWeight: 700, color: MC.ink, flex: 'none' }}>✓</span>}
-    </div>
-  );
-}
-
-function OptionSheet({ items, attr, title, current, onClose, onPick }: {
-  items: Array<{ value: string | null; label: string; sub: string }>;
-  attr: 'data-device';
-  title: string;
-  current: string | null;
-  onClose: () => void;
-  onPick: (value: string | null) => void;
-}): JSX.Element {
-  return (
-    <MBottomSheet onClose={onClose}>
-      <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}><span style={{ fontSize: 17, fontWeight: 650, color: MC.ink }}>{title}</span></div>
-      <div style={{ background: 'transparent', border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-card)', overflow: 'hidden' }}>{items.map((item, index) => <OptionRow key={item.value ?? '__off__'} item={item} attr={attr} last={index === items.length - 1} current={current} onPick={onPick} />)}</div>
-    </MBottomSheet>
-  );
-}
-
-/** The device list is read each time the sheet opens, so it cannot offer a machine that has since
- *  disconnected. */
-export function BrowserSheet({ current, onClose, onPick }: {
-  current: string | null;
-  onClose: () => void;
-  onPick: (device: string | null) => void;
-}): JSX.Element {
-  const items = useBrowserDeviceOptions(true);
-  return (
-    <OptionSheet
-      items={items.map((i) => ({ value: i.device, label: i.label, sub: i.sub }))}
-      attr="data-device" title={useVocabOptional().wbBrowser} current={current} onClose={onClose} onPick={onPick}
-    />
   );
 }
 

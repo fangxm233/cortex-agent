@@ -26,7 +26,7 @@ describe('runStatusText', () => {
 
 const base: RunStatusLineInput = {
   isDraft: false, running: true, backgroundRunning: false, starting: false, turns: 1, cost: null,
-  turnClock: { startMs: 0, lastMs: 2000 }, waitingOn: 0, browserDevice: null, turnProgressStarted: true,
+  turnClock: { startMs: 0, lastMs: 2000 }, waitingOn: 0,
 };
 
 describe('runStatusLine', () => {
@@ -40,10 +40,5 @@ describe('runStatusLine', () => {
 
   it('reads a locally queued message as running before the session event lands', () => {
     expect(runStatusLine({ ...base, running: false, starting: true }, en, 'en').active).toBe(true);
-  });
-
-  it('says the browser is starting until the turn shows progress', () => {
-    const starting = runStatusLine({ ...base, browserDevice: 'desk', turnProgressStarted: false }, en, 'en');
-    expect(starting).toEqual({ active: true, text: en.wbBrowserStarting.replace('{device}', 'desk') });
   });
 });

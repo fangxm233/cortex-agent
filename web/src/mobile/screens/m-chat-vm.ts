@@ -11,7 +11,6 @@ import {
 } from '@/features/session/transcript/transcript-vm';
 import { fmt, type Vocab } from '@/i18n';
 import { dayDivider, formatSpanPrecise, timeAgo, type TimeLang } from '@/i18n/time-format';
-import { browserStartupHint, browserStartupPending } from '@/features/browser/browser-status';
 import type { RunStatusLine, RunStatusLineInput } from '@/features/session/chat/run-status-line';
 import { deriveSessionRunStatus } from '@/features/session/list/session-run-status';
 import { turnClockElapsedMs } from '@/features/session/transcript/transcript-vm';
@@ -79,7 +78,7 @@ export interface MobileRunStatusInput extends RunStatusLineInput {
  * The header's second line on a phone, in plain words: the run state, then how long the running
  * turn has gone (ticking) or how long an idle session has been quiet, then its team and anything it
  * waits on. The desktop run line's turns and cost stay behind ⋯ → Session stats — the header pill
- * has room for one glance, not a ledger. Browser start-up outranks it, as it does on desktop.
+ * has room for one glance, not a ledger.
  */
 export function mobileRunStatus(input: MobileRunStatusInput, L: Vocab, lang: TimeLang): RunStatusLine {
   const status = deriveSessionRunStatus({
@@ -87,10 +86,6 @@ export function mobileRunStatus(input: MobileRunStatusInput, L: Vocab, lang: Tim
     backgroundRunning: input.backgroundRunning,
     hasRun: !input.isDraft && input.turns != null,
   });
-  const device = input.browserDevice;
-  if (device && browserStartupPending({ ...input, running: status.active, device })) {
-    return { active: status.active, text: browserStartupHint(device, L.wbBrowserStarting) };
-  }
   const tail = [
     input.workers > 0 ? fmt(input.workers === 1 ? L.wbTeamCountOne : L.wbTeamCountMany, { n: input.workers }) : null,
     input.waitingOn > 0 ? fmt(L.chatWaitingOn, { n: input.waitingOn }) : null,

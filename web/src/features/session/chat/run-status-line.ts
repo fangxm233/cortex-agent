@@ -1,7 +1,6 @@
 import { fmt, type Vocab } from '@/i18n';
 import { formatSpanOrDash, type TimeLang } from '@/i18n/time-format';
 import { formatUsd } from '@/lib/format';
-import { browserStartupHint, browserStartupPending } from '@/features/browser/browser-status';
 import { deriveSessionRunStatus, type SessionRunStatus } from '@/features/session/list/session-run-status';
 import { turnClockElapsedMs, type TurnClock } from '@/features/session/transcript/transcript-vm';
 
@@ -45,10 +44,6 @@ export interface RunStatusLineInput {
   cost: number | null;
   turnClock: TurnClock | null;
   waitingOn: number;
-  /** The browser the session runs (or a draft will run) with. */
-  browserDevice: string | null;
-  /** True after this turn emits its first agent progress or streamed output. */
-  turnProgressStarted: boolean;
 }
 
 export interface RunStatusLine {
@@ -59,17 +54,13 @@ export interface RunStatusLine {
   liveText?: (now: number) => string;
 }
 
-/** Browser start-up outranks the ordinary run line; the clock ticks only while the turn runs. */
+/** The run line for a session or draft; the clock ticks only while the turn runs. */
 export function runStatusLine(input: RunStatusLineInput, L: Vocab, lang: TimeLang): RunStatusLine {
   const status = deriveSessionRunStatus({
     running: input.running || input.starting,
     backgroundRunning: input.backgroundRunning,
     hasRun: !input.isDraft && input.turns != null,
   });
-  const device = input.browserDevice;
-  if (device && browserStartupPending({ ...input, running: status.active, device })) {
-    return { active: status.active, text: browserStartupHint(device, L.wbBrowserStarting) };
-  }
   const textAt = (now: number | null): string => runStatusText({
     status,
     elapsed: formatSpanOrDash(turnClockElapsedMs(input.turnClock, now), lang),

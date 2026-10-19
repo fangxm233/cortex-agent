@@ -55,9 +55,6 @@ vi.mock('@/features/board/BoardChatRows', () => ({
     <button data-board-row={action.boardId} data-touch={touch} onClick={() => onOpen(action.boardId)} />,
 }));
 vi.mock('./MChatBoard', () => ({ MBoardSheet: ({ boardId }: { boardId: string }) => <div data-board-sheet={boardId} /> }));
-vi.mock('@/features/browser/BrowserOptIn', () => ({
-  useBrowserDeviceOptions: () => [{ device: null, label: 'Off', sub: '' }, { device: 'laptop', label: 'laptop', sub: '' }],
-}));
 
 import { LangProvider } from '@/i18n';
 import type { ChatRow } from '@/features/session/transcript/transcript-vm';
@@ -569,28 +566,6 @@ describe('MChatView overlays', () => {
     expect(writeText).toHaveBeenCalledWith('s1');
     act(() => r.update(<LangProvider><MChatView {...baseProps} rows={[]} status={status} sessionId="s2" /></LangProvider>));
     expect(sheets(r)).toHaveLength(0);
-    act(() => r.unmount());
-    vi.unstubAllGlobals();
-  });
-
-  it('opens the browser sheet from ＋ and sends the picked device', () => {
-    const onPick = vi.fn();
-    const r = mount({ browser: { device: null, onPick } });
-    act(() => r.root.findByProps({ 'aria-label': 'Attach' }).props.onClick());
-    act(() => r.root.findByProps({ 'data-plus-item': 'browser' }).props.onClick());
-    expect(r.root.findAll((n) => n.props['data-plus-item'] !== undefined)).toHaveLength(0);
-    act(() => r.root.findByProps({ 'data-device': 'laptop' }).props.onClick());
-    expect(onPick).toHaveBeenCalledWith('laptop');
-    expect(sheets(r)).toHaveLength(0);
-    act(() => r.unmount());
-    vi.unstubAllGlobals();
-  });
-
-  it('reports a live session\'s browser without offering to change it', () => {
-    const r = mount({ browser: { device: 'laptop' } });
-    expect(r.root.findByProps({ 'data-chip': 'browser' }).props.onClick).toBeUndefined();
-    act(() => r.root.findByProps({ 'aria-label': 'Attach' }).props.onClick());
-    expect(r.root.findByProps({ 'data-plus-item': 'browser' }).props['data-editable']).toBe('false');
     act(() => r.unmount());
     vi.unstubAllGlobals();
   });

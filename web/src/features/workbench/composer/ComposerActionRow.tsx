@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Divider, MenuCard, MENU_SURFACE, MENU_BUTTON_STYLE, MENU_FOCUS, MENU_INSET, MENU_ROW_PAD_X } from '@/design/MenuChrome';
+import { MenuCard, MENU_SURFACE, MENU_BUTTON_STYLE, MENU_FOCUS, MENU_INSET, MENU_ROW_PAD_X } from '@/design/MenuChrome';
 import { PlusGlyph } from '@/design';
 import { useVocab } from '@/i18n';
 import type { SlashSuggestion } from '@/features/session/composer/composer-slash';
-import { useBrowserDeviceOptions, type BrowserDeviceOption } from '@/features/browser/BrowserOptIn';
-import { QUIET_CHIP_GLYPH, quietChipStyle } from './composer-chip';
 
 // A slash command is something the user types, so the command column alone takes the code face.
 const CODE = 'var(--font-code)';
@@ -73,13 +71,6 @@ function useDismissMenu(open: boolean, close: () => void): void {
   }, [open, close]);
 }
 
-export interface ComposerBrowserControl {
-  device: string | null;
-  /** Present only while composing a draft — the tool set is fixed when the agent process spawns.
-   *  Absent on a live session: the menu row then only REPORTS what the session was created with. */
-  onChange?: (device: string | null) => void;
-}
-
 const MENU_ROW_STYLE: CSSProperties = {
   ...MENU_BUTTON_STYLE, background: 'transparent',
   display: 'flex', alignItems: 'center', gap: 9, minHeight: 32, padding: `0 ${MENU_ROW_PAD_X}px`,
@@ -89,7 +80,7 @@ const MENU_ROW_STYLE: CSSProperties = {
 /** Row glyphs for the ＋ menu — same 16-unit line-art family the mobile attach menu uses, so the
  *  two surfaces read as one menu. Muted stroke: the label carries the row, the icon only anchors it. */
 function MenuIcon({ kind, size = 14, color = 'var(--proto-muted)' }: {
-  kind: 'attach' | 'browser' | 'commands';
+  kind: 'attach' | 'commands';
   size?: number;
   color?: string;
 }): JSX.Element {
@@ -101,14 +92,6 @@ function MenuIcon({ kind, size = 14, color = 'var(--proto-muted)' }: {
       </svg>
     );
   }
-  if (kind === 'browser') {
-    return (
-      <svg {...common} strokeWidth={1.4}>
-        <circle cx="8" cy="8" r="6.3" />
-        <path d="M1.7 8h12.6M8 1.7c-1.8 1.8-2.7 4-2.7 6.3s.9 4.5 2.7 6.3c1.8-1.8 2.7-4 2.7-6.3S9.8 3.5 8 1.7z" />
-      </svg>
-    );
-  }
   return (
     <svg {...common} strokeWidth={1.6} strokeLinecap="round">
       <path d="M10.3 2.6 5.7 13.4" />
@@ -116,112 +99,20 @@ function MenuIcon({ kind, size = 14, color = 'var(--proto-muted)' }: {
   );
 }
 
-/** The device list, shared by the ＋ menu's browser page and the capsule's own menu so the two
- *  entry points cannot drift apart. Includes the "off" row, which is how browsing is turned back off. */
-function BrowserDeviceRows({ options, current, onPick }: {
-  options: BrowserDeviceOption[];
-  current: string | null;
-  onPick: (device: string | null) => void;
-}): JSX.Element {
-  return (
-    <>
-      {options.map((o) => (
-        <button
-          type="button"
-          className={MENU_FOCUS}
-          aria-pressed={o.device === current}
-          key={o.device ?? '__off__'}
-          data-device={o.device ?? '__off__'}
-          onClick={(e) => { e.stopPropagation(); onPick(o.device); }}
-          style={{
-            ...MENU_ROW_STYLE, gap: 6,
-            background: o.device === current ? 'var(--proto-line-2)' : 'transparent',
-          }}
-        >
-          <span style={{ fontWeight: 500, color: 'var(--proto-ink)' }}>{o.label}</span>
-          <span style={{ fontSize: 12.5, color: 'var(--proto-muted)' }}>{o.sub}</span>
-          {o.device === current && (
-            <span style={{ marginLeft: 'auto', color: 'var(--proto-ink)', fontSize: 12, fontWeight: 700 }}>✓</span>
-          )}
-        </button>
-      ))}
-    </>
-  );
-}
-
-/**
- * The chosen browser, standing beside ＋ as a capsule.
- *
- * Opting in is otherwise invisible the moment the ＋ menu closes, and the choice is not a detail —
- * it decides which machine's screen the agent drives. So the selection keeps a marker on the
- * toolbar, and the marker IS the control: clicking it reopens the same device list, where another
- * machine is a switch and the off row ends browsing. No walk back through the ＋ menu.
- *
- * Nothing renders while browsing is off — an empty toolbar is the honest picture of no browser. A
- * live session's capsule only reports: the tool set is fixed when the agent process spawns.
- */
-function ComposerBrowserChip({ browser }: { browser: ComposerBrowserControl }): JSX.Element | null {
-  const L = useVocab();
-  const [open, setOpen] = useState(false);
-  const [hover, setHover] = useState(false);
-  const close = useCallback(() => setOpen(false), []);
-  useDismissMenu(open, close);
-  const options = useBrowserDeviceOptions(open);
-  const device = browser.device;
-  const editable = !!browser.onChange;
-  if (device === null) return null;
-  const lit = open || hover;
-
-  return (
-    <span style={{ position: 'relative', flex: 'none', display: 'inline-flex' }}>
-      <button
-        type="button"
-        className={MENU_FOCUS}
-        data-chip="browser"
-        data-browser-device={device}
-        data-editable={editable ? 'true' : 'false'}
-        aria-label={`${L.wbBrowser} · ${device}`}
-        aria-expanded={editable ? open : undefined}
-        onClick={editable ? (e) => { e.stopPropagation(); setOpen((o) => !o); } : undefined}
-        onMouseEnter={() => { if (editable) setHover(true); }}
-        onMouseLeave={() => setHover(false)}
-        style={{ ...quietChipStyle(lit), flex: 'none', maxWidth: 160, cursor: editable ? 'pointer' : 'default' }}
-      >
-        <MenuIcon kind="browser" size={12} color={QUIET_CHIP_GLYPH} />
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{device}</span>
-        {editable && <span aria-hidden="true" style={{ fontSize: 8, color: QUIET_CHIP_GLYPH }}>▾</span>}
-      </button>
-      {open && editable && (
-        <MenuCard kind="browser" align="left" minWidth={170}>
-          <BrowserDeviceRows
-            options={options}
-            current={device}
-            onPick={(picked) => { close(); browser.onChange!(picked); }}
-          />
-        </MenuCard>
-      )}
-    </span>
-  );
-}
-
 /**
  * The ＋ button and its menu — the single left-side entry point of the composer toolbar. Rarely-used
- * controls (attach, browser opt-in, local slash commands) fold in here so the toolbar itself stays
- * three elements: ＋, model, send. The browser row opens a second menu page listing devices.
+ * controls (attach, local slash commands) fold in here so the toolbar itself stays three elements:
+ * ＋, model, send.
  */
-function ComposerPlusMenu({ browser, onAttach, onCommands }: {
-  browser: ComposerBrowserControl | null;
+function ComposerPlusMenu({ onAttach, onCommands }: {
   onAttach: () => void;
   onCommands: () => void;
 }): JSX.Element {
   const L = useVocab();
   const [open, setOpen] = useState(false);
-  const [page, setPage] = useState<'root' | 'browser'>('root');
   const [hover, setHover] = useState(false);
-  const close = useCallback(() => { setOpen(false); setPage('root'); }, []);
+  const close = useCallback(() => setOpen(false), []);
   useDismissMenu(open, close);
-  const browserEditable = !!browser?.onChange;
-  const options = useBrowserDeviceOptions(open && page === 'browser');
   const active = open || hover;
 
   return (
@@ -249,62 +140,25 @@ function ComposerPlusMenu({ browser, onAttach, onCommands }: {
       </button>
       {open && (
         <MenuCard kind="plus" align="left" minWidth={190}>
-          {page === 'root' ? (
-            <>
-              <button
-                type="button" className={MENU_FOCUS}
-                data-plus-item="attach"
-                onClick={(e) => { e.stopPropagation(); close(); onAttach(); }}
-                style={MENU_ROW_STYLE}
-              >
-                <MenuIcon kind="attach" />
-                {L.wbAttach}
-                <span style={{ marginLeft: 'auto', paddingLeft: 12, fontSize: 12, color: 'var(--proto-faint)' }}>{L.wbAttachHint}</span>
-              </button>
-              {browser && (
-                <button
-                  type="button" className={MENU_FOCUS} disabled={!browserEditable}
-                  data-plus-item="browser"
-                  data-editable={browserEditable ? 'true' : 'false'}
-                  onClick={browserEditable ? (e) => { e.stopPropagation(); setPage('browser'); } : undefined}
-                  style={{ ...MENU_ROW_STYLE, cursor: browserEditable ? 'pointer' : 'default', opacity: browserEditable ? 1 : 0.6 }}
-                >
-                  <MenuIcon kind="browser" />
-                  {L.wbBrowser}
-                  <span style={{ marginLeft: 'auto', paddingLeft: 12, display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: browser.device ? 'var(--proto-ink-2)' : 'var(--proto-muted)' }}>
-                    {browser.device ?? L.wbBrowserOffOption}
-                    {browserEditable && <span style={{ fontSize: 8, color: 'var(--proto-muted)' }}>▸</span>}
-                  </span>
-                </button>
-              )}
-              <button
-                type="button" className={MENU_FOCUS}
-                data-plus-item="commands"
-                onClick={(e) => { e.stopPropagation(); close(); onCommands(); }}
-                style={MENU_ROW_STYLE}
-              >
-                <MenuIcon kind="commands" />
-                {L.commands}
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                type="button" className={MENU_FOCUS}
-                data-plus-back
-                onClick={(e) => { e.stopPropagation(); setPage('root'); }}
-                style={{ ...MENU_ROW_STYLE, minHeight: 28, color: 'var(--proto-muted)', fontSize: 12, fontWeight: 550 }}
-              >
-                ‹ {L.wbBrowser}
-              </button>
-              <Divider />
-              <BrowserDeviceRows
-                options={options}
-                current={browser!.device}
-                onPick={(device) => { close(); browser!.onChange!(device); }}
-              />
-            </>
-          )}
+          <button
+            type="button" className={MENU_FOCUS}
+            data-plus-item="attach"
+            onClick={(e) => { e.stopPropagation(); close(); onAttach(); }}
+            style={MENU_ROW_STYLE}
+          >
+            <MenuIcon kind="attach" />
+            {L.wbAttach}
+            <span style={{ marginLeft: 'auto', paddingLeft: 12, fontSize: 12, color: 'var(--proto-faint)' }}>{L.wbAttachHint}</span>
+          </button>
+          <button
+            type="button" className={MENU_FOCUS}
+            data-plus-item="commands"
+            onClick={(e) => { e.stopPropagation(); close(); onCommands(); }}
+            style={MENU_ROW_STYLE}
+          >
+            <MenuIcon kind="commands" />
+            {L.commands}
+          </button>
         </MenuCard>
       )}
     </span>
@@ -312,17 +166,14 @@ function ComposerPlusMenu({ browser, onAttach, onCommands }: {
 }
 
 /**
- * The composer toolbar: the full-width row under the input. ＋ (attach / browser / commands) sits
- * left, with the browser capsule beside it once a browser is on; agent,
+ * The composer toolbar: the full-width row under the input. ＋ (attach / commands) sits left; agent,
  * model, context ring and the send/stop cluster sit right, so every affordance shares one row and
  * the input above keeps the card's full width.
  *
  * The right cluster reads outside-in: WHERE the turn runs (the environment), then WHAT runs it (the
  * engine), then how much room is left, then send.
  */
-export function ComposerActionRow({ browser, onAttach, onCommands, agentControl, selectionControl, contextControl, sendControl }: {
-  /** null hides the browser row entirely — a live session that never opted in has nothing to show. */
-  browser: ComposerBrowserControl | null;
+export function ComposerActionRow({ onAttach, onCommands, agentControl, selectionControl, contextControl, sendControl }: {
   onAttach: () => void;
   onCommands: () => void;
   /** The environment chip (which agent the conversation runs in). Draws nothing of its own on a
@@ -335,8 +186,7 @@ export function ComposerActionRow({ browser, onAttach, onCommands, agentControl,
 }): JSX.Element {
   return (
     <div data-composer-actions style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
-      <ComposerPlusMenu browser={browser} onAttach={onAttach} onCommands={onCommands} />
-      {browser && <ComposerBrowserChip browser={browser} />}
+      <ComposerPlusMenu onAttach={onAttach} onCommands={onCommands} />
       <span style={{ marginLeft: 'auto' }} />
       {agentControl}
       {selectionControl}

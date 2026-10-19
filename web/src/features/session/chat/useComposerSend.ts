@@ -20,7 +20,6 @@ export type SlashFeedbackKey = ReturnType<typeof slashFeedbackKey>;
 /** What a draft's first message creates its session with, beyond the message itself. */
 export interface DraftCreation {
   selection: DraftSelection;
-  browserDevice: string | null;
 }
 
 export interface ComposerSlashHost {
@@ -140,14 +139,13 @@ export function useComposerSend(options: ComposerSendOptions): ComposerSend {
   const mutateSend = (text: string, attachments: AttachmentMeta[], draftUploadId?: string): Promise<SendResult> => {
     const withAttachments = attachments.length > 0 ? { attachments: uploadedAttachments(attachments) } : {};
     if (!isDraft) return sendMut.mutateAsync({ sessionId, text, ...withAttachments });
-    const { selection, browserDevice } = options.creation;
+    const { selection } = options.creation;
     return createAndSendMut.mutateAsync({
       projectId: options.projectId,
       ...(selection.selection ? { selection: selection.selection } : {}),
       ...(selection.agentName ? { agentName: selection.agentName } : {}),
       text,
       draftUploadId,
-      ...(browserDevice ? { browser: { device: browserDevice } } : {}),
       ...withAttachments,
     });
   };

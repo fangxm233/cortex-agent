@@ -157,10 +157,6 @@ export function MChatScreen(): JSX.Element {
     else selection.apply(row.change);
   };
 
-  // Browser control is chosen on the draft only: it decides what the agent's process spawns with,
-  // so a live session can report it but never change it.
-  const [draftBrowserDevice, setDraftBrowserDevice] = useState<string | null>(null);
-
   // Follow a created session only while this screen is still the draft on screen: a user who has
   // already gone back stays where they went.
   const onDraftScreen = useRef(false);
@@ -168,10 +164,7 @@ export function MChatScreen(): JSX.Element {
   const composer = useComposerSend({
     sessionId, isDraft, projectId: route.projectId ?? 'general',
     optimistic: chat.optimistic, running: chat.running, compactAction: chat.compactAction,
-    creation: {
-      selection: draftSelection,
-      browserDevice: draftBrowserDevice,
-    },
+    creation: { selection: draftSelection },
     slash: {
       modelOptions: selection.favoriteOptions,
       backend: selection.effective.backend,
@@ -208,14 +201,11 @@ export function MChatScreen(): JSX.Element {
     rewindPending: chat.rewind.pending, interactionsBusy: !!chat.interactionActions.busy,
   });
   const sessionStatsRows = useSessionStatsRows(active);
-  // A pending interaction outranks everything; then the phone's plain-words run line (browser
-  // start-up first).
+  // A pending interaction outranks everything; then the phone's plain-words run line.
   const runLine = mobileRunStatus({
     isDraft, running: chat.running, backgroundRunning: chat.backgroundRunning,
     starting: chat.pendingUser.length > 0, turns: chat.turns, cost: active?.costUsd ?? null,
     turnClock: chat.turnClock, waitingOn: active?.waitingOn ?? 0,
-    browserDevice: active?.browser?.device ?? draftBrowserDevice,
-    turnProgressStarted: chat.liveTurns !== null || chat.streaming,
     workers: teamRoster(team.workers).active.length, lastUsedAt: active?.lastUsedAt ?? null,
   }, vocab, lang);
   const status: ChatHeaderStatus = routing.headerStatus
@@ -268,9 +258,6 @@ export function MChatScreen(): JSX.Element {
       stopEnabled={!composer.stopPending}
       selection={selection}
       onPickSelection={onPickSelection}
-      browser={isDraft
-        ? { device: draftBrowserDevice, onPick: setDraftBrowserDevice }
-        : { device: active?.browser?.device ?? null }}
       contextUsage={chat.contextUsage}
       contextUsageSupported={!!active?.contextCompactionSupported}
       contextCompactAction={chat.compactAction}

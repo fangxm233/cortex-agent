@@ -22,10 +22,6 @@ function FileIcon(): JSX.Element {
   return <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke={MC.ink} strokeWidth="1.4"><path d="M3 1.5h5.5L11.5 4v8.5h-8.5z" /><path d="M8.5 1.5V4H11" /></svg>;
 }
 
-function BrowserIcon(): JSX.Element {
-  return <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke={MC.ink} strokeWidth="1.5"><circle cx="8" cy="8" r="6.5" /><path d="M1.5 8h13M8 1.5c-1.8 1.8-2.7 4-2.7 6.5S6.2 13.2 8 14.5c1.8-1.3 2.7-4 2.7-6.5S9.8 3.3 8 1.5z" /></svg>;
-}
-
 function CommandsIcon(): JSX.Element {
   return <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke={MC.ink} strokeWidth="1.6"><path d="M10.5 2.5 5.5 13.5" /></svg>;
 }
@@ -36,27 +32,23 @@ interface AttachMenuItemProps {
   onTap?: () => void;
   onClose: () => void;
   last?: boolean;
-  value?: string;
   itemKey?: string;
 }
 
 function AttachMenuItem(props: AttachMenuItemProps): JSX.Element {
   const tap = props.onTap ? (): void => { props.onTap?.(); props.onClose(); } : undefined;
-  const reportsOnly = props.itemKey === 'browser';
   return (
-    <div data-plus-item={props.itemKey} data-editable={reportsOnly ? (props.onTap ? 'true' : 'false') : undefined} onClick={tap} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 14px', borderBottom: props.last ? undefined : '1px solid var(--proto-line-2)', cursor: props.onTap ? 'pointer' : 'default', opacity: props.onTap ? 1 : 0.6 }}>
+    <div data-plus-item={props.itemKey} onClick={tap} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 14px', borderBottom: props.last ? undefined : '1px solid var(--proto-line-2)', cursor: props.onTap ? 'pointer' : 'default', opacity: props.onTap ? 1 : 0.6 }}>
       {props.icon}<span style={{ fontSize: 13, color: MC.ink, minWidth: 0, overflowWrap: 'anywhere' }}>{props.label}</span>
-      {props.value != null && <span style={{ marginLeft: 'auto', fontSize: 12, color: MC.muted, minWidth: 0, maxWidth: '55%', overflowWrap: 'anywhere', textAlign: 'right' }}>{props.value}</span>}
     </div>
   );
 }
 
-export function AttachMenu({ onClose, onCamera, onLibrary, onFile, browser, onCommands }: {
+export function AttachMenu({ onClose, onCamera, onLibrary, onFile, onCommands }: {
   onClose: () => void;
   onCamera: () => void;
   onLibrary: () => void;
   onFile: () => void;
-  browser?: { device: string | null; onOpen?: () => void };
   onCommands: () => void;
 }): JSX.Element {
   useEffect(() => {
@@ -72,7 +64,6 @@ export function AttachMenu({ onClose, onCamera, onLibrary, onFile, browser, onCo
       <AttachMenuItem label={copy.chatAttachCamera} onTap={onCamera} onClose={onClose} icon={<CameraIcon />} />
       <AttachMenuItem label={copy.chatAttachLibrary} onTap={onLibrary} onClose={onClose} icon={<LibraryIcon />} />
       <AttachMenuItem label={copy.chatAttachFile} onTap={onFile} onClose={onClose} icon={<FileIcon />} />
-      {browser && <AttachMenuItem label={copy.chatAttachBrowser} onTap={browser.onOpen} onClose={onClose} icon={<BrowserIcon />} itemKey="browser" value={browser.device ?? undefined} />}
       <AttachMenuItem label={copy.chatAttachCommands} onTap={onCommands} onClose={onClose} icon={<CommandsIcon />} itemKey="commands" last />
     </div></>
   );
@@ -156,55 +147,12 @@ function AgentChip({ axis, label, followingDefault, onClick }: {
   );
 }
 
-/** Browser reports as a bare icon key, the size of ＋. The phone toolbar cannot seat a named chip
- *  next to the model chip and the send keys, and the model is the one that must stay legible — so the
- *  device name moves into the sheet the key opens (and into its aria-label/tooltip). The key is only
- *  there while browsing is on, so its presence says the mode is on; it takes the same quiet fill as
- *  ＋ rather than the accent. */
-const modeChipStyle: CSSProperties = {
-  flex: 'none', width: 34, height: 34, padding: 0, boxSizing: 'border-box', borderRadius: '50%',
-  border: 0, background: 'var(--proto-gray)', color: 'var(--proto-ink-2)',
-  display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 0,
-};
-
-export function BrowserChip({ device, label, onClick }: {
-  device: string;
-  label: string;
-  onClick?: () => void;
-}): JSX.Element {
-  return (
-    <button type="button" data-chip="browser" data-browser-device={device}
-      data-editable={onClick ? 'true' : 'false'} aria-label={`${label} · ${device}`} title={`${label} · ${device}`}
-      onClick={onClick} style={{ ...modeChipStyle, cursor: onClick ? 'pointer' : 'default' }}>
-      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor"
-        strokeWidth="1.5" style={{ flex: 'none' }}>
-        <circle cx="8" cy="8" r="6.5" />
-        <path d="M1.5 8h13M8 1.5c-1.8 1.8-2.7 4-2.7 6.5S6.2 13.2 8 14.5c1.8-1.3 2.7-4 2.7-6.5S9.8 3.3 8 1.5z" />
-      </svg>
-    </button>
-  );
-}
-
 export function ComposerLeading({ onClick }: { onClick: () => void }): JSX.Element {
   const vocab = useVocabOptional();
   return (
     <button type="button" aria-label={vocab.cmAttach} onClick={onClick} style={{ flex: 'none', width: 34, height: 34, borderRadius: '50%', border: 0, background: 'var(--proto-gray)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', color: MC.sub, lineHeight: 0, cursor: 'pointer', padding: 0 }}>
       <PlusGlyph size={15} strokeWidth={1.8} />
     </button>
-  );
-}
-
-/** The left of the toolbar: ＋, then the browser key while browsing is on. */
-export function ComposerKeys({ browser, overlay }: Pick<MChatViewProps, 'browser'> & {
-  overlay: ChatOverlay;
-}): JSX.Element {
-  const L = useVocabOptional();
-  return (
-    <>
-      <ComposerLeading onClick={() => overlay.toggle('attach')} />
-      {browser?.device && <BrowserChip device={browser.device} label={L.chatAttachBrowser}
-        onClick={browser.onPick ? () => overlay.open('browser') : undefined} />}
-    </>
   );
 }
 

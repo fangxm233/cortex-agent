@@ -1,18 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LangProvider } from '@/i18n';
-import { DEFAULT_BROWSER_DEVICE } from '@/features/browser/BrowserOptIn';
 import { MENU_INSET, MenuCard, MenuRow } from '@/design/MenuChrome';
-import {
-  ComposerActionRow, ComposerSlashMenu,
-  type ComposerBrowserControl,
-} from './ComposerActionRow';
-
-beforeEach(() => {
-  // The browser page reads the connected devices when it opens; no device is the ordinary case.
-  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ ok: true, data: { devices: [] } }) })));
-});
+import { ComposerActionRow, ComposerSlashMenu } from './ComposerActionRow';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -94,10 +85,7 @@ describe('ComposerSlashMenu', () => {
   });
 });
 
-function renderRow(
-  browser: ComposerBrowserControl | null,
-  agentControl: JSX.Element | null = null,
-) {
+function renderRow(agentControl: JSX.Element | null = null) {
   const onAttach = vi.fn();
   const onCommands = vi.fn();
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -107,7 +95,6 @@ function renderRow(
       <QueryClientProvider client={queryClient}>
         <LangProvider>
           <ComposerActionRow
-            browser={browser}
             onAttach={onAttach}
             onCommands={onCommands}
             agentControl={agentControl}
@@ -131,7 +118,7 @@ describe('ComposerActionRow ＋ menu', () => {
   it('returns focus from a menu item on Escape but not on outside clicks', () => {
     const target = new EventTarget();
     vi.stubGlobal('window', target);
-    const { renderer } = renderRow(null);
+    const { renderer } = renderRow();
     const trigger = { isConnected: true, focus: vi.fn() };
     vi.stubGlobal('document', { activeElement: trigger });
     openPlus(renderer);
@@ -146,50 +133,12 @@ describe('ComposerActionRow ＋ menu', () => {
     expect(trigger.focus).not.toHaveBeenCalled();
     act(() => renderer.unmount());
   });
-
-  it('offers a device page rather than a bare toggle, and picking this host names it', () => {
-    // Where the browser runs matters as much as whether it runs: the server draws on the server's
-    // display, a device opens a window on the screen in front of you.
-    const onChange = vi.fn();
-    const { renderer } = renderRow({ device: null, onChange });
-    openPlus(renderer);
-    act(() => renderer.root.findByProps({ 'data-plus-item': 'browser' }).props.onClick(click));
-    const row = renderer.root.findByProps({ 'data-device': DEFAULT_BROWSER_DEVICE });
-    expect(row.type).toBe('button');
-    expect(row.props.type).toBe('button');
-    expect(row.props.className).toContain('focus-visible:outline');
-    const menu = renderer.root.findByProps({ 'data-menu': 'plus' });
-    expect(menu.props.style.background).toBe('var(--material-overlay-bg)');
-    expect(menu.props.style.backdropFilter).toBe('var(--glass-filter)');
-    act(() => row.props.onClick(click));
-    expect(onChange).toHaveBeenCalledWith(DEFAULT_BROWSER_DEVICE);
-  });
-
-  it('turning it off clears the device rather than keeping a stale one', () => {
-    const onChange = vi.fn();
-    const { renderer } = renderRow({ device: DEFAULT_BROWSER_DEVICE, onChange });
-    openPlus(renderer);
-    act(() => renderer.root.findByProps({ 'data-plus-item': 'browser' }).props.onClick(click));
-    act(() => renderer.root.findByProps({ 'data-device': '__off__' }).props.onClick(click));
-    expect(onChange).toHaveBeenCalledWith(null);
-  });
-
-  it('reports the device without offering a control on an existing session', () => {
-    // The agent's tool set is fixed when its process spawns, so a switch here would be a lie.
-    const { renderer } = renderRow({ device: 'server' });
-    openPlus(renderer);
-    const row = renderer.root.findByProps({ 'data-plus-item': 'browser' });
-    expect(row.props['data-editable']).toBe('false');
-    expect(row.type).toBe('button');
-    expect(row.props.disabled).toBe(true);
-    expect(row.props.onClick).toBeUndefined();
-  });
 });
 
 describe('ComposerActionRow right cluster', () => {
 
   it('seats the environment before the engine — where the turn runs, then what runs it', () => {
-    const { renderer } = renderRow(null, <span data-chip="agent">creative</span>);
+    const { renderer } = renderRow(<span data-chip="agent">creative</span>);
     const chips = renderer.root.findAllByProps({ 'data-composer-actions': true })[0]
       .findAllByType('span')
       .map((node) => node.props['data-chip'])
@@ -199,22 +148,18 @@ describe('ComposerActionRow right cluster', () => {
 
   it('leaves the row as it was when the host offers no environment to pick', () => {
     // The chip decides that for itself (SessionSelector.test); the row only has to survive it.
-    const { renderer } = renderRow(null);
+    const { renderer } = renderRow();
     expect(renderer.root.findAllByProps({ 'data-chip': 'agent' })).toHaveLength(0);
     expect(renderer.root.findAllByProps({ 'data-chip': 'selection' })).toHaveLength(1);
   });
 });
 
 describe('ComposerActionRow quiet controls', () => {
-  it('draws ＋ as a transparent circle and the browser as a filled quiet chip in the UI face', () => {
-    const { renderer } = renderRow({ device: DEFAULT_BROWSER_DEVICE, onChange: vi.fn() });
+  it('draws ＋ as a transparent circle, without the accent', () => {
+    const { renderer } = renderRow();
     const plus = renderer.root.findByProps({ 'data-chip': 'plus' });
     expect(plus.props.style.background).toBe('transparent');
     expect(plus.props.style.border).toBe(0);
-    const chip = renderer.root.findByProps({ 'data-chip': 'browser' });
-    expect(chip.props.style.background).toBe('var(--proto-line-2)');
-    expect(chip.props.style.border).toBe(0);
-    expect(chip.props.style.font).toContain('var(--font-ui)');
     expect(inlineStyles(renderer)).not.toMatch(/proto-accent|Plex/);
     openPlus(renderer);
     expect(renderer.root.findByProps({ 'data-chip': 'plus' }).props.style.background).toBe('var(--proto-gray)');
@@ -222,11 +167,17 @@ describe('ComposerActionRow quiet controls', () => {
 });
 
 describe('ComposerActionRow plus menu', () => {
-  it('offers attach, browser and commands only', () => {
-    const { renderer } = renderRow({ device: null, onChange: vi.fn() });
+  it('offers attach and commands only, on the glass menu surface', () => {
+    const { renderer, onAttach } = renderRow();
     openPlus(renderer);
     const items = renderer.root.findAll((node) => typeof node.props['data-plus-item'] === 'string' && node.type === 'button')
       .map((node) => node.props['data-plus-item']);
-    expect(items).toEqual(['attach', 'browser', 'commands']);
+    expect(items).toEqual(['attach', 'commands']);
+    const menu = renderer.root.findByProps({ 'data-menu': 'plus' });
+    expect(menu.props.style.background).toBe('var(--material-overlay-bg)');
+    expect(menu.props.style.backdropFilter).toBe('var(--glass-filter)');
+    act(() => renderer.root.findByProps({ 'data-plus-item': 'attach' }).props.onClick(click));
+    expect(onAttach).toHaveBeenCalledOnce();
+    expect(renderer.root.findAllByProps({ 'data-menu': 'plus' })).toHaveLength(0);
   });
 });

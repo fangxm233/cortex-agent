@@ -24,7 +24,7 @@ import { MAskCard, MPlanCard } from './MInteractionCards';
 import { AttachmentGroup } from './MChatAttachments';
 import { AssistantTurnCopyAction, longPressHandlers, MsgActionMenu } from './MChatMessageActions';
 import {
-  ComposerAbove, ComposerKeys, ComposerTools, MobileSlashMenu, useFilePicker,
+  ComposerAbove, ComposerLeading, ComposerTools, MobileSlashMenu, useFilePicker,
 } from './MChatComposerPresentation';
 import { MChatOverlays } from './MChatOverlays';
 import { selectionView, type MChatSelectionView } from './m-chat-selection';
@@ -704,7 +704,7 @@ function MChatComposer({ props, shellRef, overlay, selection }: {
       placeholder={props.composerPlaceholder ?? (props.attachments.length > 0 ? L.chatAttachPlaceholder : L.chatComposerPh)}
       value={props.composerValue} onChange={props.onComposerChange} onSend={props.onSend} sendEnabled={props.sendEnabled}
       running={props.status.running} onStop={props.onStop} stopEnabled={props.stopEnabled}
-      leading={takenOver ? undefined : <ComposerKeys browser={props.browser} overlay={overlay} />}
+      leading={takenOver ? undefined : <ComposerLeading onClick={() => overlay.toggle('attach')} />}
       tools={takenOver ? null : <ComposerTools selection={props.selection} view={selection} />}
       above={<ComposerAbove props={props} overlay={overlay} />}
       commandMenu={commandMenu}

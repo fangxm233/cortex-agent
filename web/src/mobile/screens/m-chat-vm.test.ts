@@ -50,7 +50,7 @@ describe('mobileRunStatus', () => {
   const NOW = Date.parse('2026-07-15T10:00:00Z');
   const base: MobileRunStatusInput = {
     isDraft: false, running: false, backgroundRunning: false, starting: false, turns: 3, cost: 0.12,
-    turnClock: null, waitingOn: 0, browserDevice: null, turnProgressStarted: true,
+    turnClock: null, waitingOn: 0,
     workers: 0, lastUsedAt: '2026-07-15T09:58:00Z', now: NOW,
   };
 
@@ -72,11 +72,6 @@ describe('mobileRunStatus', () => {
   it('holds a background session apart from a running turn', () => {
     expect(mobileRunStatus({ ...base, running: true, backgroundRunning: true }, en, 'en'))
       .toEqual({ active: true, text: 'Running in background' });
-  });
-
-  it('lets browser start-up outrank the run line', () => {
-    const line = mobileRunStatus({ ...base, running: true, browserDevice: 'laptop', turnProgressStarted: false }, en, 'en');
-    expect(line.text).toBe(en.wbBrowserStarting.replace('{device}', 'laptop'));
   });
 });
 

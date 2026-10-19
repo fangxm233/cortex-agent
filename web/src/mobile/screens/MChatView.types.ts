@@ -103,8 +103,6 @@ export interface MChatViewProps {
   selection: MChatSelection;
   /** A sheet row was tapped: send its change. */
   onPickSelection: (row: SelectionSheetRow) => void;
-  /** Browser control: the device in force; `onPick` only where it can still be chosen (a draft). */
-  browser?: { device: string | null; onPick?: (device: string | null) => void };
   contextUsage?: SessionContextUsage | null;
   contextUsageSupported?: boolean;
   contextCompactAction?: ContextCompactAction;

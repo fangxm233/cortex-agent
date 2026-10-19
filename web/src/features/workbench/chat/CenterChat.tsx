@@ -279,12 +279,10 @@ export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
           isDraft={isDraft}
           currentSelection={active?.selection}
           currentAgent={active?.agentName}
-          sessionBrowser={active?.browser ?? null}
           hasHistory={chat.hasHistory}
           projectId={currentProjectId ?? 'general'}
           optimistic={chat.optimistic}
           showStatus={!preFirstMessage}
-          turnProgressStarted={chat.liveTurns !== null || chat.streaming}
           compactAction={chat.compactAction}
           todos={chat.todos}
           waitpoints={chat.waitpoints}

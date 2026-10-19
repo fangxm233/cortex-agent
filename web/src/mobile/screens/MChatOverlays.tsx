@@ -2,7 +2,7 @@ import { useVocabOptional } from '@/i18n';
 import { MBottomSheet, MC } from '@/mobile/ui/kit';
 import { AttachMenu } from './MChatComposerPresentation';
 import {
-  BrowserSheet, ContextUsageSheet, SelectionSheets, SessionIdSheet, SessionStatsSheet,
+  ContextUsageSheet, SelectionSheets, SessionIdSheet, SessionStatsSheet,
 } from './MChatSheets';
 import { MChatSessionMenu } from './MChatSessionMenu';
 import { MTeamSheet } from './MChatTeam';
@@ -66,30 +66,14 @@ function SessionOverlays({ props, overlay }: OverlayProps): JSX.Element {
   );
 }
 
-/** ＋ menu entry for browser control: shown where it is on or can still be chosen; tappable only
- *  where it can. */
-function attachModes({ props, overlay }: OverlayProps) {
-  const { browser } = props;
-  return {
-    browser: browser && (browser.onPick || browser.device)
-      ? { device: browser.device, onOpen: browser.onPick ? () => overlay.open('browser') : undefined }
-      : undefined,
-  };
-}
-
 function ComposerOverlays({ props, overlay, files }: OverlayProps & {
   files: { camera: () => void; library: () => void; file: () => void };
 }): JSX.Element {
-  const { browser } = props;
-  const pickBrowser = (device: string | null): void => { browser?.onPick?.(device); overlay.close('browser'); };
   return (
     <>
       {overlay.is('attach') && (
         <AttachMenu onClose={() => overlay.close('attach')} onCamera={files.camera} onLibrary={files.library}
-          onFile={files.file} {...attachModes({ props, overlay })} onCommands={() => { if (props.onCommands) props.onCommands(); else if (!props.composerValue) props.onComposerChange('/'); }} />
-      )}
-      {overlay.is('browser') && (
-        <BrowserSheet current={browser?.device ?? null} onClose={() => overlay.close('browser')} onPick={pickBrowser} />
+          onFile={files.file} onCommands={() => { if (props.onCommands) props.onCommands(); else if (!props.composerValue) props.onComposerChange('/'); }} />
       )}
     </>
   );

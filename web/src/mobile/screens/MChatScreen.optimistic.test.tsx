@@ -321,7 +321,6 @@ describe('mobile chat run status priority', () => {
       ...SESSION,
       running: true,
       backgroundRunning: true,
-      browser: { device: 'desk' },
       numTurns: 2,
     }];
     harness.liveState = {
@@ -333,12 +332,11 @@ describe('mobile chat run status priority', () => {
     expect(view(mounted).props['data-status-running']).toBe(true);
   });
 
-  it('keeps a pending interaction ahead of browser and background status', () => {
+  it('keeps a pending interaction ahead of background status', () => {
     harness.sessions = [{
       ...SESSION,
       running: true,
       backgroundRunning: true,
-      browser: { device: 'desk' },
       numTurns: 1,
     }];
     harness.liveState = {

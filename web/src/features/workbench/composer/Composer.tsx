@@ -18,10 +18,7 @@ import { ComposerSendFailure } from './ComposerSendFailure';
 import { ComposerAttachmentChip } from './ComposerAttachmentChip';
 import { ActivityStrip } from '@/features/session/rail/ActivityStrip';
 import type { SessionWaitpoints } from '@/features/session/live/useSessionWaitpoints';
-import {
-  ComposerActionRow, ComposerSlashMenu,
-  type ComposerBrowserControl,
-} from './ComposerActionRow';
+import { ComposerActionRow, ComposerSlashMenu } from './ComposerActionRow';
 import { AgentSelectorView, SessionSelectorView } from './SessionSelector';
 import type { ContextCompactAction } from '@/features/session/composer/ContextUsageControl';
 import type { EngineSelection, SessionTotals, TodoSnapshot } from '@cortex-agent/ui-contract';
@@ -31,7 +28,7 @@ import { useFileDropTarget } from './useFileDropTarget';
 import { ChatDropOverlay } from './ChatDropOverlay';
 
 // Composer — a unified card: full-width input on top, one toolbar row below. The toolbar keeps the
-// ＋ menu (attach · browser opt-in · local slash commands) on the left and the model chip, context
+// ＋ menu (attach · local slash commands) on the left and the model chip, context
 // ring and Send/Stop cluster on the right.
 // Three entry points for files: ＋ menu "attach" · paste (clipboard images) · drag & drop.
 // Files upload to the server's tmp/attachments/<sessionId>/ and are referenced by path.
@@ -64,8 +61,6 @@ export interface ComposerProps {
   /** Wall-clock lifetime of the session, for the detail modal's "open since" row. */
   sessionSpanMs?: number | null;
   isDraft?: boolean;
-  /** Browser control an EXISTING session was created with. Read-only — fixed at spawn. */
-  sessionBrowser?: { device: string } | null;
   currentSelection: EngineSelection | null | undefined;
   /** The agent it runs in, from that same row. Null = it follows the host's default. */
   currentAgent?: string | null;
@@ -76,8 +71,6 @@ export interface ComposerProps {
   optimistic: Pick<OptimisticUserMessages, 'pendingUser' | 'prepare' | 'enqueue' | 'accept' | 'reject'>;
   /** The untouched New Session hides status until its first optimistic message appears. */
   showStatus?: boolean;
-  /** True after this turn emits its first agent progress or streamed output. */
-  turnProgressStarted?: boolean;
   /** Context-usage ring (modal trigger), rendered in the toolbar right cluster beside the model. */
   contextControl?: ReactNode;
   todos?: TodoSnapshot | null;
@@ -102,14 +95,12 @@ export function Composer({
   totals = null,
   sessionSpanMs: spanMs = null,
   isDraft = false,
-  sessionBrowser = null,
   currentSelection,
   currentAgent = null,
   hasHistory,
   projectId = 'general',
   optimistic,
   showStatus = true,
-  turnProgressStarted = false,
   contextControl,
   todos,
   waitpoints,
@@ -128,9 +119,6 @@ export function Composer({
     sessionId, currentSelection, currentAgent, hasHistory, isDraft,
     draftSelection, setDraftSelection, pendingCreatedSession,
   });
-  // Draft-only: the browser tool set is fixed when the agent process spawns, so this is a
-  // creation-time choice, not a session setting.
-  const [browserDevice, setBrowserDevice] = useState<string | null>(null);
   const [sendError, setSendError] = useState<Error | null>(null);
   const [slashErrorKey, setSlashErrorKey] = useState<SlashFeedbackKey>(null);
   const [statsOpen, setStatsOpen] = useState(false);
@@ -142,10 +130,7 @@ export function Composer({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const composerSend = useComposerSend({
     sessionId, isDraft, projectId, reloadToken: draftReloadToken, optimistic, running, compactAction,
-    creation: {
-      selection: draftSelection,
-      browserDevice,
-    },
+    creation: { selection: draftSelection },
     slash: {
       modelOptions: engineSelection.favoriteOptions,
       backend: engineSelection.effective.backend,
@@ -210,7 +195,7 @@ export function Composer({
   const composerRing = focused || canSend || slashOpen;
   const statusLine = runStatusLine({
     isDraft, running, backgroundRunning, starting: optimistic.pendingUser.length > 0, turns, cost, turnClock,
-    waitingOn, browserDevice: sessionBrowser?.device ?? browserDevice, turnProgressStarted,
+    waitingOn,
   }, L, lang);
   // Second segment: the same three quantities for the WHOLE session. Independent of the run status —
   // totals are finalized numbers, so they stay on screen (and stay still) while a turn runs.
@@ -386,13 +371,6 @@ export function Composer({
                 makes the keyboard behaviour (⏎ mid-turn) visible instead of accidental; with an
                 empty input mid-turn it would only be a disabled circle, so Stop stands alone. */}
             <ComposerActionRow
-              browser={isDraft
-                ? { device: browserDevice, onChange: setBrowserDevice } satisfies ComposerBrowserControl
-                // A live session shows what it was created with, without pretending it can
-                // be changed now.
-                : sessionBrowser
-                  ? { device: sessionBrowser.device }
-                  : null}
               onAttach={() => fileInputRef.current?.click()}
               onCommands={() => { composerSend.openCommands(); setSlashOpen(true); }}
               agentControl={<AgentSelectorView selection={engineSelection} />}
