@@ -17,6 +17,7 @@ import { getCurrentPlanFilePath } from '../../agent-adapter/claude/event-parser.
 import { handleSubagentWebhook } from '../subagent-webhook.js';
 import { handleTeamWebhook } from '../team-webhook.js';
 import { handleBoardWebhook } from '../board-webhook.js';
+import { handleBrowserWebhook } from '../browser-webhook.js';
 import { handleBenchmarkSessionWebhook } from '../benchmark-session-webhook.js';
 import { sendAgentFiles } from '../agent-file-send.js';
 import { sendAgentView } from '../agent-view-send.js';
@@ -387,6 +388,9 @@ const POST_ROUTES: Record<string, RequestHandler> = {
   '/webhook/team': replyRoute(handleTeamWebhook),
   // board_open and cortex_context's board field. Never touches board.html after the scaffold.
   '/webhook/board': replyRoute((data) => handleBoardWebhook(data)),
+  // cortex-browser: `lease` starts or renews the session's browser and returns how to reach it;
+  // `report` follows each finished command so the UI shows the page it left behind.
+  '/webhook/browser': replyRoute((data) => handleBrowserWebhook(data)),
   // Benchmark launcher: `start` returns once the session exists and its task is handed over;
   // `status` is polled.
   '/webhook/benchmark-session': replyRoute(handleBenchmarkSessionWebhook),

@@ -10,6 +10,7 @@
   "main": "dist/entry/app.js",
   "bin": {
     "cortex": "dist/entry/cortex-cli.js",
+    "cortex-browser": "dist/entry/browser-cli.js",
     "cortex-evidence-export": "dist/entry/production-evidence-export-cli.js",
     "cortex-hook": "dist/entry/hook-cli.js",
     "cortex-signal": "dist/entry/signal-cli.js"
@@ -49,6 +50,7 @@
     "@slack/bolt": "^4.6.0",
     "@slack/web-api": "^7.14.1",
     "@trpc/server": "^11",
+    "agent-browser": "0.39.1",
     "aistatus": "~0.0.11",
     "dotenv": "^16.4.7",
     "ink": "^5.2.1",
