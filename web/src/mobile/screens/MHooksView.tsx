@@ -4,8 +4,7 @@ import {
   MC,
   MONO,
 } from '@/mobile/ui/kit';
-import { MSettingsSurfaceCard as MCard, MSettingsSheet as MBottomSheet,
-  MSettingsGroupLabel as MGroupLabel } from './MSettingsControls';
+import { MSET_INSET, MSettingsSection, MSettingsSheet as MBottomSheet } from './MSettingsControls';
 import { useVocab, type Vocab } from '@/i18n';
 import type { MHooksVm, MHookGroup, MHookRow, MHookGroupKey, MHookDetailVm } from './m-hooks-vm';
 
@@ -18,8 +17,12 @@ const APPLIES_KEYS: Record<MHookDetailVm['appliesAt'], keyof Vocab> = {
 /** Placeholder for a declared-but-absent value. */
 const NONE = '—';
 
-const ID_STYLE: React.CSSProperties = { font: `600 12.5px ${MONO}`, color: MC.ink, overflowWrap: 'anywhere' };
-const META_STYLE: React.CSSProperties = { fontSize: 12.5, color: MC.muted, marginTop: 3, overflowWrap: 'anywhere' };
+const ID_STYLE: React.CSSProperties = { display: 'block', font: `600 12.5px ${MONO}`, overflowWrap: 'anywhere' };
+const META_STYLE: React.CSSProperties = { display: 'block', fontSize: 12.5, color: MC.muted, marginTop: 3, overflowWrap: 'anywhere' };
+const ROW_STYLE: React.CSSProperties = {
+  width: '100%', minHeight: 44, border: 0, background: 'transparent', padding: `11px ${MSET_INSET}px`,
+  display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', cursor: 'pointer',
+};
 
 // ── mount targets (plan §4.1): where the declaration actually installs once compiled ────────
 // Quiet gray tags: a mount target is a fact about the hook, not a running state.
@@ -35,34 +38,33 @@ function MountBadges({ targets }: { targets: MHookRow['mountsOn'] }) {
   );
 }
 
+// Enabled is the default, so a row only speaks up when it deviates: a disabled hook greys out and
+// says so; a declared script that is not on disk fails silently at runtime (plan §4.5) — the only
+// condition on this read-only surface that deserves an alarm colour.
+function HookState({ row, L }: { row: MHookRow; L: Vocab }) {
+  if (row.scriptMissing) {
+    return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flex: 'none', fontSize: 12, color: MC.fail }}>
+      <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', background: MC.fail }} />{L.hookScriptMissing}
+    </span>;
+  }
+  return row.enabled ? null : <span style={{ fontSize: 12, color: MC.muted, flex: 'none' }}>{L.stHookDisabled}</span>;
+}
+
 // ── one hook row — tapping it opens the read-only declaration sheet ─────────────
 function HookRow({ row, L, onOpen }: { row: MHookRow; L: Vocab; onOpen: (key: string) => void }) {
+  const source = row.source === 'builtin' ? L.hkSourceBuiltin : L.hkSourceUser;
   return (
-    <MCard onClick={() => onOpen(row.key)}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={ID_STYLE}>{row.id}</div>
-          <div style={META_STYLE}>
-            {row.event} · {row.source === 'builtin' ? L.hkSourceBuiltin : L.hkSourceUser}
-          </div>
-        </div>
-        <span style={{ flex: 'none' }}>
-          <MPill tone={row.enabled ? 'done' : 'cancelled'}>{row.enabled ? L.stHookEnabled : L.stHookDisabled}</MPill>
+    <button type="button" data-hook-row={row.key} onClick={() => onOpen(row.key)} style={ROW_STYLE}>
+      <span style={{ minWidth: 0, flex: 1 }}>
+        <span style={{ ...ID_STYLE, color: row.enabled ? MC.ink : MC.muted }}>{row.id}</span>
+        <span style={META_STYLE}>
+          <span style={{ fontFamily: MONO, fontSize: 12 }}>{row.event}</span>
+          {' · '}{[source, ...row.mountsOn].join(' · ')}
         </span>
-      </div>
-      {(row.mountsOn.length > 0 || row.scriptMissing) && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-          <MountBadges targets={row.mountsOn} />
-          {/* A declared script that is not on disk fails silently at runtime (plan §4.5) — the only
-              condition on this read-only surface that deserves an alarm colour. */}
-          {row.scriptMissing && (
-            <span style={{ marginLeft: 'auto', flex: 'none' }}>
-              <MPill tone="failed">{L.hookScriptMissing}</MPill>
-            </span>
-          )}
-        </div>
-      )}
-    </MCard>
+      </span>
+      <HookState row={row} L={L} />
+      <span aria-hidden="true" style={{ color: MC.faint, fontSize: 15, flex: 'none' }}>›</span>
+    </button>
   );
 }
 
@@ -76,14 +78,11 @@ function GroupSection({
   onOpenHook: (key: string) => void;
 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <MGroupLabel>
-        {L[GROUP_KEYS[group.key]]} · {group.rows.length}
-      </MGroupLabel>
+    <MSettingsSection title={`${L[GROUP_KEYS[group.key]]} · ${group.rows.length}`}>
       {group.rows.map((row) => (
         <HookRow key={row.key} row={row} L={L} onOpen={onOpenHook} />
       ))}
-    </div>
+    </MSettingsSection>
   );
 }
 
@@ -241,7 +240,7 @@ export function MHooksView({
         <GroupSection key={group.key} group={group} L={L} onOpenHook={onOpenHook} />
       ))}
       {vm.groups.length > 0 && (
-        <div style={{ padding: '2px 4px', fontSize: 12, color: MC.muted, textAlign: 'right' }}>
+        <div style={{ padding: `0 ${MSET_INSET}px`, fontSize: 12, color: MC.muted, textAlign: 'right' }}>
           {L.setEditOnDesktop}
         </div>
       )}
