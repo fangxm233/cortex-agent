@@ -5,23 +5,6 @@ import './settings-style.css';
 
 export * from './settings-kit';
 
-// A section container: no fill, border, shadow or radius. Its header is a section heading.
-// Rest props are forwarded so callers can hang `data-*` hooks off it. TypeScript does not
-// type-check hyphenated JSX attributes, so without this they would be dropped silently.
-export function SCard({
-  children,
-  style,
-  className,
-  ...rest
-}: { children: ReactNode; style?: CSSProperties } & Record<string, unknown>) {
-  return <div {...rest} className={settingsClassName('settings-card', className)} style={{ minWidth: 0, ...style }}>{children}</div>;
-}
-
-/** The heading that names the content below it: 13px/600 ink over a hairline, meta on the right. */
-export function SCardHeader({ title, right }: { title: ReactNode; right?: ReactNode }) {
-  return <SSectionHeading className="settings-card-header" title={title} right={right} />;
-}
-
 function isActionKey(key: string): boolean {
   return key === 'Enter' || key === ' ' || key === 'Spacebar';
 }

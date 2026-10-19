@@ -180,36 +180,7 @@ export function SSegmented<T extends string>({ value, options, onChange, dataAtt
   );
 }
 
-// ── Chips and pills ─────────────────────────────────────────────────────────
-export type SPillTone = 'strong' | 'amber' | 'success' | 'danger' | 'neutral';
-
-// `strong` marks the one that is current (the default model, the account in use, a built-in): the
-// neutral tint with ink text — a stronger word, not an accent block. Colour stays for status.
-const PILL_TONE: Record<SPillTone, CSSProperties> = {
-  strong: { background: 'var(--proto-gray)', color: 'var(--proto-ink-3)' },
-  amber: { background: 'var(--proto-amber-bg)', color: 'var(--proto-amber-fg)' },
-  success: { background: 'var(--proto-success-bg)', color: 'color-mix(in srgb, var(--proto-success) 85%, var(--proto-ink))' },
-  danger: { background: 'var(--proto-danger-bg)', color: 'var(--proto-danger)' },
-  neutral: { background: 'var(--proto-gray)', color: 'var(--proto-muted)' },
-};
-
-/** The one badge shape in settings: a soft tinted capsule, never outlined, in the UI face. */
-export function SPill({ tone = 'neutral', children, ...rest }: {
-  tone?: SPillTone;
-  children: ReactNode;
-} & Record<string, unknown>) {
-  return (
-    <span {...rest} style={{
-      display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none',
-      fontSize: 11, fontWeight: 550, fontVariantNumeric: 'tabular-nums',
-      lineHeight: 1.5, padding: '1px 7px', borderRadius: 'var(--r-pill)',
-      whiteSpace: 'nowrap', ...PILL_TONE[tone],
-    }}>
-      {children}
-    </span>
-  );
-}
-
+// ── Status and meta ─────────────────────────────────────────────────────────
 export type SStatusTone = 'success' | 'amber' | 'danger' | 'neutral';
 
 // Neutral is a hollow ring: a state that is off or unset, not one that is wrong.
@@ -253,6 +224,7 @@ export function SMeta({ children, style, ...rest }: { children: ReactNode; style
   );
 }
 
+// ── Counts and chips ────────────────────────────────────────────────────────
 /** A count beside a heading or a tab: a plain number, not a filled badge. `amber` is for a count
  *  of things that need the user (issues to fix); `quiet` is a plain tally. */
 export function SCount({ children, tone = 'amber' }: { children: ReactNode; tone?: 'amber' | 'quiet' }) {

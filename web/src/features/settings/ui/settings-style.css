@@ -23,7 +23,7 @@
   overflow-wrap: anywhere;
 }
 
-.settings-surface :where(.settings-card, .settings-section, .settings-row-group, .settings-entity-row, .settings-stat) {
+.settings-surface :where(.settings-section, .settings-row-group, .settings-entity-row, .settings-stat) {
   min-width: 0;
   box-sizing: border-box;
 }
