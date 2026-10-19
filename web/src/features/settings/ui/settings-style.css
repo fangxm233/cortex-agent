@@ -29,8 +29,9 @@
 }
 
 /* Sections are flat: a heading over a hairline, then rows. Content that is not a run of rows gets
-   the same 12px under the heading's hairline that a row's own padding gives. */
-.settings-surface .settings-section-body > :first-child:not(.settings-row-group) { margin-top: 12px; }
+   the same 12px under the heading's hairline that a row's own padding gives; `.settings-flush`
+   marks a wrapper whose first child is already a padded row. */
+.settings-surface .settings-section-body > :first-child:not(.settings-row-group, .settings-flush) { margin-top: 12px; }
 .settings-surface .settings-section-heading .settings-link-action { min-height: 0; }
 
 .settings-surface :where(.settings-row, .settings-section-heading, .settings-entity-row) {

@@ -17,14 +17,6 @@
 .settings-surface .settings-key-value-fields > *,
 .settings-surface .settings-inline-fields > * { min-width: 0; max-width: 100%; }
 .settings-surface .settings-inline-fields > input { flex: 1 1 140px; }
-.settings-surface .settings-adaptive-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
-  gap: 12px;
-  align-items: start;
-}
-.settings-surface .settings-adaptive-cards > * { min-width: 0; }
-.settings-surface .settings-usage-windows { grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
 .settings-surface .settings-detail-fields { container: settings-detail-fields / inline-size; }
 .settings-surface .settings-secret-fields {
   display: flex;
@@ -41,7 +33,6 @@
   font-size: 12px;
   overflow-wrap: anywhere;
 }
-/* Usage stats retain the shared card material; do not flatten their local fill. */
 
 /* Platform is also hosted on mobile: only its desktop instance is adjusted here. */
 .settings-modal .ps-panel {
