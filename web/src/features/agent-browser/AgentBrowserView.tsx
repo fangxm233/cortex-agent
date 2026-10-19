@@ -2,10 +2,13 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Keyb
 import { fmt, useVocab, type Vocab } from '@/i18n';
 import '@/features/browser/browser.css';
 import './agent-browser.css';
-import { insertAgentBrowserText, setAgentBrowserTakeover, type AgentBrowserSession } from './agent-browser-api';
+import {
+  AgentBrowserError, insertAgentBrowserText, setAgentBrowserTakeover, type AgentBrowserSession,
+} from './agent-browser-api';
 import {
   bodyStatus,
   deviceLabel,
+  pageTitle,
   heldButton,
   keyMessage,
   modifiersOf,
@@ -79,6 +82,13 @@ export function AgentBrowserView({ sessionId, visible, readOnly = false }: {
   );
 }
 
+/** A failed action in the UI language where the server named it; its own detail otherwise. */
+function actionError(err: unknown, L: Pick<Vocab, 'abNone' | 'abTakeOverTitle'>): string {
+  if (err instanceof AgentBrowserError && err.code === 'no-browser') return L.abNone;
+  if (err instanceof AgentBrowserError && err.code === 'not-taken-over') return L.abTakeOverTitle;
+  return (err as Error).message;
+}
+
 function StatusText({ status, session, copy: L }: { status: BodyStatus; session: AgentBrowserSession | null; copy: Vocab }): JSX.Element {
   if (status === 'error') {
     return (
@@ -109,7 +119,7 @@ function AgentBrowserToolbar({ session, view, status, readOnly, onError, canvasR
   const patch = usePatchAgentBrowser();
   const [busy, setBusy] = useState(false);
   const url = view.url ?? session?.url ?? null;
-  const title = view.title ?? session?.title ?? null;
+  const title = pageTitle(url, session, view.title);
   const takenOver = session?.takenOver ?? false;
 
   const toggle = async (): Promise<void> => {
@@ -121,7 +131,7 @@ function AgentBrowserToolbar({ session, view, status, readOnly, onError, canvasR
       patch(session.sessionId, { takenOver: next });
       if (next) canvasRef.current?.focus();
     } catch (err) {
-      onError((err as Error).message);
+      onError(actionError(err, L));
     } finally {
       setBusy(false);
     }
@@ -162,7 +172,7 @@ function ControlStrip({ sessionId, onError }: { sessionId: string; onError: (mes
       await insertAgentBrowserText(sessionId, text);
       setText('');
     } catch (err) {
-      onError((err as Error).message);
+      onError(actionError(err, L));
     } finally {
       setSending(false);
     }
@@ -188,6 +198,7 @@ function PageCanvas({ canvasRef, stream, takenOver, sessionId, onError }: {
   sessionId: string;
   onError: (message: string | null) => void;
 }): JSX.Element {
+  const L = useVocab();
   const pendingMove = useRef<MouseMessage | null>(null);
   const moveFrame = useRef<number | null>(null);
 
@@ -268,7 +279,7 @@ function PageCanvas({ canvasRef, stream, takenOver, sessionId, onError }: {
     const text = event.clipboardData.getData('text');
     if (!text) return;
     event.preventDefault();
-    insertAgentBrowserText(sessionId, text).catch((err: Error) => onError(err.message));
+    insertAgentBrowserText(sessionId, text).catch((err: unknown) => onError(actionError(err, L)));
   };
 
   return (

@@ -250,6 +250,18 @@ export function pageHost(url: string | null | undefined): string | null {
   }
 }
 
+/**
+ * The title to show for the page at `url`. The server's record is read after each agent command, so
+ * it is right while it describes this same URL; once the person navigates during a takeover it is
+ * stale. The stream's own tab title is a fallback only when it is a real title: agent-browser keeps a
+ * tab's creation-time host there.
+ */
+export function pageTitle(url: string | null, session: AgentBrowserSession | null | undefined, streamTitle: string | null): string | null {
+  if (session?.title && session.url === url) return session.title;
+  if (streamTitle && streamTitle !== pageHost(url)) return streamTitle;
+  return null;
+}
+
 export type BodyStatus = 'none' | 'starting' | 'error' | 'connecting' | 'live' | 'retrying';
 
 /** One status for the body, the lease's state first: a stream is only worth opening once ready. */

@@ -10,6 +10,7 @@ import {
   keyMessage,
   modifiersOf,
   pageHost,
+  pageTitle,
   parseStreamMessage,
   pollIntervalMs,
   retryDelayMs,
@@ -148,6 +149,13 @@ describe('labels', () => {
     expect(pageHost('https://example.com:8443/a?b')).toBe('example.com:8443');
     expect(pageHost('about:blank')).toBeNull();
     expect(pageHost(undefined)).toBeNull();
+  });
+
+  it('trusts the server title only for the URL it was read at', () => {
+    const s = session({ url: 'http://h:1/', title: 'Harness' });
+    expect(pageTitle('http://h:1/', s, 'h:1')).toBe('Harness');
+    expect(pageTitle('http://h:1/next', s, 'h:1')).toBeNull();
+    expect(pageTitle('http://h:1/next', s, 'Next page')).toBe('Next page');
   });
 
   it('summarises the capsule by state', () => {
