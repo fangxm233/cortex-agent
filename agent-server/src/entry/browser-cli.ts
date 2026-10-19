@@ -195,8 +195,9 @@ export interface BrowserCliOptions {
   env?: NodeJS.ProcessEnv;
   cwd?: string;
   post?: (url: string, body: unknown, headers: Record<string, string>) => Promise<{ status: number; body: any }>;
-  /** Run agent-browser with stdout passed through; resolves its exit code and captured stderr. */
-  exec?: (bin: string, args: string[], env: Record<string, string>, cwd: string) => Promise<{ code: number; stderr: string }>;
+  /** Run agent-browser with stdout passed through (discarded when `quiet`); resolves its exit code
+   *  and captured stderr. */
+  exec?: (bin: string, args: string[], env: Record<string, string>, cwd: string, quiet?: boolean) => Promise<{ code: number; stderr: string }>;
   writeErr?: (text: string) => void;
   /** Delay before telling the caller the browser is still starting. */
   slowNoticeMs?: number;
@@ -218,10 +219,12 @@ async function httpPost(url: string, body: unknown, headers: Record<string, stri
 
 /** stdout passes straight through; stderr is held so a recoverable tab_gone can be retried
  *  without showing the agent an error that was already handled. */
-function spawnExec(bin: string, args: string[], env: Record<string, string>, cwd: string): Promise<{ code: number; stderr: string }> {
+function spawnExec(
+  bin: string, args: string[], env: Record<string, string>, cwd: string, quiet = false,
+): Promise<{ code: number; stderr: string }> {
   return new Promise((resolve) => {
     let stderr = '';
-    const child = spawn(bin, args, { env, cwd, stdio: ['inherit', 'inherit', 'pipe'] });
+    const child = spawn(bin, args, { env, cwd, stdio: [quiet ? 'ignore' : 'inherit', quiet ? 'ignore' : 'inherit', 'pipe'] });
     child.stderr?.on('data', (chunk) => { stderr += String(chunk); });
     child.on('error', (e) => resolve({ code: 127, stderr: `${stderr}cortex-browser: cannot run ${bin}: ${e.message}\n` }));
     child.on('close', (code, signal) => resolve({ code: code ?? (signal ? 128 : 1), stderr }));
@@ -310,7 +313,7 @@ export async function runBrowserCli(argv: string[], options: BrowserCliOptions =
     if (run.code !== 0 && isTabGone(run.stderr)) {
       // The tab this session was bound to is gone (Chrome was restarted, or someone closed it).
       // The command never ran, so binding a fresh tab and running it once more is safe.
-      const rebound = await exec(data.bin, agentBrowserArgs(data.cdpEndpoint, data.abSession, ['tab', 'new']), callEnv, cwd);
+      const rebound = await exec(data.bin, agentBrowserArgs(data.cdpEndpoint, data.abSession, ['tab', 'new']), callEnv, cwd, true);
       if (rebound.code === 0) {
         writeErr('cortex-browser: the previous tab was gone, so this session now has a new blank tab\n');
         run = await exec(data.bin, agentBrowserArgs(data.cdpEndpoint, data.abSession, args), callEnv, cwd);

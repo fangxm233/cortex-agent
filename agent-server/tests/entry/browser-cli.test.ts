@@ -76,7 +76,7 @@ describe('absolutizePaths', () => {
 
 interface Calls {
   posts: Array<{ url: string; body: any; headers: Record<string, string> }>;
-  execs: Array<{ bin: string; args: string[]; env: Record<string, string> }>;
+  execs: Array<{ bin: string; args: string[]; env: Record<string, string>; quiet?: boolean }>;
   err: string;
 }
 
@@ -95,8 +95,8 @@ function harness(opts: {
       if ((body as any).action === 'report') return { status: 200, body: { success: true } };
       return opts.reply ? opts.reply(body) : { status: 200, body: { success: true, data: LEASE } };
     },
-    exec: async (bin, args, env) => {
-      calls.execs.push({ bin, args, env });
+    exec: async (bin, args, env, _cwd, quiet) => {
+      calls.execs.push({ bin, args, env, ...(quiet ? { quiet } : {}) });
       return opts.exec ? opts.exec(args) : { code: 0, stderr: '' };
     },
     writeErr: (text) => { calls.err += text; },
@@ -138,6 +138,7 @@ describe('runBrowserCli', () => {
     });
     expect(await runBrowserCli(['snapshot'], options)).toBe(0);
     expect(calls.execs.map((e) => e.args.slice(5).join(' '))).toEqual(['snapshot', 'tab new', 'snapshot']);
+    expect(calls.execs.map((e) => !!e.quiet)).toEqual([false, true, false]);
     expect(calls.err).toContain('previous tab was gone');
     expect(calls.err).not.toContain('tab_gone');
   });

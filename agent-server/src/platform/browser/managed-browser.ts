@@ -206,6 +206,9 @@ async function launchInto(attempt: LaunchAttempt): Promise<ManagedBrowser> {
     '--remote-debugging-address=127.0.0.1',
   ];
   if (display.mode === 'headless') args.push('--headless=new');
+  // Without this, Linux Chrome asks the desktop keyring for its cookie key over D-Bus, and the first
+  // page load stalls ~25s until that times out — after which Chrome falls back to this store anyway.
+  if (process.platform === 'linux') args.push('--password-store=basic');
 
   const env = { ...process.env };
   if (displayName) env.DISPLAY = displayName;

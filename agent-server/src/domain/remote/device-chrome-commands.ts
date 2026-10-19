@@ -88,6 +88,8 @@ function unixChromeLaunchCommand(platform: string): string {
     '[ -n "$CHROME" ] || { echo "chrome-not-found" >&2; exit 3; }',
     'nohup "$CHROME" --remote-debugging-port=0 --remote-debugging-address=127.0.0.1'
       + ' --user-data-dir="$PROFILE" --no-first-run --no-default-browser-check'
+      // Linux only (macOS ignores it): skip the keyring D-Bus probe that stalls the first page ~25s.
+      + ' --password-store=basic'
       + ' about:blank >/dev/null 2>&1 &',
     'for _ in $(seq 1 60); do [ -s "$PORTFILE" ] && break; sleep 0.5; done',
     '[ -s "$PORTFILE" ] || { echo "chrome-did-not-listen" >&2; exit 4; }', 'head -1 "$PORTFILE"',
