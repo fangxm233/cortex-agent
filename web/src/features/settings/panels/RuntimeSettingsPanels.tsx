@@ -6,12 +6,12 @@ import { useLang, useVocab, type Vocab } from '@/i18n';
 import {
   noticeHistoryCaption, noticeHistoryNote, useNoticeHistory,
 } from '@/features/notifications/useNoticeHistory';
-import { PlatformAvatar, PresencePill } from './SettingsPanels';
+import { PresenceStatus } from './SettingsPanels';
 import {
   ROW_STYLE,
   SButton,
   SDot,
-  SPill,
+  SMeta,
   SRow,
   SRowGroup,
   SSection,
@@ -127,13 +127,11 @@ function NotificationRouting({ snapshot, settings }: { snapshot: ConfigSnapshot;
       <SRowGroup>
         <RoutingRow
           platform="Slack"
-          glyph="S"
           present={hasAnyKey(snapshot.env, 'SLACK_')}
           channel={typeof slackChannel === 'string' ? slackChannel : null}
         />
         <RoutingRow
           platform={L.setFeishu}
-          glyph={L.setFeishuGlyph}
           present={hasAnyKey(snapshot.env, 'FEISHU_')}
           channel={typeof feishuChannel === 'string' ? feishuChannel : null}
         />
@@ -144,17 +142,15 @@ function NotificationRouting({ snapshot, settings }: { snapshot: ConfigSnapshot;
 
 function RoutingRow(props: {
   platform: string;
-  glyph: string;
   present: boolean;
   channel: string | null;
 }) {
   return (
     <SRow
       title={
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <PlatformAvatar glyph={props.glyph} />
+        <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
           {props.platform}
-          <PresencePill present={props.present} />
+          <PresenceStatus present={props.present} />
         </span>
       }
       control={
@@ -182,8 +178,8 @@ const NOTICE_BODY_STYLE: CSSProperties = {
 function NoticeRow({ entry }: { entry: SystemNoticeEntry }) {
   const lang = useLang();
   return (
-    <div style={{ ...ROW_STYLE, gap: 10, alignItems: 'flex-start' }}>
-      <span style={{ display: 'flex', paddingTop: 5 }}>
+    <div style={{ ...ROW_STYLE, alignItems: 'flex-start' }}>
+      <span style={{ width: 16, flex: 'none', display: 'flex', justifyContent: 'center', paddingTop: 7 }}>
         <SDot color={NOTICE_LEVEL_COLOR[entry.level]} size={7} />
       </span>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -200,9 +196,7 @@ function NoticeRow({ entry }: { entry: SystemNoticeEntry }) {
 }
 
 function NoticeNote({ text }: { text: string }) {
-  return (
-    <div style={{ padding: '12px 16px', fontSize: 12, color: 'var(--proto-muted-3)' }}>{text}</div>
-  );
+  return <div style={{ fontSize: 13, color: 'var(--proto-muted-2)' }}>{text}</div>;
 }
 
 /** The system notices the server actually broadcast (same stream the routing card fans out), read
@@ -214,11 +208,9 @@ function RecentNotifications() {
   return (
     <SSection label={L.stRecentNotifications}
       action={<span style={VALUE_STYLE}>{noticeHistoryCaption(L, history)}</span>}>
-      <SRowGroup>
-        {note !== null
-          ? <NoticeNote text={note} />
-          : history.entries.map((entry) => <NoticeRow key={entry.id} entry={entry} />)}
-      </SRowGroup>
+      {note !== null
+        ? <NoticeNote text={note} />
+        : <SRowGroup>{history.entries.map((entry) => <NoticeRow key={entry.id} entry={entry} />)}</SRowGroup>}
     </SSection>
   );
 }
@@ -265,7 +257,7 @@ function ReadOnlyEnvRow({ snapshot, title }: {
       data-env-present={String(present)}
       data-writable="false"
       title={title}
-      control={<SPill tone="neutral">{present ? L.stSet : '—'}</SPill>}
+      control={<SMeta>{present ? L.stSet : '—'}</SMeta>}
     />
   );
 }
@@ -455,7 +447,7 @@ function GpuMockRow({ snapshot }: { snapshot: ConfigSnapshot }) {
   return (
     <SRow
       title={L.stGpuMock}
-      control={<SPill tone="neutral">{present ? L.stSet : '—'}</SPill>}
+      control={<SMeta>{present ? L.stSet : '—'}</SMeta>}
     />
   );
 }
