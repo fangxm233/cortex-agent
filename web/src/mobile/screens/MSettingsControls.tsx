@@ -1,5 +1,5 @@
 import type { ComponentProps, CSSProperties, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
-import { MBackChevron, MBottomSheet, MC, MCard, MGroup, MGroupLabel } from '@/mobile/ui/kit';
+import { MBackChevron, MBottomSheet, MC, MGroup, MGroupLabel } from '@/mobile/ui/kit';
 import { useVocab, useVocabOptional } from '@/i18n';
 import type { SettingsQuery } from '@/features/settings/controllers/useConfigSnapshot';
 import '@/features/settings/ui/settings-style.css';
@@ -38,20 +38,6 @@ export function MSettingsGroupLabel({ children, trailing }: { children: ReactNod
 /** A run of settings rows laid straight on the mesh: an optional label, rows split by inset hairlines. */
 export function MSettingsGroup({ children, inset = MSET_INSET }: { children: ReactNode; inset?: number }) {
   return <MGroup inset={inset}>{children}</MGroup>;
-}
-
-export function MSettingsSurfaceCard(props: ComponentProps<typeof MCard>) {
-  return <MCard {...props} radius={12} style={{ ...props.style, overflow: 'visible' }} />;
-}
-
-export function MSettingsCard(props: { children: ReactNode; title?: ReactNode; note?: string }) {
-  return (
-    <div>
-      {props.title && <div style={{ ...MSET_KEY, padding: '0 2px 5px', fontWeight: 600 }}>{props.title}</div>}
-      <MSettingsSurfaceCard padding={0}>{props.children}</MSettingsSurfaceCard>
-      {props.note && <div style={{ ...MSET_SUB, padding: '6px 3px 0' }}>{props.note}</div>}
-    </div>
-  );
 }
 
 export function MSettingsSheet(props: ComponentProps<typeof MBottomSheet>) {
