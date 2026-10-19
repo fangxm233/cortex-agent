@@ -17,6 +17,10 @@ import { isUpdateDevMode } from '@domain/system/server-update-check.js';
 import { createForwardRoutes } from '@platform/ui-http/port-forward.js';
 import { createDevicePortRoutes } from '@platform/ui-http/device-ports.js';
 import { createFileRoutes } from '@platform/ui-http/file-routes.js';
+import { BROWSER_STREAM_PATH, createBrowserStream } from '@platform/ui-http/browser-stream.js';
+import {
+  insertText, isTakenOver, listBrowserSessions, setTakeover, streamPort,
+} from '@domain/browser/broker.js';
 import { getOnlineDevices, sendCommand } from '@domain/remote/client-manager.js';
 import { openDevicePort, closeDevicePort, listDevicePorts } from '@domain/remote/device-port.js';
 import { accessVerifierFromEnv } from '@platform/ui-http/access-jwt.js';
@@ -130,6 +134,11 @@ export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null
   const verifySession = sessionStore ? (sid: string | undefined) => sessionStore.verify(sid) : undefined;
   const authorize = createAuthorizer({ getToken, verifySession, verifyAccessJwt });
 
+  // The agent's browser, live in the app: session list, takeover, typed text, and the stream itself.
+  const browserStream = createBrowserStream({
+    listSessions: listBrowserSessions, streamPort, setTakeover, isTakenOver, insertText,
+  });
+
   log.info(
     `Web UI enabled — starting tRPC HTTP+SSE on 127.0.0.1:${port}` +
       (spaDir ? ` (SPA: ${spaDir})` : ' (SPA: not built — non-tRPC paths 404)') +
@@ -185,7 +194,9 @@ export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null
         closeDevicePort,
         listDevicePorts,
       }),
+      ...browserStream.routes,
     },
+    upgradeRoutes: { [BROWSER_STREAM_PATH]: browserStream },
     portForward: env.CORTEX_PORT_FORWARD !== '0',
   });
 }
