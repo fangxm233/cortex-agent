@@ -88,7 +88,7 @@ function FavoriteSheet({ c, fact, onClose }: { c: ModelsController; fact: ModelF
     <div data-model-sheet={fact.key}>
       <div className="settings-model-provider" style={{ fontSize: 17, fontWeight: 650, color: MC.ink, padding: `0 ${MSET_INSET}px 12px` }}>
         <ProviderIcon provider={fact.ref.provider || fact.ref.backend} />
-        <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{modelOptionLabel(fact.ref)}</span>
+        <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{fact.ref.model}</span>
       </div>
       <MSettingsGroupLabel>{L.stColThinking}</MSettingsGroupLabel>
       <ThinkingOptions c={c} fact={fact} />
@@ -96,7 +96,7 @@ function FavoriteSheet({ c, fact, onClose }: { c: ModelsController; fact: ModelF
       <div style={{ display: 'flex', gap: 8, padding: `16px ${MSET_INSET}px 4px` }}>
         <MButton variant="danger-outline" disabled={c.pending} style={{ flex: 1 }}
           onClick={() => { c.remove(fact.ref); onClose(); }}>{L.stRemoveFavorite}</MButton>
-        <MButton variant="ink" disabled={c.pending || fact.current} style={{ flex: 1 }}
+        <MButton variant={fact.current ? 'outline' : 'ink'} disabled={c.pending || fact.current} style={{ flex: 1 }}
           onClick={() => c.setDefault(fact.key)}>{fact.current ? L.default : L.stSetDefaultModel}</MButton>
       </div>
     </div>
