@@ -1,6 +1,6 @@
 import type { IssueDetailVm } from '@/features/issues/issues-vm';
 import { useVocabOptional, type Vocab } from '@/i18n';
-import { MScreen, MDrillHeader, MScrollBody, MButton, MCard, MCollapsedCard, MC, M_NUM } from '@/mobile/ui/kit';
+import { MScreen, MDrillHeader, MScrollBody, MButton, MCard, MGroup, MC, M_NUM } from '@/mobile/ui/kit';
 
 export interface MIssuesViewProps {
   cards: IssueDetailVm[];
@@ -54,20 +54,9 @@ export function MIssuesView({
             {copy.isEmptyTitle}
           </div>
         )}
-        {cards.map((card) =>
-          card.id === expandedId ? (
-            <ExpandedCard
-              key={card.id}
-              card={card}
-              copy={copy}
-              busy={busy}
-              onDelete={onDelete}
-              onHandle={onHandle}
-            />
-          ) : (
-            <MCollapsedCard key={card.id} title={card.title} meta={card.date} onExpand={() => onExpand(card.id)} />
-          ),
-        )}
+        {splitAtExpanded(cards, expandedId).map((part) => Array.isArray(part)
+          ? <MGroup key={part[0].id}>{part.map((card) => <IssueRow key={card.id} card={card} onExpand={onExpand} />)}</MGroup>
+          : <ExpandedCard key={part.id} card={part} copy={copy} busy={busy} onDelete={onDelete} onHandle={onHandle} />)}
         {cards.length > 0 && (
           <div
             style={{
@@ -83,6 +72,28 @@ export function MIssuesView({
         )}
       </MScrollBody>
     </MScreen>
+  );
+}
+
+/** Runs of collapsed issues, with the one expanded issue (the card that asks for a decision) between them. */
+function splitAtExpanded(cards: IssueDetailVm[], expandedId: string | null): (IssueDetailVm | IssueDetailVm[])[] {
+  const index = cards.findIndex((card) => card.id === expandedId);
+  if (index < 0) return cards.length ? [cards] : [];
+  const before = cards.slice(0, index);
+  const after = cards.slice(index + 1);
+  return [...(before.length ? [before] : []), cards[index], ...(after.length ? [after] : [])];
+}
+
+// ── collapsed issue — a plain row on the mesh; tap to expand ─────────────────────────────────────
+function IssueRow({ card, onExpand }: { card: IssueDetailVm; onExpand: (id: string) => void }) {
+  return (
+    <div role="button" className="m-press" data-issue-row={card.id} onClick={() => onExpand(card.id)}
+      style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 44, padding: '11px 14px', boxSizing: 'border-box', cursor: 'pointer' }}>
+      <span style={{ fontSize: 13, fontWeight: 600, color: MC.body, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {card.title}
+      </span>
+      {card.date && <span style={{ fontSize: 12, color: MC.muted, flex: 'none', ...M_NUM }}>{card.date}</span>}
+    </div>
   );
 }
 
