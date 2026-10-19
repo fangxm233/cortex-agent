@@ -1,4 +1,6 @@
 .settings-surface.mobile-settings {
+  /* Shared settings-kit rows start at the mobile row text x (MSET_INSET). */
+  --settings-row-inset: 12px;
   --settings-control-height: 44px;
   --settings-input-size: 16px;
   --r-card: var(--settings-card-radius);
@@ -116,8 +118,8 @@
 
 .mobile-settings-sheet { position: absolute; inset: 0; z-index: 10; }
 .mobile-settings-sheet [data-mobile-sheet-scroll] { padding: 2px; }
-.mobile-settings .ps-panel { gap: 20px; }
-.mobile-settings .ps-grid { grid-template-columns: minmax(0, 1fr); }
+/* Platform is all shared panel: its headings and field labels sit at 0, so rows do too. */
+.mobile-settings .ps-panel { gap: 20px; --settings-row-inset: 0px; }
 .mobile-settings-choice { flex-wrap: wrap; }
 .mobile-settings-choice > :first-child { flex-basis: 140px !important; }
 .mobile-settings [data-usage-threshold-input] { -moz-appearance: textfield; appearance: textfield; }

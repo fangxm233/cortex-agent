@@ -1,8 +1,8 @@
 // @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3 (matches MSettingsView row metrics)
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties } from 'react';
 import { MC } from '@/mobile/ui/kit';
 import { SSegmented } from '@/features/settings/ui/settings-kit';
-import { MSettingsFrame as MScreen, MSettingsHeader as MDrillHeader,
+import { MSET_INSET, MSettingsFrame as MScreen, MSettingsGroup, MSettingsHeader as MDrillHeader,
   MSettingsBody as MScrollBody } from './MSettingsControls';
 import { useVocab, type Lang, type LangSource } from '@/i18n';
 import type { WorkLogMode } from '@/features/session/transcript/work-log-pref';
@@ -21,39 +21,22 @@ import {
   type Theme,
 } from '@/theme';
 
-function Card({ children }: { children: ReactNode }) {
-  return (
-    <div style={{ background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)', border: `1px solid ${MC.hairline}`, borderRadius: 12 }}>
-      {children}
-    </div>
-  );
-}
-
-function rowStyle(divider: boolean): CSSProperties {
-  return {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-    padding: '12px 13px',
-    borderBottom: divider ? `1px solid ${MC.divider}` : undefined,
-  };
-}
+const ROW: CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: `12px ${MSET_INSET}px` };
 
 const TITLE: CSSProperties = { fontSize: 14, fontWeight: 600, color: MC.ink };
 const HINT: CSSProperties = { fontSize: 12, color: MC.muted, marginTop: 4, lineHeight: 1.45, paddingRight: 8 };
 
 /** Label on the left, segmented control on the right — the row shape shared by every simple choice. */
-function ChoiceRow<T extends string>({ title, hint, divider, ...segment }: {
+function ChoiceRow<T extends string>({ title, hint, ...segment }: {
   title: string;
   hint?: string;
-  divider: boolean;
   value: T;
   options: readonly { id: T; label: string }[];
   onChange: (value: T) => void;
   ariaLabel: string;
 }) {
   return (
-    <div className="mobile-settings-choice" style={rowStyle(divider)}>
+    <div className="mobile-settings-choice" style={ROW}>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={TITLE}>{title}</div>
         {hint ? <div style={HINT} data-choice-hint>{hint}</div> : null}
@@ -70,7 +53,7 @@ function AccentRow({ hue, onChange }: {
 }) {
   const pickerCopy = useAccentCopy();
   return (
-    <div style={{ ...rowStyle(true), display: 'block' }}>
+    <div style={{ ...ROW, display: 'block' }}>
       <div style={TITLE}>{pickerCopy.label}</div>
       <div style={{ marginTop: 9 }}>
         <AccentPicker hue={hue} copy={pickerCopy} onChange={onChange} compact />
@@ -140,14 +123,14 @@ export function MAppearanceView({
       }
     >
       <MScrollBody>
-        <Card>
+        <MSettingsGroup>
           <ChoiceRow
-            divider title={L.stLangLabel} ariaLabel={L.stLangLabel} value={lang}
+            title={L.stLangLabel} ariaLabel={L.stLangLabel} value={lang}
             hint={languageHint(L, langSource)} options={languageOptions(L)}
             onChange={onSetLang}
           />
           <ChoiceRow
-            divider={false} title={L.stThemeLabel} ariaLabel={L.stThemeLabel} value={theme}
+            title={L.stThemeLabel} ariaLabel={L.stThemeLabel} value={theme}
             options={[
               { id: 'light', label: L.stThemeLight },
               { id: 'dark', label: L.stThemeDark },
@@ -155,10 +138,10 @@ export function MAppearanceView({
             ] as const}
             onChange={onSetTheme}
           />
-        </Card>
+        </MSettingsGroup>
 
-        <Card>
-          <div style={{ ...rowStyle(true), display: 'block' }}>
+        <MSettingsGroup>
+          <div style={{ ...ROW, display: 'block' }}>
             <PaletteControls
               palette={palette} copy={paletteCopy} activePreset={activePreset}
               onPickPreset={onPickPreset} onChange={onSetPaletteValue} onReset={onResetPalette}
@@ -166,7 +149,7 @@ export function MAppearanceView({
           </div>
           <AccentRow hue={accentHue} onChange={onSetAccentHue} />
           <ChoiceRow
-            divider={false} title={L.appearIntensity} ariaLabel={L.appearIntensity}
+            title={L.appearIntensity} ariaLabel={L.appearIntensity}
             value={accentIntensity}
             options={[
               { id: 'soft', label: L.stAccentIntensitySoft },
@@ -175,11 +158,11 @@ export function MAppearanceView({
             ] as const}
             onChange={onSetAccentIntensity}
           />
-        </Card>
+        </MSettingsGroup>
 
-        <Card>
+        <MSettingsGroup>
           <ChoiceRow
-            divider title={L.stGlassLabel} hint={L.stGlassHint} ariaLabel={L.stGlassLabel} value={glass}
+            title={L.stGlassLabel} hint={L.stGlassHint} ariaLabel={L.stGlassLabel} value={glass}
             options={[
               { id: 'off', label: L.stGlassOff },
               { id: 'subtle', label: L.stGlassSubtle },
@@ -189,7 +172,7 @@ export function MAppearanceView({
             onChange={onSetGlass}
           />
           <ChoiceRow
-            divider={!!onSetWorkLogMode} title={L.stMotionLabel} ariaLabel={L.stMotionLabel} value={motionMode}
+            title={L.stMotionLabel} ariaLabel={L.stMotionLabel} value={motionMode}
             options={[
               { id: 'system', label: L.stMotionSystem },
               { id: 'full', label: L.stMotionFull },
@@ -199,7 +182,7 @@ export function MAppearanceView({
           />
           {onSetWorkLogMode && (
             <ChoiceRow
-              divider={false} title={L.stChatWorkLabel} hint={L.stChatWorkHint} ariaLabel={L.stChatWorkLabel} value={workLogMode}
+              title={L.stChatWorkLabel} hint={L.stChatWorkHint} ariaLabel={L.stChatWorkLabel} value={workLogMode}
               options={[
                 { id: 'fold', label: L.stChatWorkFold },
                 { id: 'expanded', label: L.stChatWorkExpanded },
@@ -207,7 +190,7 @@ export function MAppearanceView({
               onChange={onSetWorkLogMode}
             />
           )}
-        </Card>
+        </MSettingsGroup>
       </MScrollBody>
     </MScreen>
   );

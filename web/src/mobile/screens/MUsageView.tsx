@@ -16,10 +16,13 @@ import { resetAttemptFor, resetOutcomeView, usagePolicyTargetKey } from '@/featu
 import { policyActionState, usePolicyThresholdDraft } from '@/features/usage/usage-policy-controls';
 import { fmt, useVocab, type Vocab } from '@/i18n';
 import { MButton, MC } from '@/mobile/ui/kit';
-import { MSettingsSurfaceCard as MCard, MSettingsHeader as MDrillHeader,
+import { MSET_INSET, MSettingsHeader as MDrillHeader,
   MSettingsFrame as MScreen, MSettingsBody as MScrollBody, MSettingsToggle } from './MSettingsControls';
 
 const META: CSSProperties = { fontSize: 12, color: MC.muted };
+/** Rows sit straight on the mesh, so their dividers use the translucent line, not the card divider. */
+const RULE = '1px solid var(--proto-line)';
+const PAD_X = `${MSET_INSET}px`;
 const LABEL: CSSProperties = { fontSize: 13, fontWeight: 600, color: MC.muted };
 /** Money is a figure, not code: the UI face with aligned digits. */
 const SPEND: CSSProperties = { fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums' };
@@ -248,7 +251,7 @@ function WindowRow(props: WindowRowProps) {
     ? props.L.usageResetElapsed
     : props.window.resetIn === null ? null : `${props.L.usageMobileResetsIn} ${props.window.resetIn}`;
   return (
-    <div data-usage-window={props.window.type} style={{ padding: '9px 0', borderTop: `1px solid ${MC.divider}` }}>
+    <div data-usage-window={props.window.type} style={{ padding: '9px 0', borderTop: RULE }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: MC.sub }}>{props.window.label}</span>
         <span style={{ marginLeft: 'auto', fontSize: 14, fontWeight: 600, color: MC.ink, fontVariantNumeric: 'tabular-nums' }}>{props.window.utilizationLabel ?? props.L.usageUnavailable}</span>
@@ -329,7 +332,7 @@ function ResetRow({ resets, reset, L }: { resets: UsageResetsView; reset: UsageR
   const attempt = resetAttemptFor(reset, resets.provider);
   const provider = resets.provider;
   return (
-    <div data-usage-resets={provider ?? ''} style={{ padding: '9px 0 0', borderTop: `1px solid ${MC.divider}` }}>
+    <div data-usage-resets={provider ?? ''} style={{ padding: '9px 0 0', borderTop: RULE }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 32 }}>
         <span style={META}>{resetSummary(resets, L)}</span>
         {provider !== null && resets.available > 0 && !confirming
@@ -360,7 +363,7 @@ interface QuotaBlockProps extends Omit<PolicyEditorProps, 'policy'> {
 function QuotaBlock(props: QuotaBlockProps) {
   if (props.provider.quotaState === 'unsupported') return null;
   return (
-    <section data-usage-quota={props.provider.provider} data-usage-quota-state={props.provider.quotaState} style={{ padding: '10px 13px' }}>
+    <section data-usage-quota={props.provider.provider} data-usage-quota-state={props.provider.quotaState} style={{ padding: `10px ${PAD_X}` }}>
       <div style={LABEL}>{props.L.usageMobileQuota}</div>
       {props.provider.quotaState === 'available'
         ? props.provider.windows.map((window) => <WindowRow key={`${window.type}:${window.label}:${window.resetsAt ?? 'none'}`} window={window} {...props} />)
@@ -384,8 +387,8 @@ function QuotaBlock(props: QuotaBlockProps) {
 function SpendBlock({ provider, L }: { provider: ProviderUsageView; L: Vocab }) {
   if (!provider.spend) return null;
   return (
-    <section data-usage-spend={provider.provider} style={{ borderTop: `1px solid ${MC.divider}`, padding: '10px 13px' }}>
-      <div style={LABEL}>{L.usageMobileGatewaySpend}</div>
+    <section data-usage-spend={provider.provider} style={{ padding: `0 ${PAD_X} 10px` }}>
+      <div style={{ ...LABEL, borderTop: RULE, paddingTop: 10 }}>{L.usageMobileGatewaySpend}</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 8 }}>
         <span style={SPEND}>{provider.spend.today} <small>{L.usageMobileToday}</small></span>
         <span style={SPEND}>{provider.spend.month} <small>{L.usageMobileMonth}</small></span>
@@ -397,7 +400,7 @@ function SpendBlock({ provider, L }: { provider: ProviderUsageView; L: Vocab }) 
   );
 }
 
-function ProviderCard(props: {
+function ProviderSection(props: {
   provider: ProviderUsageView;
   L: Vocab;
   reset: UsageResetState;
@@ -408,23 +411,19 @@ function ProviderCard(props: {
 }) {
   const { provider, L } = props;
   return (
-    <MCard padding={0}>
+    <section>
       <div
         data-usage-provider={provider.provider} data-usage-billing={provider.billing ?? ''}
-        style={{ padding: '11px 13px 8px' }}
+        style={{ padding: `0 ${PAD_X} 2px`, display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '2px 8px' }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13.5, fontWeight: 650, color: MC.ink }}>{provider.displayName}</span>
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 8 }}>
-          <span style={META}>{provider.modes.join(' · ')}</span>
-          <Observation provider={provider} L={L} />
-        </div>
+        <span style={{ fontSize: 14, fontWeight: 650, color: MC.ink }}>{provider.displayName}</span>
+        <span style={META}>{provider.modes.join(' · ')}</span>
+        <Observation provider={provider} L={L} />
       </div>
       <QuotaBlock provider={provider} L={L} reset={props.reset} policyControlsState={props.policyControlsState} isPolicySaving={props.isPolicySaving} getPolicyError={props.getPolicyError} onSavePolicy={props.onSavePolicy} />
       <SpendBlock provider={provider} L={L} />
-      {provider.note ? <div style={{ ...META, padding: '0 13px 10px' }}>{provider.note}</div> : null}
-    </MCard>
+      {provider.note ? <div style={{ ...META, padding: `0 ${PAD_X} 10px` }}>{provider.note}</div> : null}
+    </section>
   );
 }
 
@@ -435,15 +434,9 @@ function ErrorFeedback({ label, error }: { label: string; error: { message: stri
 
 function RefreshButton({ L, pending, onRefresh }: { L: Vocab; pending: boolean; onRefresh: () => void }) {
   return (
-    <button
-      type="button"
-      data-usage-refresh
-      aria-busy={pending}
-      onClick={onRefresh}
-      style={{ border: '1px solid var(--proto-line-3)', borderRadius: 'var(--r-chip)', padding: '6px 11px', background: 'var(--material-control-bg)', color: MC.ink, fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600 }}
-    >
+    <MButton compact data-usage-refresh aria-busy={pending} onClick={onRefresh}>
       {pending ? L.usageRefreshing : L.usageRefresh}
-    </button>
+    </MButton>
   );
 }
 
@@ -482,7 +475,7 @@ export function MUsageView(props: MUsageViewProps) {
         <ErrorFeedback label={L.usageRefreshError} error={refreshError} />
         {!isLoading && !queryError && !hasProviders ? <div style={{ color: MC.muted, fontSize: 12 }}>{L.usageMobileEmpty}</div> : null}
         {view.providers.map((provider) => (
-          <ProviderCard
+          <ProviderSection
             key={provider.key} provider={provider} L={L} reset={reset}
             policyControlsState={policyControlsState} isPolicySaving={isPolicySaving}
             getPolicyError={getPolicyError} onSavePolicy={onSavePolicy}

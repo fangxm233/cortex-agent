@@ -1,7 +1,7 @@
 import { Fragment, type ReactNode } from 'react';
-import { MPill, MDot, MC } from '@/mobile/ui/kit';
-import { MSettingsFrame, MSettingsHeader as MDrillHeader, MSettingsBody as MScrollBody,
-  MSettingsSurfaceCard as MCard } from './MSettingsControls';
+import { MButton, MDot, MC } from '@/mobile/ui/kit';
+import { MSET_INSET, MSettingsFrame, MSettingsGroup, MSettingsHeader as MDrillHeader,
+  MSettingsBody as MScrollBody } from './MSettingsControls';
 import type { MachineDetailVm, MachineGpuRow, MachineMeter } from '@/features/machines/machine-detail-vm';
 import type { MMachinesVm, MMachineCard } from './m-machines-vm';
 import { useVocab, type Vocab } from '@/i18n';
@@ -43,7 +43,10 @@ function Bar({ percent }: { percent: number }) {
 }
 
 const VALUE: React.CSSProperties = { color: MC.body, textAlign: 'right', whiteSpace: 'nowrap' };
-const SECTION: React.CSSProperties = { marginTop: 9, paddingTop: 9, borderTop: `1px solid ${MC.divider}` };
+const SECTION: React.CSSProperties = { marginTop: 9, paddingTop: 9, borderTop: '1px solid var(--proto-line)' };
+/** The status column: rows, their sub line and the expanded panel all start after it. */
+const DOT_COL = 16;
+const TEXT_X = MSET_INSET + DOT_COL + 10;
 
 /** Host vitals as aligned rows: label · bar · value. */
 function Vitals({ meters }: { meters: MachineMeter[] }) {
@@ -124,14 +127,49 @@ function ProbePanel({ panel, L }: { panel: MMachineDetailPanel; L: Vocab }) {
   );
 }
 
-// ── online machine card (scheme L567-581): header section · expand panel ────────
-function OnlineCard({
-  card,
-  L,
-  expanded,
-  panel,
-  onToggle,
-}: {
+/** Online is the default state, so it takes only a filled dot; offline is the hollow ring. */
+function StatusDot({ online }: { online: boolean }) {
+  return <span aria-hidden="true" style={{ width: DOT_COL, flex: 'none', display: 'flex', justifyContent: 'center' }}>
+    <span style={{ width: 7, height: 7, borderRadius: '50%', boxSizing: 'border-box',
+      ...(online ? { background: MC.done } : { border: `1.5px solid ${MC.muted}` }) }} />
+  </span>;
+}
+
+function MachineSummary({ card, L }: { card: MMachineCard; L: Vocab }) {
+  const gpu = card.gpuCount !== null && card.gpuCount > 0 ? ` · ${card.gpuCount} ${L.mGpu}` : '';
+  const sub = card.online
+    ? `${L.machHeartbeat} ${card.heartbeat}${gpu}`
+    : `${L.machOffline} · ${L.machLastHeartbeat} ${card.heartbeat}`;
+  return (
+    <span style={{ minWidth: 0, flex: 1 }}>
+      <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ fontSize: 15, fontWeight: 600, color: card.online ? MC.ink : MC.sub }}>{card.name}</span>
+        <span style={{ fontSize: 12, color: MC.muted }}>{card.os}</span>
+      </span>
+      <span style={{ ...META, display: 'block', marginTop: 2 }}>{sub}</span>
+    </span>
+  );
+}
+
+function ExpandedPanel({ card, L, panel }: { card: MMachineCard; L: Vocab; panel: MMachineDetailPanel | null }) {
+  return (
+    <div style={{ padding: `0 ${MSET_INSET}px 11px ${TEXT_X}px` }}>
+      {/* An offline machine is never probed — say so rather than showing an empty telemetry frame. */}
+      {!card.online && <Notice text={L.mOfflineNoTelemetry} />}
+      {card.online && (panel ? <ProbePanel panel={panel} L={L} /> : <Notice text={L.mProbing} />)}
+      <CardStatics card={card} L={L} uptime={card.online ? panel?.uptime ?? '' : ''} />
+    </div>
+  );
+}
+
+// ── inert actions (scheme L590-591): retry-connect / view-logs need a daemon-side op with no tRPC
+// surface here → rendered, non-functional, mirroring the desktop settings machines pattern.
+function InertButton({ children }: { children: ReactNode }) {
+  return <MButton compact style={{ flex: 'none' }}>{children}</MButton>;
+}
+
+// ── one machine row: status dot · name + os over heartbeat · offline actions; tap to expand ──────
+function MachineRow({ card, L, expanded, panel, onToggle }: {
   card: MMachineCard;
   L: Vocab;
   expanded: boolean;
@@ -139,109 +177,24 @@ function OnlineCard({
   onToggle: (name: string) => void;
 }) {
   return (
-    <MCard tone="default" padding={0} style={{ overflow: 'hidden' }}>
-      <div
-        role="button"
-        aria-expanded={expanded}
-        onClick={() => onToggle(card.name)}
-        style={{ padding: '11px 13px 9px' }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 15, fontWeight: 600, color: MC.ink }}>{card.name}</span>
-          <span style={{ fontSize: 12, color: MC.muted }}>{card.os}</span>
-          <span style={{ marginLeft: 'auto', flex: 'none' }}>
-            <MPill tone="done">{L.machOnline}</MPill>
-          </span>
+    <div data-machine-row={card.name}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: `10px ${MSET_INSET}px`, minHeight: 44 }}>
+        <div role="button" aria-expanded={expanded} onClick={() => onToggle(card.name)}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, cursor: 'pointer' }}>
+          <StatusDot online={card.online} />
+          <MachineSummary card={card} L={L} />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...META, marginTop: 4 }}>
-          <span>
-            {L.machHeartbeat} {card.heartbeat}
-            {card.gpuCount !== null && card.gpuCount > 0 && ` · ${card.gpuCount} ${L.mGpu}`}
-          </span>
-        </div>
-
-        {expanded && (
-          <>
-            {panel ? <ProbePanel panel={panel} L={L} /> : <Notice text={L.mProbing} />}
-            <CardStatics card={card} L={L} uptime={panel?.uptime ?? ''} />
-          </>
-        )}
+        {!card.online && <><InertButton>{L.machRetry}</InertButton><InertButton>{L.machLogs}</InertButton></>}
       </div>
-    </MCard>
-  );
-}
-
-// ── inert action button (scheme L590-591): styled 38px button, no browser-safe backend op.
-// HONEST: retry-connect / view-logs need a daemon-side op with no tRPC surface here → wired as no-ops,
-// mirroring the desktop settings machines pattern (rendered, non-functional).
-function InertButton({ children }: { children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      style={{
-        flex: 1,
-        height: 38,
-        borderRadius: 'var(--r-control)',
-        border: '1.5px solid var(--proto-line-3)',
-        background: 'var(--material-control-bg)',
-        boxShadow: 'var(--material-control-shadow)',
-        color: MC.ink,
-        fontSize: 12.5,
-        fontWeight: 600,
-        boxSizing: 'border-box',
-        cursor: 'pointer',
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-// ── offline machine card (scheme L586-593): fail-toned, retry/logs buttons ───────
-function OfflineCard({
-  card,
-  L,
-  expanded,
-  onToggle,
-}: {
-  card: MMachineCard;
-  L: Vocab;
-  expanded: boolean;
-  onToggle: (name: string) => void;
-}) {
-  return (
-    <MCard tone="fail" padding="11px 13px">
-      <div role="button" aria-expanded={expanded} onClick={() => onToggle(card.name)}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 15, fontWeight: 600, color: MC.sub }}>{card.name}</span>
-          <span style={{ fontSize: 12, color: MC.muted }}>{card.os}</span>
-          <span style={{ marginLeft: 'auto', flex: 'none' }}>
-            <MPill tone="failed">{L.machOffline}</MPill>
-          </span>
-        </div>
-        <div style={{ ...META, marginTop: 4 }}>
-          {L.machLastHeartbeat} {card.heartbeat}
-        </div>
-        {/* An offline machine is never probed — say so rather than showing an empty telemetry frame. */}
-        {expanded && (
-          <>
-            <Notice text={L.mOfflineNoTelemetry} />
-            <CardStatics card={card} L={L} uptime="" />
-          </>
-        )}
-      </div>
-      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-        <InertButton>{L.machRetry}</InertButton>
-        <InertButton>{L.machLogs}</InertButton>
-      </div>
-    </MCard>
+      {expanded && <ExpandedPanel card={card} L={L} panel={panel} />}
+    </div>
   );
 }
 
 // ── footer registry line (scheme L594) ──────────────────────────────────────────
 function RegistryFooter({ L }: { L: Vocab }) {
   return (
-    <div style={{ padding: '2px 4px', fontSize: 12, color: MC.muted, textAlign: 'right' }}>{L.setEditOnDesktop}</div>
+    <div style={{ padding: `0 ${MSET_INSET}px`, fontSize: 12, color: MC.muted, textAlign: 'right' }}>{L.setEditOnDesktop}</div>
   );
 }
 
@@ -273,31 +226,19 @@ export function MMachinesView({
         {vm.cards.length === 0 && (
           <div style={{ padding: '40px 0', textAlign: 'center', color: MC.muted, fontSize: 13 }}>{L.machEmpty}</div>
         )}
-        {vm.cards.map((card) =>
-          card.online ? (
-            <OnlineCard
+        {vm.cards.length > 0 && <MSettingsGroup inset={TEXT_X}>
+          {vm.cards.map((card) => (
+            <MachineRow
               key={card.name}
               card={card}
               L={L}
               expanded={expanded === card.name}
-              panel={expanded === card.name ? panel : null}
+              panel={expanded === card.name && card.online ? panel : null}
               onToggle={onToggle}
             />
-          ) : (
-            <OfflineCard
-              key={card.name}
-              card={card}
-              L={L}
-              expanded={expanded === card.name}
-              onToggle={onToggle}
-            />
-          ),
-        )}
-        <button type="button" data-machine-add onClick={onAdd} disabled={addDisabled}
-          style={{ border: '1px solid var(--proto-line-3)', borderRadius: 'var(--r-control)', padding: '9px 12px',
-            background: 'var(--material-control-bg)', color: MC.ink, fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 600 }}>
-          {L.machAdd}
-        </button>
+          ))}
+        </MSettingsGroup>}
+        <MButton data-machine-add onClick={onAdd} disabled={addDisabled}>{L.machAdd}</MButton>
         {vm.cards.length > 0 && <RegistryFooter L={L} />}
       </MScrollBody>
     </MSettingsFrame>

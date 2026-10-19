@@ -2,7 +2,7 @@ import { mobileHeaderBack } from '@/mobile/mobile-navigation';
 import { useNavigate } from 'react-router-dom';
 import { useVocab } from '@/i18n';
 import { useConfigSnapshot } from '@/features/settings/controllers/useConfigSnapshot';
-import { MSettingsCard, MSettingsQueryPage, MSettingsRow } from './MSettingsControls';
+import { MSettingsQueryPage, MSettingsRow, MSettingsSection } from './MSettingsControls';
 
 export function MMcpScreen() {
   const L = useVocab();
@@ -11,12 +11,11 @@ export function MMcpScreen() {
   return <MSettingsQueryPage title={L.stNavMcp} onBack={() => mobileHeaderBack(navigate, '/m/settings')} query={config}>
     {(snapshot) => {
       const servers = snapshot.mcp?.servers ?? [];
-      return <MSettingsCard title={L.stServers}>
+      return <MSettingsSection title={L.stServers}>
         {servers.length === 0
-          ? <MSettingsRow title={L.stNoServers} last />
-          : servers.map((server, index) => <MSettingsRow key={server} title={server}
-            last={index === servers.length - 1} />)}
-      </MSettingsCard>;
+          ? <MSettingsRow title={L.stNoServers} />
+          : servers.map((server) => <MSettingsRow key={server} title={server} />)}
+      </MSettingsSection>;
     }}
   </MSettingsQueryPage>;
 }

@@ -1,6 +1,7 @@
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { MSettingsField, MSettingsPage, MSettingsRow, MSettingsToggle } from './MSettingsControls';
+import { MGroup } from '@/mobile/ui/kit';
+import { MSettingsField, MSettingsPage, MSettingsRow, MSettingsSection, MSettingsToggle } from './MSettingsControls';
 
 describe('mobile Settings primitives', () => {
   it('keeps the header outside the single content scroller', () => {
@@ -38,5 +39,23 @@ describe('mobile Settings primitives', () => {
     expect(input.props.style.minHeight).toBe(44);
     expect(view.root.findByType('label').findByType('input')).toBe(input);
     expect(view.root.findByProps({ 'data-settings-field-error': true }).children).toEqual(['Required']);
+  });
+
+  it('lays a section straight on the mesh: a sentence-case label over rows split by inset hairlines', () => {
+    const view = create(<MSettingsSection title="Built-in jobs" note="Applies on restart">
+      <MSettingsRow title="One" />
+      <MSettingsRow title="Two" />
+    </MSettingsSection>);
+    const section = view.root.findByProps({ 'data-settings-section': '' });
+    const styles = JSON.stringify(section.findAll((node) => typeof node.type === 'string').map((node) => node.props.style));
+    expect(styles).not.toContain('var(--m-float-bg)');
+    expect(styles).not.toContain('boxShadow');
+    expect(styles).not.toContain('textTransform');
+    const group = section.findByType(MGroup);
+    const rules = group.findAll((node) => node.type === 'div' && node.props['aria-hidden'] === 'true');
+    expect(rules).toHaveLength(1);
+    expect(rules[0].props.style).toMatchObject({ marginLeft: 12, background: 'var(--proto-line)' });
+    expect(JSON.stringify(view.toJSON())).toContain('Built-in jobs');
+    expect(JSON.stringify(view.toJSON())).toContain('Applies on restart');
   });
 });

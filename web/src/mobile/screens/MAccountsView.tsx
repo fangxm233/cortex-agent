@@ -1,18 +1,34 @@
 import type { CustomProviderView } from '@cortex-agent/ui-contract';
+import type { CSSProperties } from 'react';
 import { useVocab } from '@/i18n';
-import { MPill, MC, MONO } from '@/mobile/ui/kit';
-import { MSettingsSurfaceCard as MCard, MSettingsHeader as MDrillHeader,
+import { MButton, MC, MDot, MONO } from '@/mobile/ui/kit';
+import { MSET_INSET, MSettingsGroup, MSettingsHeader as MDrillHeader,
   MSettingsFrame as MScreen, MSettingsBody as MScrollBody, MSettingsGroupLabel as MGroupLabel } from './MSettingsControls';
 import type { AccountActionTarget, AccountsVm } from '@/features/settings/vm/accounts-vm';
 import {
   AvailableGrid, ClaudeHeading, ClaudeSlots, ConnectedList, ProviderSearch, useLogoutConfirm,
 } from '@/features/settings/ui/account-rows';
 
+const META: CSSProperties = { fontSize: 12, color: MC.muted };
+const CODE: CSSProperties = { font: `400 12px ${MONO}`, color: MC.muted, overflowWrap: 'anywhere' };
+
+/** Unrouted is the one state worth flagging; the key line is a plain fact. */
+function CustomProviderStatus({ provider }: { provider: CustomProviderView }) {
+  const L = useVocab();
+  return <div style={{ ...META, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+    {provider.routed ? null : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: MC.amberText }}>
+      <MDot color={MC.amber} />{L.cpvUnrouted}
+    </span>}
+    {provider.routed ? null : <span aria-hidden="true">·</span>}
+    <span>{provider.hasApiKey ? L.cpvKeyStored : L.cpvNoKey}</span>
+  </div>;
+}
+
 /**
- * Custom providers carry no login: the credential sits in the gateway route, so the card offers an
+ * Custom providers carry no login: the credential sits in the gateway route, so the row offers an
  * editor and a two-tap delete instead of the login/logout pair above.
  */
-function CustomProviderCard({ provider, editDisabled, deleteDisabled, confirming, onEdit, onDelete }: {
+function CustomProviderRow({ provider, editDisabled, deleteDisabled, confirming, onEdit, onDelete }: {
   provider: CustomProviderView;
   editDisabled: boolean;
   deleteDisabled: boolean;
@@ -22,46 +38,23 @@ function CustomProviderCard({ provider, editDisabled, deleteDisabled, confirming
 }) {
   const L = useVocab();
   return (
-    <MCard>
-      <div data-custom-provider={provider.name} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+    <div data-custom-provider={provider.name} style={{ padding: `12px ${MSET_INSET}px`, display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 14, fontWeight: 650, color: MC.ink }}>{provider.name}</span>
-        <span style={{ font: `400 12px ${MONO}`, color: MC.muted }}>{provider.api}</span>
-        {provider.routed ? null : <MPill tone="waiting">{L.cpvUnrouted}</MPill>}
-        <MPill tone="cancelled">{provider.hasApiKey ? L.cpvKeyStored : L.cpvNoKey}</MPill>
+        <span style={CODE}>{provider.api}</span>
       </div>
-      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span style={{ font: `400 12px ${MONO}`, color: MC.muted, overflowWrap: 'anywhere' }}>
-          {provider.upstreamUrl ?? '—'}
+      <span style={CODE}>{provider.upstreamUrl ?? '—'}</span>
+      <span style={{ ...META, fontSize: 13, overflowWrap: 'anywhere' }}>{provider.models.map(model => model.id).join(', ')}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <CustomProviderStatus provider={provider} />
+        <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          <MButton compact data-cpv-action="edit" data-cpv-provider={provider.name}
+            disabled={editDisabled} onClick={onEdit}>{L.cpvEdit}</MButton>
+          <MButton compact variant="danger-outline" data-cpv-action="delete" data-cpv-provider={provider.name}
+            disabled={deleteDisabled} onClick={onDelete}>{confirming ? L.cpvConfirmDelete : L.cpvDelete}</MButton>
         </span>
-        <span style={{ fontSize: 13, color: MC.muted, overflowWrap: 'anywhere' }}>
-          {provider.models.map(model => model.id).join(', ')}
-        </span>
       </div>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-        <button
-          type="button" data-cpv-action="edit" data-cpv-provider={provider.name}
-          disabled={editDisabled} onClick={onEdit}
-          style={{
-            border: '1px solid var(--proto-line-3)', borderRadius: 'var(--r-chip)', padding: '6px 10px', background: 'var(--material-control-bg)',
-            color: MC.ink, fontSize: 13, fontWeight: 600,
-            cursor: editDisabled ? 'not-allowed' : 'pointer', opacity: editDisabled ? 0.45 : 1,
-          }}
-        >
-          {L.cpvEdit}
-        </button>
-        <button
-          type="button" data-cpv-action="delete" data-cpv-provider={provider.name}
-          disabled={deleteDisabled} onClick={onDelete}
-          style={{
-            border: '1px solid var(--proto-danger-bg)', borderRadius: 'var(--r-chip)', padding: '6px 9px',
-            background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.fail, fontSize: 13, fontWeight: 600,
-            cursor: deleteDisabled ? 'not-allowed' : 'pointer', opacity: deleteDisabled ? 0.45 : 1,
-          }}
-        >
-          {confirming ? L.cpvConfirmDelete : L.cpvDelete}
-        </button>
-      </div>
-    </MCard>
+    </div>
   );
 }
 
@@ -94,11 +87,7 @@ export function MAccountsView({
   const confirm = useLogoutConfirm();
   const handlers = { onLogin, onLogout, disabled: actionsDisabled };
   const trailing = (
-    <button type="button" data-accounts-sync disabled={rescanning} onClick={onRescan}
-      style={{ border: `1px solid ${MC.hairline}`, borderRadius: 'var(--r-chip)', padding: '5px 8px',
-        background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', color: MC.ink, fontSize: 13, fontWeight: 600 }}>
-      {L.accountsSyncModels}
-    </button>
+    <MButton compact data-accounts-sync disabled={rescanning} onClick={onRescan}>{L.accountsSyncModels}</MButton>
   );
   const header = (
     <MDrillHeader onBack={onBack} trailing={trailing}>
@@ -109,50 +98,38 @@ export function MAccountsView({
     <MScreen label={L.accountsTitle} header={header}>
       <MScrollBody>
         {vm.claude ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <section>
             <MGroupLabel><ClaudeHeading inUse={vm.claude.inUse} /></MGroupLabel>
             <ClaudeSlots account={vm.claude} handlers={handlers} confirm={confirm} />
-          </div>
+          </section>
         ) : null}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <section>
           <MGroupLabel>{L.accountsConnected} · {vm.connected.length}</MGroupLabel>
           <ConnectedList providers={vm.connected} handlers={handlers} confirm={confirm} />
-        </div>
+        </section>
         {vm.availableTotal > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <section>
             <MGroupLabel>{L.accountsAddProvider} · {vm.availableTotal}</MGroupLabel>
-            <div>
-              <ProviderSearch value={filter} onChange={onFilter} />
-              <AvailableGrid providers={vm.available} handlers={handlers} />
-            </div>
-          </div>
+            <ProviderSearch value={filter} onChange={onFilter} />
+            <AvailableGrid providers={vm.available} handlers={handlers} />
+          </section>
         ) : null}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <MGroupLabel>
-            {L.cpvTitle} · {custom.providers.length}
-            <button
-              type="button" data-cpv-action="new" disabled={custom.savePending}
-              onClick={custom.onNew}
-              style={{
-                marginLeft: 8, border: '1px solid var(--proto-line-3)', borderRadius: 'var(--r-chip)', padding: '3px 9px',
-                background: 'var(--material-control-bg)', color: MC.ink, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              }}
-            >
-              {L.cpvNew}
-            </button>
-          </MGroupLabel>
+        <section>
+          <MGroupLabel trailing={
+            <MButton compact data-cpv-action="new" disabled={custom.savePending} onClick={custom.onNew}>{L.cpvNew}</MButton>
+          }>{L.cpvTitle} · {custom.providers.length}</MGroupLabel>
           {custom.providers.length > 0
-            ? custom.providers.map(provider => (
-              <CustomProviderCard
+            ? <MSettingsGroup>{custom.providers.map(provider => (
+              <CustomProviderRow
                 key={provider.name} provider={provider}
                 editDisabled={custom.savePending} deleteDisabled={custom.removePending}
                 confirming={custom.confirmingDelete === provider.name}
                 onEdit={() => custom.onEdit(provider)}
                 onDelete={() => custom.onDelete(provider.name)}
               />
-            ))
-            : <MCard><span style={{ fontSize: 12, color: MC.muted }}>{L.cpvNone}</span></MCard>}
-        </div>
+            ))}</MSettingsGroup>
+            : <div style={{ ...META, padding: `4px ${MSET_INSET}px` }}>{L.cpvNone}</div>}
+        </section>
       </MScrollBody>
     </MScreen>
   );

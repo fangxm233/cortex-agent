@@ -1,4 +1,4 @@
-import { MScreen, MDrillHeader, MScrollBody, MButton, MCard, MCollapsedCard, MPill, MC, MONO, M_NUM } from '@/mobile/ui/kit';
+import { MScreen, MDrillHeader, MScrollBody, MButton, MCard, MCollapsedCard, MC, MONO, M_NUM } from '@/mobile/ui/kit';
 import { useVocabOptional, type Vocab } from '@/i18n';
 import type { MApprovalsVm, MApprovalCard } from './m-approvals-vm';
 
@@ -37,9 +37,9 @@ export function MApprovalsView({
           >
             {copy.approvals}
           </div>
-          <MPill tone="waiting">
+          <span data-approvals-pending="" style={{ fontSize: 13, fontWeight: 600, color: vm.pendingCount > 0 ? 'var(--proto-amber-fg)' : MC.muted, flex: 'none', ...M_NUM }}>
             {vm.pendingCount} {copy.apprToProcess}
-          </MPill>
+          </span>
         </MDrillHeader>
       }
     >

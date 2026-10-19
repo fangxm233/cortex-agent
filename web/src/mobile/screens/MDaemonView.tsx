@@ -1,14 +1,14 @@
-import { useRef, useState } from 'react';
-import { MButton, MPill, MDot, MC, MONO } from '@/mobile/ui/kit';
-import { MSettingsFrame as MScreen, MSettingsHeader as MDrillHeader,
-  MSettingsBody as MScrollBody, MSettingsSurfaceCard as MCard } from './MSettingsControls';
+import { useRef, useState, type ReactNode } from 'react';
+import { MButton, MDot, MC, MONO } from '@/mobile/ui/kit';
+import { MSET_INSET, MSettingsFrame as MScreen, MSettingsHeader as MDrillHeader,
+  MSettingsBody as MScrollBody, MSettingsSection } from './MSettingsControls';
 import type { MDaemonVm, MDaemonEvent, MDaemonProcess } from './m-daemon-vm';
 import { rebuildStatusTone, type DaemonRebuildVm } from '@/features/daemon/daemon-vm';
 import type { DaemonRestartState } from '@/features/daemon/useDaemonResource';
 import type { Tone } from '@/design/tone';
 import type { ExecutionInfo } from '@cortex-agent/ui-contract';
 import { connectionLabelKey, type ConnectionStatus } from '@/features/connection/connection-status';
-import { mConnTone, mConnPulse } from './m-connection';
+import { mConnTone } from './m-connection';
 import { fmt, useVocab, type Vocab } from '@/i18n';
 
 const EXECUTION_STATUS_KEYS: Record<ExecutionInfo['status'], keyof Vocab> = {
@@ -19,6 +19,8 @@ const REBUILD_STATUS_KEYS: Record<DaemonRebuildVm['status'], keyof Vocab> = {
   running: 'dmnStatusRunning', succeeded: 'dmnStatusSucceeded', aborted: 'dmnStatusAborted', deferred: 'dmnStatusDeferred',
 };
 const DASH = '—';
+const PAD = `10px ${MSET_INSET}px`;
+const NUM = { fontVariantNumeric: 'tabular-nums' } as const;
 
 // Dot color stays mobile-specific while status semantics come from the canonical daemon tone.
 function dotColor(tone: Tone): string {
@@ -28,41 +30,27 @@ function dotColor(tone: Tone): string {
   return MC.grayInk;
 }
 
-// ── Rebuild card: the supervisor's pipeline, one row per planned step ──────────
-function RebuildCard({ rebuild }: { rebuild: DaemonRebuildVm }) {
+/** Status as a dot plus its word — the daemon page carries no filled status chips. */
+function StatusWord({ color, children }: { color: string; children: ReactNode }) {
+  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 500, color: MC.sub }}>
+    <MDot color={color} />{children}
+  </span>;
+}
+
+const CONN_DOT: Record<ReturnType<typeof mConnTone>, string> = { done: MC.done, waiting: MC.amber, failed: MC.fail };
+
+// ── Rebuild: the supervisor's pipeline, one line per planned step ──────────────
+function RebuildSection({ rebuild }: { rebuild: DaemonRebuildVm }) {
   const L = useVocab();
   const statusKey = REBUILD_STATUS_KEYS[rebuild.status];
+  const title = <span>{L.dmRebuild}<span style={{ fontWeight: 500, ...NUM }}>
+    {' · '}{fmt(L.dmnRebuildProgress, { done: rebuild.completed, total: rebuild.total })} · {rebuild.elapsed}
+  </span></span>;
   return (
-    <MCard padding={0} style={{ overflow: 'hidden' }}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '10px 13px',
-          borderBottom: `1px solid ${MC.divider}`,
-        }}
-      >
-        <MDot color={dotColor(rebuildStatusTone(rebuild.status))} />
-        <span style={{ fontSize: 13, fontWeight: 650, color: MC.ink }}>{L.dmRebuild}</span>
-        <span style={{ fontSize: 12.5, color: MC.muted, fontVariantNumeric: 'tabular-nums' }}>
-          {fmt(L.dmnRebuildProgress, { done: rebuild.completed, total: rebuild.total })} · {rebuild.elapsed}
-        </span>
-        <span style={{ marginLeft: 'auto' }}>
-          <MPill tone={rebuildStatusTone(rebuild.status)}>{statusKey ? L[statusKey] : rebuild.status}</MPill>
-        </span>
-      </div>
-      <div
-        style={{
-          padding: '9px 13px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 6,
-          fontSize: 13,
-          lineHeight: 1.5,
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
+    <MSettingsSection title={title} trailing={
+      <StatusWord color={dotColor(rebuildStatusTone(rebuild.status))}>{statusKey ? L[statusKey] : rebuild.status}</StatusWord>
+    }>
+      <div style={{ padding: PAD, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, lineHeight: 1.5, ...NUM }}>
         {rebuild.steps.map((step) => (
           <div key={step.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <MDot color={dotColor(step.tone)} size={5} />
@@ -71,26 +59,21 @@ function RebuildCard({ rebuild }: { rebuild: DaemonRebuildVm }) {
             <span style={{ marginLeft: 'auto', color: MC.faint }}>{step.duration ?? DASH}</span>
           </div>
         ))}
+        <div style={{ fontSize: 12, color: MC.muted, wordBreak: 'break-word', marginTop: 2 }}>
+          {L.dmnRebuildTrigger} {rebuild.reason}
+          {rebuild.detail ? ` · ${rebuild.detail}` : ''}
+        </div>
       </div>
-      <div style={{ padding: '0 13px 12px', fontSize: 12, color: MC.muted, wordBreak: 'break-word' }}>
-        {L.dmnRebuildTrigger} {rebuild.reason}
-        {rebuild.detail ? ` · ${rebuild.detail}` : ''}
-      </div>
-    </MCard>
+    </MSettingsSection>
   );
 }
 
 // ── Process row: dot (real DTO status) + process name (code face) + label + real pid/port + uptime ──
-function ProcRow({ proc, border }: { proc: MDaemonProcess; border: boolean }) {
+function ProcRow({ proc }: { proc: MDaemonProcess }) {
   const L = useVocab();
   const dash = DASH;
   return (
-    <div
-      style={{
-        padding: '11px 13px 9px',
-        borderBottom: border ? `1px solid ${MC.divider}` : undefined,
-      }}
-    >
+    <div style={{ padding: `11px ${MSET_INSET}px 9px` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span
           style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor(proc.tone), flex: 'none' }}
@@ -202,11 +185,13 @@ function HoldButton({
   );
 }
 
+const EVENT_TIME = { color: MC.faint, flex: 'none', minWidth: 28 } as const;
+
 function EventRow({ ev }: { ev: MDaemonEvent }) {
   const L = useVocab();
   return (
     <div style={{ display: 'flex', gap: 8 }}>
-      <span style={{ color: MC.faint, flex: 'none' }}>{ev.time}</span>
+      <span style={EVENT_TIME}>{ev.time}</span>
       <span style={{ color: ev.tone === 'fail' ? MC.amberText : MC.sub }}>
         {ev.ref} · {L[EXECUTION_STATUS_KEYS[ev.status]]}
       </span>
@@ -242,70 +227,34 @@ export function MDaemonView({
           <span style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>
             {L.dmnTitle}
           </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            {mConnPulse(connStatus) && <MDot color={MC.amber} />}
-            <MPill tone={mConnTone(connStatus)}>{L[connectionLabelKey(connStatus)]}</MPill>
-          </span>
+          <StatusWord color={CONN_DOT[mConnTone(connStatus)]}>{L[connectionLabelKey(connStatus)]}</StatusWord>
         </div>
       </MDrillHeader>}>
       <MScrollBody>
-        {/* Process card — REAL rows from system.daemonStatus (dot=status, pid/port/uptime) + real counts */}
-        <MCard padding={0} style={{ overflow: 'hidden' }}>
-          {vm.processes.map((proc, i) => (
-            <ProcRow key={proc.name} proc={proc} border={i < vm.processes.length - 1} />
-          ))}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              padding: '10px 13px',
-              fontSize: 13,
-              color: MC.muted,
-              flexWrap: 'wrap',
-              borderTop: `1px solid ${MC.divider}`,
-            }}
-          >
-            <span>{fmt(L.dmnSchedules, { n: vm.scheduleCount })}</span>
+        {/* Processes — REAL rows from system.daemonStatus (dot=status, pid/port/uptime) + real counts */}
+        <MSettingsSection title={L.dmnProcessesTitle}>
+          {vm.processes.map((proc) => <ProcRow key={proc.name} proc={proc} />)}
+          <div style={{ padding: PAD, fontSize: 13, color: MC.muted, ...NUM }}>
+            {fmt(L.dmnSchedules, { n: vm.scheduleCount })}
           </div>
-        </MCard>
+        </MSettingsSection>
 
         {/* Hot rebuild — the supervisor's own pipeline (absent on a plain install) */}
-        {vm.rebuild && <RebuildCard rebuild={vm.rebuild} />}
+        {vm.rebuild && <RebuildSection rebuild={vm.rebuild} />}
 
         {/* Recent activity — repurposed from executions.list; honestly NOT the daemon event log (GAP) */}
-        <MCard padding={0} style={{ overflow: 'hidden' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              padding: '10px 13px',
-              borderBottom: `1px solid ${MC.divider}`,
-            }}
-          >
-            <span style={{ fontSize: 13, fontWeight: 650, color: MC.ink }}>{L.dmnRecentTitle}</span>
-          </div>
+        <MSettingsSection title={L.dmnRecentTitle}>
           {vm.lastRestart === null && vm.events.length === 0 ? (
-            <div style={{ padding: '12px', fontSize: 12, color: MC.muted }}>
+            <div style={{ padding: PAD, fontSize: 12, color: MC.muted }}>
               {L.dmnRecentEmpty}
             </div>
           ) : (
-            <div
-              style={{
-                padding: '9px 13px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 7,
-                font: `400 12px/1.5 ${MONO}`,
-              }}
-            >
+            <div style={{ padding: PAD, display: 'flex', flexDirection: 'column', gap: 7, fontSize: 12.5, lineHeight: 1.5, ...NUM }}>
               {/* Real lastRestart from system.daemonStatus (rendered first, above recent executions) */}
               {vm.lastRestart && (
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <span style={{ color: MC.faint, flex: 'none' }}>{vm.lastRestart.time}</span>
-                  <span style={{ color: MC.sub }}>
-                    {L.dmnLastRestart}
-                  </span>
+                  <span style={EVENT_TIME}>{vm.lastRestart.time}</span>
+                  <span style={{ color: MC.sub }}>{L.dmnLastRestart}</span>
                 </div>
               )}
               {vm.events.map((ev) => (
@@ -313,49 +262,48 @@ export function MDaemonView({
               ))}
             </div>
           )}
-        </MCard>
+        </MSettingsSection>
 
-        {/* Restart card — 软重启 (soft) + 强制终止 (hard, long-press 2s) → system.restart */}
-        <MCard padding="12px 13px">
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: MC.ink }}>{L.dmnRestartTitle}</span>
-          </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-            <MButton disabled={pending} onClick={onSoftRestart} style={{ flex: 1 }}>
-              {L.dmSoftRestart}
-            </MButton>
-            <HoldButton
-              label={L.dmnForceKill}
-              hint={L.dmnHoldHint}
-              disabled={pending}
-              onConfirm={onHardRestart}
-            />
-          </div>
-          <div style={{ fontSize: 12, color: MC.muted, marginTop: 8 }}>{L.dmnFooterNote}</div>
-          {restartState === 'success' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
-              <MDot color={MC.done} />
-              <span style={{ fontSize: 13, fontWeight: 600, color: MC.done }}>{L.dmRestartSent}</span>
+        {/* Restart — 软重启 (soft) + 强制终止 (hard, long-press 2s) → system.restart */}
+        <MSettingsSection title={L.dmnRestartTitle}>
+          <div style={{ padding: PAD }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <MButton disabled={pending} onClick={onSoftRestart} style={{ flex: 1 }}>
+                {L.dmSoftRestart}
+              </MButton>
+              <HoldButton
+                label={L.dmnForceKill}
+                hint={L.dmnHoldHint}
+                disabled={pending}
+                onConfirm={onHardRestart}
+              />
             </div>
-          )}
-          {restartState === 'error' && (
-            <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: MC.fail }}>{L.dmRestartFailed}</div>
-          )}
-        </MCard>
+            <div style={{ fontSize: 12, color: MC.muted, marginTop: 8 }}>{L.dmnFooterNote}</div>
+            {restartState === 'success' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                <MDot color={MC.done} />
+                <span style={{ fontSize: 13, fontWeight: 600, color: MC.done }}>{L.dmRestartSent}</span>
+              </div>
+            )}
+            {restartState === 'error' && (
+              <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: MC.fail }}>{L.dmRestartFailed}</div>
+            )}
+          </div>
+        </MSettingsSection>
 
-        {/* Disconnect card — clears the saved server + token and returns to the login screen. Only in a
+        {/* Disconnect — clears the saved server + token and returns to the login screen. Only in a
             native shell (isNativeShell) where there are stored creds to clear + a connect screen to
             return to. Returning to login is recoverable (re-enter creds), so it stays a neutral ink
             outline — the red force-kill ink above owns the destructive treatment. */}
         {showDisconnect && (
-          <MCard padding="12px 13px">
+          <div style={{ padding: `0 ${MSET_INSET}px` }}>
             <MButton onClick={onDisconnect} style={{ width: '100%' }}>
               {L.dmDisconnect}
             </MButton>
             <div style={{ fontSize: 12, color: MC.muted, marginTop: 8, textAlign: 'center' }}>
               {L.dmnDisconnectNote}
             </div>
-          </MCard>
+          </div>
         )}
       </MScrollBody>
     </MScreen>
