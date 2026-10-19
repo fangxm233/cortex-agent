@@ -19,6 +19,12 @@ const log = createLogger('browser-stream');
 // opened with a one-shot ticket instead: the app first POSTs for one through the ordinary gate (token,
 // session cookie or Access JWT, plus the Origin check every state-changing request gets), then
 // presents it on the handshake. A ticket names one session, lives for seconds and is spent on use.
+//
+// A takeover belongs to the app window that asked for it (its `client` id, which also rides on that
+// window's stream ticket). Only that window's input reaches the page, and the page goes back to the
+// agent by itself when the person is gone: once the window's stream has been closed for
+// TAKEOVER_GRACE_MS without coming back (dock closed, page reloaded, network lost), or after
+// TAKEOVER_IDLE_MS without a click, key or paste. The broker only knows on/off; the watch lives here.
 
 export const BROWSER_SESSIONS_PATH = '/api/browser/sessions';
 export const BROWSER_TICKET_PATH = '/api/browser/stream-ticket';
@@ -43,6 +49,14 @@ export const MAX_INSERT_TEXT_CHARS = 4000;
 /** A viewer this far behind is shed frames rather than buffered without bound. */
 const MAX_DOWNSTREAM_BUFFER = 4 * 1024 * 1024;
 const UPSTREAM_CONNECT_TIMEOUT_MS = 5_000;
+/** How long a takeover survives its window's stream being gone, so a reload or a blip keeps it. */
+export const TAKEOVER_GRACE_MS = 30_000;
+/** How long a takeover lasts without any input from the person. */
+export const TAKEOVER_IDLE_MS = 10 * 60_000;
+/** Message the proxy adds to the stream whenever the takeover changes (and once on connect). */
+export const TAKEOVER_MESSAGE = 'cortex_takeover';
+/** An app window's id: opaque, not a credential — every caller is already authenticated. */
+const CLIENT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 export type BrowserSessionState = 'starting' | 'ready' | 'error';
 
@@ -73,6 +87,11 @@ export interface BrowserStreamDeps {
   now?: () => number;
 }
 
+export interface BrowserStreamOptions {
+  graceMs?: number;
+  idleMs?: number;
+}
+
 export interface BrowserStreamHandle {
   routes: Record<string, CustomRouteHandler>;
   /** Upgrade handler for BROWSER_STREAM_PATH. Authenticates by ticket itself. */
@@ -86,10 +105,11 @@ const INPUT_TYPES = new Set(['input_mouse', 'input_keyboard', 'input_touch']);
 
 /**
  * Decide what of a viewer's message reaches the page. Acks always pass (they only pace frames);
- * input passes only while the person holds the page, so a watcher can never steer it by accident.
- * Everything else (a `config` raising the frame rate, unknown types) is dropped.
+ * input passes only from the window holding the page, so a watcher can never steer it by accident.
+ * Everything else (a `config` raising the frame rate, unknown types) is dropped. `input` marks the
+ * person's own activity, which keeps the takeover alive.
  */
-export function admitClientMessage(raw: string, takenOver: boolean): string | null {
+export function admitClientMessage(raw: string, holdsPage: boolean): { message: string; input: boolean } | null {
   let msg: unknown;
   try {
     msg = JSON.parse(raw);
@@ -100,10 +120,16 @@ export function admitClientMessage(raw: string, takenOver: boolean): string | nu
   const type = (msg as { type?: unknown }).type;
   if (type === 'ack') {
     const seq = (msg as { seq?: unknown }).seq;
-    return typeof seq === 'number' && Number.isFinite(seq) ? JSON.stringify({ type: 'ack', seq }) : null;
+    return typeof seq === 'number' && Number.isFinite(seq) ? { message: JSON.stringify({ type: 'ack', seq }), input: false } : null;
   }
-  if (typeof type === 'string' && INPUT_TYPES.has(type)) return takenOver ? raw : null;
+  if (typeof type === 'string' && INPUT_TYPES.has(type) && holdsPage) return { message: raw, input: true };
   return null;
+}
+
+/** A body's `client`: '' when absent, null when present but malformed. */
+export function parseClientId(value: unknown): string | null {
+  if (value === undefined || value === null || value === '') return '';
+  return typeof value === 'string' && CLIENT_ID.test(value) ? value : null;
 }
 
 /** The frame-rate cap a viewer asked for, clamped to what the tunnel should carry. */
@@ -135,25 +161,25 @@ export function parseStreamTarget(rawUrl: string): StreamTarget | null {
 // ── Tickets ──────────────────────────────────────────────────────────────────
 
 export interface TicketStore {
-  mint: (sessionId: string) => string;
-  /** Spend a ticket. True only for a live ticket minted for this very session. */
-  redeem: (ticket: string, sessionId: string) => boolean;
+  mint: (sessionId: string, client?: string) => string;
+  /** Spend a ticket. The window it was minted for, only for a live ticket of this very session. */
+  redeem: (ticket: string, sessionId: string) => { client: string } | null;
   size: () => number;
 }
 
 export function createTicketStore(now: () => number = Date.now): TicketStore {
-  const tickets = new Map<string, { sessionId: string; expiresAt: number }>();
+  const tickets = new Map<string, { sessionId: string; client: string; expiresAt: number }>();
   const prune = (): void => {
     const t = now();
     for (const [id, entry] of tickets) if (entry.expiresAt <= t) tickets.delete(id);
   };
   return {
-    mint(sessionId) {
+    mint(sessionId, client = '') {
       prune();
       // A burst past the cap drops the oldest: a ticket is cheap to ask for again.
       while (tickets.size >= MAX_TICKETS) tickets.delete(tickets.keys().next().value!);
       const id = crypto.randomBytes(32).toString('hex');
-      tickets.set(id, { sessionId, expiresAt: now() + TICKET_TTL_MS });
+      tickets.set(id, { sessionId, client, expiresAt: now() + TICKET_TTL_MS });
       return id;
     },
     // A constant-time walk rather than a Map lookup, as the UI session store does: the ticket is a
@@ -162,14 +188,121 @@ export function createTicketStore(now: () => number = Date.now): TicketStore {
       prune();
       let hit: string | null = null;
       for (const id of tickets.keys()) if (timingSafeEqualStr(id, ticket)) hit = id;
-      if (hit === null) return false;
+      if (hit === null) return null;
       const entry = tickets.get(hit)!;
       tickets.delete(hit);
-      return entry.sessionId === sessionId;
+      return entry.sessionId === sessionId ? { client: entry.client } : null;
     },
     size: () => {
       prune();
       return tickets.size;
+    },
+  };
+}
+
+// ── Takeover watch ───────────────────────────────────────────────────────────
+
+export type ReleaseReason = 'disconnected' | 'idle';
+
+export interface TakeoverWatchDeps {
+  isTakenOver: (sessionId: string) => boolean;
+  /** Hand the page back to the agent on the person's behalf. */
+  release: (sessionId: string, reason: ReleaseReason) => void;
+  /** Whether a stream from this window is open on the session right now. */
+  hasClient: (sessionId: string, client: string) => boolean;
+  now: () => number;
+  graceMs: number;
+  idleMs: number;
+}
+
+export interface TakeoverWatch {
+  begin: (sessionId: string, client: string) => void;
+  end: (sessionId: string) => void;
+  /** The window holding the session's page, or null. */
+  holder: (sessionId: string) => string | null;
+  /** A stream opened / closed. Call `disconnected` once the stream is out of the live set. */
+  connected: (sessionId: string, client: string) => void;
+  disconnected: (sessionId: string, client: string) => void;
+  /** The person did something: a click, a key, a paste. */
+  input: (sessionId: string) => void;
+  close: () => void;
+}
+
+interface Hold {
+  client: string;
+  lastInputAt: number;
+  grace: NodeJS.Timeout | null;
+  idle: NodeJS.Timeout | null;
+}
+
+export function createTakeoverWatch(deps: TakeoverWatchDeps): TakeoverWatch {
+  const holds = new Map<string, Hold>();
+  const stop = (hold: Hold): void => {
+    if (hold.grace) clearTimeout(hold.grace);
+    if (hold.idle) clearTimeout(hold.idle);
+    hold.grace = null;
+    hold.idle = null;
+  };
+  const expire = (sessionId: string, hold: Hold, reason: ReleaseReason): void => {
+    if (holds.get(sessionId) !== hold) return;
+    stop(hold);
+    holds.delete(sessionId);
+    // The broker may already have dropped it (lease retired); then there is nothing to hand back.
+    if (deps.isTakenOver(sessionId)) deps.release(sessionId, reason);
+  };
+  // One timer per hold, checked lazily: input only moves the timestamp, the timer re-arms itself.
+  const armIdle = (sessionId: string, hold: Hold): void => {
+    const wait = Math.max(0, hold.lastInputAt + deps.idleMs - deps.now());
+    hold.idle = setTimeout(() => {
+      hold.idle = null;
+      if (deps.now() - hold.lastInputAt >= deps.idleMs) expire(sessionId, hold, 'idle');
+      else armIdle(sessionId, hold);
+    }, wait);
+    hold.idle.unref?.();
+  };
+  const armGrace = (sessionId: string, hold: Hold): void => {
+    if (hold.grace) return;
+    hold.grace = setTimeout(() => {
+      hold.grace = null;
+      expire(sessionId, hold, 'disconnected');
+    }, deps.graceMs);
+    hold.grace.unref?.();
+  };
+
+  return {
+    begin(sessionId, client) {
+      const prev = holds.get(sessionId);
+      if (prev) stop(prev);
+      const hold: Hold = { client, lastInputAt: deps.now(), grace: null, idle: null };
+      holds.set(sessionId, hold);
+      armIdle(sessionId, hold);
+      if (!deps.hasClient(sessionId, client)) armGrace(sessionId, hold);
+    },
+    end(sessionId) {
+      const hold = holds.get(sessionId);
+      if (!hold) return;
+      stop(hold);
+      holds.delete(sessionId);
+    },
+    holder: (sessionId) => holds.get(sessionId)?.client ?? null,
+    connected(sessionId, client) {
+      const hold = holds.get(sessionId);
+      if (hold?.client === client && hold.grace) {
+        clearTimeout(hold.grace);
+        hold.grace = null;
+      }
+    },
+    disconnected(sessionId, client) {
+      const hold = holds.get(sessionId);
+      if (hold?.client === client && !deps.hasClient(sessionId, client)) armGrace(sessionId, hold);
+    },
+    input(sessionId) {
+      const hold = holds.get(sessionId);
+      if (hold) hold.lastInputAt = deps.now();
+    },
+    close() {
+      for (const hold of holds.values()) stop(hold);
+      holds.clear();
     },
   };
 }
@@ -213,10 +346,52 @@ async function readSessionBody(
   return { sessionId, body };
 }
 
-export function createBrowserStream(deps: BrowserStreamDeps): BrowserStreamHandle {
-  const tickets = createTicketStore(deps.now);
+interface Viewer {
+  ws: WebSocket;
+  sessionId: string;
+  client: string;
+}
+
+export function createBrowserStream(deps: BrowserStreamDeps, opts: BrowserStreamOptions = {}): BrowserStreamHandle {
+  const now = deps.now ?? Date.now;
+  const tickets = createTicketStore(now);
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_CLIENT_MESSAGE_BYTES });
-  const live = new Set<WebSocket>();
+  const live = new Set<Viewer>();
+
+  const viewersOf = (sessionId: string): Viewer[] => [...live].filter((v) => v.sessionId === sessionId);
+
+  const holdsPage = (viewer: Viewer): boolean =>
+    viewer.client !== '' && deps.isTakenOver(viewer.sessionId) && watch.holder(viewer.sessionId) === viewer.client;
+
+  /** Tell each viewer of the session whether the page is held, and whether by its own window. */
+  const announce = (sessionId: string): void => {
+    for (const viewer of viewersOf(sessionId)) {
+      if (viewer.ws.readyState !== WebSocket.OPEN) continue;
+      viewer.ws.send(JSON.stringify({
+        type: TAKEOVER_MESSAGE, takenOver: deps.isTakenOver(sessionId), mine: holdsPage(viewer),
+      }));
+    }
+  };
+
+  const watch: TakeoverWatch = createTakeoverWatch({
+    isTakenOver: deps.isTakenOver,
+    hasClient: (sessionId, client) => client !== '' && viewersOf(sessionId).some((v) => v.client === client),
+    now,
+    graceMs: opts.graceMs ?? TAKEOVER_GRACE_MS,
+    idleMs: opts.idleMs ?? TAKEOVER_IDLE_MS,
+    release: (sessionId, reason) => {
+      void (async () => {
+        try {
+          await deps.setTakeover(sessionId, false);
+        } catch (err) {
+          log.warn(`could not hand ${sessionId} back: ${(err as Error).message}`);
+          return;
+        }
+        log.info(`browser handed back automatically (${reason === 'idle' ? 'no input' : 'window gone'}): ${sessionId}`);
+        announce(sessionId);
+      })();
+    },
+  });
 
   const routes: Record<string, CustomRouteHandler> = {
     [BROWSER_SESSIONS_PATH]: async (req, res) => {
@@ -227,15 +402,26 @@ export function createBrowserStream(deps: BrowserStreamDeps): BrowserStreamHandl
     [BROWSER_TICKET_PATH]: async (req, res) => {
       const target = await readSessionBody(req, res, deps);
       if (!target) return;
-      sendJson(res, 200, { ok: true, data: { ticket: tickets.mint(target.sessionId) } }, { 'Cache-Control': 'no-store' });
+      const client = parseClientId(target.body.client);
+      if (client === null) return sendError(res, 400, 'bad-client', 'client must be 1-64 letters, digits, _ or -');
+      sendJson(res, 200, { ok: true, data: { ticket: tickets.mint(target.sessionId, client) } }, { 'Cache-Control': 'no-store' });
     },
 
     [BROWSER_TAKEOVER_PATH]: async (req, res) => {
       const target = await readSessionBody(req, res, deps);
       if (!target) return;
-      if (typeof target.body.on !== 'boolean') return sendError(res, 400, 'bad-on', 'on must be a boolean');
-      await deps.setTakeover(target.sessionId, target.body.on);
-      log.info(`browser ${target.body.on ? 'taken over' : 'handed back'}: ${target.sessionId}`);
+      const on = target.body.on;
+      if (typeof on !== 'boolean') return sendError(res, 400, 'bad-on', 'on must be a boolean');
+      const client = parseClientId(target.body.client);
+      // A takeover is held by a window, so taking one needs to say which.
+      if (client === null || (on && client === '')) {
+        return sendError(res, 400, 'bad-client', 'client must be 1-64 letters, digits, _ or -');
+      }
+      await deps.setTakeover(target.sessionId, on);
+      if (on) watch.begin(target.sessionId, client);
+      else watch.end(target.sessionId);
+      log.info(`browser ${on ? 'taken over' : 'handed back'}: ${target.sessionId}`);
+      announce(target.sessionId);
       sendJson(res, 200, { ok: true, data: { takenOver: deps.isTakenOver(target.sessionId) } });
     },
 
@@ -249,6 +435,7 @@ export function createBrowserStream(deps: BrowserStreamDeps): BrowserStreamHandl
       }
       // Typing into the page is the person's move, so it needs the page to be theirs.
       if (!deps.isTakenOver(target.sessionId)) return sendError(res, 409, 'not-taken-over', 'Take over the browser first');
+      watch.input(target.sessionId);
       try {
         await deps.insertText(target.sessionId, text);
       } catch (err) {
@@ -258,7 +445,8 @@ export function createBrowserStream(deps: BrowserStreamDeps): BrowserStreamHandl
     },
   };
 
-  const attach = async (ws: WebSocket, target: StreamTarget): Promise<void> => {
+  const attach = async (viewer: Viewer, target: StreamTarget): Promise<void> => {
+    const { ws } = viewer;
     let port: number | null = null;
     try {
       port = await deps.streamPort(target.sessionId);
@@ -295,15 +483,18 @@ export function createBrowserStream(deps: BrowserStreamDeps): BrowserStreamHandl
     });
     ws.on('message', (data: RawData, isBinary: boolean) => {
       if (isBinary || upstream.readyState !== WebSocket.OPEN) return;
-      const admitted = admitClientMessage(data.toString(), deps.isTakenOver(target.sessionId));
-      if (admitted !== null) upstream.send(admitted);
+      const admitted = admitClientMessage(data.toString(), holdsPage(viewer));
+      if (!admitted) return;
+      if (admitted.input) watch.input(target.sessionId);
+      upstream.send(admitted.message);
     });
     ws.on('close', () => finish(1000, 'viewer closed'));
   };
 
   const handleUpgrade = (req: http.IncomingMessage, socket: Duplex, head: Buffer): void => {
     const target = parseStreamTarget(req.url ?? '');
-    if (!target || !tickets.redeem(target.ticket, target.sessionId)) {
+    const redeemed = target ? tickets.redeem(target.ticket, target.sessionId) : null;
+    if (!target || !redeemed) {
       log.warn('browser stream refused: missing or invalid ticket');
       socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
       socket.destroy();
@@ -316,15 +507,23 @@ export function createBrowserStream(deps: BrowserStreamDeps): BrowserStreamHandl
       return;
     }
     wss.handleUpgrade(req, socket, head, (ws) => {
-      live.add(ws);
-      ws.on('close', () => live.delete(ws));
+      const viewer: Viewer = { ws, sessionId: target.sessionId, client: redeemed.client };
+      live.add(viewer);
+      watch.connected(viewer.sessionId, viewer.client);
+      ws.on('close', () => {
+        live.delete(viewer);
+        watch.disconnected(viewer.sessionId, viewer.client);
+      });
       ws.on('error', () => ws.terminate());
-      void attach(ws, target);
+      // Before any frame: whether this window may steer the page.
+      ws.send(JSON.stringify({ type: TAKEOVER_MESSAGE, takenOver: deps.isTakenOver(viewer.sessionId), mine: holdsPage(viewer) }));
+      void attach(viewer, target);
     });
   };
 
   const close = (): void => {
-    for (const ws of live) ws.terminate();
+    watch.close();
+    for (const viewer of live) viewer.ws.terminate();
     live.clear();
     wss.close();
   };

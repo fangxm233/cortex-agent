@@ -35,6 +35,7 @@ export function useAgentBrowser(sessionId: string | null, { running = false, vie
       running,
       viewing,
       hasLease: !!q.state.data?.some((s) => s.sessionId === sessionId),
+      held: !!q.state.data?.some((s) => s.sessionId === sessionId && s.takenOver),
     }),
   });
   return query.data?.find((s) => s.sessionId === sessionId) ?? null;

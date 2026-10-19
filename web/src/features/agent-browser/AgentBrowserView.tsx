@@ -23,8 +23,10 @@ import { useAgentBrowser, usePatchAgentBrowser } from './useAgentBrowsers';
 import { useAgentBrowserStream, type AgentBrowserStream } from './useAgentBrowserStream';
 
 // The agent's browser, live: the page it is on, drawn from the stream, and — on the desktop — the
-// takeover that hands the page to the person (log in, solve a captcha) and back. The phone shows the
-// same view read-only.
+// takeover that hands the page to the person (log in, solve a captcha) and back. The takeover is
+// this window's: another window of the app watches it and can move it over, and the server hands it
+// back on its own once this window has been gone a while or idle too long — the stream says so, and
+// the view and the shared list follow. The phone shows the same view read-only.
 
 function usePageVisible(): boolean {
   const [visible, setVisible] = useState(() => typeof document === 'undefined' || document.visibilityState !== 'hidden');
@@ -46,32 +48,58 @@ export function AgentBrowserView({ sessionId, visible, readOnly = false }: {
   const L = useVocab();
   const pageVisible = usePageVisible();
   const session = useAgentBrowser(sessionId, { viewing: visible && pageVisible });
+  const patch = usePatchAgentBrowser();
   const boxRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stream = useAgentBrowserStream({
     sessionId,
-    enabled: visible && pageVisible && session?.state === 'ready',
+    // A held page keeps its stream while the window is in the background (copying a password from
+    // elsewhere): a closed stream is what starts the server's hand-back clock.
+    enabled: visible && (pageVisible || (!readOnly && session?.takenOver === true)) && session?.state === 'ready',
     boxRef,
     canvasRef,
   });
   const [error, setError] = useState<string | null>(null);
-  const takenOver = !readOnly && (session?.takenOver ?? false);
+  const takeover = stream.view.takeover;
+  const holding = !readOnly && (takeover?.takenOver ?? session?.takenOver ?? false) && (takeover?.mine ?? true);
   const status = bodyStatus(session, stream.view);
+
+  // The server's word on the takeover reaches the header and the palette too, not just this view.
+  const announced = takeover?.takenOver;
+  const listed = session?.takenOver;
+  useEffect(() => {
+    if (announced === undefined || listed === undefined || announced === listed) return;
+    patch(sessionId, { takenOver: announced });
+  }, [announced, listed, sessionId, patch]);
+
+  const focusOnHold = useRef(false);
+  useEffect(() => {
+    if (!holding || !focusOnHold.current) return;
+    focusOnHold.current = false;
+    canvasRef.current?.focus();
+  }, [holding]);
+  const { noteTakeover } = stream;
+  const onTakeover = useCallback((next: boolean) => {
+    noteTakeover({ takenOver: next, mine: next });
+    patch(sessionId, { takenOver: next });
+    focusOnHold.current = next;
+  }, [noteTakeover, patch, sessionId]);
   // A reconnect keeps the last frame on screen; only a page with nothing to show gets the notice.
   const showStatus = status !== 'live' && (!stream.view.hasFrame || status === 'error' || status === 'none' || status === 'starting');
 
   return (
     <div className="browser-workspace agent-browser" data-agent-browser={sessionId} data-status={status}>
-      <AgentBrowserToolbar session={session} view={stream.view} status={status} readOnly={readOnly} onError={setError} canvasRef={canvasRef} />
-      {takenOver && <ControlStrip sessionId={sessionId} onError={setError} />}
+      <AgentBrowserToolbar session={session} view={stream.view} status={status} readOnly={readOnly} holding={holding}
+        onError={setError} onTakeover={onTakeover} />
+      {holding && <ControlStrip sessionId={sessionId} onError={setError} />}
       {error && (
         <div className="browser-notice" role="alert">
           <span className="browser-error">{fmt(L.abActionFailed, { message: error })}</span>
           <button type="button" className="browser-control browser-icon" title={L.cmDismiss} aria-label={L.cmDismiss} onClick={() => setError(null)}>×</button>
         </div>
       )}
-      <div ref={boxRef} className="agent-browser-stage" data-taken-over={takenOver ? 'true' : undefined}>
-        <PageCanvas canvasRef={canvasRef} stream={stream} takenOver={takenOver} sessionId={sessionId} onError={setError} />
+      <div ref={boxRef} className="agent-browser-stage" data-taken-over={holding ? 'true' : undefined}>
+        <PageCanvas canvasRef={canvasRef} stream={stream} takenOver={holding} sessionId={sessionId} onError={setError} />
         {showStatus && (
           <div className="browser-empty agent-browser-overlay" data-agent-browser-status={status}>
             <StatusText status={status} session={session} copy={L} />
@@ -107,29 +135,27 @@ function StatusText({ status, session, copy: L }: { status: BodyStatus; session:
   return <span>{status === 'live' ? '' : text[status]}</span>;
 }
 
-function AgentBrowserToolbar({ session, view, status, readOnly, onError, canvasRef }: {
+function AgentBrowserToolbar({ session, view, status, readOnly, holding, onError, onTakeover }: {
   session: AgentBrowserSession | null;
   view: AgentBrowserStream['view'];
   status: BodyStatus;
   readOnly: boolean;
+  /** This window holds the page. Held by another window, the button takes it over here. */
+  holding: boolean;
   onError: (message: string | null) => void;
-  canvasRef: React.RefObject<HTMLCanvasElement>;
+  onTakeover: (takenOver: boolean) => void;
 }): JSX.Element {
   const L = useVocab();
-  const patch = usePatchAgentBrowser();
   const [busy, setBusy] = useState(false);
   const url = view.url ?? session?.url ?? null;
   const title = pageTitle(url, session, view.title);
-  const takenOver = session?.takenOver ?? false;
 
   const toggle = async (): Promise<void> => {
     if (!session) return;
     setBusy(true);
     onError(null);
     try {
-      const next = await setAgentBrowserTakeover(session.sessionId, !takenOver);
-      patch(session.sessionId, { takenOver: next });
-      if (next) canvasRef.current?.focus();
+      onTakeover(await setAgentBrowserTakeover(session.sessionId, !holding));
     } catch (err) {
       onError(actionError(err, L));
     } finally {
@@ -147,10 +173,10 @@ function AgentBrowserToolbar({ session, view, status, readOnly, onError, canvasR
       <div className="browser-tools">
         {session && <span className="agent-browser-device">{deviceLabel(session.device, L)}</span>}
         {!readOnly && (
-          <button type="button" className="browser-control" data-agent-browser-takeover="" aria-pressed={takenOver}
-            title={takenOver ? L.abHandBack : L.abTakeOverTitle}
+          <button type="button" className="browser-control" data-agent-browser-takeover="" aria-pressed={holding}
+            title={holding ? L.abHandBack : L.abTakeOverTitle}
             disabled={busy || session?.state !== 'ready'} onClick={() => void toggle()}>
-            {takenOver ? L.abHandBack : L.abTakeOver}
+            {holding ? L.abHandBack : L.abTakeOver}
           </button>
         )}
       </div>

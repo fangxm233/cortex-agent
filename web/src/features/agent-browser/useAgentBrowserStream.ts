@@ -9,6 +9,7 @@ import {
   type FrameMeta,
   type Rect,
   type StreamView,
+  type TakeoverState,
 } from './stream-model';
 
 // One live view of an agent's browser: a ticket, a socket, frames drawn onto a canvas as they come.
@@ -33,6 +34,8 @@ export interface AgentBrowserStream {
   frameRect: () => Rect;
   /** The newest frame's page metadata. */
   frameMeta: () => FrameMeta | null;
+  /** Record a takeover this window just made, ahead of the server's word on it. */
+  noteTakeover: (state: TakeoverState) => void;
 }
 
 export function useAgentBrowserStream({ sessionId, enabled, boxRef, canvasRef }: {
@@ -178,6 +181,7 @@ export function useAgentBrowserStream({ sessionId, enabled, boxRef, canvasRef }:
   }, []);
 
   const frameMeta = useCallback(() => meta.current, []);
+  const noteTakeover = useCallback((state: TakeoverState) => dispatch({ type: 'takeover', ...state }), []);
 
-  return { view, send, frameRect, frameMeta };
+  return { view, send, frameRect, frameMeta, noteTakeover };
 }

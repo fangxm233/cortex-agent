@@ -34,6 +34,29 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   return body.data as T;
 }
 
+const CLIENT_KEY = 'cortex.agentBrowser.client';
+let memoryClient: string | null = null;
+
+function newClientId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+/**
+ * This window's id. The server ties a takeover to the window that made it: a reload (same id, kept
+ * in sessionStorage) picks the page back up, a window that goes away hands it back.
+ */
+export function agentBrowserClient(): string {
+  try {
+    const stored = sessionStorage.getItem(CLIENT_KEY);
+    if (stored && /^[A-Za-z0-9_-]{1,64}$/.test(stored)) return stored;
+    const id = newClientId();
+    sessionStorage.setItem(CLIENT_KEY, id);
+    return id;
+  } catch {
+    return (memoryClient ??= newClientId());
+  }
+}
+
 export async function listAgentBrowsers(): Promise<AgentBrowserSession[]> {
   const data = await call<{ sessions?: AgentBrowserSession[] }>('/api/browser/sessions', { cache: 'no-store' });
   return data.sessions ?? [];
@@ -42,7 +65,7 @@ export async function listAgentBrowsers(): Promise<AgentBrowserSession[]> {
 export async function mintStreamTicket(sessionId: string): Promise<string> {
   const data = await call<{ ticket: string }>('/api/browser/stream-ticket', {
     method: 'POST',
-    body: JSON.stringify({ session: sessionId }),
+    body: JSON.stringify({ session: sessionId, client: agentBrowserClient() }),
   });
   return data.ticket;
 }
@@ -50,7 +73,7 @@ export async function mintStreamTicket(sessionId: string): Promise<string> {
 export async function setAgentBrowserTakeover(sessionId: string, on: boolean): Promise<boolean> {
   const data = await call<{ takenOver: boolean }>('/api/browser/takeover', {
     method: 'POST',
-    body: JSON.stringify({ session: sessionId, on }),
+    body: JSON.stringify({ session: sessionId, on, client: agentBrowserClient() }),
   });
   return data.takenOver;
 }

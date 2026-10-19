@@ -163,9 +163,17 @@ export interface StreamView {
   hasFrame: boolean;
   /** Consecutive failed attempts; resets once a frame arrives. */
   failures: number;
+  /** Who holds the page, as the server last said over this stream; null until it has. */
+  takeover: TakeoverState | null;
 }
 
-export const INITIAL_STREAM: StreamView = { phase: 'idle', url: null, title: null, meta: null, hasFrame: false, failures: 0 };
+/** `mine`: this window holds it — it alone sends input; another window of the app may hold it instead. */
+export interface TakeoverState {
+  takenOver: boolean;
+  mine: boolean;
+}
+
+export const INITIAL_STREAM: StreamView = { phase: 'idle', url: null, title: null, meta: null, hasFrame: false, failures: 0, takeover: null };
 
 export interface StreamTab {
   active?: boolean;
@@ -179,6 +187,7 @@ export type StreamEvent =
   | { type: 'frame'; meta: FrameMeta }
   | { type: 'url'; url: string }
   | { type: 'tabs'; tabs: StreamTab[] }
+  | ({ type: 'takeover' } & TakeoverState)
   | { type: 'drop' }
   | { type: 'stop' };
 
@@ -197,10 +206,13 @@ export function streamReducer(state: StreamView, event: StreamEvent): StreamView
       if (!tab) return state;
       return { ...state, title: tab.title || state.title, url: tab.url || state.url };
     }
+    case 'takeover':
+      return { ...state, takeover: { takenOver: event.takenOver, mine: event.mine } };
     case 'drop':
       return { ...state, phase: 'retrying', failures: state.failures + 1 };
     case 'stop':
-      return { ...state, phase: 'idle' };
+      // A closed stream hears nothing more; the polled list speaks for the takeover until it reopens.
+      return { ...state, phase: 'idle', takeover: null };
   }
 }
 
@@ -214,6 +226,7 @@ export function parseStreamMessage(raw: string): (
   | { type: 'frame'; seq: number; data: string; meta: FrameMeta }
   | { type: 'url'; url: string }
   | { type: 'tabs'; tabs: StreamTab[] }
+  | ({ type: 'takeover' } & TakeoverState)
 ) | null {
   let msg: Record<string, unknown>;
   try {
@@ -228,6 +241,10 @@ export function parseStreamMessage(raw: string): (
   }
   if (msg.type === 'url' && typeof msg.url === 'string') return { type: 'url', url: msg.url };
   if (msg.type === 'tabs' && Array.isArray(msg.tabs)) return { type: 'tabs', tabs: msg.tabs as StreamTab[] };
+  // The server's own word on the takeover (set, handed back, or handed back automatically).
+  if (msg.type === 'cortex_takeover' && typeof msg.takenOver === 'boolean') {
+    return { type: 'takeover', takenOver: msg.takenOver, mine: msg.takenOver && msg.mine === true };
+  }
   return null;
 }
 
@@ -274,12 +291,13 @@ export function bodyStatus(session: AgentBrowserSession | null | undefined, view
   return 'connecting';
 }
 
-/** How often the session list is worth re-reading: fast while something is moving, slow while a
- *  lease just sits there, and not at all for a session that has never had one. */
-export function pollIntervalMs(input: { visible: boolean; running: boolean; hasLease: boolean; viewing: boolean }): number | false {
+/** How often the session list is worth re-reading: fast while something is moving (a held page can
+ *  be handed back by the server at any moment), slow while a lease just sits there, and not at all
+ *  for a session that has never had one. */
+export function pollIntervalMs(input: { visible: boolean; running: boolean; hasLease: boolean; viewing: boolean; held?: boolean }): number | false {
   if (!input.visible) return false;
   if (input.viewing) return 2000;
-  if (input.running) return 3000;
+  if (input.running || input.held) return 3000;
   if (input.hasLease) return 10_000;
   return false;
 }

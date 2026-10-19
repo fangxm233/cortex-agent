@@ -121,6 +121,15 @@ describe('stream state', () => {
     expect(bodyStatus(session({ state: 'error' }), live)).toBe('error');
   });
 
+  it('keeps the server\'s word on the takeover only while the stream is open', () => {
+    let s = streamReducer(INITIAL_STREAM, { type: 'takeover', takenOver: true, mine: false });
+    expect(s.takeover).toEqual({ takenOver: true, mine: false });
+    s = streamReducer(s, { type: 'drop' });
+    expect(s.takeover).toEqual({ takenOver: true, mine: false });
+    s = streamReducer(s, { type: 'stop' });
+    expect(s.takeover).toBeNull();
+  });
+
   it('backs off to 8 s', () => {
     expect([1, 2, 3, 4, 9].map(retryDelayMs)).toEqual([1000, 2000, 4000, 8000, 8000]);
   });
@@ -130,6 +139,9 @@ describe('stream state', () => {
       .toEqual({ type: 'frame', seq: 3, data: 'QQ==', meta: { deviceWidth: 10, deviceHeight: 5 } });
     expect(parseStreamMessage('{"type":"frame","seq":3,"data":"QQ==","metadata":{}}')).toBeNull();
     expect(parseStreamMessage('{"type":"status","connected":true}')).toBeNull();
+    expect(parseStreamMessage('{"type":"cortex_takeover","takenOver":true,"mine":true}')).toEqual({ type: 'takeover', takenOver: true, mine: true });
+    expect(parseStreamMessage('{"type":"cortex_takeover","takenOver":false,"mine":true}')).toEqual({ type: 'takeover', takenOver: false, mine: false });
+    expect(parseStreamMessage('{"type":"cortex_takeover"}')).toBeNull();
     expect(parseStreamMessage('garbage')).toBeNull();
   });
 });
@@ -141,6 +153,8 @@ describe('polling', () => {
     expect(pollIntervalMs({ visible: true, running: false, hasLease: true, viewing: false })).toBe(10_000);
     expect(pollIntervalMs({ visible: true, running: false, hasLease: true, viewing: true })).toBe(2000);
     expect(pollIntervalMs({ visible: false, running: true, hasLease: true, viewing: true })).toBe(false);
+    // The server may hand a held page back on its own; the header should hear of it soon.
+    expect(pollIntervalMs({ visible: true, running: false, hasLease: true, viewing: false, held: true })).toBe(3000);
   });
 });
 
