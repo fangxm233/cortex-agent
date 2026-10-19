@@ -46,6 +46,8 @@ export interface Settings {
   sessionRetentionDays: number;
   piCompactReserveTokens: number;
   maxContextTokens: number | null;
+  cacheKeepWarmHours: number;
+  coldResumeClearToolResults: boolean;
   uiCorsOrigins: string[];
   adminChannel: string | null;
   feishuAdminChannel: string | null;
@@ -124,6 +126,16 @@ function validateSessionRetentionDays(value: number): string | null {
   if (value < 1) return 'must be at least 1 day';
   if (value > MAX_SESSION_RETENTION_DAYS) {
     return `must be at most ${MAX_SESSION_RETENTION_DAYS} days`;
+  }
+  return null;
+}
+
+export const MAX_CACHE_KEEP_WARM_HOURS = 24;
+
+function validateCacheKeepWarmHours(value: number): string | null {
+  if (!Number.isFinite(value)) return 'must be a number of hours';
+  if (value < 0 || value > MAX_CACHE_KEEP_WARM_HOURS) {
+    return `must be between 0 and ${MAX_CACHE_KEEP_WARM_HOURS} hours`;
   }
   return null;
 }
@@ -328,6 +340,19 @@ export const SETTINGS_SPEC = {
     type: 'number|null',
     default: null,
     validate: validateMaxContextTokens,
+  },
+  // Claude on a subscription mode only: how long an idle session that still expects a wake keeps
+  // its one-hour prompt cache refreshed, counted from its last model activity. 0 turns it off.
+  cacheKeepWarmHours: {
+    type: 'number',
+    default: 6,
+    validate: validateCacheKeepWarmHours,
+  },
+  // Claude only: on a --resume whose prompt cache has certainly expired, stub out all but the most
+  // recent tool results in the transcript before the CLI re-sends it.
+  coldResumeClearToolResults: {
+    type: 'boolean',
+    default: true,
   },
   uiCorsOrigins: {
     envVar: 'CORTEX_UI_CORS_ORIGINS',
