@@ -1,6 +1,6 @@
 export const setupEn = {
   setupHeader: 'Setup',
-  setupEyebrow: 'SERVER READY',
+  setupEyebrow: 'Server ready',
   setupOptional: 'Optional',
   setupToggleTheme: 'Toggle light / dark theme',
   setupLanguage: 'Language',
@@ -33,7 +33,7 @@ export const setupEn = {
 };
 export const setupZh: Record<keyof typeof setupEn, string> = {
   setupHeader: '初始设置',
-  setupEyebrow: '服务已启动',
+  setupEyebrow: '服务已就绪',
   setupOptional: '可选',
   setupToggleTheme: '切换浅色 / 深色主题',
   setupLanguage: '语言',

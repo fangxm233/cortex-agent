@@ -27,7 +27,7 @@ export const zhBase = {
   mHeartbeat: '心跳',
   aprEmptyTitle: '队列已清空',
   issuesTitle: '问题',
-  isListLabel: 'ISSUES',
+  isListLabel: '问题',
   isRecorded: '记录于',
   isEmptyTitle: '没有问题',
   isEmptyDesc: 'agent 运行中登记的问题会出现在这里',

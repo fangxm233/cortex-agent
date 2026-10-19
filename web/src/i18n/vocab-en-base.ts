@@ -27,7 +27,7 @@ export const enBase = {
   mHeartbeat: 'heartbeat',
   aprEmptyTitle: 'All clear',
   issuesTitle: 'Issues',
-  isListLabel: 'ISSUES',
+  isListLabel: 'Issues',
   isRecorded: 'recorded',
   isEmptyTitle: 'No issues',
   isEmptyDesc: 'Issues agents register during runs appear here',
@@ -247,7 +247,7 @@ export const enBase = {
   dmRestartFailed: 'Restart failed',
   dmDisconnect: 'Disconnect',
   dmDisconnectDesc: 'Clear the saved server & token and return to the login screen',
-  dmRebuild: 'rebuild',
+  dmRebuild: 'Rebuild',
 
   rpLoadingMachines: 'Loading machines…',
   rpFailedLoadMachines: 'Failed to load machines.',

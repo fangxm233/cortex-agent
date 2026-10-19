@@ -38,9 +38,13 @@ describe('Shared presentation', () => {
     expect(classes(ghost)).not.toContain('material-');
   });
 
-  it('keeps empty-state guidance opaque and actions intact', () => {
+  it('sets empty-state guidance on the pane without a card, actions intact', () => {
     const root = create(<EmptyState title="No entries" description="Create an entry to begin."
       action={<button>Create</button>} />).root;
+    const frame = classes(root.findAllByType('div')[0]);
+    expect(frame).not.toContain('shadow-card');
+    expect(frame).not.toContain('bg-surface-card');
+    expect(frame).not.toContain('border');
     expect(classes(root.findByType('p'))).toContain('text-proto-muted');
     expect(classes(root.findByType('p'))).toContain('leading-relaxed');
     expect(root.findByType('button').children).toEqual(['Create']);

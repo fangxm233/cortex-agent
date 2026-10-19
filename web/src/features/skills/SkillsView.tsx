@@ -8,31 +8,15 @@ import type { SkillGroup } from '@cortex-agent/ui-contract';
 // grouped by plugin. Neutral placeholder when loading or when no skills are found.
 // No fabricated data: every field rendered comes from a real skills.list response.
 
-const MONO = "'IBM Plex Mono', monospace";
+// A two-column directory: the plugin and its count on the left, its skills as a wrapped run of
+// slash names on the right. Groups are set apart by hairlines; only the skill names are code.
+const SKILL_NAME: React.CSSProperties = {
+  font: '400 12px/1.6 var(--font-code)',
+  color: 'var(--proto-accent)',
+  overflowWrap: 'anywhere',
+};
 
-function SkillChip({ name }: { name: string }): JSX.Element {
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        fontSize: 11,
-        fontWeight: 500,
-        color: 'var(--proto-accent)',
-        background: 'var(--proto-accent-bg)',
-        border: '1px solid var(--proto-accent-border)',
-        borderRadius: 'var(--r-chip)',
-        padding: '3px 8px',
-        maxWidth: '100%',
-        overflowWrap: 'anywhere',
-        fontFamily: MONO,
-        letterSpacing: 0.1,
-      }}
-    >
-      /{name}
-    </span>
-  );
-}
+const STATUS_LINE: React.CSSProperties = { fontSize: 12, color: 'var(--proto-muted)', padding: '10px 0' };
 
 // Skill / group counters — English pluralizes, Chinese does not.
 function skillCount(L: Vocab, n: number): string {
@@ -44,39 +28,28 @@ function skillSummary(L: Vocab, skills: number, groups: number): string {
   return fmt(L.skillSummary, { skills: skillCount(L, skills), groups: groupCount });
 }
 
-function GroupSection({ group }: { group: SkillGroup }): JSX.Element {
+function GroupSection({ group, last }: { group: SkillGroup; last: boolean }): JSX.Element {
   const L = useVocab();
   return (
-    <div style={{ marginBottom: 16, padding: 16, border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', background: 'var(--material-card-bg)', boxShadow: 'var(--material-card-shadow)' }}>
-      <div
-        style={{
-          fontSize: 11.5,
-          fontWeight: 600,
-          color: 'var(--proto-muted)',
-          overflowWrap: 'anywhere',
-          letterSpacing: 0.4,
-          textTransform: 'uppercase',
-          marginBottom: 10,
-          fontFamily: MONO,
-        }}
-      >
-        {group.plugin}
-        <span
-          style={{
-            marginLeft: 8,
-            fontSize: 11,
-            fontWeight: 500,
-            color: 'var(--proto-muted)',
-            letterSpacing: 0,
-            textTransform: 'none',
-          }}
-        >
+    <div
+      data-skill-group={group.plugin}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '180px minmax(0, 1fr)',
+        columnGap: 16,
+        padding: '10px 0',
+        borderBottom: last ? 'none' : '1px solid var(--proto-line-2)',
+      }}
+    >
+      <div style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)', lineHeight: 1.45 }}>{group.plugin}</div>
+        <div style={{ fontSize: 12, color: 'var(--proto-muted-3)', fontVariantNumeric: 'tabular-nums' }}>
           {skillCount(L, group.skills.length)}
-        </span>
+        </div>
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 14px', alignContent: 'flex-start', minWidth: 0 }}>
         {group.skills.map((name) => (
-          <SkillChip key={name} name={name} />
+          <span key={name} style={SKILL_NAME}>/{name}</span>
         ))}
       </div>
     </div>
@@ -123,18 +96,12 @@ export function SkillsView(): JSX.Element {
       </div>
 
       {/* Body */}
-      <div style={{ flex: 1, overflowY: 'auto', scrollbarGutter: 'stable', padding: '24px 28px' }}>
-        {isLoading && (
-          <div style={{ fontSize: 12, color: 'var(--proto-muted)', fontFamily: MONO }}>{L.skLoadingBody}</div>
-        )}
-        {isError && (
-          <div style={{ fontSize: 12, color: 'var(--proto-danger)', fontFamily: MONO }}>{L.skFailedBody}</div>
-        )}
-        {!isLoading && !isError && groups.length === 0 && (
-          <div style={{ fontSize: 12, color: 'var(--proto-muted)', fontFamily: MONO }}>{L.skEmpty}</div>
-        )}
-        {groups.map((g) => (
-          <GroupSection key={g.plugin} group={g} />
+      <div style={{ flex: 1, overflowY: 'auto', scrollbarGutter: 'stable', padding: '8px 28px 24px' }}>
+        {isLoading && <div style={STATUS_LINE}>{L.skLoadingBody}</div>}
+        {isError && <div style={{ ...STATUS_LINE, color: 'var(--proto-danger)' }}>{L.skFailedBody}</div>}
+        {!isLoading && !isError && groups.length === 0 && <div style={STATUS_LINE}>{L.skEmpty}</div>}
+        {groups.map((g, i) => (
+          <GroupSection key={g.plugin} group={g} last={i === groups.length - 1} />
         ))}
       </div>
     </div>
