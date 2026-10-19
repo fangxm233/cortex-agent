@@ -1,6 +1,7 @@
 import * as http from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
+import type { Duplex } from 'stream';
 import { createHTTPServer } from '@trpc/server/adapters/standalone';
 import type { AnyRouter } from '@trpc/server';
 import { AUTH_HEADER, timingSafeEqualStr } from '@core/auth.js';
@@ -79,6 +80,18 @@ export interface UiHttpServerOptions {
    * this host). Defaults to on; `CORTEX_PORT_FORWARD=0` at the call site turns it off.
    */
   portForward?: boolean;
+  /**
+   * WebSocket endpoints beyond the port forward, by exact path. Each authenticates its own handshake
+   * (a page cannot set `x-cortex-token` on one); the server only applies the Origin check first, the
+   * same one every state-changing request gets, and closes each route on shutdown.
+   */
+  upgradeRoutes?: Record<string, UpgradeRoute>;
+}
+
+/** A WebSocket endpoint mounted on the server's `upgrade` event. */
+export interface UpgradeRoute {
+  handleUpgrade: (req: http.IncomingMessage, socket: Duplex, head: Buffer) => void;
+  close: () => void;
 }
 
 /** Handler for a custom API route mounted on the HTTP server. Receives the raw request
@@ -345,20 +358,35 @@ export function createUiHttpServer(opts: UiHttpServerOptions): UiHttpServer {
   // `authorize(req)` here instead of `isAuthorized` would silently hand every logged-in page a raw
   // socket to any loopback service on this host. See plan/embedded-browser.md §10.
   const forward = opts.portForward === false ? null : createPortForward();
-  if (forward) {
+  const upgradeRoutes = opts.upgradeRoutes ?? {};
+  if (forward || Object.keys(upgradeRoutes).length > 0) {
     server.on('upgrade', (req, socket, head) => {
       const pathname = (req.url ?? '').split('?')[0];
-      if (pathname !== FORWARD_PATH) {
+      if (forward && pathname === FORWARD_PATH) {
+        if (!isAuthorized(req, opts.getToken)) {
+          log.warn(`forward auth rejected: ${req.url}`);
+          socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+        forward.handleUpgrade(req, socket, head);
+        return;
+      }
+      const route = Object.hasOwn(upgradeRoutes, pathname) ? upgradeRoutes[pathname] : undefined;
+      if (!route) {
         socket.destroy();
         return;
       }
-      if (!isAuthorized(req, opts.getToken)) {
-        log.warn(`forward auth rejected: ${req.url}`);
-        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      // A handshake carries cookies like any request, so a foreign page is refused before the route
+      // ever sees it.
+      const allowList = typeof opts.corsOrigins === 'function' ? opts.corsOrigins() : opts.corsOrigins;
+      if (!isTrustedOrigin(req, allowList)) {
+        log.warn(`ui-http cross-origin upgrade refused: ${pathname} from ${firstHeader(req.headers.origin)}`);
+        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
         socket.destroy();
         return;
       }
-      forward.handleUpgrade(req, socket, head);
+      route.handleUpgrade(req, socket, head as Buffer);
     });
   }
 
@@ -371,6 +399,7 @@ export function createUiHttpServer(opts: UiHttpServerOptions): UiHttpServer {
   const close = (): Promise<void> =>
     new Promise((resolve) => {
       forward?.close();
+      for (const route of Object.values(upgradeRoutes)) route.close();
       // Force-close keep-alive + live SSE sockets, else server.close() would hang on them.
       server.closeAllConnections?.();
       server.close(() => resolve());
