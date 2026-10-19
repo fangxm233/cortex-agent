@@ -243,10 +243,10 @@ export function SStatus({ tone = 'neutral', children, ...rest }: {
 }
 
 /** One line of quiet meta beside a name: origin, counts, a marker such as "default". */
-export function SMeta({ children, ...rest }: { children: ReactNode } & Record<string, unknown>) {
+export function SMeta({ children, style, ...rest }: { children: ReactNode; style?: CSSProperties } & Record<string, unknown>) {
   return (
     <span {...rest} className="settings-meta" style={{
-      fontSize: 12, fontWeight: 400, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted-2)', minWidth: 0,
+      fontSize: 12, fontWeight: 400, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted-2)', minWidth: 0, ...style,
     }}>
       {children}
     </span>
