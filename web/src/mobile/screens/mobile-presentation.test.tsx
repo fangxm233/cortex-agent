@@ -1,7 +1,11 @@
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { MC, MCard, MGroupLabel, MPill, MScreen, MScrollBody, MTabHeader } from '../ui/kit';
+import { en } from '@/i18n';
+import type { NoteRowVm } from '@/features/notes/notes-vm';
 import type { MSessionRow } from './m-session-list-vm';
+import type { MNotesVm } from './m-notes-vm';
+import { MNotesView } from './MNotesView';
 import { MSessionListView } from './MSessionListView';
 
 const noop = () => {};
@@ -105,5 +109,30 @@ describe('mobile presentation', () => {
       .toContain('solid');
     expect(tree.root.findByProps({ 'data-session-id': 'idle-1' }).findAll((n) => n.props['data-status-dot'] !== undefined)).toHaveLength(0);
     tree.unmount();
+  });
+
+  it('lists notes as rows on the mesh, with the red delete key hidden until a swipe uncovers it', () => {
+    const note = (id: string, completed: boolean) => ({ id, text: id, completed, timeLabel: '3d' }) as unknown as NoteRowVm;
+    const vm: MNotesVm = { active: [note('open', false)], completed: [note('done', true)], previews: [], activeCount: 1, completedCount: 1 };
+    const pending = () => Promise.resolve();
+    const tree = create(<MNotesView vm={vm} busy={false} onBack={noop} onAdd={pending} onUpdate={pending}
+      onSetCompleted={pending} onDelete={pending} onHandoff={noop} onClearCompleted={pending} />);
+    const body = tree.root.findByType(MScrollBody);
+    const styles = JSON.stringify(body.findAll((node) => typeof node.type === 'string').map((node) => node.props.style));
+    expect(styles).not.toContain('var(--material-card-bg)');
+    expect(styles).not.toContain('var(--material-card-shadow)');
+    const swipe = tree.root.findByProps({ 'data-note-swipe': 'open' });
+    expect(swipe.props.style.background).toBeUndefined();
+    const reveal = swipe.findAll((node) => node.type === 'div' && node.props.style?.background === 'var(--proto-danger)');
+    expect(reveal).toHaveLength(1);
+    expect(reveal[0].props.style.width).toBe(0);
+    expect(reveal[0].findByType('button').props.disabled).toBe(true);
+    tree.unmount();
+  });
+
+  it('labels hook groups in sentence case', () => {
+    for (const key of ['hookGroupAgent', 'hookGroupCc', 'hookGroupPi', 'hookGroupCortex', 'hookGroupOther'] as const) {
+      expect(en[key]).not.toBe(en[key].toUpperCase());
+    }
   });
 });
