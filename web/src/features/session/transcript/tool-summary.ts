@@ -5,7 +5,7 @@ import type { ToolCall } from '@/features/session/composer/chat-content';
 // counted by what they did, in the order each kind first appears; a read or an edit that touched one
 // file names it, and a tool with no category of its own is named as it is.
 
-export type ToolCategory = 'command' | 'read' | 'edit' | 'search' | 'web' | 'todo' | 'other';
+export type ToolCategory = 'command' | 'read' | 'edit' | 'search' | 'web' | 'todo' | 'skill' | 'other';
 
 const CATEGORIES: Record<Exclude<ToolCategory, 'other'>, readonly string[]> = {
   command: ['bash', 'shell', 'exec', 'run_command', 'bashoutput', 'killshell', 'killbash', 'terminal'],
@@ -14,6 +14,7 @@ const CATEGORIES: Record<Exclude<ToolCategory, 'other'>, readonly string[]> = {
   search: ['grep', 'glob', 'find', 'ls', 'search', 'list', 'list_dir', 'codebase_search'],
   web: ['webfetch', 'websearch', 'web_fetch', 'web_search', 'fetch'],
   todo: ['todowrite', 'todo_write', 'update_todos'],
+  skill: ['skill'],
 };
 
 /** The tool's own name: no server prefix, no `remote_` prefix, no `:device` qualifier. */
@@ -89,6 +90,7 @@ function partText(part: ToolRunPart, L: Vocab): string {
     case 'search': return fmt(n === 1 ? L.chatToolSearchOne : L.chatToolSearchMany, { n });
     case 'web': return fmt(n === 1 ? L.chatToolWebOne : L.chatToolWebMany, { n });
     case 'todo': return L.chatToolTodo;
+    case 'skill': return n === 1 ? L.chatToolSkillOne : fmt(L.chatToolSkillMany, { n });
     case 'thought': return n === 1 ? L.chatToolThoughtOne : fmt(L.chatToolThoughtMany, { n });
     case 'other': return fmt(n === 1 ? L.chatToolOtherOne : L.chatToolOtherMany, { name: part.name ?? '', n });
   }
@@ -118,6 +120,7 @@ const NOW_TEXT: Record<NowCategory, (call: ToolCall, L: Vocab) => string> = {
   search: (call, L) => fmt(L.chatToolNowSearch, { input: commandLine(call.input) }),
   web: (_, L) => L.chatToolNowWeb,
   todo: (_, L) => L.chatToolNowTodo,
+  skill: (call, L) => fmt(L.chatToolNowSkill, { name: call.input.trim() }),
   other: (call, L) => fmt(L.chatToolNowOther, { name: bareToolName(call.kind) }),
 };
 

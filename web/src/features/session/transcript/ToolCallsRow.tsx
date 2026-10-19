@@ -21,7 +21,7 @@ const mono = "'IBM Plex Mono',monospace";
 // and its words roll to the next step rather than jump.
 
 const CATEGORY_ICON: Record<ToolCategory | 'thought', EventIconName> = {
-  command: 'terminal', read: 'file', edit: 'pencil', search: 'search', web: 'globe', todo: 'list', other: 'circle', thought: 'spark',
+  command: 'terminal', read: 'file', edit: 'pencil', search: 'search', web: 'globe', todo: 'list', skill: 'circle', other: 'circle', thought: 'spark',
 };
 
 const panelStyle: CSSProperties = {

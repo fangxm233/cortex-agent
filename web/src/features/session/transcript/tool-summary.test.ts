@@ -43,6 +43,13 @@ describe('tool run summary', () => {
     const calls: ToolCall[] = [call('Grep', 'x'), { kind: 'thinking', input: 'hmm', thinking: true }, call('Grep', 'y')];
     expect(toolRunText(calls, en)).toBe('Searched 2 times · Thought once');
   });
+
+  it('counts skill calls as skills', () => {
+    const calls = [call('Skill', 'cortex-coder:develop'), call('Skill', 'cortex-board:board')];
+    expect(toolRunText(calls, en)).toBe('Called 2 skills');
+    expect(toolRunText(calls, zh)).toBe('调用 2 个技能');
+    expect(toolRunText([calls[0]], en)).toBe('Called 1 skill');
+  });
 });
 
 describe('toolRunNow', () => {
@@ -54,5 +61,6 @@ describe('toolRunNow', () => {
     expect(toolRunNow({ kind: 'Edit', input: '/a/b.ts' }, en)).toBe('Editing b.ts');
     expect(toolRunNow({ kind: 'Grep', input: 'TODO' }, en)).toBe('Searching TODO');
     expect(toolRunNow({ kind: 'mcp__cortex-core__send_view', input: '{}' }, en)).toBe('Calling send_view');
+    expect(toolRunNow({ kind: 'Skill', input: 'cortex-coder:develop' }, en)).toBe('Calling skill cortex-coder:develop');
   });
 });
