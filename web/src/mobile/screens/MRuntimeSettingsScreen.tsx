@@ -24,8 +24,8 @@ import {
   type RuntimeSettingWriter,
 } from '@/features/settings/controllers/runtime-settings-writer';
 import {
-  MSET_KEY, MSET_SUB, MSET_TITLE, MSettingsCard, MSettingsField, MSettingsQueryPage,
-  MSettingsRow, MSettingsSelect, MSettingsToggle,
+  MSET_INSET, MSET_KEY, MSET_SUB, MSET_TITLE, MSettingsField, MSettingsQueryPage,
+  MSettingsRow, MSettingsSection, MSettingsSelect, MSettingsToggle,
 } from './MSettingsControls';
 
 function ToggleRow(props: {
@@ -46,10 +46,9 @@ const NOTICE_COLOR: Record<SystemNoticeEntry['level'], string> = {
   info: MC.run, warning: MC.amber, error: MC.fail,
 };
 
-function NoticeRow({ entry, last }: { entry: SystemNoticeEntry; last: boolean }) {
+function NoticeRow({ entry }: { entry: SystemNoticeEntry }) {
   const lang = useLang();
-  return <div data-notice-row={entry.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: 12,
-    borderBottom: last ? undefined : `1px solid ${MC.divider}` }}>
+  return <div data-notice-row={entry.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: `12px ${MSET_INSET}px` }}>
     <span aria-hidden style={{ width: 7, height: 7, borderRadius: '50%', flex: 'none', marginTop: 5,
       background: NOTICE_COLOR[entry.level] }} />
     <div style={{ minWidth: 0, flex: 1 }}>
@@ -67,12 +66,11 @@ function RecentNotificationsCard() {
   const L = useVocab();
   const history = useNoticeHistory();
   const note = noticeHistoryNote(L, history);
-  return <MSettingsCard title={L.stRecentNotifications} note={noticeHistoryCaption(L, history)}>
+  return <MSettingsSection title={L.stRecentNotifications} note={noticeHistoryCaption(L, history)}>
     {note !== null
-      ? <div style={{ ...MSET_SUB, marginTop: 0, padding: 12 }}>{note}</div>
-      : history.entries.map((entry, index) => <NoticeRow key={entry.id} entry={entry}
-        last={index === history.entries.length - 1} />)}
-  </MSettingsCard>;
+      ? <div style={{ ...MSET_SUB, marginTop: 0, padding: `12px ${MSET_INSET}px` }}>{note}</div>
+      : history.entries.map((entry) => <NoticeRow key={entry.id} entry={entry} />)}
+  </MSettingsSection>;
 }
 
 function NotificationsContent(props: { snapshot: ConfigSnapshot; write: RuntimeSettingWriter }) {
@@ -83,13 +81,13 @@ function NotificationsContent(props: { snapshot: ConfigSnapshot; write: RuntimeS
   const threshold = settings.turnNotifyThresholdS?.value;
   const thresholdSuffix = typeof threshold === 'number' ? ` ${threshold}s` : undefined;
   return <>
-    <MSettingsCard>{NOTIFY_SETTINGS.map((descriptor) => <ToggleRow key={descriptor.setting}
+    <MSettingsSection>{NOTIFY_SETTINGS.map((descriptor) => <ToggleRow key={descriptor.setting}
       descriptor={descriptor} settings={settings} pending={props.write.pending} onToggle={props.write.onToggle}
-      descSuffix={descriptor.setting === 'turnNotify' ? thresholdSuffix : undefined} />)}</MSettingsCard>
-    <MSettingsCard title={L.stNotifyRoutingTitle}>
+      descSuffix={descriptor.setting === 'turnNotify' ? thresholdSuffix : undefined} />)}</MSettingsSection>
+    <MSettingsSection title={L.stNotifyRoutingTitle}>
       <MSettingsRow title="Slack" sub={hasAnyKey(props.snapshot.env, 'SLACK_') ? String(slack ?? '—') : '—'} />
-      <MSettingsRow title={L.psFeishu} sub={hasAnyKey(props.snapshot.env, 'FEISHU_') ? String(feishu ?? '—') : '—'} last />
-    </MSettingsCard>
+      <MSettingsRow title={L.psFeishu} sub={hasAnyKey(props.snapshot.env, 'FEISHU_') ? String(feishu ?? '—') : '—'} />
+    </MSettingsSection>
     <RecentNotificationsCard />
   </>;
 }
@@ -134,13 +132,13 @@ function NumberSettingRow(props: {
 function AdvancedReadOnly(props: { snapshot: ConfigSnapshot }) {
   const L = useVocab();
   const gpuMock = indexEnv(props.snapshot.env).CORTEX_GPU_MONITOR_MOCK?.present === true;
-  return <MSettingsRow title={L.stGpuMock} last
+  return <MSettingsRow title={L.stGpuMock}
     trailing={<span style={MSET_KEY}>{gpuMock ? L.stSet : '—'}</span>} />;
 }
 
 function AdvancedFlags(props: { snapshot: ConfigSnapshot; write: RuntimeSettingWriter }) {
   const settings = indexSettings(props.snapshot.settings);
-  return <MSettingsCard>
+  return <MSettingsSection>
     {ADVANCED_FLAGS.map((flag) => flag.kind === 'env'
       ? <EnvFlagRow key={`env:${flag.env}`} descriptor={flag} snapshot={props.snapshot} />
       : <ToggleRow key={flag.setting} descriptor={flag} settings={settings}
@@ -148,7 +146,7 @@ function AdvancedFlags(props: { snapshot: ConfigSnapshot; write: RuntimeSettingW
     {ADVANCED_NUMBER_SETTINGS.map((descriptor) => <NumberSettingRow key={descriptor.setting}
       descriptor={descriptor} settings={settings} write={props.write} />)}
     <AdvancedReadOnly snapshot={props.snapshot} />
-  </MSettingsCard>;
+  </MSettingsSection>;
 }
 
 function JobInterval(props: {
@@ -161,7 +159,7 @@ function JobInterval(props: {
   const [draft, setDraft] = useState(initial);
   useEffect(() => { if (current !== null) setDraft(durationDraftFromMs(current)); }, [current]);
   const next = durationDraftToMs(draft.value, draft.unit);
-  return <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 90px', gap: 7, padding: '0 13px 11px' }}>
+  return <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 90px', gap: 7, padding: `0 ${MSET_INSET}px 11px` }}>
     <MSettingsField label={L.stBuiltinInterval} type="number" min={1} value={draft.value}
       onChange={(event) => setDraft({ ...draft, value: Number(event.target.value) })} />
     <MSettingsSelect label={L.setUnitLabel} value={draft.unit}
@@ -181,8 +179,8 @@ function JobRow(props: { descriptor: BuiltinJobSettingDescriptor; settings: Sett
   const enabled = props.settings[props.descriptor.enabled];
   const interval = props.settings[props.descriptor.interval];
   const value = typeof enabled?.value === 'boolean' ? enabled.value : false;
-  return <div style={{ borderBottom: '1px solid var(--m-divider)' }}>
-    <MSettingsRow title={L[props.descriptor.titleKey]} last
+  return <div>
+    <MSettingsRow title={L[props.descriptor.titleKey]}
       trailing={<MSettingsToggle value={value} label={L[props.descriptor.titleKey]}
         disabled={!enabled || props.write.pending}
         onChange={(next) => props.write.onToggle(props.descriptor.enabled, next)} />} />
@@ -195,10 +193,10 @@ function SignOutCard() {
   const L = useVocab();
   const { offered, signOut } = useUiSignOut();
   if (!offered) return null;
-  return <MSettingsCard><div style={{ padding: '11px 13px' }}>
+  return <div style={{ padding: `0 ${MSET_INSET}px` }}>
     <MButton variant="danger-outline" data-ui-sign-out style={{ width: '100%' }}
       onClick={() => void signOut()}>{L.uiLogoutAction}</MButton>
-  </div></MSettingsCard>;
+  </div>;
 }
 
 function AdvancedContent(props: { snapshot: ConfigSnapshot; write: RuntimeSettingWriter }) {
@@ -206,10 +204,10 @@ function AdvancedContent(props: { snapshot: ConfigSnapshot; write: RuntimeSettin
   const settings = indexSettings(props.snapshot.settings);
   return <>
     <AdvancedFlags snapshot={props.snapshot} write={props.write} />
-    <MSettingsCard title={L.stBuiltinJobsTitle}>
+    <MSettingsSection title={L.stBuiltinJobsTitle}>
       {BUILTIN_JOB_SETTINGS.map((descriptor) => <JobRow key={descriptor.enabled}
         descriptor={descriptor} settings={settings} write={props.write} />)}
-    </MSettingsCard>
+    </MSettingsSection>
     <SignOutCard />
   </>;
 }

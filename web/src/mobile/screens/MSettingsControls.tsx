@@ -1,5 +1,5 @@
 import type { ComponentProps, CSSProperties, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
-import { MBackChevron, MCard, MBottomSheet, MC } from '@/mobile/ui/kit';
+import { MBackChevron, MBottomSheet, MC, MCard, MGroup, MGroupLabel } from '@/mobile/ui/kit';
 import { useVocab, useVocabOptional } from '@/i18n';
 import type { SettingsQuery } from '@/features/settings/controllers/useConfigSnapshot';
 import '@/features/settings/ui/settings-style.css';
@@ -25,12 +25,33 @@ export function MSettingsBody({ children }: { children: ReactNode }) {
   return <div className="mobile-settings-body">{children}</div>;
 }
 
-export function MSettingsGroupLabel({ children }: { children: ReactNode }) {
-  return <div style={{ fontSize: 13, fontWeight: 600, color: MC.muted }}>{children}</div>;
+/** Row text, section labels and dividers share one x: the body gutter plus this inset. */
+export const MSET_INSET = 12;
+
+export function MSettingsGroupLabel({ children, trailing }: { children: ReactNode; trailing?: ReactNode }) {
+  return <MGroupLabel style={{ fontSize: 13, padding: `0 ${MSET_INSET}px 6px`, display: 'flex', alignItems: 'center', gap: 8 }}>
+    {children}
+    {trailing && <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>{trailing}</span>}
+  </MGroupLabel>;
+}
+
+/** A run of settings rows laid straight on the mesh: an optional label, rows split by inset hairlines. */
+export function MSettingsGroup({ children, inset = MSET_INSET }: { children: ReactNode; inset?: number }) {
+  return <MGroup inset={inset}>{children}</MGroup>;
 }
 
 export function MSettingsSurfaceCard(props: ComponentProps<typeof MCard>) {
   return <MCard {...props} radius={12} style={{ ...props.style, overflow: 'visible' }} />;
+}
+
+export function MSettingsCard(props: { children: ReactNode; title?: ReactNode; note?: string }) {
+  return (
+    <div>
+      {props.title && <div style={{ ...MSET_KEY, padding: '0 2px 5px', fontWeight: 600 }}>{props.title}</div>}
+      <MSettingsSurfaceCard padding={0}>{props.children}</MSettingsSurfaceCard>
+      {props.note && <div style={{ ...MSET_SUB, padding: '6px 3px 0' }}>{props.note}</div>}
+    </div>
+  );
 }
 
 export function MSettingsSheet(props: ComponentProps<typeof MBottomSheet>) {
@@ -69,13 +90,13 @@ export function MSettingsQueryPage<T>(props: {
   const { query } = props;
   let content: ReactNode;
   if (query.isLoading) {
-    content = <MSettingsCard><div data-settings-loading style={{ padding: 13, color: MC.muted }}>
+    content = <div data-settings-loading style={{ ...STATE_LINE, color: MC.muted }}>
       {props.loadingText ?? L.stLoadingConfig}
-    </div></MSettingsCard>;
+    </div>;
   } else if (query.isError || query.data === undefined) {
-    content = <MSettingsCard><div data-settings-load-error style={{ padding: 13, color: MC.fail, overflowWrap: 'anywhere' }}>
+    content = <div data-settings-load-error style={{ ...STATE_LINE, color: MC.fail }}>
       {props.errorText ?? L.stFailedLoadConfig} {query.error?.message}
-    </div></MSettingsCard>;
+    </div>;
   } else {
     content = props.children(query.data);
   }
@@ -85,25 +106,26 @@ export function MSettingsQueryPage<T>(props: {
   </MSettingsPage>;
 }
 
-export function MSettingsCard(props: { children: ReactNode; title?: ReactNode; note?: string }) {
+const STATE_LINE: CSSProperties = { padding: `0 ${MSET_INSET}px`, overflowWrap: 'anywhere' };
+
+export function MSettingsSection(props: { children: ReactNode; title?: ReactNode; trailing?: ReactNode; note?: string }) {
   return (
-    <div>
-      {props.title && <div style={{ ...MSET_KEY, padding: '0 2px 5px', fontWeight: 600 }}>{props.title}</div>}
-      <MSettingsSurfaceCard padding={0}>{props.children}</MSettingsSurfaceCard>
-      {props.note && <div style={{ ...MSET_SUB, padding: '6px 3px 0' }}>{props.note}</div>}
-    </div>
+    <section data-settings-section="">
+      {props.title && <MSettingsGroupLabel trailing={props.trailing}>{props.title}</MSettingsGroupLabel>}
+      <MSettingsGroup>{props.children}</MSettingsGroup>
+      {props.note && <div style={{ ...MSET_SUB, padding: `4px ${MSET_INSET}px 0` }}>{props.note}</div>}
+    </section>
   );
 }
 
 export function MSettingsRow(props: {
-  title: ReactNode; sub?: ReactNode; trailing?: ReactNode; last?: boolean; onClick?: () => void;
+  title: ReactNode; sub?: ReactNode; trailing?: ReactNode; onClick?: () => void;
   dataKey?: string; stacked?: boolean;
 }) {
   return (
     <div data-settings-row={props.dataKey} onClick={props.onClick}
       className={props.stacked ? 'mobile-settings-row mobile-settings-row-stacked' : 'mobile-settings-row'}
-      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px',
-        borderBottom: props.last ? undefined : `1px solid ${MC.divider}`,
+      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: `12px ${MSET_INSET}px`,
         cursor: props.onClick ? 'pointer' : undefined }}>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={MSET_TITLE}>{props.title}</div>
