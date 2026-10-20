@@ -25,7 +25,7 @@ test('runShutdown runs every step in order, past a failing one', async () => {
 test('timers and the outbound loop stop before the stores drain; the gateway goes last', () => {
   const names = shutdownSteps(handles([])).map((step) => step.name);
   const flush = names.indexOf('flush stores');
-  for (const before of ['scheduler', 'waitpoint sweep', 'outbound drain loop', 'platforms', 'web ui']) {
+  for (const before of ['scheduler', 'waitpoint sweep', 'cache keep-warm', 'outbound drain loop', 'platforms', 'web ui']) {
     assert.ok(names.indexOf(before) >= 0 && names.indexOf(before) < flush, `${before} precedes the drain`);
   }
   assert.equal(names[0], 'announce');

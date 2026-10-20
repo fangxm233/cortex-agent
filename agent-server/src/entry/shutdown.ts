@@ -15,6 +15,7 @@ import { stopEventLoopMonitor } from '@domain/monitor/event-loop-monitor.js';
 import { stopGateway } from '@domain/costs/gateway-manager.js';
 import { stopBrowser } from '@platform/browser/managed-browser.js';
 import { stopWaitpointSweep } from '../orchestration/waitpoint-sweep.js';
+import { stopCacheKeepWarm } from '../orchestration/cache-keep-warm.js';
 
 const log = createLogger('shutdown');
 
@@ -68,6 +69,7 @@ function drainSteps(h: ShutdownHandles): ShutdownStep[] {
     // its store's flush resolved, losing that write.
     { name: 'scheduler', run: () => h.scheduler.stop() },
     { name: 'waitpoint sweep', run: stopWaitpointSweep },
+    { name: 'cache keep-warm', run: stopCacheKeepWarm },
     // Pending WAL entries survive on disk for the next startup.
     { name: 'outbound drain loop', run: () => h.outboundQueue.stop() },
     // SIGTERM landing between `writeFile(tmp)` and `rename(tmp, target)` in atomic-write.ts leaves

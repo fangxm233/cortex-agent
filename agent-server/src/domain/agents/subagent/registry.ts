@@ -214,6 +214,14 @@ export function getSubagentRun(id: string): SubagentRunView | null {
   return record ? viewOf(record) : null;
 }
 
+/** Whether the session owns a background run still going, whose result will wake it. */
+export function hasRunningBackgroundRuns(sessionId: string): boolean {
+  for (const record of runs.values()) {
+    if (record.sessionId === sessionId && record.background && record.status === 'running') return true;
+  }
+  return false;
+}
+
 export interface SubagentRunOutcome {
   view: SubagentRunView;
   /** Present only once the run has completed successfully. */
