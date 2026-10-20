@@ -106,6 +106,8 @@ export const enExtra = {
   stAdvAutoUpdateDesc: 'installs new versions without asking; restarts when idle',
   stAdvTeamTitle: 'Team (experimental)',
   stAdvTeamDesc: 'a session can create and manage persistent sub-sessions',
+  stAdvClaudeWarmupTitle: 'Claude window warm-up',
+  stAdvClaudeWarmupDesc: 'after the 5-hour window ends and Claude has been idle for 10 minutes, sends a tiny request to start the next one',
   stAdvRetentionTitle: 'Session retention days',
   stAdvRetentionInvalid: 'Enter a whole number of days within the safe retention range',
   stAdvMaxContextTitle: 'Max context (tokens)',

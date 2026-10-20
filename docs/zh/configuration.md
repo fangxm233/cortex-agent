@@ -385,6 +385,7 @@ Cortex 随包提供两个：
 | `subscriptionBillingModes` | string[] | `["plan", "openai-codex", "google-gemini-cli", "google-antigravity"]` | 由订阅付费的网关 mode。网关仍为其请求计价，但这些 mode 的用量行只显示额度、不显示费用 | — |
 | `providerUsageCollectionEnabled` | boolean | `true` | 运行内置的 provider 用量采集作业，刷新额度与花费读数 | — |
 | `providerUsageCollectionIntervalMs` | number | `300000` | provider 用量采集的间隔，单位为整数毫秒 | — |
+| `claudeWindowWarmupEnabled` | boolean | `false` | 仅限订阅 mode 下的 Claude（见 `anthropicSubscriptionModes`）。Claude 的 5 小时用量窗口从上一个窗口结束后的第一个请求开始计时。开启后，窗口结束且 10 分钟内没有 Claude 运行时，Cortex 会发一个极小请求（Haiku、不带工具，经 Claude Code、走第一个订阅 mode 的路由）开启下一个窗口，使它在 5 小时后结束，而不是从恢复工作时再算 5 小时。这次请求也让 Claude Code 续期自己的登录，Anthropic 用量读数因此保持最新。窗口结束时间取自 Anthropic 用量读数；预热失败 30 分钟后重试。也可以在 **Settings → Advanced** 中设置 | — |
 | `storeArchiveEnabled` | boolean | `true` | 每天一次，把超过一周的已终结执行记录从 `data/executions.json` 移到 `data/archive/`。启动时读取 | — |
 | `memoryIndexRegenEnabled` | boolean | `true` | 运行内置的实验/知识/模式索引重建。从 `false` 切换为 `true` 时立即执行一次 | — |
 | `memoryIndexRegenIntervalMs` | number | `86400000` | 记忆索引重建的间隔，单位为整数毫秒 | — |

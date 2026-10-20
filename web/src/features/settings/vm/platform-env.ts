@@ -52,6 +52,7 @@ export const WRITABLE_BOOLEAN_SETTING_KEYS = [
   'serverUpdateDisable',
   'serverAutoUpdate',
   'teamEnabled',
+  'claudeWindowWarmupEnabled',
   'memoryIndexRegenEnabled',
 ] as const;
 export const WRITABLE_INTERVAL_SETTING_KEYS = [
@@ -109,6 +110,12 @@ export const ADVANCED_FLAGS: AdvancedFlag[] = [
     setting: 'teamEnabled',
     titleKey: 'stAdvTeamTitle',
     descKey: 'stAdvTeamDesc',
+  },
+  {
+    kind: 'setting',
+    setting: 'claudeWindowWarmupEnabled',
+    titleKey: 'stAdvClaudeWarmupTitle',
+    descKey: 'stAdvClaudeWarmupDesc',
   },
 ];
 

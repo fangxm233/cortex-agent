@@ -106,6 +106,8 @@ export const zhExtra = {
   stAdvAutoUpdateDesc: '发现新版本直接安装，空闲时重启',
   stAdvTeamTitle: '团队（实验性）',
   stAdvTeamDesc: '会话可创建并管理持久子会话',
+  stAdvClaudeWarmupTitle: 'Claude 窗口预热',
+  stAdvClaudeWarmupDesc: '5 小时窗口结束且 Claude 空闲 10 分钟后，发一个极小请求开启下一个窗口',
   stAdvRetentionTitle: '会话保留天数',
   stAdvRetentionInvalid: '请输入安全保留范围内的整数天数',
   stAdvMaxContextTitle: '最大上下文（token）',
