@@ -353,7 +353,7 @@ Cortex 随包提供两个：
 }
 ```
 
-读取文件时会按下面的 schema 校验取值。JSON 类型不符、或取值超出文档范围（作业间隔、`sessionRetentionDays`、`piCompactReserveTokens`、`maxContextTokens`、`providerRateLimits` 的结构）的键会让整个文件被拒绝：启动时 Cortex 回退到环境变量与默认值，热重载时则保留上一份有效设置。两种情况都会记录原因日志。未知键被忽略。
+读取文件时会按下面的 schema 校验取值。JSON 类型不符、或取值超出文档范围（作业间隔、`sessionRetentionDays`、`piCompactReserveTokens`、`maxContextTokens`、`cacheKeepWarmHours`、`providerRateLimits` 的结构）的键会让整个文件被拒绝：启动时 Cortex 回退到环境变量与默认值，热重载时则保留上一份有效设置。两种情况都会记录原因日志。未知键被忽略。
 
 ### 键 {#keys}
 
@@ -391,6 +391,8 @@ Cortex 随包提供两个：
 | `sessionRetentionDays` | number | `30` | 以天为单位的安全整数保留窗口（有效范围 `1` 到 `104249991`）。保留协调器在 daemon 启动时于后台启动一轮清理（启动流程不等待它），之后每 6 小时运行一次，并在热重载改动后再跑一轮；它会清理过期的 session registry 条目、孤儿 `conversation-history`、孤儿 PI transcript bundle、孤儿 Claude capture 日志、孤儿工具图片目录，并同步 Claude 用户设置里的 `cleanupPeriodDays`，同时跳过活跃会话/capture | — |
 | `piCompactReserveTokens` | number | `16384` | 仅 PI 后端：PI 预留的上下文余量，单位 token。上下文超过 `contextWindow - reserveTokens` 时 PI 就压缩——回合之间会压，PI 0.84.4 起也会*在运行中的回合内*于工具批次边界压——所以余量越大压缩越早，长的工具驱动回合里留下的工作空间越多。取值为 `1024` 到 `131072` 之间的整数。Cortex 把它写进私有 PI agent 目录的 `settings.json`，这是唯一的入口：PI 没有为它提供 setter | `CORTEX_PI_COMPACT_RESERVE_TOKENS` |
 | `maxContextTokens` | number \| null | `null` | 两个后端上每个模型可用上下文窗口的上限，单位 token：可用窗口取模型自身窗口与该值中较小者，各后端在到达它之前压缩。取值为 `100000` 到 `1000000` 之间的整数（Claude Code 自身接受的范围），或 `null` 表示每个模型使用自身窗口。Claude 以 `CLAUDE_CODE_AUTO_COMPACT_WINDOW` 接收它，优先级高于 Claude 设置文件里的任何 `autoCompactWindow`；模型窗口超过上限时，PI 在 `cap - piCompactReserveTokens` 处压缩。上下文占用百分比按截断后的窗口计算 | — |
+| `cacheKeepWarmHours` | number | `6` | 仅限订阅 mode 下的 Claude（见 `anthropicSubscriptionModes`），这类会话的 prompt cache 在最后一次使用后保留一小时。上下文不少于 100k token 的闲置会话只要还在等唤醒（有未结束的 waitpoint、有尚未回报的 worker、有在跑的后台 `agent`），Cortex 就每约 50 分钟读一次它的缓存，免得唤醒时按缓存写入价重新发送整段上下文。每次刷新是在会话的分叉上发一条很短的请求，不改动会话本身；花费约为这段上下文输入价的十分之一，在费用记录里归入 `cache-refresh` trigger。距会话最后一次调用模型超过这么多小时后停止刷新。`0` 关闭；取值 `0` 到 `24` | — |
+| `coldResumeClearToolResults` | boolean | `true` | 仅限 Claude。上下文不少于 100k token 的会话在 prompt cache 过期后（距缓存最后一次使用超过 65 分钟）恢复时，Cortex 先把 transcript 中除最近 10 次以外的工具调用输出换成一句简短占位，再交给 Claude 重新读取，让这次未命中缓存的请求更小。工具调用、模型回复和你的消息保持原样；模型看不到旧的工具输出，需要时会重新调用工具。可清掉的内容很少时不做改动。回退或重试该回合会恢复完整的 transcript | — |
 | `uiCorsOrigins` | string[] | `[]` | Web UI HTTP 宿主为哪些 origin 返回 CORS header。参见 [desktop-app.md](./desktop-app.md) | `CORTEX_UI_CORS_ORIGINS`（逗号分隔） |
 | `adminChannel` | string \| null | `null` | 发送系统通知（启动、限流、磁盘告警）的 Slack 频道。第一次给机器人发私信时会被自动探测并持久化到这里 | `SLACK_ADMIN_CHANNEL`，然后 `CORTEX_ADMIN_CHANNEL` |
 | `feishuAdminChannel` | string \| null | `null` | 同类通知的飞书 admin `chat_id`（`oc_...`）。与 `adminChannel` 相互独立——Slack 的频道 id 在飞书上不可用 | `FEISHU_ADMIN_CHANNEL` |
