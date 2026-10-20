@@ -6,7 +6,8 @@
 // minutes this sweep finds such sessions whose cache is nearing the hour and reads it once through
 // a fork that leaves the session's transcript alone (agent-adapter/claude/cache-refresh.ts). A read
 // restarts the hour, so the cache survives until the wake, up to `cacheKeepWarmHours` after the
-// session last called the model.
+// session last called the model. A cache presumed expired is left alone: refreshing it would write
+// the whole uncleared context, while the wake's cold resume clears old tool output first.
 
 import { randomUUID } from 'node:crypto';
 import { createLogger } from '@core/log.js';
@@ -35,6 +36,9 @@ const log = createLogger('cache-keep-warm');
 export const KEEP_WARM_SWEEP_MS = 5 * 60_000;
 /** Refresh once the cache is this old: ten minutes short of its one-hour lifetime. */
 export const KEEP_WARM_REFRESH_AGE_MS = 50 * 60_000;
+/** Past this the cache is presumed expired (a restart lost the refresh record, or a sweep missed
+ *  the window). The window is wider than the sweep interval, so every pass-through is caught once. */
+export const KEEP_WARM_MAX_AGE_MS = 58 * 60_000;
 /** Below this a cold rewrite is cheap enough that keeping the cache is not worth a request. */
 export const KEEP_WARM_MIN_CONTEXT_TOKENS = 100_000;
 const HOUR_MS = 60 * 60_000;
@@ -98,14 +102,16 @@ function subscriptionSelection(
   return selection.backend === 'claude' && modes.includes(selection.mode) ? selection : null;
 }
 
-/** Due when the cache nears the hour, while the last model activity is within the cap. */
+/** Due when the cache nears the hour but has not yet passed it, while the last model activity is
+ *  within the cap. */
 function refreshDue(target: KeepWarmTarget, deps: KeepWarmDeps, hours: number): boolean {
   const transcript = deps.transcriptPath(target.backendSessionId);
   const active = deps.lastActivity(transcript);
   if (active === null) return false;
   const now = deps.now();
-  const touched = deps.lastTouch(transcript, target.backendSessionId) ?? active;
-  return now - active <= hours * HOUR_MS && now - touched >= KEEP_WARM_REFRESH_AGE_MS;
+  const age = now - (deps.lastTouch(transcript, target.backendSessionId) ?? active);
+  const nearingExpiry = age >= KEEP_WARM_REFRESH_AGE_MS && age < KEEP_WARM_MAX_AGE_MS;
+  return now - active <= hours * HOUR_MS && nearingExpiry;
 }
 
 /** The session's refresh target when it is due one now, else null. Cheapest checks first. */

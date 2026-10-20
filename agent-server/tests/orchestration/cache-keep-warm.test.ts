@@ -145,6 +145,22 @@ describe('sweepCacheKeepWarm', () => {
     assert.equal(await sweepCacheKeepWarm(refreshedLongAgo.deps), 1);
   });
 
+  test('leaves a cache presumed expired alone: refreshes just under 58 minutes, not at or past it', async () => {
+    const active = NOW - 3 * 60 * MIN;
+    const at = (age: number) => makeDeps([session()], {
+      active: { 'backend-1': active }, touched: { 'backend-1': NOW - age },
+    });
+    assert.equal(await sweepCacheKeepWarm(at(58 * MIN - 1).deps), 1);
+    assert.equal(await sweepCacheKeepWarm(at(58 * MIN).deps), 0);
+    assert.equal(await sweepCacheKeepWarm(at(70 * MIN).deps), 0);
+  });
+
+  test('after a restart lost the refresh record, a session last active 3h ago is left to its wake', async () => {
+    const { deps, log } = makeDeps([session()], { active: { 'backend-1': NOW - 3 * 60 * MIN } });
+    assert.equal(await sweepCacheKeepWarm(deps), 0);
+    assert.deepEqual(log.refreshed, []);
+  });
+
   test('stops once the last model activity is older than the cap', async () => {
     const touched = { 'backend-1': NOW - 55 * MIN };
     const within = makeDeps([session()], { active: { 'backend-1': NOW - 6 * 60 * MIN }, touched });
