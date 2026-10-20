@@ -156,7 +156,7 @@ function routeEnvDeletes(route: ModeEnv): string[] {
 }
 
 /** Environment comes only from the resolved route, not user configuration. */
-function routeEnvFields(
+export function routeEnvFields(
   route: ModeEnv | undefined,
 ): { sets?: Record<string, string>; unsets?: string[] } {
   const sets = route ? routeEnvSets(route) : {};

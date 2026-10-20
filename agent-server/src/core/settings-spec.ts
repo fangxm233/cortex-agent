@@ -39,6 +39,7 @@ export interface Settings {
   subscriptionBillingModes: string[];
   providerUsageCollectionEnabled: boolean;
   providerUsageCollectionIntervalMs: number;
+  claudeWindowWarmupEnabled: boolean;
   providerRateLimits: ProviderRateLimits;
   storeArchiveEnabled: boolean;
   memoryIndexRegenEnabled: boolean;
@@ -298,6 +299,12 @@ export const SETTINGS_SPEC = {
     type: 'number',
     default: 5 * 60 * 1000,
     validate: validateJobInterval,
+  },
+  // Claude on a subscription mode only: once the five-hour usage window has closed and no Claude
+  // run has started for ten minutes, send one tiny request to open the next window.
+  claudeWindowWarmupEnabled: {
+    type: 'boolean',
+    default: false,
   },
   providerRateLimits: {
     type: 'provider-rate-limits',

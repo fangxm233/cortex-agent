@@ -23,6 +23,7 @@ import { buildAuthRequiredLoginAction } from '@orch/routing/commands/login-notic
 import { usageResetNoticeActions } from '@orch/routing/commands/usage-reset.js';
 import { recoverWaitpoints, startWaitpointSweep } from '../orchestration/waitpoint-sweep.js';
 import { startCacheKeepWarm } from '../orchestration/cache-keep-warm.js';
+import { startClaudeWindowWarmup } from '../orchestration/claude-window-warmup.js';
 import { projectStore } from '@domain/projects/index.js';
 import { sendStartupDmIfConfigured } from './startup-notify.js';
 import { installSigtermShutdown, type ShutdownHandles } from './shutdown.js';
@@ -609,6 +610,8 @@ installSigtermShutdown(shutdownHandles);
   installTeamDelivery(bus);
   // Claude prompt caches of idle sessions that still expect a wake, read before their hour runs out.
   startCacheKeepWarm();
+  // Claude's five-hour window, reopened after it closes while Claude sits idle (when enabled).
+  startClaudeWindowWarmup();
   // Worker reports a restart kept from their leads: delivered now that sessions and the adapter are up.
   void flushTeamOutbox()
     .then((n) => { if (n > 0) log.info(`Delivered ${n} worker report(s) kept across the restart`); })
