@@ -22,7 +22,7 @@ import { requestRoute, resolveRunSelection } from '@domain/runs/config-resolver.
 import { buildEngineSpec } from '@domain/runs/engine-spec.js';
 import { isTeamLead } from '@domain/sessions/team.js';
 import {
-  cacheRefreshLaunch, runCacheRefresh, type CacheRefreshResult,
+  cacheRefreshLaunch, runCacheRefresh, type CacheRefreshLaunch, type CacheRefreshResult,
 } from '../agent-adapter/claude/cache-refresh.js';
 import { lastCacheTouch, lastModelActivity, noteCacheRefresh } from '../agent-adapter/claude/cache-touch.js';
 import { computeTranscriptPath } from '../agent-adapter/claude/transcript-path.js';
@@ -209,9 +209,9 @@ export async function hasWakeSource(
   return hasPendingWorker(session, deps);
 }
 
-/** The fork runs under the request the session's next turn would: same agent, selection, policy
- *  and route, so its argv and env match that turn's. Its execution id is its own. */
-function refreshSession(target: KeepWarmTarget): Promise<CacheRefreshResult> {
+/** The fork's launch, built from the request the session's next turn would run under: same agent,
+ *  selection, policy and route, so its argv and env match that turn's. Its execution id is its own. */
+export function keepWarmLaunch(target: KeepWarmTarget): CacheRefreshLaunch {
   const { session, backendSessionId } = target;
   const request = conversationEngineRequest({
     ids: { sessionId: session.sessionId, backendSessionId, projectId: session.projectId ?? 'general' },
@@ -221,7 +221,7 @@ function refreshSession(target: KeepWarmTarget): Promise<CacheRefreshResult> {
     route: requestRoute(request, request.selection),
     executionId: `cache-refresh-${randomUUID()}`,
   });
-  return runCacheRefresh(cacheRefreshLaunch(spec));
+  return cacheRefreshLaunch(spec);
 }
 
 export const productionKeepWarmDeps: KeepWarmDeps = {
@@ -238,7 +238,7 @@ export const productionKeepWarmDeps: KeepWarmDeps = {
   hasWakeSource: (session) => hasWakeSource(session),
   busy: (channel) => runRegistry.hasChannel(channel) || conduitQueues.has(channel),
   runQueued: enqueueAndWait,
-  refresh: refreshSession,
+  refresh: (target) => runCacheRefresh(keepWarmLaunch(target)),
   noteRefresh: noteCacheRefresh,
   recordCost,
   now: () => Date.now(),
