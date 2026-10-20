@@ -95,6 +95,27 @@ describe('Claude account parsing', () => {
     assert.deepEqual(ineligible.resetCredits, { availableCount: 0, atLimit: true, credits: [] });
   });
 
+  test('the model-scoped weekly limit becomes the labelled overage-included window', () => {
+    const parsed = parseClaudeUsage({
+      ...USAGE_BODY,
+      limits: [
+        { kind: 'weekly_all', percent: 91, resets_at: '2026-10-20T10:00:00Z', scope: null },
+        { kind: 'weekly_scoped', percent: 50, resets_at: '2026-10-20T10:00:00Z', scope: { model: { id: null } } },
+        { kind: 'weekly_scoped', percent: 16, resets_at: '2026-10-20T10:00:00Z', scope: { model: { display_name: 'Fable' } } },
+        { kind: 'weekly_scoped', percent: 30, resets_at: null, scope: { model: { display_name: 'Other' } } },
+      ],
+    });
+    assert.deepEqual(parsed.windows.slice(2), [
+      { type: 'seven_day_overage_included', label: 'Fable', utilization: 0.16, resetsAt: iso('2026-10-20T10:00:00Z') },
+    ]);
+  });
+
+  test('missing or malformed limits leave only the account windows', () => {
+    for (const limits of [undefined, null, 'x', [{ kind: 'weekly_scoped', percent: 140, scope: { model: { display_name: 'Fable' } } }]]) {
+      assert.equal(parseClaudeUsage({ ...USAGE_BODY, limits }).windows.length, 2);
+    }
+  });
+
   test('a usage response without any usable window is an error', () => {
     assert.throws(() => parseClaudeUsage({ five_hour: null, seven_day: { utilization: 140 } }), /no rate-limit window/);
     assert.throws(() => parseClaudeUsage([]), /not an object/);

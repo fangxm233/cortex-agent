@@ -29,6 +29,9 @@ function formatEpoch(epochSeconds: number): string {
 
 export function windowLabel(window: Pick<UsageWindow, 'type' | 'label'>): string {
   if (window.type === 'model_scoped' && window.label) return window.label;
+  if (window.type === 'seven_day_overage_included' && window.label) {
+    return t('cmd.usage.window.sevenDayModel', { model: window.label });
+  }
   const key = WINDOW_LABEL_KEYS[window.type as keyof typeof WINDOW_LABEL_KEYS];
   return key ? t(key) : window.label ?? window.type;
 }

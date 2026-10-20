@@ -899,6 +899,24 @@ test('a fresh reading below threshold releases the quota throttle and resumes wo
   assert.ok(adapter.posted.some((post: any) => post.content.text.includes('OpenAI Codex rate limit throttle cleared')));
 });
 
+test('a label names only model-scoped windows, so a labelled reading and policy match the plain window', async (t) => {
+  await updateSettings({
+    providerRateLimits: { anthropic: { windows: [{ type: 'seven_day_overage_included', label: 'Fable', enabled: true, threshold: 0.5 }] } },
+  });
+  const mod = await freshModuleWithCleanup(t);
+  await mod.initRateLimitThrottle(makeAdapterStub(), makePersistenceStub() as any);
+  const source = { provider: 'anthropic', displayName: 'Anthropic', mode: 'plan' };
+  await mod.handleRateLimitEvent(
+    { rateLimitType: 'seven_day_overage_included', utilization: 0.6, resetsAt: Math.floor(Date.now() / 1000) + 600 },
+    source,
+  );
+  assert.equal(mod.isProviderRateLimited('anthropic'), true, 'the labelled 50% policy applies');
+
+  const reading = { type: 'seven_day_overage_included', label: 'Fable', utilization: 0.4 };
+  assert.equal(await mod.releaseRecoveredQuota('anthropic', [reading]), true);
+  assert.equal(mod.isProviderRateLimited('anthropic'), false);
+});
+
 test('a fresh reading never activates a throttle or lifts an outage', async (t) => {
   const mod = await freshModuleWithCleanup(t);
   await mod.initRateLimitThrottle(makeAdapterStub(), makePersistenceStub() as any);

@@ -19,6 +19,8 @@ export type ResetStatus =
  *  time yet. */
 export interface AccountWindow {
   type: string;
+  /** Provider display name for a window scoped to one model. */
+  label?: string;
   utilization: number;
   /** Epoch seconds. */
   resetsAt: number | null;

@@ -12,6 +12,9 @@ const RESET_PROGRAM = 'cedar_ember';
 const GRANT_ID = /^[a-z0-9_-]{1,40}$/;
 /** The account windows the gateway quota path also reports, so both sources fill one row. */
 const WINDOW_TYPES = ['five_hour', 'seven_day'] as const;
+/** Claude Code reads its rate-limit header `seven_day_overage_included` as this per-model weekly
+ *  limit, so the reading takes that type to share the throttle's window and policy. */
+const SCOPED_WEEKLY_TYPE = 'seven_day_overage_included';
 
 const CLAIM_STATUS: Record<string, AccountRedeemOutcome['status']> = {
   reset: 'reset',
@@ -66,6 +69,22 @@ function usageWindow(raw: unknown, type: string): AccountWindow | null {
   return { type, utilization: used / 100, resetsAt: isoSeconds(raw.resets_at) };
 }
 
+function scopedModelName(raw: Record<string, unknown>): string | null {
+  const model = isRecord(raw.scope) && isRecord(raw.scope.model) ? raw.scope.model : null;
+  return typeof model?.display_name === 'string' && model.display_name ? model.display_name : null;
+}
+
+/** The first `limits[]` entry scoped to one model's weekly use (e.g. Fable). */
+function scopedWeeklyWindow(limits: unknown): AccountWindow | null {
+  for (const raw of Array.isArray(limits) ? limits : []) {
+    const label = isRecord(raw) && raw.kind === 'weekly_scoped' ? scopedModelName(raw) : null;
+    if (!label) continue;
+    const window = usageWindow({ utilization: raw.percent, resets_at: raw.resets_at }, SCOPED_WEEKLY_TYPE);
+    return window ? { ...window, label } : null;
+  }
+  return null;
+}
+
 function usableGrant(raw: unknown): UsageResetCredit | null {
   if (!isRecord(raw) || typeof raw.id !== 'string' || !GRANT_ID.test(raw.id)) return null;
   const left = finite(raw.resets_left) ?? 0;
@@ -108,6 +127,8 @@ export function parseClaudeUsage(payload: unknown): AccountReading {
     return window ? [window] : [];
   });
   if (windows.length === 0) throw new Error('Claude usage response has no rate-limit window');
+  const scoped = scopedWeeklyWindow(payload.limits);
+  if (scoped) windows.push(scoped);
   const status = isRecord(payload.cedar_ember) ? payload.cedar_ember : null;
   return { windows, resetCredits: status ? resetCredits(status) : null };
 }

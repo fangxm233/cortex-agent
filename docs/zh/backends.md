@@ -220,7 +220,7 @@ Cortex 按 provider 跟踪滚动用量窗口。provider 标识是不透明字符
 每次用量采集——内置的 provider 用量作业、打开用量页面，或点击 **刷新**——都会直接读取两个订阅账号：
 
 - **OpenAI Codex**，以 ChatGPT 套餐登录。读数填入 Codex 订阅行的主窗口与次窗口。读取失败时，该行保留上次从 Codex 响应头观测到的窗口，并附上相应说明。
-- **Claude**，通过 `claude login` 登录。读数填入 Anthropic 订阅行的 5 小时与 7 天窗口。Cortex 使用 Claude Code 保存的访问令牌，且无法刷新它，因此令牌过期、使用 API key 或未登录时，该行回退到网关的额度观测；读取失败时同样回退，并附上说明。账号只向当前版本的 Claude Code 客户端提供重置，因此这些请求以本机安装的 `claude` CLI 版本标识自己。
+- **Claude**，通过 `claude login` 登录。读数填入 Anthropic 订阅行的 5 小时与 7 天窗口，以及账号按单个模型计的周额度，显示为带模型名的一行，例如 **7 天（Fable）**。这个模型窗口就是 Claude Code 上报的 `seven_day_overage_included`，所以它的阈值控件就是该窗口限流所用的策略。Cortex 使用 Claude Code 保存的访问令牌，且无法刷新它，因此令牌过期、使用 API key 或未登录时，该行回退到网关的额度观测；读取失败时同样回退，并附上说明。账号只向当前版本的 Claude Code 客户端提供重置，因此这些请求以本机安装的 `claude` CLI 版本标识自己。
 
 每次读数还会列出账号的储备重置：可用数量，以及最早一个的过期时间。账号读数从不开启限流，但会解除该 provider 已回落到阈值以下的限流窗口，因此在其他设备上使用的重置同样会放行 Cortex 暂停的工作。
 

@@ -81,6 +81,21 @@ describe('buildUsageView', () => {
     expect(codex.windows.map((window: any) => window.policy?.thresholdPercent)).toEqual([91, 90]);
   });
 
+  it('names the model on a labelled overage-included window and keys its policy by type alone', () => {
+    const windows = [{ type: 'seven_day_overage_included', label: 'Fable', utilization: 0.16, resetsAt: NOW + 3600 }];
+    const record = { ...status[0], windows };
+    const limits: ProviderRateLimits = {
+      anthropic: { windows: [{ type: 'seven_day_overage_included', enabled: true, threshold: 0.8 }] },
+    };
+    const window = buildUsageView([record], limits, NOW, 'zh').providers[0].windows[0] as any;
+
+    expect(window.label).toBe('7 天（Fable）');
+    expect(window.policy).toMatchObject({
+      target: { provider: 'anthropic', windowType: 'seven_day_overage_included', windowLabel: null },
+      thresholdPercent: 80,
+    });
+  });
+
   it('marks elapsed reset timestamps instead of describing them as future', () => {
     const vm = buildUsageView([{
       provider: 'anthropic', displayName: 'Anthropic', modes: ['plan'], freshness: 'stale',

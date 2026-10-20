@@ -22,6 +22,7 @@ const DEFAULT_THRESHOLD = 0.90;
 const RESUME_BUFFER_MS = 5_000;
 const EXPIRY_RETRY_DELAY_MS = 5_000;
 const OUTAGE_WINDOW_TYPE = 'outage';
+const MODEL_SCOPED_WINDOW_TYPE = 'model_scoped';
 
 export interface RateLimitSource {
   provider: string;
@@ -178,12 +179,13 @@ function canonicalProvider(provider: string | null | undefined): string | null {
   return trimmed ? trimmed : null;
 }
 
+/** A label is part of the identity only for a model-scoped window; elsewhere it is display text. */
 function sameWindowIdentity(
   type: string,
   label: string | undefined,
   candidate: { type: string; label?: string },
 ): boolean {
-  return candidate.type === type && candidate.label === label;
+  return candidate.type === type && (type !== MODEL_SCOPED_WINDOW_TYPE || candidate.label === label);
 }
 
 function resolveProviderPolicy(

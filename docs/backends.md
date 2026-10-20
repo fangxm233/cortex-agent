@@ -544,7 +544,11 @@ screen, or **Refresh** — reads two subscription accounts directly:
   fails, the row keeps the windows last observed in Codex response headers and
   carries a note saying so.
 - **Claude**, signed in with `claude login`. The reading fills the five-hour
-  and seven-day windows on the Anthropic subscription row. Cortex uses the
+  and seven-day windows on the Anthropic subscription row, plus the weekly
+  limit the account scopes to one model, shown with that model's name, such
+  as **7 days (Fable)**. That model window is the one Claude Code reports as
+  `seven_day_overage_included`, so its threshold control is the policy that
+  window's throttle uses. Cortex uses the
   access token Claude Code stores and cannot refresh it, so with an expired
   token, an API-key setup, or no login the row falls back to the gateway's
   quota observation; a failed read falls back the same way and adds a note.

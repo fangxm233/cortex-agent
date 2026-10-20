@@ -156,12 +156,18 @@ function hasLegacyFallback(policy: ProviderRateLimitPolicyOverride | undefined):
   return policy?.enabled === false || typeof policy?.threshold === 'number';
 }
 
+/** A label is part of a policy's identity only for a model-scoped window, as on the server. */
+function policyLabel(window: Pick<UsageWindow, 'type' | 'label'>): string | undefined {
+  return window.type === 'model_scoped' ? window.label : undefined;
+}
+
 function matchingWindowPolicy(
   policy: ProviderRateLimitPolicyOverride | undefined,
   window: UsageWindow,
 ): ProviderRateLimitWindowPolicyOverride | undefined {
   return policy?.windows?.find(
-    (item: ProviderRateLimitWindowPolicyOverride) => item.type === window.type && item.label === window.label,
+    (item: ProviderRateLimitWindowPolicyOverride) => item.type === window.type
+      && (window.type !== 'model_scoped' || item.label === window.label),
   );
 }
 
@@ -173,21 +179,21 @@ function effectiveWindowPolicy(
   const providerPolicy = providerRateLimits[provider];
   const windowPolicy = matchingWindowPolicy(providerPolicy, window);
   if (windowPolicy) return {
-    target: target(provider, window.type, window.label),
+    target: target(provider, window.type, policyLabel(window)),
     enabled: windowPolicy.enabled,
     thresholdPercent: typeof windowPolicy.threshold === 'number' ? percentFromRatio(windowPolicy.threshold) : fallbackDefault,
     defaultThresholdPercent: fallbackDefault,
     usesLegacyFallback: false,
   };
   if (!hasLegacyFallback(providerPolicy)) return {
-    target: target(provider, window.type, window.label),
+    target: target(provider, window.type, policyLabel(window)),
     enabled: true,
     thresholdPercent: fallbackDefault,
     defaultThresholdPercent: fallbackDefault,
     usesLegacyFallback: false,
   };
   return {
-    target: target(provider, window.type, window.label),
+    target: target(provider, window.type, policyLabel(window)),
     enabled: providerPolicy?.enabled ?? true,
     thresholdPercent: typeof providerPolicy?.threshold === 'number' ? percentFromRatio(providerPolicy.threshold) : fallbackDefault,
     defaultThresholdPercent: fallbackDefault,
@@ -232,6 +238,9 @@ export function formatUsageDuration(seconds: number, lang: Lang): string {
 }
 
 function windowLabel(window: Pick<UsageWindow, 'type' | 'label'>, lang: Lang): string {
+  if (window.label && window.type === 'seven_day_overage_included') {
+    return fmt(pickVocab(lang).usageWindowSevenDayModel, { model: window.label });
+  }
   if (window.label) return window.label;
   const key = Object.hasOwn(WINDOW_LABEL_KEYS, window.type) ? WINDOW_LABEL_KEYS[window.type] : undefined;
   return key ? pickVocab(lang)[key] : window.type.replaceAll('_', ' ');
