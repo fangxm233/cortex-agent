@@ -1,0 +1,1610 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Agent workbench for auto research, self-improvement loops, and long-running work">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/zh/backends/">
+      
+      
+        <link rel="prev" href="../cli-reference/">
+      
+      
+        <link rel="next" href="../architecture/">
+      
+      
+        
+          <link rel="alternate" href="../../backends/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>后端 - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#backends" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../" title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              后端
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="选择当前语言">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../backends/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../" title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    快速入门
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    桌面应用
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    浏览器访问
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack 设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    配置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 参考
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    后端
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    后端
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#supported-backends" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        支持的后端
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-backends-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        后端如何工作
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#feature-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        功能矩阵
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#claude-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Claude Code
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#subagents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        子智能体
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#remote-login" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        远程登录
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#custom-providers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        自定义 provider
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#selecting-a-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        选择后端
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#per-session-model-thinking-level-and-route" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        按会话选择模型、思考档位与路由
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thinking-level" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        思考档位
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#usage-limit-throttling-and-auto-resume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        用量限流与自动恢复
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="用量限流与自动恢复">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-a-rate-limit-signal-is-injected-not-streamed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        为什么限额信号是注入而不是流式发送
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#account-usage-and-banked-resets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        账号用量与储备重置
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cost-reporting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        费用报告
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-new-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        添加新后端
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../team/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    团队模式
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    记忆
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    技能与插件
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    调度
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    安全与审批
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    钩子
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../waitpoints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    等待点
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    跨机器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent-browser/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent 浏览器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#supported-backends" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        支持的后端
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-backends-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        后端如何工作
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#feature-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        功能矩阵
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#claude-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Claude Code
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#subagents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        子智能体
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#remote-login" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        远程登录
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#custom-providers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        自定义 provider
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#selecting-a-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        选择后端
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#per-session-model-thinking-level-and-route" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        按会话选择模型、思考档位与路由
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thinking-level" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        思考档位
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#usage-limit-throttling-and-auto-resume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        用量限流与自动恢复
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="用量限流与自动恢复">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-a-rate-limit-signal-is-injected-not-streamed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        为什么限额信号是注入而不是流式发送
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#account-usage-and-banked-resets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        账号用量与储备重置
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cost-reporting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        费用报告
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-new-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        添加新后端
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="backends">后端<a class="headerlink" href="#backends" title="Permanent link">&para;</a></h1>
+<p>后端是 Cortex 对特定编程智能体的适配器。Cortex 不直接调用 LLM API，而是驱动一个编程智能体——Claude Code 以子进程运行，PI 以服务器进程内的会话运行——向其发送消息，并消费标准化的事件流。每个后端实现 <code>agent-server/src/agent-adapter/types.ts</code> 中定义的 <code>EngineAdapter</code> 接口。</p>
+<h2 id="supported-backends">支持的后端<a class="headerlink" href="#supported-backends" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>后端</th>
+<th>状态</th>
+<th>引擎</th>
+<th>前置要求</th>
+<th>功能级别</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Claude Code</td>
+<td>已支持</td>
+<td><code>@anthropic-ai/claude-code</code></td>
+<td><code>PATH</code> 上有 <code>claude</code> 可执行文件</td>
+<td>完整</td>
+</tr>
+<tr>
+<td>PI</td>
+<td>已支持</td>
+<td><code>@earendil-works/pi-coding-agent</code>，随服务器包一起安装</td>
+<td>除已登录的 provider 外无其他要求</td>
+<td>完整</td>
+</tr>
+</tbody>
+</table>
+<h2 id="how-backends-work">后端如何工作<a class="headerlink" href="#how-backends-work" title="Permanent link">&para;</a></h2>
+<p>从一条消息到一个后端进程，涉及三个名词：<strong>运行（run）</strong>、<strong>会话（session）</strong>和<strong>引擎（engine）</strong>。</p>
+<p><strong>运行</strong>是一次用户请求的一次执行：一个对话回合、一个钩子注入的回合、一次编辑重试、一次 ask-user 续跑，或一个子智能体。<code>startRun</code>（<code>domain/runs/service.ts</code>）根据一个完全解析好的 <code>RunRequest</code>（引擎选择、提示、策略与上下文）以及观察它的 observer 打开一次运行，并返回 <code>AgentRun</code>（<code>domain/runs/run.ts</code>）；后者持有这次运行的事件流、取消与 steer 句柄和结果。</p>
+<p><strong>会话</strong>是运行所延续的对话身份：稳定的 Cortex session id、后端自身的 resume id、它的引擎选择，以及它绑定的频道。会话拥有它恢复进去的那个引擎。运行复用其会话池中的引擎；钩子注入的回合有自己的 engine key 与引擎。</p>
+<p><strong>引擎</strong>就是后端进程本身——池化的 <code>claude</code> 子进程，或进程内的 PI SDK 会话。<code>SessionEngines</code>（<code>domain/runs/engines.ts</code>）是池化引擎的唯一持有者：<code>acquire(spec)</code> 在该 spec 的 engine key 对应的会话仍存活、且由同一 session identity 打开时复用它，否则将其退休并新开一个。适配器是无状态的；它依据 <code>EngineSpec</code> 打开一个会话，并翻译该会话发出的内容。</p>
+<p>配置每次运行只解析一次。<code>resolveRunSelection</code>（<code>domain/runs/config-resolver.ts</code>）依次使用显式请求的完整选择、会话记录的选择、频道选择、<code>models.json</code> 的 <code>default</code>。选择提供后端、模型、provider、gateway mode 与思考档位。<code>buildEngineSpec</code>（<code>domain/runs/engine-spec.ts</code>）生成后端中立的 <code>EngineSpec</code>，适配器将其转换成 Claude Code 的命令行参数或进程内 PI 的 session options。每次运行使用一个引擎选择。</p>
+<p>此后引擎发出一条 <code>RunEvent</code> 流（<code>agent-adapter/run-events.ts</code>）。每个适配器把其后端的原生事件翻译成 <code>agent-adapter/normalize/</code> 中声明的 <code>NormalizedEvent</code> 形状，<code>toRunEvent</code> 再为它们标上运行的阶段，因此运行层永远不需要知道运行的是哪个后端。</p>
+<p><strong>一次运行比它的回合活得更久。</strong> 后台任务完成时，Claude 会自己开一个回合，所以一次运行有两个结束，而且都在同一条流上。<em>前台结果</em>是对这次请求的回答：后端一跑完回合它就落定，<code>await run.result</code> 交给界面的就是它——回复会被渲染，状态消息可以进入等待状态，而此时运行仍然活着。<em>settled 结果</em>是把每一次续跑都合并进来的整次运行，终态记账、执行记录和成本归属读的是它。前台结果之后如何处理由策略决定（<code>RunRequest.policy.background</code>）：交互式回合为续跑保持会话打开（<code>hold</code>）；无法产生续跑、或调用方用不到续跑的运行，在第一个结果就结束（<code>none</code>）。</p>
+<p>有界的是等待本身，不是工作。<code>ContinuationPhase</code>（<code>agent-adapter/continuation-phase.ts</code>）为后端报告已完成但从未通知的工作设置一个宽限计时器（<code>CORTEX_BG_GRACE_S</code>，90 秒），为仍在运行的工作设置一个上限（<code>CORTEX_BG_WAIT_MAX_S</code>，30 分钟）；两个默认值都在 <code>agent-adapter/bg-wait.ts</code> 中。宽限到期会结束这次运行；上限到期只结束<em>等待</em>——一个跑了一小时的隧道或监控任务，完成时它的续跑仍然会流进同一个会话。</p>
+<h2 id="feature-matrix">功能矩阵<a class="headerlink" href="#feature-matrix" title="Permanent link">&para;</a></h2>
+<p>Cortex 定义了后端可能支持的四种能力。编排层在尝试后端特定操作之前检查这些能力。</p>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>Claude Code</th>
+<th>PI</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mid-turn-inject</code></td>
+<td>是</td>
+<td>是</td>
+<td>向正在进行的回合注入用户输入</td>
+</tr>
+<tr>
+<td><code>usage</code></td>
+<td>否</td>
+<td>是</td>
+<td>从拉取源或推送缓存报告限定范围的 provider 用量</td>
+</tr>
+<tr>
+<td><code>background-continuation</code></td>
+<td>是</td>
+<td>否</td>
+<td>在前台结果之后自行开启一个续跑回合</td>
+</tr>
+<tr>
+<td><code>subagents</code></td>
+<td>是</td>
+<td>是</td>
+<td>承载被委派的子智能体，其事件流式归入父回合并计入父回合费用</td>
+</tr>
+</tbody>
+</table>
+<h2 id="claude-code">Claude Code<a class="headerlink" href="#claude-code" title="Permanent link">&para;</a></h2>
+<p>参考后端。每个会话运行一个持久化的 <code>claude -p</code> 进程，以 stream-json 输入输出。Cortex 按 session key 池化该进程，并通过同一 NDJSON 流发送后续回合，直到会话被关闭、超时或其 spawn identity 改变。</p>
+<p>Claude Code 会话按 engine key 池化以复用（<code>SessionEngines</code>，<code>domain/runs/engines.ts</code>）。每个回合的费用是 CLI 自身累计 <code>total_cost_usd</code> 的增量，从恢复的会话起始时的累计值开始计算（参见<a href="#cost-reporting">费用报告</a>）。</p>
+<p>Cortex 启动的每个 <code>claude</code> 进程都以 <code>CLAUDE_CONFIG_DIR=$CORTEX_HOME/data/claude</code> 运行，这是 Cortex 自己的 Claude Code 配置目录，因此它的 transcript、用户设置、plugin 和登录都与使用 <code>~/.claude</code> 的终端 <code>claude</code> 分开。pinned 基准测试 trial 保留其自身环境指定的配置目录。该目录、从 <code>~/.claude/settings.json</code> 的一次性 seed，以及 plugin 安装命令见<a href="../configuration/#claude-code-config-directory">配置 → Claude Code 配置目录</a>。session-retention 协调器让该目录的 <code>cleanupPeriodDays</code> 与运行时设置 <code>sessionRetentionDays</code> 保持一致，其余键保持原样。</p>
+<h2 id="pi">PI<a class="headerlink" href="#pi" title="Permanent link">&para;</a></h2>
+<p>PI 在 Cortex 服务器进程内运行。引擎（<code>@earendil-works/pi-coding-agent</code>）打包在发布的服务器包中，因此既不需要单独安装 <code>pi</code> 命令行，也没有 PI 进程需要看管。<code>agent-server/src/core/pi-sdk.ts</code> 每个守护进程只导入一次 SDK——在第一次 PI 会话或 provider 扫描时导入，因为入口会拉起全部 provider 客户端——之后所有 PI 会话都由这一个句柄创建。</p>
+<p><strong>会话。</strong> 每个 Cortex 会话跑在一个 PI SDK <code>AgentSession</code> 上。<code>session-options.ts</code> 把 spawn 配置解析成 session request，<code>runtime.ts</code> 据此构建会话：为工作目录创建 <code>SettingsManager</code>，创建从 Cortex 私有 PI agent 目录读取 <code>auth.json</code> 与 <code>models.json</code> 的 <code>ModelRuntime</code>，再依次调用 <code>createAgentSessionServices</code> 与 <code>createAgentSessionFromServices</code>。会话按 session key 池化并跨回合复用。spawn identity 改变时池中会话会被退休——模型、工具面或 MCP 集合的变化无法应用到活着的会话上——空闲或被显式 teardown 关闭时同样退休。<code>pi-session.ts</code> 负责回合循环、经 SDK steer 路径的回合中插话、compaction，以及把活会话重新指向另一份 transcript。恢复时给出 session id 或 transcript 路径；<code>session-files.ts</code> 把 id 映射到对应文件。Transcript 写在 <code>$CORTEX_HOME/logs/sessions-pi/</code> 下。</p>
+<p><strong>回合内压缩。</strong> 一个 Cortex 回合就是一整个 PI agent loop，所以工具驱动的长回合必须能在 loop 内部压缩。PI 自己就会做：工具结果落定之后、下一次 assistant 回复之前，如果上下文已越过 <code>contextWindow - reserveTokens</code> 就压缩，然后继续同一次运行，因此回合不会被中止，仍是同一个 Cortex 回合。Cortex 只负责设定阈值——<code>piCompactReserveTokens</code>（默认 16384，即 PI 自己的默认值）会在会话创建时写进私有 agent 目录的 <code>settings.json</code>，余量越大 PI 压缩得越早，留下的工作空间也越多。Claude 不需要这些：CLI 自己就会在回合内压缩。</p>
+<p><strong>上下文上限。</strong> <code>maxContextTokens</code> 限制两个后端所有模型的可用窗口。Claude 以 <code>CLAUDE_CODE_AUTO_COMPACT_WINDOW</code> 接收它。在 PI 上，Cortex 不改模型自身的窗口（PI 还用它判断溢出），而是把 <code>runtime-settings.ts</code> 上报的余量加上窗口超出上限的部分。于是 PI 在 <code>cap - piCompactReserveTokens</code> 处压缩；余量最多取上限的一半，避免余量过大导致每个回合都压缩。</p>
+<p><strong>Cortex 的粘合层。</strong> Cortex 附加的一切都是按会话在 <code>extensions.ts</code> 中装配的一组 inline PI extension：</p>
+<ul>
+<li><strong>图片优先</strong>（<code>image-first.ts</code>）——在每次请求中把工具结果里的图片移到文本之前。</li>
+<li><strong>MCP 桥接</strong>（<code>mcp-bridge.ts</code>）——把按 composition 限定的 Cortex 工具 bundle 以进程内方式经一对内存 MCP transport 提供出来，并绑定到专为该会话构建的 tool context。被指派的 plugin MCP server 仍各自保有独立的 stdio 子进程或远程连接。</li>
+<li><strong>工具垫片</strong>（<code>tool-shims.ts</code>）——注册 PI 本地的 <code>web_fetch</code>、<code>web_search</code> 与 <code>todo_write</code> 工具，每个都按其 Claude 名称（<code>WebFetch</code>、<code>WebSearch</code>、<code>TodoWrite</code>）受会话的工具允许列表约束；在会话可以委派时，还注册 <code>agent</code> 与 <code>agent_stop</code> 委派工具（参见<a href="#subagents">子智能体</a>）。</li>
+<li><strong>钩子桥接</strong>（<code>hook-bridge.ts</code>）——把钩子注册表中面向 <code>pi</code> 后端的条目挂成 PI 原生事件处理器，Cortex 钩子脚本因此能看到 PI 的工具事件。参见 <a href="../hooks/">hooks.md</a>。</li>
+<li><strong>额度探针</strong>（<code>quota-probe.ts</code>）——在经网关路由的运行中从响应头读取 provider 额度，并把每次读数交给限流器。</li>
+</ul>
+<p>系统提示覆盖、追加提示与 Cortex 插件 skill 目录都是 session options（<code>systemPrompt</code>、<code>appendSystemPrompt</code>、<code>additionalSkillPaths</code>），而不是命令行标志。</p>
+<p><strong>交互工具。</strong> 用户发起的直接 PI 会话会把 interaction bundle 加入其进程内的 Cortex 工具集，因此 PI 暴露与 Claude TUI、Claude print 相同的 <code>cortex_ask_user</code>、<code>cortex_plan_enter</code> 与 <code>cortex_plan_exit</code> 工具。它们的对话框走 PI 的 extension UI 协议，由 <code>ui-context.ts</code> 在服务器内应答；参见 <a href="../safety-and-approvals/">safety-and-approvals.md</a>。</p>
+<p><strong>缓存预热。</strong> Cortex 在主会话和子智能体会话中都关闭 PI 的自动 prompt-cache 预热。provider 的普通提示缓存仍可使用；Cortex 不会额外发起用量不在其费用统计之内的预热请求。这是运行时覆盖，不会改动终端 PI 的设置。</p>
+<p><strong>凭据。</strong> PI 的 provider 凭据由 Cortex 管理——聊天里的 <code>!login pi</code>，或网页端的<strong>设置 → 账号</strong>——并保存在 PI 自己的认证文件 <code>~/.pi/agent/auth.json</code> 中。Cortex 让该文件在其私有 PI agent 目录内可见（Linux 与 macOS 用符号链接，Windows 用复制）供 SDK 读取，并从 <code>~/.pi/agent/models.json</code> 读取用户自定义的 provider。因此同时装有终端 <code>pi</code> CLI 的安装与 Cortex 共用同一份凭据和同一份 provider catalog。</p>
+<p>PI transcript 的保留基于文件系统。活跃的 PI 后端 session id 在保留扫描中受保护，而 <code>$CORTEX_HOME/logs/sessions-pi/</code> 下的孤立 transcript bundle 只有在超过保留截止线后仍无引用、且经过第二轮确认扫描后才会删除。</p>
+<p>PI provider 名称与 Cortex 后端名称相互独立。特别地，<code>openai-codex</code> 是受支持的 PI provider（包括 <code>openai-codex-responses</code> API kind）；使用它的引擎选择须设置 <code>"backend": "pi"</code>。</p>
+<h2 id="subagents">子智能体<a class="headerlink" href="#subagents" title="Permanent link">&para;</a></h2>
+<p>两个后端通过同一个工具、同一张角色表和同一个 runner 进行委派，且任一后端都可以做父端或子端。Claude 的回合可以把工作交给 PI 模型，PI 的回合也可以交给 Claude。</p>
+<p><strong>工具。</strong> PI 在进程内注册 <code>agent</code> 与 <code>agent_stop</code>。Claude 以 MCP 工具形式拿到同一对工具（<code>mcp__cortex-core__agent</code>、<code>mcp__cortex-core__agent_stop</code>），同时它内置的 <code>Agent</code> 工具会在每次 spawn 时被剥离，因此不存在守护进程看不见的第二条委派路径。一次调用可以跑单个任务、最多八个并行任务，或最多八个串行任务；串行提示里的 <code>{previous}</code> 会被替换成上一环的输出。</p>
+<p><strong>角色。</strong> 角色是带 YAML frontmatter 的 markdown 文件。<code>explore</code>、<code>general-purpose</code> 与 <code>plan</code> 是内置角色，从安装目录的 <code>agent-server/defaults/agents/</code> 读取；<code>$CORTEX_HOME/config/agents/</code> 中的文件新增一个角色，或替换同名的内置角色，删除该文件即恢复内置角色。角色正文追加到子会话的系统提示。其 frontmatter 必须设置 <code>name</code> 与 <code>description</code>——缺少它们的文件会被忽略——并可以设置：</p>
+<table>
+<thead>
+<tr>
+<th>键</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tools</code></td>
+<td>规范工具名，翻译成各后端自己的拼写</td>
+</tr>
+<tr>
+<td><code>model</code></td>
+<td>PI 子智能体用 <code>provider/model[:thinking]</code>，Claude 子智能体用裸模型 id</td>
+</tr>
+<tr>
+<td><code>backend</code></td>
+<td><code>claude</code> 或 <code>pi</code>；不填表示"父端运行的是哪个就用哪个"</td>
+</tr>
+<tr>
+<td><code>mode</code></td>
+<td>PI 子端依次使用角色值、同 provider 的 PI 父端路由、provider 名称。Claude 子端使用 Claude 父端路由或配置的 Claude 后端默认路由</td>
+</tr>
+</tbody>
+</table>
+<p>当 <code>$CORTEX_HOME/config/agents/</code> 尚不存在时，Cortex 私有 PI agent 目录内 <code>agents/</code> 目录中的角色会在启动时被移入其中，该目录随后被改名为 <code>agents.migrated</code>，这样在那里做的修改不会悄无声息地毫无效果。</p>
+<p><strong>模型如何选定。</strong> 模型依次取任务显式给出的 <code>model</code>、角色的 <code>model</code>，最后是父端自己的模型——但最后一项仅在子端与父端运行同一后端时适用，因为 Claude 的模型 id 对 PI 毫无意义，PI 的 <code>provider/model</code> 对 Claude 亦然。Claude 子端没有显式模型或同后端父端模型时，使用 Claude 后端默认值（配置默认值属于 Claude 时用它，否则用第一个 Claude 收藏）。PI 父端创建 Claude 子端时也使用该 Claude 默认值的路由，需要事先配置 Claude 默认值或收藏。</p>
+<p><strong>调用方能看到什么。</strong> <code>subagent_type</code>、<code>model</code> 与 <code>backend</code> 三个字段的描述在注册工具时按本机实际拥有的内容生成，而不是写死。角色取自实时的角色表——内置角色叠加上 <code>$CORTEX_HOME/config/agents/</code>——因此你新增的角色在下一个会话就会出现。Claude 模型 id 来自 Cortex 生成 gateway 的 Anthropic 路由所用的同一张表，再加上守护进程当前的模型。PI 父端读取自己的实时模型注册表；Claude 父端读不到，因为它的 MCP 工具运行在没有 PI SDK 的 sidecar 进程里，所以守护进程把自己缓存扫描到的 provider/model 对经 spawn 环境传下去。缓存为空只意味着暂时还列不出 PI 模型——不会为了装饰一次 Claude spawn 而触发扫描。角色和模型各自有字符预算，超出部分渲染为 <code>(+N more)</code>。这些列表是快照，会话中途不会变化；它们是提示而非白名单：未列出的模型 id 仍会被接受并透传。一无所知时，描述回退到通用措辞，工具不会因为缺少 catalog 而失败。</p>
+<p><strong>隔离。</strong> <code>pi</code> 子端是一个不写 transcript、headless 运行的嵌套进程内会话。<code>claude</code> 子端是一次冻结的一次性 <code>claude</code> 运行：没有可恢复的会话、没有钩子、没有环境规则、没有 transcript 日志。无论哪种，子端的 MCP 面都是去掉委派工具后的 <code>cortex-core</code> bundle，因此不能继续向下扇出。</p>
+<p><strong>父端看到什么。</strong> 子端的工具调用、结果与文本会流入父端的实时 transcript 并归属到该子智能体，其 token 用量并入父端。归属是 best-effort：父回合已经结束的运行只是停止推送，答案照样返回。</p>
+<p><strong>后台运行。</strong> <code>run_in_background: true</code> 会立刻返回一个 <code>agent_id</code>。Cortex 在运行期间保持会话打开——停止按钮够得到它，延迟的守护进程重启也会等它——并在答案就绪时作为一个普通回合投递；如果此时有回合在跑，就并入那个回合。<code>agent_stop</code> 提前取消运行并丢弃已产出的内容。停止一个会话也会停掉它委派出去的运行，前台和后台都一样：子端不会比请求它的回合活得更久。</p>
+<h2 id="remote-login">远程登录<a class="headerlink" href="#remote-login" title="Permanent link">&para;</a></h2>
+<p>无需 SSH 登录 Cortex 主机，也可以远程完成后端登录。同一登录流程有三个渠道入口：</p>
+<table>
+<thead>
+<tr>
+<th>渠道</th>
+<th>入口</th>
+<th>交互方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Slack</td>
+<td>发送 <code>!login</code>、<code>!login cc</code> 或 <code>!login pi [provider]</code></td>
+<td>选择器和 secret 输入在 Slack modal 中打开；授权链接发送到频道。</td>
+</tr>
+<tr>
+<td>飞书</td>
+<td>发送 <code>!login</code>、<code>!login cc</code> 或 <code>!login pi [provider]</code></td>
+<td>选择器和 secret 输入使用内联卡片表单；授权链接发送到聊天。</td>
+</tr>
+<tr>
+<td>Web（桌面与移动端）</td>
+<td>桌面端：打开<strong>设置 → 账号</strong>。移动端：点击<strong>设置 → 账号</strong>，进入 <code>/m/settings/accounts</code>。</td>
+<td>账号分区展示 Claude Code 凭据与全部 PI provider，并提供状态及登录/登出操作，登录打开同一套选择器式流程。</td>
+</tr>
+</tbody>
+</table>
+<p>聊天命令形式如下：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>!login
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>!login status
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>!login cc
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>!login pi
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>!login pi &lt;provider&gt;
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>!login custom
+</code></pre></div>
+<p><code>!login custom</code> 管理没有登录流程的自建端点；见下文<a href="#custom-providers">自定义 provider</a>。</p>
+<p>无参数的 <code>!login</code> 与 <code>!login status</code> 都显示认证状态总览。<code>!login cc</code> 选择 Claude Code。<code>!login pi</code> 打开 PI provider 选择器；附带 provider 时跳过该选择器。provider 支持多种认证类型时，认证类型同样在交互中选择。不要在命令后追加 <code>oauth</code>、API key、授权码或 provider 专用的 OAuth 参数。</p>
+<p>同一后端/provider 组合同时最多只有一个进行中的登录。发起登录会取消该组合尚未结束的登录，无论它由哪个渠道发起；除非那次登录已在保存提交的凭据，此时新的发起会被拒绝，直到它结束。登录失败时，先显示 Cortex 的提示，再附上 provider 自身原因的第一行。</p>
+<p>只有当已安装 PI provider 的 <code>provider.auth.oauth.login</code> 是函数时，才提供 OAuth。清单从已安装的 PI 运行时中发现，因此只支持 API key 的 provider 不会显示无法使用的 OAuth 选项。Claude Code 同样通过选择器提供 API key 与订阅两种选项。</p>
+<p>对于 Claude Code 订阅，Cortex 针对自己的 Claude 配置目录启动 <code>claude auth login --claudeai</code>，把命令输出的授权 URL 发送到发起渠道，并把返回的 code 写入该命令的标准输入。OAuth 交换和凭据持久化由 Claude Code 负责。只有在清空认证相关环境变量后执行的 <code>claude auth status --json</code> 报告 <code>loggedIn: true</code> 时，Cortex 才把流程标记为完成；它从不读取或保存最终的 token。订阅登出同样交给 <code>claude auth logout</code>，并验证登出后的状态。旧版由 Cortex 管理的订阅 token 在 Claude Code 未登录期间仍是可删除的运行时凭据，但它不会让账号显示为已登录，并会在 Claude 拥有凭据后立即被抑制。</p>
+<p>运行中的后端报告认证过期时，Cortex 会发送一张点名 provider 的卡片，提供一键重新登录，并预填失败的那种认证方式：对 Claude Code，运行使用 <code>api</code> 模式时是 API key，否则是订阅。该登录进行中时，按钮会重新打开它；登录失败、被取消或过期后，按钮会发起一次新的登录。每日过期扫描检查使用中的账号，并对即将过期、已过期或缺失的凭据发送同一种可操作提醒。若某个 provider 在提醒窗口内已被运行时通知报告过，每日扫描会跳过它，因此定时预警不会重复你刚收到的通知。反方向是有意为之：运行时失败总会通知，即使每日扫描之前已对该 provider 预警过，因为会话中的失败正是你那一刻最需要的消息。</p>
+<p>在主机上做只读状态检查，可运行：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>cortex<span class="w"> </span>auth<span class="w"> </span>status
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>cortex<span class="w"> </span>auth<span class="w"> </span>status<span class="w"> </span>--json
+</code></pre></div>
+<p>文本形式是简洁总览；<code>--json</code> 返回完整的归一化状态快照。两者都不包含凭据。精确命令契约参见 <a href="../cli-reference/#cortex">CLI 参考</a>。</p>
+<h2 id="custom-providers">自定义 provider<a class="headerlink" href="#custom-providers" title="Permanent link">&para;</a></h2>
+<p>自定义 provider 指 PI 没有内置定义的端点：本地推理服务、实验室的 GPU 机器，或公司代理。它没有登录流程——没有厂商可供认证——所以它是被定义出来的而不是登录进去的，管理入口与其他一切相同，共三处：</p>
+<table>
+<thead>
+<tr>
+<th>入口</th>
+<th>用法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CLI</td>
+<td><code>cortex auth provider list \| add \| remove</code></td>
+</tr>
+<tr>
+<td>Web（桌面与移动端）</td>
+<td><strong>设置 → 账号 → 自定义 Provider</strong></td>
+</tr>
+<tr>
+<td>Slack / 飞书</td>
+<td><code>!login custom [list \| add &lt;name&gt; &lt;api&gt; &lt;url&gt; &lt;model…&gt; \| remove &lt;name&gt;]</code></td>
+</tr>
+</tbody>
+</table>
+<p>一条定义需要四样东西：名称、端点使用的请求协议（<code>anthropic-messages</code>、<code>openai-completions</code>、<code>openai-responses</code> 或 <code>google-generative-ai</code>）、上游 URL，以及至少一个模型 id。上游密钥可选；不填时网关会透传调用方自己的 key。</p>
+<p>保存会写两份文件。<code>~/.pi/agent/models.json</code> 新增一条 <code>providers.&lt;name&gt;</code>，其 <code>baseUrl</code> 指向网关，因此终端的 <code>pi</code> 与 Cortex 共用同一份定义。<code>~/.aistatus/gateway.yaml</code> 新增转发到真实端点的路由，并携带上游密钥。<strong>密钥只存在于网关配置中</strong>——PI catalog 里放的是占位符，所以到处复制 catalog 也不会复制出密钥。因此每次调用都经过网关，与其他路由一样计入用量并受限流。生成的网关配置设置 <code>max_body_size_mb: 100</code>。在 aistatus 0.0.8 及以上版本中，该值以 MiB 为单位限制每个缓冲的请求体；要使用其他限额，修改这个顶层值即可。网关会自行重新加载配置，因此路由和请求体限额的变更都无需重启。</p>
+<p>聊天命令刻意不提供密钥参数：频道记录不适合放密钥。请用 CLI 的 <code>--key -</code>（从标准输入读取）或 Web 表单添加密钥，两者都不会把它留在任何记录里。</p>
+<p>要使用自定义 provider，在模型选择器中选择它的模型，或输入 <code>!model my-vllm/Model-27B</code>。可将模型加入收藏，并在需要时设为默认（见 <a href="../configuration/#modelsjson">configuration.md</a>）。删除 provider 会同时移除 catalog 条目与网关路由；请先把使用它的会话、默认模型、收藏和定时任务改到其他 provider。</p>
+<h2 id="selecting-a-backend">选择后端<a class="headerlink" href="#selecting-a-backend" title="Permanent link">&para;</a></h2>
+<p>每个会话保存完整的引擎选择：<code>backend</code>、<code>provider</code>、<code>model</code>、<code>thinking</code> 和 <code>mode</code>。<code>backend</code> 为 <code>claude</code> 或 <code>pi</code>；Claude 的 provider 为 null，PI 则必须指定 provider id，用于选择请求协议和网关 endpoint。默认选择与收藏保存在 <a href="../configuration/#modelsjson"><code>config/models.json</code></a>。</p>
+<p><code>!backend &lt;claude|pi&gt;</code> 在配置的默认选择属于目标后端时使用它，否则使用该后端的第一个收藏及其记住的设置。两者都没有时，需要先收藏该后端的一个模型。有历史的对话不能切换后端；需要新建会话。</p>
+<h2 id="per-session-model-thinking-level-and-route">按会话选择模型、思考档位与路由<a class="headerlink" href="#per-session-model-thinking-level-and-route" title="Permanent link">&para;</a></h2>
+<p>Web 和移动端输入框的引擎选择器在根层列出收藏模型，显示模型名与记住的思考档位，按 backend 和 provider 分组。打开完整模型列表可选择其他模型，也可用每行的星标收藏或取消收藏。思考档位包含默认选项，保存为 <code>null</code>，由后端决定。<code>/model</code> 打开模型选择。执行环境是独立选项，见 <a href="../configuration/#choosing-an-environment-per-conversation">configuration.md</a>。</p>
+<p>选择保存在会话上。选模型会恢复该模型记住的思考档位与路由；没有记忆时，thinking 为 null，Claude 使用 <code>gateway.yaml</code> 中第一条 Anthropic 路由（未声明时用 <code>plan</code>），PI 使用 provider 名称。用户修改选择时更新模型记忆。新建 Web 对话从本机上一次选定的引擎开始。</p>
+<p>有历史的对话不能切换后端。选择器会禁用另一后端的模型；新草稿可以任选后端。</p>
+<p><strong>路由</strong>是 gateway 端点的计费通道，例如 Anthropic 订阅的 <code>plan</code> 或计量密钥的 <code>api</code>。选择器只提供该端点在 <code>gateway.yaml</code> 中声明的路由，只有一条时隐藏路由选择。模型目录提供各 endpoint 的 backend、provider、路由和模型。思考档位取后端的值域；PI 提供模型自身档位时，按该范围收窄。</p>
+<p><strong>设置 → 模型</strong> 管理默认模型与收藏列表。平台频道通过以下命令使用同样的选择规则：</p>
+<table>
+<thead>
+<tr>
+<th>命令</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>!model</code></td>
+<td>显示当前选择与收藏，并提供收藏按钮</td>
+</tr>
+<tr>
+<td><code>!model &lt;id&gt;</code></td>
+<td>在当前后端选择模型</td>
+</tr>
+<tr>
+<td><code>!model &lt;provider/model&gt;</code></td>
+<td>指定 provider 选择 PI 模型</td>
+</tr>
+<tr>
+<td><code>!model reset</code></td>
+<td>恢复完整的配置默认选择</td>
+</tr>
+<tr>
+<td><code>!thinking [level]</code></td>
+<td>查看或设置思考档位</td>
+</tr>
+<tr>
+<td><code>!thinking reset</code></td>
+<td>将 thinking 设为 null，使用后端默认值</td>
+</tr>
+<tr>
+<td><code>!mode [route]</code></td>
+<td>查看或设置网关路由，按 endpoint 的路由校验</td>
+</tr>
+</tbody>
+</table>
+<h2 id="thinking-level">思考档位<a class="headerlink" href="#thinking-level" title="Permanent link">&para;</a></h2>
+<p><code>thinking</code> 使用后端原生值域设置推理深度。Claude Code 接受 <code>low</code>/<code>medium</code>/<code>high</code>/<code>xhigh</code>/<code>max</code>，以 <code>--effort</code> 传入。PI 接受 <code>off</code>/<code>minimal</code>/<code>low</code>/<code>medium</code>/<code>high</code>/<code>xhigh</code>/<code>max</code>，作为会话的思考档位传入。值为 null 时使用后端默认值。所选模型不支持的档位会由 PI 收敛到最接近的支持档位。</p>
+<h2 id="usage-limit-throttling-and-auto-resume">用量限流与自动恢复<a class="headerlink" href="#usage-limit-throttling-and-auto-resume" title="Permanent link">&para;</a></h2>
+<p>Cortex 按 provider 跟踪滚动用量窗口。provider 标识是不透明字符串，因此限流器可以跟踪任意数量的 provider，无需固定的 provider 枚举。每个 provider 保有自己的窗口类型和重置时间。限流门禁作用于 provider 与 route mode 的组合，不会阻塞恰好使用相同 mode 名称的另一个 provider。</p>
+<p>这套策略在 <a href="../configuration/#configsettingsjson"><code>config/settings.json</code></a> 中以 <code>providerRateLimits</code> 配置，它是一个以 provider id 为键的对象。每个 provider 可以有一个由 <code>{ type, label?, enabled, threshold? }</code> 条目组成的 <code>windows</code> 数组，因此 5 小时、weekly、含超额 weekly、Codex 主/次窗口以及带标签的模型窗口都能独立配置。<code>threshold</code> 是大于 <code>0</code> 且不超过 <code>1</code> 的比率；省略时，weekly 窗口（<code>seven_day</code>、<code>seven_day_overage_included</code>）使用 <code>0.95</code>，其他所有窗口（包括 <code>five_hour</code>）使用 <code>0.90</code>。精确窗口策略优先于可见且可清除的旧版 provider 回退。桌面端和移动端的用量页面编辑这些行；只统计花费的 provider 不显示额度控件。</p>
+<h3 id="why-a-rate-limit-signal-is-injected-not-streamed">为什么限额信号是注入而不是流式发送<a class="headerlink" href="#why-a-rate-limit-signal-is-injected-not-streamed" title="Permanent link">&para;</a></h3>
+<p>适配器通过注入的回调（<code>RateLimitReporter</code>）把 provider 的限额窗口上报给宿主，而不是发一条 <code>RunEvent</code>。后端在回合之间以及自发续跑回合期间发出 <code>rate_limit_event</code>，也就是恰好没有回合在进行的时候——把它塞进按回合的事件流，会丢掉最关键的那次观测。因此 <code>RunEvent</code> 中的 <code>rate_limit</code> 只作为 transcript 层面的通知存在（<code>agent-runner</code> 忽略它），限流器本身由注入的 reporter 提供数据。额度观测走同一条路径。</p>
+<p>被中断的对话会连同限制它的 provider 一起保存。某个 provider 完全恢复后，Cortex 只恢复该 provider 的工作；属于其他仍受限 provider 的条目继续排队。对话在原频道恢复，之前的上下文完整保留。恢复会错开启动，避免刚开放的窗口立刻再次耗尽。</p>
+<p>当前限流详情会显示每个 provider 正在等待的对话数，并保留同时生效的模型窗口的标签。provider key 是隔离边界：在同一 provider key 下上报的多个账号或额度池共享一条 provider 记录，类型与标签都相同的窗口保留较晚的重置时间。定时限流需要带重置时间的观测。Claude 实时账号用量拉取会为每个已配置的 Anthropic mode 提交所有上报的窗口，而过期的 PI 缓存读数从不重放；PI 响应头观测经其推送路径到达，每次用量采集对 OpenAI Codex 与 Claude 账号的读取见<a href="#account-usage-and-banked-resets">下文</a>。</p>
+<p>策略改动只作用于未来的额度观测，不会改写已经生效的窗口。已生效的额度窗口或 outage 重试窗口会持续生效，直到其重置时间或被手动 <strong>立即恢复</strong> 清除；Codex 或 Claude 额度窗口在新的账号读数显示低于阈值时也会解除。outage 重试行为使用自己的 outage 窗口，不受额度策略阈值改动影响。</p>
+<p>限流窗口与带 provider 归属的恢复条目持久化在 <code>data/provider-state.json</code> 中。启动时 Cortex 会重新装载仍有效的计时器，并立即恢复那些 provider 窗口在停机期间已到期的条目，即使另一个 provider 仍受限。旧数据中没有 provider 的条目会等到所有生效的 provider 都解除。已有活跃对话的频道会被跳过；仅凭已过去的时长不会丢弃工作。</p>
+<p>自动恢复默认开启。在 <a href="../configuration/#configsettingsjson"><code>config/settings.json</code></a> 中设置 <code>"autoResume": false</code>，会丢弃已就绪的恢复条目而不是自动派发；改动无需重启守护进程即可生效。<code>.env</code> 中的旧变量 <code>CORTEX_AUTO_RESUME=0</code> 仍作为已弃用的回退被读取。</p>
+<h3 id="account-usage-and-banked-resets">账号用量与储备重置<a class="headerlink" href="#account-usage-and-banked-resets" title="Permanent link">&para;</a></h3>
+<p>每次用量采集——内置的 provider 用量作业、打开用量页面，或点击 <strong>刷新</strong>——都会直接读取两个订阅账号：</p>
+<ul>
+<li><strong>OpenAI Codex</strong>，以 ChatGPT 套餐登录。读数填入 Codex 订阅行的主窗口与次窗口。读取失败时，该行保留上次从 Codex 响应头观测到的窗口，并附上相应说明。</li>
+<li><strong>Claude</strong>，通过 <code>claude login</code> 登录。读数填入 Anthropic 订阅行的 5 小时与 7 天窗口，以及账号按单个模型计的周额度，显示为带模型名的一行，例如 <strong>7 天（Fable）</strong>。这个模型窗口就是 Claude Code 上报的 <code>seven_day_overage_included</code>，所以它的阈值控件就是该窗口限流所用的策略。Cortex 使用 Claude Code 保存的访问令牌，且无法刷新它，因此令牌过期、使用 API key 或未登录时，该行回退到网关的额度观测；读取失败时同样回退，并附上说明。账号只向当前版本的 Claude Code 客户端提供重置，因此这些请求以本机安装的 <code>claude</code> CLI 版本标识自己。</li>
+</ul>
+<p>每次读数还会列出账号的储备重置：可用数量，以及最早一个的过期时间。账号读数从不开启限流，但会解除该 provider 已回落到阈值以下的限流窗口，因此在其他设备上使用的重置同样会放行 Cortex 暂停的工作。</p>
+<p>储备重置作用于整个账号、所有设备，且无法撤销。Codex 重置恢复 Codex 用量窗口，在发放约 30 天后过期。Claude 重置清空其授予项列出的窗口——通常是 5 小时、7 天与含超额 7 天限额——对 claude.ai 及其他所有 Claude 客户端同样生效。Cortex 从不自行使用重置。在桌面端与移动端用量页面的 Codex 与 Anthropic 卡片上，有可用重置时会显示 <strong>重置</strong>，并先请求确认；Claude 的确认会列出该重置将清空的窗口，并在账号未达限额时显示这些窗口的当前用量。Cortex 使用账号下一个提供的重置，否则使用最早过期的那一个。在聊天中，<code>!usage</code> 显示同样的数量与过期时间，并带有 <strong>重置 Codex</strong> 或 <strong>重置 Claude</strong> 按钮，点击后在线程中发出确认提示；账号持有重置时，Codex 或 Claude 限流通知会在 <strong>立即恢复</strong> 旁带上该按钮。重置后，Cortex 清除该 provider 的限流、恢复它暂停的工作，并在几秒内反复读取用量，直到账号显示被清空的窗口已恢复。账号拒绝时——没有可重置的内容、重置已被使用、处于冷却期，或账号当前无法使用重置——不会消耗重置，Cortex 会说明属于哪种情况。</p>
+<h2 id="cost-reporting">费用报告<a class="headerlink" href="#cost-reporting" title="Permanent link">&para;</a></h2>
+<p>费用报告因后端而异：</p>
+<ul>
+<li><strong>Claude Code</strong> — 读取 CLI 在每个回合结束时报告的累计 <code>total_cost_usd</code>，记录相对上一回合的增量，以及同一结果中的 token 计数。恢复的会话从 CLI 恢复出的累计值开始，因此其历史不会被重复计费。记录写入 <code>$CORTEX_HOME/data/costs.jsonl</code>。</li>
+<li><strong>PI</strong> — 读取会话在每条 assistant 消息上报告的用量（<code>input</code>、<code>output</code>、<code>cacheRead</code>、<code>cacheWrite</code> 与 <code>cost.total</code>），按回合汇总为一条记录，并标注实际服务的 provider 与模型。provider 未报告的 token 字段记为未知，而不是记为 0。记录同样写入 <code>$CORTEX_HOME/data/costs.jsonl</code>。</li>
+</ul>
+<p>所有费用记录遵循相同的 JSONL 格式，并受 90 天滚动保留窗口约束。通过 MCP 工具进行的费用查询会汇总所有后端——<code>cost_query</code> 工具参见 <a href="../mcp/">mcp.md</a>。</p>
+<h2 id="adding-a-new-backend">添加新后端<a class="headerlink" href="#adding-a-new-backend" title="Permanent link">&para;</a></h2>
+<p>新后端在 <code>agent-server/src/agent-adapter/</code> 下的新目录中实现 <code>EngineAdapter</code> 接口。所需接口：</p>
+<ol>
+<li><strong><code>adapter.ts</code></strong> — 以 <code>open(spec)</code> 实现 <code>EngineAdapter</code>，返回一个 <code>EngineSession</code>。适配器无状态：池由 <code>SessionEngines</code> 持有。</li>
+<li><strong><code>EngineSession</code></strong> — 带有其 <code>backend</code>、<code>identity</code> 与 <code>backendSessionId</code>，并提供用于一个回合的 <code>run(prompt, opts)</code>，返回一个 <code>EngineRun</code>：其 <code>events</code> 是 <code>RunEvent</code> 的异步可迭代对象，其 <code>result</code> 是前台 <code>AgentResult</code>，其 settled 结果合并任何续跑，并带有 <code>cancel()</code>；另有 <code>steer()</code>、<code>respondToDialog()</code>、<code>ingestExternal()</code>、<code>compact()</code>、<code>close()</code> 和 <code>kill()</code>。</li>
+<li><strong>事件翻译</strong> — 把后端的原生事件格式转换为 <code>NormalizedEvent</code> / <code>RunEvent</code> 成员（对 Claude 而言是 <code>event-parser.ts</code> 与 <code>event-translator.ts</code>）。</li>
+<li><strong>注册</strong> — 把适配器加入 <code>domain/runs/adapters.ts</code> 中的装配，并在 <code>domain/runs/engines.ts</code> 的 <code>SessionEngines.acquire</code> 中加一个分支；把能力加入 <code>capabilities.ts</code>；把后端标签加入 <code>core/types/agent-types.ts</code> 中的 <code>Backend</code> 类型联合。承载子智能体的后端还需要在 <code>domain/agents/subagent/runner.ts</code> 中加一个分支。</li>
+</ol>
+<p>共享部分位于适配器旁边：<code>agent-adapter/normalize/</code> 中的标准化事件类型、提示构建与工具结果图片处理，<code>agent-adapter/run-events.ts</code> 中的 <code>RunEvent</code> 队列，以及 <code>core/tool-names.ts</code> 中的工具名翻译。</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

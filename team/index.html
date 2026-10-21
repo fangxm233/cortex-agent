@@ -1,0 +1,1356 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Agent workbench for auto research, self-improvement loops, and long-running work">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/team/">
+      
+      
+        <link rel="prev" href="../architecture/">
+      
+      
+        <link rel="next" href="../memory/">
+      
+      
+        
+          <link rel="alternate" href="./" hreflang="en">
+        
+          <link rel="alternate" href="../zh/team/" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Team Mode - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#team-mode" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Team Mode
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../zh/team/" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop App
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Team Mode
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Team Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#leads-and-workers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Leads and workers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-work-flows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How work flows
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tools
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#in-the-workbench" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the workbench
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#boards" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Boards
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limits
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills & Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Safety & Approvals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../waitpoints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Waitpoints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cross-machine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent-browser/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Browser
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#leads-and-workers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Leads and workers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-work-flows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How work flows
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tools
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#in-the-workbench" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the workbench
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#boards" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Boards
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limits
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="team-mode">Team Mode<a class="headerlink" href="#team-mode" title="Permanent link">&para;</a></h1>
+<p>Team mode lets one conversation run a team. You talk to a single session, the <strong>lead</strong>, and it
+hands work to persistent <strong>worker</strong> sessions, continues them later, answers their questions and
+tells you what came back. You never open a session to give a piece of work its own context, or
+decide which conversation should carry on with what; the lead does that.</p>
+<p>Team mode is experimental and on by default. Turn it off in <strong>Settings → Advanced → Team
+(experimental)</strong>, or set <code>teamEnabled</code> to <code>false</code> in <code>settings.json</code> (<code>CORTEX_TEAM_ENABLED=0</code>).</p>
+<h2 id="leads-and-workers">Leads and workers<a class="headerlink" href="#leads-and-workers" title="Permanent link">&para;</a></h2>
+<p>With team mode on, every web session can lead. Nothing about a session changes until it starts a
+worker: one with no workers looks and behaves like any other session. The only difference is a
+set of <code>worker_*</code> tools in its tool list.</p>
+<p>A worker is an ordinary session that belongs to a lead. It has its own transcript, context and
+resume history, runs on Claude or PI like any session, and has the full tool surface, including
+the one-shot <code>agent</code> tool. It cannot start workers of its own, so a team is one level deep.
+A worker inherits its lead's project and copies the lead's complete engine selection:
+backend, provider, model, thinking, and route. The lead can pass <code>backend</code> and <code>model</code>
+in the same format as the <code>agent</code> tool (<code>provider/model[:thinking]</code> for PI, a bare model id
+for Claude). On the same backend, only the named parts change. For another backend,
+the worker starts from <code>models.json</code>'s default if it belongs to that backend, otherwise
+that backend's first favorite with its remembered settings. With neither available,
+creation fails and asks you to favorite a model on that backend. An explicit change of
+PI provider uses that provider's route. A Claude lead can run PI workers and vice versa.
+Creating a worker leaves the engine choice for new user conversations unchanged.</p>
+<p>A lead uses workers only when there are several tasks (or the work splits into several) or the user
+switches to a different task; a single task stays in the lead's own session. For the work it hands
+off, the lead chooses between a worker and the one-shot <code>agent</code> tool by what happens next. Work that
+may need follow-up, runs long, or may need back-and-forth goes to a worker. Bounded reconnaissance or
+verification whose result the lead uses straight away goes to <code>agent</code>. When the work runs on several
+workers or across many hours, the lead also opens a <a href="#boards">board</a> so you can follow it at a glance.</p>
+<h2 id="how-work-flows">How work flows<a class="headerlink" href="#how-work-flows" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>you ⇄ lead ── worker_spawn / worker_send ──────────▶ worker
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>        ▲  ◀── report at the end of each worker turn ──┤
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>        │  ◀── question / plan approval notice ────────┤
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>        └──── worker_answer ──────────────────────────▶ (pending request resolved)
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>you ─────────── open the worker and talk to it directly ──▶ worker
+</code></pre></div>
+<p><strong>Dispatch never blocks.</strong> <code>worker_spawn</code> and <code>worker_send</code> return at once. The lead ends its
+turn, and the worker's report wakes it later. A message sent to a running worker is folded into
+its current turn; to an idle worker it starts a new one. While the server is about to restart,
+both tools return an error instead of dispatching, and the lead tries again after the restart.</p>
+<p><strong>Reports.</strong> Each worker turn ends in a report unless the worker marks it routine (below): its
+final reply reaches the lead as a message headed <code>[Worker &lt;name&gt; · completed|failed|stopped]</code> with
+a one-line status, and wakes it. A report that arrives while the lead is mid-turn is folded into
+that turn. Turns you start yourself by typing in a worker are not reported; the lead's roster
+marks that worker as one you have talked to. A server restart does not lose a report: one that
+ends while a restart is pending reaches the lead once the server is back. A worker's finished
+turn raises no notification on the web page, the desktop app or Android; you hear about it when
+the lead's own turn ends.</p>
+<p><strong>Routine updates.</strong> A turn with nothing new for the lead, such as a stale or duplicate signal, a
+routine check that found everything as expected, or work still running with no change, should not
+wake it. The worker marks such a turn by calling <code>mark_routine</code> before its final reply. The reply
+then shows in the lead's chat as a routine update and in <code>worker_list</code>, and goes into the lead's
+inbox of unread updates instead of waking it. A failed or stopped turn always reports, marked or
+not. The lead reads its unread updates the next time it hears anything: they are appended as the
+last section, headed <code>[Unread routine updates]</code>, to the next report or question notice it
+receives, or added to the <code>[Team]</code> block of its next turn, whichever comes first. Each update is
+one line, the first line of the reply with its time, grouped by worker. The lead's chat does not
+display that section, since each of those updates already has its own row. Once given to the
+lead, an update counts as read and is not repeated. The inbox survives a restart and keeps the last
+five updates per worker, noting how many older ones it left out.</p>
+<p><strong>Questions and plans.</strong> When a worker calls <code>cortex_ask_user</code> or submits a plan with
+<code>cortex_plan_exit</code>, the request shows up as a card in the worker's session and as a notice in the
+lead's conversation. The lead answers with
+<code>worker_answer</code>. It may answer questions and approve plans on its own judgement, and asks you
+with <code>cortex_ask_user</code> when it is unsure what you would want. You can answer on the worker's card
+yourself; whichever answer arrives first is the one the worker gets.</p>
+<p><strong>Roster.</strong> While a lead has active workers or unread updates, each of its turns opens with a
+short <code>[Team]</code> block: a few working rules, one line per active worker (status, brief, last report,
+and whether you have talked to it), one line counting the inactive ones, and any unread updates. A
+worker with no turn running that still holds an open waitpoint is listed as waiting on external,
+not idle. A worker's first turn opens with a <code>[Worker]</code> block telling it who its lead is and how its
+replies are used.</p>
+<p><strong>Inactive workers.</strong> A worker counts as inactive once it has nothing running, no question or plan
+waiting, no open waitpoint, and no activity for three hours. Workers are never deleted; an inactive
+one simply folds out of view. The <code>[Team]</code> block counts it instead of listing it, <code>worker_list</code> names
+it on a single <em>Inactive</em> line, and the workbench lists it last. <code>worker_send</code> reaches an inactive
+worker like any other, and the new turn makes it active again.</p>
+<p><strong>Transcripts.</strong> Every session's first turn names the directory holding all session transcripts
+(<code>&lt;sessionId&gt;.jsonl</code>). When a report is not enough, the lead can read a worker's full transcript
+there, using the session id that <code>worker_list</code> shows.</p>
+<h2 id="tools">Tools<a class="headerlink" href="#tools" title="Permanent link">&para;</a></h2>
+<p>The lead's tools come from the <code>cortex-workers</code> MCP bundle (see <a href="../mcp/">MCP</a>).</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Parameters</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>worker_spawn</code></td>
+<td><code>name</code>, <code>prompt</code>, <code>backend?</code>, <code>model?</code></td>
+<td>Starts a worker named by a short slug and gives it its first task</td>
+</tr>
+<tr>
+<td><code>worker_send</code></td>
+<td><code>worker</code>, <code>message</code></td>
+<td>Continues, redirects or briefs a worker, inactive ones included</td>
+</tr>
+<tr>
+<td><code>worker_list</code></td>
+<td><code>worker?</code></td>
+<td>The roster, or one worker in detail with its model and full last report</td>
+</tr>
+<tr>
+<td><code>worker_stop</code></td>
+<td><code>worker</code></td>
+<td>Stops the worker's current turn</td>
+</tr>
+<tr>
+<td><code>worker_answer</code></td>
+<td><code>request_id</code>, <code>answers?</code> or <code>approved?</code> + <code>feedback?</code></td>
+<td>Answers a worker's question, or approves or rejects its plan</td>
+</tr>
+</tbody>
+</table>
+<p>Workers get one tool of their own from the <code>cortex-worker-report</code> bundle: <code>mark_routine</code>, which
+takes no parameters and marks the current turn as a routine update (see above).</p>
+<h2 id="in-the-workbench">In the workbench<a class="headerlink" href="#in-the-workbench" title="Permanent link">&para;</a></h2>
+<p><img alt="A lead session with its team list open, an approved worker plan, and two worker report cards" src="../images/ui/team.png" /></p>
+<ul>
+<li>The sidebar nests a lead's workers under it, behind a caret with a worker count. The lead's
+  dot summarizes its workers, and inactive workers are listed last and dimmed.</li>
+<li>A lead's chat header carries its team as one capsule: up to six status dots for its active
+  workers, running ones first, then a summary such as <em>7 workers · 3 running</em>. Clicking it opens the
+  team list, headed <em>Team · N</em>. Each row shows a worker's status as its dot and how long it has been
+  running or idle, and underneath it what the worker is doing: its current task while it runs, or
+  the brief the lead spawned it with. A row opens that worker. Inactive workers are folded at the
+  bottom of the list under <em>Inactive N</em>, and the capsule disappears once every worker is inactive.</li>
+<li>On mobile, the Sessions list leaves workers out. The lead's row carries their state instead: it
+  shows as running while any worker runs, and as unread while any worker has news. In the lead's
+  chat, a team capsule above the composer shows up to three worker dots and the active workers in
+  words (<em>2 workers</em>), and opens the same team list as a sheet. Inactive workers count toward neither state and
+  are folded at the bottom of the list.</li>
+<li>A worker's header starts with its lead's title, which takes you back to the lead. The composer
+  works as in any session, so you can talk to a worker directly.</li>
+<li>A worker never waits on you: its questions and plans go to its lead, and while it waits for the
+  answer it shows as running, like any worker mid-turn. The amber dot is reserved for requests only
+  you can answer, so it never appears on a worker.</li>
+<li>In a worker's transcript, messages from the lead appear as your own messages labelled <em>From
+  lead session</em>.</li>
+<li>In the lead's chat, what the lead does to its workers shows as quiet rows of its own rather than
+  tool calls. A spawn is one line with the worker and its model, with the first two lines of its
+  brief under it; on a phone the model moves to the line's tooltip and the opened brief. A message or an answer is one line naming the worker; click it for the full text.
+  A stop is one line too. An answer that directly follows its request folds into that request's
+  line.</li>
+<li>Worker traffic in between the lead's replies (reports, routine updates and requests) gathers
+  into one line per worker per run: the worker's status dot, its name, its latest report or request
+  (or the latest routine update in muted text when the run holds nothing else) and when it
+  happened. Where a request stands, such as <em>Question answered</em>, and the worker's live status, such
+  as <em>running 3m</em>, are in the line's tooltip and accessible name. Click it to open a timeline where
+  routine updates read quieter than reports and each entry expands to the full text, with a link
+  to the worker's session. Several workers in one run get a line each. A worker whose question or
+  plan is still unanswered keeps its request's tag on the line. Live status appears only on a
+  worker's latest line; older lines show when they happened.</li>
+<li>When the lead is idle while workers are still running or waiting on something, the chat ends
+  with a line naming who it is waiting on, such as <em>Lead is waiting for docs to report</em>.</li>
+</ul>
+<h2 id="boards">Boards<a class="headerlink" href="#boards" title="Permanent link">&para;</a></h2>
+<p><img alt="A board in the dock: the live strip, stage cards, a results table and a plot" src="../images/ui/board.png" width="560" /></p>
+<p>A board is a status page for long work. It sits beside the conversation and shows at a glance where
+a task stands, what comes next, what is waiting on you, and the decisions taken so far. A board
+belongs to a project and is attached to the sessions doing the work. It does not group sessions:
+organizing several sessions around one piece of work is what the lead and its workers are for.
+Boards work in every Web UI session, with or without team mode, on Claude and PI alike.</p>
+<p><strong>Opening a board.</strong> The agent opens a board when the work calls for one, typically when it is
+about to dispatch several workers or the task will run across many turns or hours. The <code>board</code>
+skill tells it when a board is worth opening and how to keep one. You can also simply ask for a
+board.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Parameters</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>board_open</code></td>
+<td><code>title</code> or <code>board</code></td>
+<td>Creates a board titled <code>title</code>, or attaches to an existing board by id or slug. Binds the calling session, and a lead's workers (below)</td>
+</tr>
+</tbody>
+</table>
+<p>The tool comes from the <code>cortex-web</code> bundle (see <a href="../mcp/#cortex-web">MCP</a>). A board has no open or
+closed state: it stays available, and the page itself says where the work stands, including when
+it is finished.</p>
+<p><strong>Who is bound.</strong> A session is bound to at most one board. When a lead opens a board, each of its
+workers that is not inactive and has no board yet is bound along with it. A worker spawned later,
+or one the lead sends work to, joins the lead's board if it has none of its own. A
+worker that opens a board binds only itself. Once a session is bound, its next turn opens with a
+short <code>[Board]</code> block naming the board and its directory, and the block comes back after context
+compaction.</p>
+<p><strong>Writing the page.</strong> The page is <code>board.html</code>, an HTML fragment the agents edit like any other
+file. Every bound session may edit it, and Cortex neither locks the file nor tracks who wrote
+what; how the sessions share the page is up to them. Every time on the page, such as the
+<code>updated</code> stamp and the timeline entries, is read from the clock when it is written. A new board starts with a scaffold page whose heading carries the board's title and
+whose sections hold short examples for the agent to replace, next to an empty <code>assets/</code>. Each board
+has a directory in its project's context:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>&lt;project context&gt;/boards/&lt;slug&gt;/
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>├── board.html        # The page body the agents edit
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>├── assets/           # Images and files the page shows or links
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>└── decisions.jsonl   # Decisions from the bound sessions
+</code></pre></div>
+<p>Cortex collects every bound session's <code>send_decision</code> calls into <code>decisions.jsonl</code>; agents never
+edit it. The list of all boards is <code>data/boards.json</code>.</p>
+<p><strong>In the chat.</strong> When the agent creates a board, the call appears in the conversation as a board
+card headed <em>Board created</em>, set apart from the folded tool calls. The card shows the board's flag
+and title, up to four bound sessions as a status dot and a name each with a count of the rest, how
+many requests are waiting on you (<em>N awaiting you</em>), and <strong>Open board</strong>. A worker goes by its worker
+name; any other session goes by <em>lead</em>, or by its title when more than one such session is on the
+board. Inactive workers are left out. The card updates live, and its flag turns amber while any
+bound session waits on you.
+When the agent attaches to an existing board, the conversation shows a single line:
+<em>Attached to board</em> followed by the title and an <strong>Open</strong> link. If the board has since been deleted,
+the card and the line keep its title and their buttons are greyed out.</p>
+<p>On desktop, a board that the session on screen creates opens in the right-hand dock as it is
+created, in a new tab when the dock already holds something. Each board opens this way once per
+page load; reloading, switching sessions or scrolling back through the history does not open it
+again. On mobile, nothing opens by itself, and the card's button opens the board full screen.</p>
+<p><strong>In the workbench.</strong> A session bound to a board carries a board capsule among its chat header's
+actions. The capsule shows the board's flag and title; while a session on the board waits on you,
+its flag turns amber and it adds the count of those requests in amber. Workers never count here,
+since their requests go to their lead. Clicking the capsule opens the board in the right-hand dock,
+and the capsule stays hidden while the dock shows that board. On mobile the board sits in the row
+of capsules above the composer as its flag and the word <em>Board</em>, with the waiting count beside it
+once there is one, and tapping it opens the board full screen.</p>
+<p>The command palette reaches every board, including those of old sessions. With an empty query it
+lists the eight most recently used boards, where a board is used when it is created, when a session
+attaches to it, and when its files change; typing searches all of them.</p>
+<p>The top of the board is drawn by the app and updates live: one quiet line under the dock's tabs,
+which already name the board (on mobile the line starts with the title). It shows every bound
+session as a status dot, its name and how long since it was last active, with its state spelled out
+on hover; clicking a session opens it. While anything waits on you, an amber <em>N awaiting you ›</em>
+link appears on the right: with one session waiting it opens that session, and with several it
+lists them with their pending questions. The <em>Decisions N ›</em> link beside it unfolds the decision
+stream, newest first. The decision lines are the chat's, without its <em>Decision</em> label: each shows
+its status and the time of its latest answer, or of the announcement while unanswered, and offers
+<strong>Approve</strong> and <strong>Reply</strong>, answering the session that announced it. <strong>Approve</strong> records your acknowledgement without messaging the agent; a reply
+either asks why, with an optional question, or requests a change, with the change you want, and
+sends the session a message.</p>
+<p>Below the strip, <code>board.html</code> renders in a sandboxed frame. Images in <code>assets/</code> show inline. A link
+marked <code>data-open</code> opens a file from the board directory in the viewer the chat uses for files,
+which is the dock while it is open and a preview window otherwise; a file with no viewer downloads.
+Ordinary web links open in a new browser tab. The page re-renders within a few seconds of a save,
+with no reload.</p>
+<p><strong>Styling.</strong> Cortex ships a default stylesheet with components the agent is encouraged to use:
+sections (<code>card</code>), state labels drawn as a status dot and a word (<code>chip</code>), progress meters
+(<code>meter</code>), stages as rows with a status column (<code>steps</code>), row lists for acceptance criteria,
+decisions and risks (<code>rows</code>), and timelines (<code>tl</code>), among others. The page reads as one document:
+sections are set apart by space and a small heading rather than boxed, and only a <code>callout</code> is boxed,
+for something you have to act on. Text is in the app's face, with the mono face kept for code. The
+agent can also write its own HTML and SVG. The stylesheet takes its colours from the app's theme, so
+a board follows light and dark mode, the palette and the accent. To restyle every board, write
+<code>~/.cortex/config/board.css</code> (see <a href="../configuration/#boards">Boards</a> in the configuration guide).</p>
+<h2 id="limits">Limits<a class="headerlink" href="#limits" title="Permanent link">&para;</a></h2>
+<ul>
+<li>A lead runs at most eight workers at once.</li>
+<li>Only web sessions lead. Slack, Feishu and scheduled sessions do not get worker tools.</li>
+<li>A blocking question or plan waits at most 30 minutes, the same limit as any interaction, and
+  pending requests do not survive a server restart.</li>
+<li>Files, views and decisions a worker sends appear in the worker's own session. The worker names
+  the paths in its report so the lead can pass them on. Decisions from a session bound to a board
+  also gather on the board.</li>
+<li>Workers live as long as their lead. Session retention removes a lead and its workers together.</li>
+<li>With team mode off, leads lose the worker tools and the roster from their next turn, reports
+  and request routing stop, and existing workers behave as ordinary sessions whose questions come
+  to you. Their finished turns still raise no notification.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

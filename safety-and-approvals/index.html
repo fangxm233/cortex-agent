@@ -1,0 +1,1745 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Agent workbench for auto research, self-improvement loops, and long-running work">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/safety-and-approvals/">
+      
+      
+        <link rel="prev" href="../scheduling/">
+      
+      
+        <link rel="next" href="../hooks/">
+      
+      
+        
+          <link rel="alternate" href="./" hreflang="en">
+        
+          <link rel="alternate" href="../zh/safety-and-approvals/" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Safety & Approvals - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#safety-and-approvals" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Safety & Approvals
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../zh/safety-and-approvals/" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop App
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../team/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Team Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills & Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Safety & Approvals
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Safety & Approvals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-three-blast-radius-classes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The three blast-radius classes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The three blast-radius classes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#self-serve-autonomous" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Self-serve (autonomous)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#needs-approval-requires-sign-off" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Needs approval (requires sign-off)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#forbidden-never-permitted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Forbidden (never permitted)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#classifying-an-edge-case" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Classifying an edge case
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-an-operation-reaches-the-queue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How an operation reaches the queue
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-you-approve-or-reject" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How you approve or reject
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How you approve or reject">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-the-approval-center" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the Approval Center
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#through-the-approval-skill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Through the approval skill
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-happens-after" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What happens after
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plan-approval-and-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plan approval and questions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Plan approval and questions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#plan-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plan mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Questions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-the-cards-appear" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the cards appear
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#team-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Team mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#timeouts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timeouts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pi-extension-dialogs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PI extension dialogs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-runs-with-which-privileges" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What runs with which privileges
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#audit-trail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit trail
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../waitpoints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Waitpoints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cross-machine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent-browser/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Browser
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-three-blast-radius-classes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The three blast-radius classes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The three blast-radius classes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#self-serve-autonomous" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Self-serve (autonomous)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#needs-approval-requires-sign-off" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Needs approval (requires sign-off)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#forbidden-never-permitted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Forbidden (never permitted)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#classifying-an-edge-case" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Classifying an edge case
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-an-operation-reaches-the-queue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How an operation reaches the queue
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-you-approve-or-reject" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How you approve or reject
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How you approve or reject">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-the-approval-center" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the Approval Center
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#through-the-approval-skill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Through the approval skill
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-happens-after" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What happens after
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plan-approval-and-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plan approval and questions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Plan approval and questions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#plan-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plan mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Questions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-the-cards-appear" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the cards appear
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#team-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Team mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#timeouts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timeouts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pi-extension-dialogs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PI extension dialogs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-runs-with-which-privileges" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What runs with which privileges
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#audit-trail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit trail
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="safety-and-approvals">Safety and Approvals<a class="headerlink" href="#safety-and-approvals" title="Permanent link">&para;</a></h1>
+<p>Cortex can edit files, spawn processes, manage GPU training, and talk to
+multiple machines. Its safety model has four parts: a written safety boundary
+that tells the agent what it may do on its own, a queue for operations that
+need your sign-off, interactive cards for plan approval and questions, and a
+small set of mechanical guards around the server's own interfaces. The
+interactive cards run over the hook-bridge (see <a href="../hooks/">hooks.md</a>) and
+the interaction MCP tools (see <a href="../mcp/">mcp.md</a>).</p>
+<h2 id="the-three-blast-radius-classes">The three blast-radius classes<a class="headerlink" href="#the-three-blast-radius-classes" title="Permanent link">&para;</a></h2>
+<p>A safety boundary sorts agent operations into three classes. It is written in
+the root <code>AGENTS.md</code> of your Cortex home (<code>$CORTEX_HOME/AGENTS.md</code>), which
+every session loads, so it is guidance the agent follows rather than a check
+the server performs. The <code>AGENTS.md</code> that <code>cortex init</code> writes has no safety
+section; you add one in your own words. The judgment criterion that works best
+is <strong>behavioral impact</strong>, not file category: fixing a typo in a skill file and
+adding a new workflow step to it are different classes of operation even
+though both touch the same file.</p>
+<p>A typical boundary, taken from a working installation, looks like this.</p>
+<h3 id="self-serve-autonomous">Self-serve (autonomous)<a class="headerlink" href="#self-serve-autonomous" title="Permanent link">&para;</a></h3>
+<p>Operations the agent performs without asking: read-only information
+gathering, local state updates, and low-risk maintenance.</p>
+<ul>
+<li>Read files, check GPU status, read logs, run small test scripts</li>
+<li>Update context files (STATUS.md, experiments/, knowledge/, OVERVIEW.md)</li>
+<li>Web search, knowledge scans</li>
+<li>Start training runs within budget, run analysis scripts</li>
+<li>Skill maintenance changes (typo fixes, format alignment, description
+  rewording — no behavioral change)</li>
+<li>Agent-server non-behavioral fixes (syntax errors, log messages, comment
+  updates)</li>
+</ul>
+<h3 id="needs-approval-requires-sign-off">Needs approval (requires sign-off)<a class="headerlink" href="#needs-approval-requires-sign-off" title="Permanent link">&para;</a></h3>
+<p>Operations that change system behavior, consume significant resources, or are
+hard to reverse. The agent writes them to the approval queue and leaves them
+unexecuted until you decide.</p>
+<ul>
+<li>Modify AGENTS.md or CLAUDE.local.md</li>
+<li>New skills or skill behavioral changes (new triggers, new workflow steps,
+  capability expansion)</li>
+<li>Agent-server behavioral or architectural changes (new features, protocol
+  changes, API changes)</li>
+<li>Over-budget training tasks, large-scale architecture modifications</li>
+<li>Delete files or data</li>
+<li>Modify model code or training configurations</li>
+<li>Stop the Cortex server or daemon processes</li>
+</ul>
+<h3 id="forbidden-never-permitted">Forbidden (never permitted)<a class="headerlink" href="#forbidden-never-permitted" title="Permanent link">&para;</a></h3>
+<p>Operations the agent refuses even if you offer to approve them: system-level
+changes that could destabilize the machine.</p>
+<ul>
+<li>Install system-level packages</li>
+<li>Modify system configuration</li>
+<li><code>rm -rf</code></li>
+</ul>
+<h3 id="classifying-an-edge-case">Classifying an edge case<a class="headerlink" href="#classifying-an-edge-case" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Class</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fix a typo in a skill's SKILL.md</td>
+<td>Self-serve</td>
+<td>Maintenance, no behavioral change</td>
+</tr>
+<tr>
+<td>Add a new workflow step to a skill</td>
+<td>Needs approval</td>
+<td>Changes behavioral logic</td>
+</tr>
+<tr>
+<td>Fix an agent-server syntax error</td>
+<td>Self-serve</td>
+<td>Non-behavioral fix</td>
+</tr>
+<tr>
+<td>Add new guard logic to agent-server</td>
+<td>Needs approval</td>
+<td>Changes behavior</td>
+</tr>
+<tr>
+<td>Start GPU training within budget</td>
+<td>Self-serve</td>
+<td>Within budget</td>
+</tr>
+<tr>
+<td>Modify AGENTS.md rules</td>
+<td>Needs approval</td>
+<td>System convention change</td>
+</tr>
+</tbody>
+</table>
+<p>The boundary is advisory. Nothing in the server inspects a command before it
+runs: Claude Code is spawned with
+<code>--dangerously-skip-permissions --permission-mode bypassPermissions</code>, and PI
+runs its tools without a permission prompt. Budgets are advisory in the same
+way — <code>budget.json</code> limits are reported by <code>cost_query</code> and the UI, and no
+caller refuses work for exceeding them. The boundary holds because the agent
+reads it on every turn and because the queue below gives it a place to put
+what it should not do alone.</p>
+<h2 id="how-an-operation-reaches-the-queue">How an operation reaches the queue<a class="headerlink" href="#how-an-operation-reaches-the-queue" title="Permanent link">&para;</a></h2>
+<p>The approval queue is the Markdown file
+<code>$CORTEX_HOME/context/PENDING_APPROVALS.md</code>. An agent that judges an operation
+to need sign-off appends an entry and leaves the operation unexecuted. Each
+entry is a <code>##</code> heading of the form <code>&lt;YYYY-MM-DD&gt; &lt;title&gt;</code> followed by bullet
+fields, with enough detail for you to decide without asking follow-up
+questions:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gu">## 2026-10-14 Delete stale checkpoints on trainer</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">-</span><span class="w"> </span><span class="gs">**Operation**</span>: Remove checkpoints older than 30 days under /data/ckpt
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">-</span><span class="w"> </span><span class="gs">**Reason**</span>: The disk is 94% full and two runs are queued
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">-</span><span class="w"> </span><span class="gs">**Impact**</span>: About 410 GB on trainer; no active run reads these files
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">-</span><span class="w"> </span><span class="gs">**Command/Action**</span>: find /data/ckpt -mtime +30 -name '*.pt' -delete
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="k">-</span><span class="w"> </span><span class="gs">**Project**</span>: nimbus
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="k">-</span><span class="w"> </span><span class="gs">**Status**</span>: pending
+</code></pre></div>
+<p><code>Project</code> is optional; an entry without one belongs to the global group. A
+free-form <code>Provenance</code> bullet may record where the request came from. The
+guiding principle is: when in doubt, queue it.</p>
+<p>Settings also writes to this queue. Adding a machine or reconnecting a chat
+platform from <strong>Settings</strong> queues a request ("Queued for approval — review in
+the Approval Center") rather than performing the change from the browser. The
+file is created by the first entry written to it.</p>
+<h2 id="how-you-approve-or-reject">How you approve or reject<a class="headerlink" href="#how-you-approve-or-reject" title="Permanent link">&para;</a></h2>
+<h3 id="in-the-approval-center">In the Approval Center<a class="headerlink" href="#in-the-approval-center" title="Permanent link">&para;</a></h3>
+<p>On the desktop, a card with an amber dot at the foot of the left rail ("2 approvals
+pending") appears whenever the queue has pending entries, and opens the Approval
+Center. On a phone the same queue is the Approvals screen. Entries are grouped by project,
+with entries that name no project under GLOBAL, and each shows its operation,
+reason, impact and command.</p>
+<p>Approving or rejecting there rewrites the entry's <code>Status</code> line —
+<code>approved &lt;date&gt;</code>, or <code>rejected &lt;date&gt; (&lt;feedback&gt;)</code> when you add feedback —
+and leaves every other line of the file untouched. The Approval Center records
+your decision; it does not run the operation or message a session. The
+operation is carried out by the agent that next works through the queue.</p>
+<h3 id="through-the-approval-skill">Through the approval skill<a class="headerlink" href="#through-the-approval-skill" title="Permanent link">&para;</a></h3>
+<p>The <code>approval</code> skill (in the built-in <code>cortex-system</code> plugin) works through the
+queue inside a conversation, on any platform. Ask the agent to show pending
+approvals, or invoke the skill directly. It lists the pending entries with
+numbers and acts on replies such as <code>approve 1</code>, <code>approve all</code>, <code>approve 1 3</code>,
+<code>reject 2</code>, or <code>approve 1 but change X to Y</code>. For an approved entry the agent
+executes the operation, verifies the result, and records it.</p>
+<h3 id="what-happens-after">What happens after<a class="headerlink" href="#what-happens-after" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Outcome</th>
+<th>Status line</th>
+<th>What the agent does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Approved through the skill</td>
+<td><code>approved — executed &lt;timestamp&gt;</code></td>
+<td>Executes the operation and reports the result</td>
+</tr>
+<tr>
+<td>Approved in the Approval Center</td>
+<td><code>approved &lt;date&gt;</code></td>
+<td>Nothing until an agent acts on the decision</td>
+</tr>
+<tr>
+<td>Rejected</td>
+<td><code>rejected &lt;timestamp&gt;</code>, optionally with feedback</td>
+<td>Does not execute; may propose an alternative</td>
+</tr>
+<tr>
+<td>Failed during execution</td>
+<td><code>failed — &lt;reason&gt;</code></td>
+<td>Reports the failure and keeps the entry</td>
+</tr>
+</tbody>
+</table>
+<p>Resolved entries stay in the file as decision history. The Approval Center
+also treats a status that starts with <code>resolved</code>, <code>deferred</code> or <code>superseded</code> as
+decided, so an entry closed by hand stops counting as pending.</p>
+<h2 id="plan-approval-and-questions">Plan approval and questions<a class="headerlink" href="#plan-approval-and-questions" title="Permanent link">&para;</a></h2>
+<p>Two interactions pause an agent until a person responds: approving a written
+plan, and answering a question. Both are MCP tools in the interaction bundle,
+which user-initiated sessions load on both backends (see
+<a href="../mcp/#cortex-interaction-bridge">mcp.md</a>).</p>
+<h3 id="plan-mode">Plan mode<a class="headerlink" href="#plan-mode" title="Permanent link">&para;</a></h3>
+<p><img alt="A session paused on its plan, with Request changes and Approve plan" src="../images/ui/plan-approval.png" /></p>
+<p><code>cortex_plan_enter</code> puts the agent into Cortex's planning protocol: it
+investigates read-only, writes the plan to a file under <code>plan/</code>, and does not
+implement anything until the plan is approved. The backends' native plan tools
+are disabled, so every plan goes through the same approval path and lands in
+the conversation's history.</p>
+<p><code>cortex_plan_exit</code> submits the plan file for approval and blocks until you
+decide:</p>
+<ol>
+<li>The tool reads <code>plan_file_path</code> and POSTs the plan to the server's
+   loopback webhook at <code>/hook/exit-plan-mode</code>.</li>
+<li>The hook-bridge (<code>agent-server/src/orchestration/routing/hook-bridge.ts</code>)
+   registers the request with a 30-minute TTL and publishes <code>plan.submitted</code> on
+   the event bus.</li>
+<li>The subscriber
+   (<code>agent-server/src/orchestration/routing/hook-bridge-subscribers.ts</code>)
+   registers the plan and presents it on the session's platform.</li>
+<li>Your response resolves the pending request:</li>
+<li><strong>Approve</strong> → the tool returns approval, <code>plan.approved</code> is published, and
+     the agent proceeds.</li>
+<li><strong>Reject with feedback</strong> → the tool returns your feedback and tells the
+     agent to revise the plan and submit it again.</li>
+</ol>
+<h3 id="questions">Questions<a class="headerlink" href="#questions" title="Permanent link">&para;</a></h3>
+<p><code>cortex_ask_user</code> poses one or more questions — single-choice, multi-choice,
+or free text — and takes an optional severity <code>level</code> (<code>info</code>, <code>warning</code>,
+<code>error</code>). It POSTs to <code>/hook/ask-user-question</code>, the bridge publishes
+<code>ask-user.requested</code>, and the subscriber presents the form.</p>
+<p>A blocking question (the default) holds the tool call until you answer and
+returns the answers in its own result. With <code>blocking: false</code> the call returns
+as soon as the card is posted and the agent keeps working; your answer arrives
+in the session later as an ordinary user message, folded into the running turn
+if one is still live. An unanswered non-blocking card expires on the same TTL
+and never produces a message.</p>
+<h3 id="where-the-cards-appear">Where the cards appear<a class="headerlink" href="#where-the-cards-appear" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Plan approval</th>
+<th>Question</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Web UI and desktop</td>
+<td>An inline card in the chat with <strong>Approve plan</strong> and <strong>Request changes</strong>; requesting changes requires feedback and returns the plan for replanning</td>
+<td>An inline form; the agent continues after <strong>Submit answers</strong></td>
+</tr>
+<tr>
+<td>Mobile</td>
+<td>The same cards, laid out for a phone</td>
+<td>The same form</td>
+</tr>
+<tr>
+<td>Slack</td>
+<td>The plan text, then a card with <strong>Approve</strong> and <strong>Provide Feedback</strong>; feedback opens a modal</td>
+<td>A summary with an <strong>Answer</strong> button that opens a modal form</td>
+</tr>
+<tr>
+<td>Feishu</td>
+<td>The plan text, then a card with <strong>Approve</strong> and <strong>Provide Feedback</strong>; feedback opens an inline form</td>
+<td>The form is posted inline in the chat</td>
+</tr>
+</tbody>
+</table>
+<p>On the Web UI the card is part of the transcript, so its outcome — approved,
+rejected, answered, expired or cancelled — stays visible after a reload and on
+other devices. The first response wins wherever it comes from. A session
+blocked on a plan or a blocking question shows the amber marker in the session
+list, the one marker that means "waiting on you"; a non-blocking question
+leaves the session marked as running.</p>
+<h3 id="team-mode">Team mode<a class="headerlink" href="#team-mode" title="Permanent link">&para;</a></h3>
+<p>A <a href="../team/">team worker</a> that asks a question or submits a plan still shows
+its own card, and the request is also forwarded to its lead, which can answer
+with <code>worker_answer</code>. The first answer wins, whether it comes from the lead or
+from you on the worker's card. While the lead holds the request, the worker is
+shown as waiting on its lead rather than on you.</p>
+<h3 id="timeouts">Timeouts<a class="headerlink" href="#timeouts" title="Permanent link">&para;</a></h3>
+<p>A pending plan or question expires after 30 minutes (the bridge sweeps every 5
+minutes, so expiry lands between 30 and 35 minutes). A blocking call then
+returns a timeout to the agent; for a plan, the agent is told to revise and
+submit again. On the Web UI the card is marked expired.</p>
+<h3 id="pi-extension-dialogs">PI extension dialogs<a class="headerlink" href="#pi-extension-dialogs" title="Permanent link">&para;</a></h3>
+<p>On PI, <code>cortex_ask_user</code> and <code>cortex_plan_exit</code> behave exactly as above; the
+interaction tools run in-process. PI extensions can also open their own
+dialogs (select, confirm, input) through PI's extension UI. Cortex hosts that
+UI inside the server (<code>agent-server/src/agent-adapter/pi/ui-context.ts</code>): each
+dialog becomes an <code>extension_ui_request</code> record with its own id, is presented
+as a question card through the hook-bridge's publish helper, and the answer
+travels back through <code>sendExtensionUiResponse()</code>.</p>
+<h2 id="what-runs-with-which-privileges">What runs with which privileges<a class="headerlink" href="#what-runs-with-which-privileges" title="Permanent link">&para;</a></h2>
+<p>Cortex operates with the privileges of the user who launched it. It adds no
+escalation path of its own, and it adds no sandbox either: the forbidden class
+exists because the agent could otherwise do anything that account can do.</p>
+<p>The server's own interfaces are guarded mechanically:</p>
+<ul>
+<li>The webhook listener that MCP tools and hook scripts call (<code>WEBHOOK_PORT</code>,
+  default 3001) binds to <code>127.0.0.1</code> only, and every route requires the
+  <code>CORTEX_WEBHOOK_TOKEN</code> bearer token in the <code>x-cortex-token</code> header. The one
+  exception is <code>/webhook/signal</code>, which authenticates each request with a
+  secret scoped to a single <a href="../waitpoints/#security">waitpoint</a>.</li>
+<li>Every <code>cortex-client</code> WebSocket connection must present
+  <code>CORTEX_CLIENT_TOKEN</code>; a missing or wrong token is rejected with HTTP 401.
+  Both tokens are generated into <code>$CORTEX_HOME/config/.env</code> when absent. A
+  remote client runs as the user who started it. See
+  <a href="../cross-machine/#security-boundary">cross-machine.md</a>.</li>
+<li>The <code>status-md-guard</code> hook denies an edit that would push a project's
+  <code>STATUS.md</code> or <code>ISSUES.md</code>, or a memory <code>AGENTS.md</code> index, past its size cap
+  (see <a href="../hooks/#hook-scripts">hooks.md</a>).</li>
+</ul>
+<h2 id="audit-trail">Audit trail<a class="headerlink" href="#audit-trail" title="Permanent link">&para;</a></h2>
+<p>Approvals and interactions leave records in four places:</p>
+<ol>
+<li><strong>PENDING_APPROVALS.md</strong> — each queued operation with its full detail and
+   final status. This is the human-readable decision history.</li>
+<li><strong>Conversation transcripts</strong> — Web UI plan and question cards are stored in
+   the session's history with their outcome and any feedback.</li>
+<li><strong>Event log</strong> — <code>plan.submitted</code>, <code>plan.approved</code> and <code>ask-user.requested</code>
+   are written with the rest of the event bus to daily
+   <code>$CORTEX_HOME/logs/events/events-YYYYMMDD.jsonl</code> files, kept for 14 days.
+   Setting <code>CORTEX_EVENT_LOG=off</code> disables the log.</li>
+<li><strong>Slack and Feishu</strong> — each interaction leaves a visible message in the
+   channel.</li>
+</ol>
+<h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
+<p>The safety boundary is the section you write in <code>$CORTEX_HOME/AGENTS.md</code>. The
+approval queue is <code>$CORTEX_HOME/context/PENDING_APPROVALS.md</code>. Neither needs
+further configuration: the agent reads the boundary as part of its
+instructions, and the queue, the Approval Center and the interaction cards are
+built in.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
