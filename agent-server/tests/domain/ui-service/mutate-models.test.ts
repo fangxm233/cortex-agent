@@ -98,7 +98,7 @@ test('setDefault initializes a missing file without inventing favorites', async 
 
 test('setDefault rejects invalid thinking or provider and preserves the old selection', async () => {
   const dir = await seed();
-  for (const next of [{ ...pi, thinking: 'max', mode: 'openai' }, { ...selection, provider: 'openai' }]) {
+  for (const next of [{ ...pi, thinking: 'ultra', mode: 'openai' }, { ...selection, provider: 'openai' }]) {
     await assert.rejects(() => setDefaultModel(dir, { selection: next }, noGateway), (e: any) => e.code === 'invalid-args');
   }
   assert.deepEqual((await read(dir)).default, selection);
@@ -184,7 +184,7 @@ test('setThinking rejects invalid identity, unfavorited models and backend-inval
     { ref: { ...ref, provider: 'openai' }, thinking: 'high' },
     { ref: { ...pi, provider: null }, thinking: 'high' },
     { ref: { ...ref, model: 'not-favorited' }, thinking: 'high' },
-    { ref: pi, thinking: 'max' }, { ref, thinking: 'off' }, { ref, thinking: '__default__' },
+    { ref: pi, thinking: 'ultra' }, { ref, thinking: 'off' }, { ref, thinking: '__default__' },
   ];
   for (const input of inputs) {
     await assert.rejects(() => setModelThinking(dir, input), (error: any) => error.code === 'invalid-args');
