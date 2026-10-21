@@ -96,6 +96,19 @@ describe('layoutTurns', () => {
     expect(shape(layoutTurns(woke))).toEqual(['row:0:opener', 'row:1:plain', 'row:2:answer', 'row:3:opener', 'row:4:answer']);
   });
 
+  it('opens a segment at each background task that woke the agent, so the reply to the human stays its answer', () => {
+    const rows = [
+      user('why did it lock?'), tools(1), say('Because the homing step releases the devices.'),
+      hint('background-task'), tools(2), say('Gate 1/6 succeeded.'),
+      hint('background-task'), tools(1), say('Gate 2/6 succeeded.'),
+    ];
+    expect(shape(layoutTurns(rows))).toEqual([
+      'row:0:opener', 'row:1:plain', 'row:2:answer',
+      'row:3:opener', 'row:4:plain', 'row:5:answer',
+      'row:6:opener', 'row:7:plain', 'row:8:answer',
+    ]);
+  });
+
   it('pins a subagent still running once the turn has ended', () => {
     const sub: ChatRow = { kind: 'subagent', id: 'a', agentType: 'explore', description: 'map', prompt: null, model: null, status: 'running', toolCount: 3, children: [] };
     const rows = [user('go'), tools(1), sub, say('Started a background explorer.')];

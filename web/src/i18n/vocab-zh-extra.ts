@@ -212,6 +212,7 @@ export const zhExtra = {
   chatSystemOriginWorkerResult: 'Worker 汇报',
   chatSystemOriginWorkerQuestion: 'Worker 请求',
   chatSystemOriginScheduled: '定时任务',
+  chatSystemOriginBackgroundTask: '后台任务完成',
   chatSystemOriginGeneric: '系统消息',
   wbTeamExpand: '展开 worker',
   wbTeamCollapse: '收起 worker',

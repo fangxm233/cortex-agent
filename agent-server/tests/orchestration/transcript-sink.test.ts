@@ -405,6 +405,44 @@ test('assistant_text still streams empty text to chat but persists nothing', () 
   assert.deepEqual(h.published, []);
 });
 
+test('a background wake is written as a system turn: history row, ledger turn and live row, in that order', async () => {
+  const order: string[] = [];
+  const users: Record<string, any>[] = [];
+  const turns: Array<{ channel: string; opts: Record<string, any> }> = [];
+  const h = harness({ deps: {
+    appendUser: async (_sessionId, value) => { order.push('history'); users.push(value as any); },
+    beginLedgerTurn: async (channel, value) => { order.push('ledger'); turns.push({ channel, opts: value }); },
+  } });
+  const summaries = ['Background command "wait A" completed (exit code 0)', 'Background command "wait B" completed (exit code 0)'];
+  h.sink.onEvent({ type: 'background_wake', summaries, phase: 'background' });
+  const text = summaries.join('\n');
+
+  // Written synchronously, so the rows the woken turn writes next land after it.
+  assert.deepEqual(order, ['history', 'ledger']);
+  assert.equal(users.length, 1);
+  assert.equal(users[0].text, text);
+  assert.equal(users[0].systemOrigin, 'background-task');
+  // A history `user` row opens a turn index, so the ledger gets one too or rewind would drift.
+  assert.deepEqual(turns, [{ channel: CHANNEL, opts: { userMessageTs: `bg-wake:${users[0].ts}`, userMessageText: text } }]);
+  assert.deepEqual(h.published, [{
+    sessionId: SESSION, channel: CHANNEL, role: 'user', text, ts: users[0].ts, systemOrigin: 'background-task',
+  }]);
+  assert.deepEqual(h.assistants, [], 'nothing reaches the platform stream');
+});
+
+test('a background wake on a channel with no ledger still writes its row', async () => {
+  const users: Record<string, any>[] = [];
+  const h = harness({ deps: {
+    appendUser: async (_sessionId, value) => { users.push(value as any); },
+    beginLedgerTurn: async () => { throw new Error('No conversation for channel'); },
+  } });
+  h.sink.onEvent({ type: 'background_wake', summaries: [], phase: 'background' });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(users.length, 1);
+  assert.equal(users[0].text, '');
+  assert.equal(h.published.length, 1);
+});
+
 test('unrelated RunEvents are ignored without touching any seam', () => {
   const h = harness();
   h.sink.onEvent({ type: 'turn_progress', numTurns: 3 });

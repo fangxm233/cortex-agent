@@ -142,6 +142,12 @@ export type AgentProcessSpawner = (
   options: SpawnOptionsWithoutStdio,
 ) => SpawnedAgentProcess;
 
+/** What re-invoked the model when a background turn was opened by finished background work:
+ *  the summaries of the task notifications the CLI delivered. */
+export interface BackgroundWake {
+  summaries: string[];
+}
+
 /**
  * Where a BACKGROUND TURN reports itself: a turn the backend opened on its own, with no caller
  * awaiting it — a finished `run_in_background` task making the CLI re-invoke the model, or an
@@ -155,8 +161,10 @@ export type AgentProcessSpawner = (
  */
 export interface BackgroundTurnSink {
   /** Optional: the continuation turn has opened (first assistant line arrived). The wait is over;
-   *  holders pause their grace/max-wait watchdogs until `onResult` reports what remains. */
-  onTurnOpen?: () => void;
+   *  holders pause their grace/max-wait watchdogs until `onResult` reports what remains. `wake` is
+   *  set when finished background tasks opened the turn, and absent when an injected message did
+   *  (that message already has its own transcript row). */
+  onTurnOpen?: (wake?: BackgroundWake) => void;
   /** Assistant text from the continuation turn (append to the original reply). `subagent` is set
    *  only when a native subagent produced it (see ToolUseSubagent). */
   onAssistantText: (text: string, model?: string | null, subagent?: ToolUseSubagent) => void;

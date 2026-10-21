@@ -39,6 +39,9 @@ export type RunEvent =
       images?: ToolResultImage[];
     }
   | { type: 'todo_update'; toolUseId: string; snapshot: TodoSnapshot; phase: RunPhase }
+  // Finished background tasks re-invoked the model and opened a background turn. Emitted before
+  // anything that turn says, so the transcript can mark where the agent was woken.
+  | { type: 'background_wake'; summaries: string[]; phase: RunPhase }
   | ({ type: 'context_usage'; phase: RunPhase } & ContextUsage)
   | { type: 'context_compacted'; trigger: string; preTokens?: number; phase: RunPhase }
   | { type: 'model_fallback'; originalModel: string; fallbackModel: string; phase: RunPhase }

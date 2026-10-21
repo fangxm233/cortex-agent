@@ -41,7 +41,9 @@ export type SystemTurnOrigin =
   /** A worker's pending question or plan was forwarded to its lead. */
   | 'worker-question'
   /** A schedule fired and opened its run with the prompt the user wrote for it. */
-  | 'scheduled';
+  | 'scheduled'
+  /** Finished `run_in_background` work re-invoked the model with no turn in flight. */
+  | 'background-task';
 
 export interface AuthNoticeAction {
   kind: 'auth-login';

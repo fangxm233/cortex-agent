@@ -31,6 +31,7 @@ test('claude run (a): a background task outliving the turn is delivered by a con
     'foreground_result',
     'phase',
     'phase',
+    'background_wake',    // the finished task is what opened the turn
     'assistant_text',
     'cost_record',        // the continuation reported a cost; the run files it
     'background_result',

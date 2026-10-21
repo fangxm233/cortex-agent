@@ -204,6 +204,9 @@ test('integration: real captured line sequence becomes the background RunEvents 
     .filter((e): e is Extract<RunEvent, { type: 'assistant_text' }> => e.type === 'assistant_text')
     .map((e) => e.text);
   assert.deepEqual(texts, ['Background task done: DONE']);
+  const wakeAt = events.findIndex((e) => e.type === 'background_wake');
+  assert.deepEqual(events[wakeAt], { type: 'background_wake', summaries: ['done'], phase: 'background' });
+  assert.ok(wakeAt < events.findIndex((e) => e.type === 'assistant_text'), 'the wake precedes what the turn says');
   const continuation = events.filter((e) => 'phase' in e && e.phase === 'background');
   assert.ok(continuation.some((e) => e.type === 'assistant_text'), 'the continuation text is background');
   // `background_result` is the run's own terminal kind and carries no `phase` tag — the type

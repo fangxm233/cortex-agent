@@ -13,7 +13,7 @@
 // pauses the timers and the turn's own result re-arms or finishes.
 
 import type { AgentResult } from '@core/types/agent-types.js';
-import type { BackgroundTurnSink } from './types.js';
+import type { BackgroundTurnSink, BackgroundWake } from './types.js';
 import { getBgGraceMs, getBgMaxWaitMs, remainingBg } from './bg-wait.js';
 import type { RunEvent } from './run-events.js';
 
@@ -139,7 +139,7 @@ export class ContinuationPhase {
     const emit = sinkToRunEvents((event) => this.ingest(event));
     return {
       ...emit,
-      onTurnOpen: () => this.onTurnOpen(),
+      onTurnOpen: (wake) => this.onTurnOpen(wake),
       onResult: (result) => this.onResult(result),
     };
   }
@@ -204,13 +204,17 @@ export class ContinuationPhase {
    *  result decides what happens next. Releasing it on the ack instead would close the stream
    *  before the reply it is owed could land; never releasing it (as was the case) left a run whose
    *  foreground turn ended with one injected message pending open forever — the max-wait watchdog
-   *  bounds a WAIT, it does not finish a run. */
-  onTurnOpen(): void {
+   *  bounds a WAIT, it does not finish a run.
+   *
+   *  A turn that finished background work opened carries its `wake`, reported ahead of anything
+   *  the turn says. */
+  onTurnOpen(wake?: BackgroundWake): void {
     if (this.settled || !this.started) return;
     this.backgroundTurnOpen = true;
     this.outstandingInjections = 0;
     this.pause();
     this.enterBackground();
+    if (wake) this.port.push({ type: 'background_wake', summaries: wake.summaries, phase: 'background' });
   }
 
   private enterBackground(): void {

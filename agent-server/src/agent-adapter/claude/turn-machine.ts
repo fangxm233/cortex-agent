@@ -404,13 +404,16 @@ export class ClaudeTurnMachine {
   }
 
   /** Open a synthetic turn to capture the spontaneous continuation the CLI emits after a
-   *  background task finishes. Its output is delivered or buffered for backgroundTurnSink. */
-  private openContinuationTurn(label = '[background-task continuation]'): void {
-    this.bgTracker.disarmContinuation();
+   *  background task finishes (or after an injected message it consumed with no turn in flight).
+   *  Its output is delivered or buffered for backgroundTurnSink. */
+  private openContinuationTurn(fromInjection: boolean): void {
+    const summaries = this.bgTracker.disarmContinuation();
+    const label = fromInjection ? '[injected-message continuation]' : '[background-task continuation]';
     const streams = this.createTurnStreams(label);
     // The hold's watchdogs bound the WAIT for this turn, not the turn itself: a continuation
     // that runs longer than the grace/max-wait window must not be sealed idle mid-stream.
-    this.deliverContinuation(sink => sink.onTurnOpen?.());
+    const wake = fromInjection ? undefined : { summaries };
+    this.deliverContinuation(sink => sink.onTurnOpen?.(wake));
     this.currentTurn = {
       ...this.continuationCallbacks(),
       resultData: null, planFilePath: null,
@@ -704,7 +707,7 @@ export class ClaudeTurnMachine {
           && (this.injectionContinuationArmed || routeLine(this.bgTracker, data) === 'open-continuation')) {
         const fromInjection = this.injectionContinuationArmed;
         this.injectionContinuationArmed = false;
-        this.openContinuationTurn(fromInjection ? '[injected-message continuation]' : '[background-task continuation]');
+        this.openContinuationTurn(fromInjection);
       }
       if (data.type === 'result' && this.currentTurn) {
         // A task-notification turn's result can only settle a spontaneous turn. When it lands on

@@ -233,3 +233,26 @@ test('background thinking keeps its own event type and block identity', () => {
   assert.equal(h.foreground.value?.finalOutput, 'answer');
   h.phase.handOff();
 });
+
+test('a turn a background task opened reports the wake before anything the turn says', () => {
+  const base = result({ pendingBackgroundTasks: 1 });
+  const h = harness('hold', base);
+  h.phase.start(base);
+  const sink = h.phase.sink();
+  sink.onTurnOpen?.({ summaries: ['Background command "wait" completed (exit code 0)'] });
+  sink.onAssistantText('the wait is over');
+  assert.deepEqual(h.events.map((e) => e.type), ['phase', 'phase', 'background_wake', 'assistant_text']);
+  assert.deepEqual(h.events[2], {
+    type: 'background_wake', summaries: ['Background command "wait" completed (exit code 0)'], phase: 'background',
+  });
+  h.phase.handOff();
+});
+
+test('a turn opened without a wake (an injected message) reports none', () => {
+  const base = result({ pendingBackgroundTasks: 1 });
+  const h = harness('hold', base);
+  h.phase.start(base);
+  h.phase.sink().onTurnOpen?.();
+  assert.equal(h.events.some((e) => e.type === 'background_wake'), false);
+  h.phase.handOff();
+});

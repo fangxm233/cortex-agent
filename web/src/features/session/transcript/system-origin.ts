@@ -25,6 +25,7 @@ export function systemOriginLabel(origin: SystemTurnOrigin, L: Vocab): string {
     case 'worker-result': return L.chatSystemOriginWorkerResult;
     case 'worker-question': return L.chatSystemOriginWorkerQuestion;
     case 'scheduled': return L.chatSystemOriginScheduled;
+    case 'background-task': return L.chatSystemOriginBackgroundTask;
     default: return unlabelledOrigin(origin, L);
   }
 }

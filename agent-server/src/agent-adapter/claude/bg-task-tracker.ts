@@ -50,7 +50,8 @@ export class BgTaskTracker {
   private readonly running = new Set<string>();
   private readonly undelivered = new Set<string>();
   private readonly foreground = new Set<string>();
-  private readonly armed = new Set<string>();
+  /** task_id → the notification's `summary` ('' when it carried none). */
+  private readonly armed = new Map<string, string>();
   /** task_id → the `Agent`/`Task` tool call that spawned it. Populated from `task_started`, which
    *  is the only event carrying BOTH ids: `task_updated` reports terminal status with `task_id`
    *  alone, so without this map a completion cannot be attributed to a UI subagent block. */
@@ -98,7 +99,7 @@ export class BgTaskTracker {
         // Orphan report on resume: never started here, nothing will re-invoke the model.
         if (!known && data.status === 'stopped') break;
         // The authoritative completion-delivery signal: the model is being re-invoked.
-        this.armed.add(id);
+        this.armed.set(id, typeof data.summary === 'string' ? data.summary.trim() : '');
         break;
       }
       default:
@@ -142,8 +143,11 @@ export class BgTaskTracker {
     return this.armed.size > 0;
   }
 
-  disarmContinuation(): void {
+  /** Clear the armed notifications and return their non-empty summaries: what woke the model. */
+  disarmContinuation(): string[] {
+    const summaries = [...this.armed.values()].filter(Boolean);
     this.armed.clear();
+    return summaries;
   }
 
   /**

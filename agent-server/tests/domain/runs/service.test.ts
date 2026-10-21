@@ -289,7 +289,7 @@ test('startRun enters the background phase and settles after the continuation re
     seen.events.filter((event) => event.type !== 'foreground_result').map((event) => event.type),
     [
       'engine_started', 'assistant_text', 'turn_progress', 'cost_record', 'phase', 'phase',
-      'assistant_text', 'cost_record', 'background_result', 'phase',
+      'background_wake', 'assistant_text', 'cost_record', 'background_result', 'phase',
     ],
   );
   assert.ok(seen.events.some((event) => event.type === 'foreground_result'));
@@ -341,7 +341,7 @@ test('hold: a surface that subscribes on the foreground result still gets the wh
 
   assert.deepEqual(
     late.events.map((e) => e.type),
-    ['phase', 'assistant_text', 'cost_record', 'background_result', 'phase'],
+    ['phase', 'background_wake', 'assistant_text', 'cost_record', 'background_result', 'phase'],
   );
   assert.equal(late.isClosed(), true, 'the late subscriber is closed with the run');
 });

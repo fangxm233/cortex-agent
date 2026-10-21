@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { ClaudeTurnMachine, type TurnHost } from '../../src/agent-adapter/claude/turn-machine.js';
 import { ClaudeContextUsageTracker } from '../../src/agent-adapter/claude/context-usage.js';
 import { CancelledError } from '../../src/agent-adapter/claude/defaults.js';
-import type { BackgroundTurnSink, RateLimitObservation, RateLimitOrigin } from '../../src/agent-adapter/types.js';
+import type { BackgroundTurnSink, BackgroundWake, RateLimitObservation, RateLimitOrigin } from '../../src/agent-adapter/types.js';
 import type { AgentResult } from '../../src/core/types/agent-types.js';
 
 type HostCall = 'resetIdle' | 'bumpTurnIdle' | 'clearTurnIdle';
@@ -62,14 +62,15 @@ function makeSink() {
   const events: string[] = [];
   const results: AgentResult[] = [];
   const texts: string[] = [];
+  const wakes: (BackgroundWake | undefined)[] = [];
   const sink: BackgroundTurnSink = {
-    onTurnOpen: () => { events.push('open'); },
+    onTurnOpen: (wake) => { events.push('open'); wakes.push(wake); },
     onAssistantText: (text) => { events.push('text'); texts.push(text); },
     onToolUse: () => { events.push('tool_use'); },
     onSubagentEnd: (id, status) => { events.push(`end:${id}:${status}`); },
     onResult: (r) => { events.push('result'); results.push(r); },
   };
-  return { sink, events, results, texts };
+  return { sink, events, results, texts, wakes };
 }
 
 const line = (data: unknown) => JSON.stringify(data);
@@ -266,6 +267,20 @@ test('after a background notification the next assistant line opens a continuati
   assert.equal(machine.currentTurn, null);
 });
 
+test('a continuation opened by a background notification tells the sink what woke it', () => {
+  const { machine } = makeMachine();
+  const { sink, wakes } = makeSink();
+  machine.setBackgroundTurnSink(sink);
+  const { promise } = startTurn(machine);
+  machine.handleLine(taskStarted('bg1'));
+  machine.handleLine(result());
+  void promise;
+
+  machine.handleLine(taskNotification('bg1'));
+  machine.handleLine(assistant('background job finished'));
+  assert.deepEqual(wakes, [{ summaries: ['done'] }]);
+});
+
 test('without a background sink an unprompted assistant line opens nothing', () => {
   const { machine } = makeMachine();
   machine.handleLine(taskStarted('bg1'));
@@ -339,7 +354,7 @@ test('an injection echoed during the turn is acknowledged as folded in', async (
 
 test('an injection consumed after the result opens an injected-message continuation turn', async () => {
   const { machine } = makeMachine();
-  const { sink, events, texts } = makeSink();
+  const { sink, events, texts, wakes } = makeSink();
   const acks: boolean[] = [];
   machine.setBackgroundTurnSink(sink);
   machine.setInjectionAckSink({ onDelivered: (m) => acks.push(m.foldedIntoTurn) });
@@ -357,6 +372,7 @@ test('an injection consumed after the result opens an injected-message continuat
   machine.handleLine(result());
   assert.deepEqual(events, ['open', 'text', 'result']);
   assert.deepEqual(texts, ['handled the extra thing']);
+  assert.deepEqual(wakes, [undefined], 'the injected message is its own row; nothing else woke the agent');
 });
 
 // --- cancellation and process death ---

@@ -4,6 +4,7 @@ import type {
   ChatNoticeLevel, ContextUsage, NoticeAction, SessionContextUsage, TodoSnapshot, ToolResultImage,
 } from '@core/types/agent-types.js';
 import { conversationHistory, summarizeToolInputForHistory, toolDeviceForHistory } from '@store/conversation-history-repo.js';
+import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
 import { subagentSpawnFromAttribution, subagentSpawnsFromToolCall } from '@core/subagent-spawn.js';
@@ -84,6 +85,9 @@ export interface TranscriptSinkDeps extends ToolImageDeps {
   appendSubagentEnd: (sessionId: string, opts: Parameters<typeof conversationHistory.appendSubagentEnd>[1]) => Promise<void>;
   appendAssistant: (sessionId: string, opts: Parameters<typeof conversationHistory.appendAssistant>[1]) => Promise<void>;
   appendThinking: (sessionId: string, opts: Parameters<typeof conversationHistory.appendThinking>[1]) => Promise<void>;
+  appendUser: (sessionId: string, opts: Parameters<typeof conversationHistory.appendUser>[1]) => Promise<void>;
+  /** Open a ledger turn beside a system turn's history row: rewind maps the two by position. */
+  beginLedgerTurn: (channel: string, opts: { userMessageTs: string; userMessageText: string }) => Promise<void>;
   setTodos: (sessionId: string, snapshot: TodoSnapshot) => void;
   publishMessage: typeof publishSessionMessage;
   publishTodos: typeof publishSessionTodos;
@@ -101,6 +105,8 @@ const DEFAULT_DEPS: TranscriptSinkDeps = {
   appendSubagentEnd: (sessionId, opts) => conversationHistory.appendSubagentEnd(sessionId, opts),
   appendAssistant: (sessionId, opts) => conversationHistory.appendAssistant(sessionId, opts),
   appendThinking: (sessionId, opts) => conversationHistory.appendThinking(sessionId, opts),
+  appendUser: (sessionId, opts) => conversationHistory.appendUser(sessionId, opts),
+  beginLedgerTurn: async (channel, opts) => { await conversationLedger.beginTurn(channel, opts); },
   setTodos: (sessionId, snapshot) => sessionTodos.set(sessionId, snapshot),
   publishMessage: publishSessionMessage,
   publishTodos: publishSessionTodos,
@@ -134,6 +140,7 @@ export interface TranscriptSinkOptions {
 /** The event kinds this sink writes as transcript rows (context usage is stored beside them). */
 const ROW_EVENT_TYPES: ReadonlySet<RunEvent['type']> = new Set<RunEvent['type']>([
   'assistant_text', 'assistant_thinking', 'tool_use', 'tool_result', 'todo_update', 'subagent_end', 'context_usage',
+  'background_wake',
 ]);
 
 /** A background-phase event this sink would write: what a hold or the injection ledger forwards. */
@@ -229,6 +236,17 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
     });
   }
 
+  /** Finished background tasks woke the agent: a system turn, so the chat starts a new reply at it
+   *  instead of folding the woken turn into the previous one. The history row is queued before
+   *  anything the woken turn writes; a channel with no ledger simply has no rewind to keep aligned. */
+  function persistBackgroundWake(summaries: string[]): void {
+    const ts = new Date().toISOString();
+    const text = summaries.join('\n');
+    recordHistory(deps.appendUser(sessionId, { text, ts, systemOrigin: 'background-task' }));
+    recordHistory(deps.beginLedgerTurn(channel, { userMessageTs: `bg-wake:${ts}`, userMessageText: text }));
+    deps.publishMessage({ sessionId, channel, role: 'user', text, ts, systemOrigin: 'background-task' });
+  }
+
   function persistThinking(text: string, blockId?: string): void {
     if (blockId) opts.flushDelta?.(blockId);
     if (!text) return;
@@ -310,6 +328,9 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
           return;
         case 'assistant_thinking':
           persistThinking(event.text, event.blockId);
+          return;
+        case 'background_wake':
+          persistBackgroundWake(event.summaries);
           return;
         case 'assistant_text':
           persistAssistant(

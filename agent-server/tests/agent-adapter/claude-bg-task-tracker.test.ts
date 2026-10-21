@@ -231,3 +231,22 @@ test('isContinuationResult: true only for result with origin.kind=task-notificat
   assert.equal(isContinuationResult({ type: 'assistant', origin: { kind: 'task-notification' } }), false);
   assert.equal(isContinuationResult(null), false);
 });
+
+test('BgTaskTracker: disarming reports the summaries of the notifications that opened the turn', () => {
+  const t = new BgTaskTracker();
+  t.observe({ type: 'system', subtype: 'task_started', task_id: 'a', task_type: 'local_bash' });
+  t.observe({ type: 'system', subtype: 'task_started', task_id: 'b', task_type: 'local_bash' });
+  t.observe({ type: 'system', subtype: 'task_notification', task_id: 'a', status: 'completed', summary: 'Background command "wait A" completed (exit code 0)' });
+  t.observe({ type: 'system', subtype: 'task_notification', task_id: 'b', status: 'completed' });
+  assert.deepEqual(t.disarmContinuation(), ['Background command "wait A" completed (exit code 0)']);
+  assert.equal(t.continuationArmed, false);
+  assert.deepEqual(t.disarmContinuation(), []);
+});
+
+test('BgTaskTracker: a notification folded into the active turn is not reported at disarm', () => {
+  const t = new BgTaskTracker();
+  t.observe(TASK_STARTED);
+  t.observe(TASK_NOTIFICATION);
+  t.observe({ type: 'user', isReplay: true, message: { role: 'user', content: '<task-notification>\n<task-id>b6vp8rywx</task-id>\n</task-notification>' } });
+  assert.deepEqual(t.disarmContinuation(), []);
+});

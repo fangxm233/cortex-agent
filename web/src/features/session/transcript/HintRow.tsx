@@ -90,9 +90,9 @@ function HintTime({ ts }: { ts?: string }): JSX.Element | null {
     style={{ fontSize: 12, color: 'var(--proto-faint)', whiteSpace: 'nowrap', flex: 'none' }}>{label}</span>;
 }
 
-/** What produced the turn, at a glance: a waitpoint's signal, a background agent, the rest. */
+/** What produced the turn, at a glance: a wait that ended, a background agent, the rest. */
 function originIcon(origin: SystemTurnOrigin): EventIconName {
-  if (origin === 'external-signal') return 'hourglass';
+  if (origin === 'external-signal' || origin === 'background-task') return 'hourglass';
   if (origin === 'agent-result') return 'layers';
   return 'reply';
 }

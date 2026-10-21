@@ -127,6 +127,7 @@ test('hold: the run streams its background turn and ends when the work is gone',
     'foreground_result',
     'phase',              // entering the background phase
     'phase',              // the continuation turn opened
+    'background_wake',    // ...because the background task finished
     'assistant_text',
     'context_usage',      // the continuation's own provider call
     'cost_record',
