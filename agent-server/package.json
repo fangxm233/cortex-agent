@@ -3,7 +3,7 @@
   "version": "2026.10.15-2",
   "type": "module",
   "license": "MIT",
-  "description": "Autonomous agent system for long-running projects — mission-driven, multi-agent pipelines, self-evolving skills.",
+  "description": "Agent workbench for auto research, self-improvement loops, and long-running work — multi-agent teams, persistent project memory, cross-machine GPU training.",
   "engines": {
     "node": ">=22.19.0"
   },

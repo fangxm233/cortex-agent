@@ -1,25 +1,31 @@
 # Cortex
 
-Autonomous agent system for long-running projects. You give it a mission with a success criterion, and it plans the work, hands focused pieces to subagents, keeps a structured log of progress in your repo, and checks the result against what you agreed — across days or weeks of unattended work.
+An agent workbench for auto research, self-improvement loops, and other work that runs for days. You give it a mission with a success criterion. It plans the work, runs it with a team of agents across your machines and GPUs, keeps every result as plain files in your project, and checks the outcome against what you agreed, asking you only when a decision is yours to make.
 
 ![The Cortex workbench: projects and sessions, a lead session reporting results, and its board in the dock](images/ui/hero-light.png)
 
 ## Why Cortex?
 
-Cortex is designed around three failure modes of long agent runs:
+A coding agent in a terminal is built around one session: one task, one machine, done within the hour. Auto research and recursive self-improvement (RSI) need more. A study runs for days and outlives every session in it. Its results have to be kept and compared run after run. The work splits among several agents, and the experiments run on GPU servers rather than on the machine the agent started from.
 
-- **Context rot** — durable project state lives as plain files in your repo, not chat history that accumulates and decays.
-- **Execution drift** — non-trivial work starts from a plan you approve, long tasks keep a live board of their state, plan, and decisions, and every completion claim points at its evidence.
-- **Context window limits** — bounded pieces of work go to subagents that start with a fresh context and return only their result.
+Cortex runs coding agents (Claude Code, or PI with the provider you already pay for) as a long-lived service built for that kind of work:
+
+- **Work continues across sessions** — mission, status, and decisions live as plain files rather than in a chat history that accumulates and decays, so a new session picks up where the last one stopped.
+- **Results are kept** — every experiment is its own record of what ran, what came out, and what it means; confirmed findings and cross-experiment patterns collect beside them ([Memory](memory.md)).
+- **Agents work as a team** — a lead hands bounded pieces to subagents and persistent workers that start with a fresh context, and keeps a live board of where the work stands ([Team Mode](team.md)).
+- **Agents manage model training across your machines** — they check which GPUs are free, launch training and evaluation runs on any connected machine, and wait on them without polling ([Cross-Machine](cross-machine.md), [Waitpoints](waitpoints.md)).
+- **The setup itself can improve** — skills, rules, hooks, and Cortex's own source are files the agents can change, inside a safety boundary you write. Cortex itself is developed entirely inside Cortex.
 
 ## Features
 
+- **Plans and approvals** — non-trivial work starts from a plan you approve; questions, decisions, and operations that need sign-off arrive as cards you answer in place ([Safety & Approvals](safety-and-approvals.md)).
 - **Subagents and team mode** — bounded work goes to subagents with a clean context; with team mode on, a session can lead persistent worker sessions ([Team Mode](team.md)).
 - **Boards for long work** — a long task keeps a live status page beside the conversation, showing its state, plan, what needs you, and the decisions taken ([Boards](team.md#boards)).
-- **Structured project log** — every project keeps mission, roadmap, status, experiments, knowledge, patterns, and decisions as plain files.
-- **Cron and interval scheduling** — schedule Cortex to scan, digest, or sweep on a recurring basis.
-- **Editable skills and plugins** — skills are plain `SKILL.md` files that Cortex and you can write, override, or revert, on disk or from **Settings → Plugins** ([Skills & Plugins](skills-and-plugins.md)).
-- **One agent across your machines** — connect any Mac, Windows, or Linux machine via `cortex-client`.
+- **Structured project log** — every project keeps mission, roadmap, status, experiments, knowledge, patterns, and decisions as plain files ([Memory](memory.md)).
+- **Scheduling and waitpoints** — schedule Cortex to scan, digest, or sweep on a recurring basis, and let a waitpoint wake a session when a training run, build, or evaluation it launched finishes ([Scheduling](scheduling.md), [Waitpoints](waitpoints.md)).
+- **One agent across your machines** — connect any Mac, Windows, or Linux machine via `cortex-client`; the workbench shows each machine's CPU, memory, disk, and per-GPU load and processes ([Cross-Machine](cross-machine.md)).
+- **Editable skills and plugins** — skills are plain `SKILL.md` files that Cortex and you can write, override, or revert, on disk or from **Settings → Plugins**; execution environments choose which plugins, rules, and tools each session gets ([Skills & Plugins](skills-and-plugins.md), [Configuration](configuration.md#execution-environments)).
+- **Rebuilds itself from source** — with `CORTEX_REPO` pointing at a source checkout, Cortex rebuilds, reinstalls, and restarts itself when its code changes ([Hot rebuild](architecture.md#hot-rebuild-published-progress-and-the-turn-hold)).
 - **A browser the agent drives** — agents open, read and operate web pages in a Chrome on the server or on your own machine; you watch it live and take over for logins ([Agent Browser](agent-browser.md)).
 - **Web, native app, chat, and terminal access** — use the browser workbench, Linux/macOS/Windows desktop app, Android app, Slack, Feishu, or TUI against the same server. The workbench shows sessions, workers, boards, approvals, machines, and project memory side by side.
 
