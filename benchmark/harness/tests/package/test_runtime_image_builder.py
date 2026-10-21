@@ -8,7 +8,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-from runtime_image_builder_fixtures import executable, fake_docker, fake_task_builder_tools
+from runtime_image_builder_fixtures import (
+    executable, fake_docker, fake_task_builder_tools, host_path,
+)
 
 HARNESS_DIR = Path(__file__).resolve().parents[2]
 BUILD_SCRIPT = HARNESS_DIR / "scripts" / "build-zero-paid-runtime-image.sh"
@@ -275,7 +277,7 @@ def explicit_environment(
     root: Path, inputs: dict[str, Path], docker: Path,
 ) -> dict[str, str]:
     return {
-        "HOME": str(root / "home"), "PATH": f"{docker.parent}:/usr/bin:/bin",
+        "HOME": str(root / "home"), "PATH": f"{docker.parent}:{host_path(root)}",
         "VENDOR": "pi",
         "DOCKER_CALLS": str(root / "docker-calls.txt"), "FAKE_IMAGE_REF": IMAGE_REF,
         "NODE_BIN": str(inputs["node"]), "NPM_ROOT": str(inputs["npm"]),
@@ -335,8 +337,10 @@ def test_preflight_requires_cli_isolation_and_one_loopback_request(tmp_path: Pat
         "HOME": str(tmp_path), "PATH": str(binary.parent),
     }
 
+    node = shutil.which("node")
+    assert node
     completed = subprocess.run(
-        ["/usr/bin/node", str(PREFLIGHT_SCRIPT), "--vendor", "pi", "--cli", str(binary)],
+        [node, str(PREFLIGHT_SCRIPT), "--vendor", "pi", "--cli", str(binary)],
         env=environment, check=True, capture_output=True, text=True, timeout=30,
     )
 
@@ -545,7 +549,7 @@ def test_terminal_bench_builder_preserves_authentic_tasks_and_builds_pinned_imag
     wheelhouse.mkdir()
     (wheelhouse / "pytest-8.4.1-py3-none-any.whl").write_bytes(b"fixture wheel")
     environment = {
-        "HOME": str(tmp_path / "home"), "PATH": f"{tools}:/usr/bin:/bin",
+        "HOME": str(tmp_path / "home"), "PATH": f"{tools}:{host_path(tmp_path)}",
         "SOURCE_COMMIT": "1" * 40, "SOURCE_DIR": str(source),
         "TASKS_DIR": str(tasks_dir), "MANIFEST": str(manifest),
         "WHEELHOUSE": str(wheelhouse),
@@ -609,7 +613,7 @@ def test_terminal_bench_builder_can_rebuild_only_three_codex_variants(
     wheelhouse.mkdir()
     (wheelhouse / "pytest-8.4.1-py3-none-any.whl").write_bytes(b"fixture wheel")
     environment = {
-        "HOME": str(tmp_path / "home"), "PATH": f"{tools}:/usr/bin:/bin",
+        "HOME": str(tmp_path / "home"), "PATH": f"{tools}:{host_path(tmp_path)}",
         "SOURCE_COMMIT": "1" * 40, "SOURCE_DIR": str(source),
         "TASKS_DIR": str(tmp_path / "admitted-tasks"), "MANIFEST": str(manifest),
         "WHEELHOUSE": str(wheelhouse), "NODE_BIN": str(inputs["node"]),
@@ -643,7 +647,7 @@ def test_terminal_bench_builder_reproduces_the_cortex_smoke_image(tmp_path: Path
     wheelhouse = tmp_path / "wheelhouse"; wheelhouse.mkdir()
     (wheelhouse / "pytest-8.4.1-py3-none-any.whl").write_bytes(b"fixture wheel")
     environment = {
-        "HOME": str(tmp_path / "home"), "PATH": f"{tools}:/usr/bin:/bin",
+        "HOME": str(tmp_path / "home"), "PATH": f"{tools}:{host_path(tmp_path)}",
         "SOURCE_COMMIT": "1" * 40, "SOURCE_DIR": str(source),
         "TASKS_DIR": str(tmp_path / "admitted-tasks"), "MANIFEST": str(manifest),
         "WHEELHOUSE": str(wheelhouse), "NODE_BIN": str(inputs["node"]),
@@ -677,7 +681,7 @@ def test_terminal_bench_builder_accepts_legacy_cortex_pi_schema_v1(tmp_path: Pat
     wheelhouse.mkdir()
     (wheelhouse / "pytest-8.4.1-py3-none-any.whl").write_bytes(b"fixture wheel")
     environment = {
-        "HOME": str(tmp_path / "home"), "PATH": f"{tools}:/usr/bin:/bin",
+        "HOME": str(tmp_path / "home"), "PATH": f"{tools}:{host_path(tmp_path)}",
         "SOURCE_COMMIT": "1" * 40, "SOURCE_DIR": str(source),
         "TASKS_DIR": str(tmp_path / "admitted-tasks"), "MANIFEST": str(manifest),
         "WHEELHOUSE": str(wheelhouse), "NODE_BIN": str(inputs["node"]),
@@ -726,7 +730,7 @@ def test_terminal_bench_builder_refuses_cross_role_pi_tag_reuse(
     wheelhouse.mkdir()
     (wheelhouse / "pytest-8.4.1-py3-none-any.whl").write_bytes(b"fixture wheel")
     environment = {
-        "HOME": str(tmp_path / "home"), "PATH": f"{tools}:/usr/bin:/bin",
+        "HOME": str(tmp_path / "home"), "PATH": f"{tools}:{host_path(tmp_path)}",
         "SOURCE_COMMIT": "1" * 40, "SOURCE_DIR": str(source),
         "TASKS_DIR": str(tmp_path / "admitted-tasks"), "MANIFEST": str(manifest),
         "WHEELHOUSE": str(wheelhouse), "NODE_BIN": str(inputs["node"]),
@@ -761,7 +765,7 @@ def test_terminal_bench_builder_refuses_a_source_image_digest_mismatch(
     wheelhouse.mkdir()
     (wheelhouse / "pytest-8.4.1-py3-none-any.whl").write_bytes(b"fixture wheel")
     environment = {
-        "HOME": str(tmp_path / "home"), "PATH": f"{tools}:/usr/bin:/bin",
+        "HOME": str(tmp_path / "home"), "PATH": f"{tools}:{host_path(tmp_path)}",
         "SOURCE_COMMIT": "1" * 40,
         "SOURCE_DIR": str(tmp_path / "terminal-bench-source"),
         "TASKS_DIR": str(tmp_path / "admitted-tasks"), "MANIFEST": str(manifest),
@@ -795,7 +799,7 @@ def test_terminal_bench_builder_refuses_a_missing_pinned_wheel_without_acquire(
     )
     tools = fake_task_builder_tools(tmp_path, "1" * 40)
     environment = {
-        "HOME": str(tmp_path / "home"), "PATH": f"{tools}:/usr/bin:/bin",
+        "HOME": str(tmp_path / "home"), "PATH": f"{tools}:{host_path(tmp_path)}",
         "SOURCE_COMMIT": "1" * 40,
         "SOURCE_DIR": str(tmp_path / "terminal-bench-source"),
         "TASKS_DIR": str(tmp_path / "admitted-tasks"), "MANIFEST": str(manifest),

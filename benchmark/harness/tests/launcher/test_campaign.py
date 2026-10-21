@@ -2462,18 +2462,23 @@ def test_a_successful_campaign_returns_structured_state(
 
 @pytest.mark.parametrize(("vendor_agent", "config_path"), COMMITTED_VENDOR_CONFIGS.items())
 def test_a_committed_vendor_campaign_dry_run_arms_nothing(
-    vendor_agent: str, config_path: Path, monkeypatch: pytest.MonkeyPatch,
+    vendor_agent: str, config_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     recorder = RecordingTrialPath().install(monkeypatch)
+    config_copy = write_committed_campaign_copy(tmp_path, config_path)
+    credential_env = load_campaign_config(config_copy).proxy.get("credential_env")
+    if credential_env:
+        monkeypatch.setattr(campaign, "_now_ms", lambda: CODEX_NOW_MS)
+        monkeypatch.setenv(str(credential_env), codex_token(required_codex_expiry_ms()))
 
     status, result, stderr = run_cli(
-        capsys, "run", "--config", str(config_path), "--dry-run")
+        capsys, "run", "--config", str(config_copy), "--dry-run")
 
     assert (status, stderr) == (0, "")
     assert recorder.events == []
     assert result["dry_run"] is True
-    assert len(result["trials"]) == 3
+    assert [trial["state"] for trial in result["trials"]] == ["would-arm"] * 3
     (arm,) = load_campaign_config(config_path).arms
     assert arm["vendor_agent"] == vendor_agent
     assert arm["vendor_cli_version"]

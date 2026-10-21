@@ -1,5 +1,6 @@
 import os
 import shlex
+import shutil
 import stat
 import sys
 from itertools import islice
@@ -135,6 +136,20 @@ def executable(path: Path, content: str) -> Path:
     path.write_text(content, encoding="utf-8")
     path.chmod(0o755)
     return path
+
+
+def host_path(root: Path) -> str:
+    """The PATH tail the builder scripts run under: the host's own node, then /usr/bin:/bin.
+
+    The scripts read their JSON manifests with node, and node is not in /usr/bin on every host
+    (a CI runner keeps it under /usr/local/bin or a tool cache), so it gets a directory of its own.
+    """
+    directory = root / "host-bin"
+    node = shutil.which("node")
+    if node and not (directory / "node").exists():
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "node").symlink_to(node)
+    return f"{directory}:/usr/bin:/bin"
 
 
 def fake_docker(root: Path) -> Path:
