@@ -60,7 +60,8 @@ provider you already pay for) as a long-lived service with a workbench in front 
   and evaluation runs there, and wait on them without polling, while the workbench shows each GPU's
   live load.
 - **The setup itself can improve.** Skills, rules, hooks, and Cortex's own source are files the
-  agents can change, inside a safety boundary you write.
+  agents can change, inside a safety boundary you write. Cortex itself is developed entirely inside
+  Cortex.
 
 ## A tour of the workbench
 
@@ -124,7 +125,8 @@ any other file, and you edit the same skills in Settings. Execution environments
 plugins, rules, and tools a session gets, so variants of an agent can run side by side. Pointed at a
 source checkout through `CORTEX_REPO`, Cortex rebuilds, reinstalls, and restarts itself when its
 code changes. Together these let agents improve the skills and code they run on, while your safety
-boundary decides which of those changes wait for your sign-off.
+boundary decides which of those changes wait for your sign-off. This is how Cortex itself is built:
+agents working in Cortex write, test, and rebuild the code in this repository.
 [Skills & plugins →](https://fangxm233.github.io/cortex-agent/skills-and-plugins/) · [Configuration →](https://fangxm233.github.io/cortex-agent/configuration/)
 
 ### On your phone
