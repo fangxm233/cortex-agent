@@ -2,10 +2,10 @@
 
 # Cortex
 
-**An autonomous agent workbench for long-running projects.**
+**An agent workbench for auto research, self-improvement loops, and other work that runs for days.**
 
-Give it a mission. It plans the work, runs it across your machines with a team of agents,<br>
-keeps the project's memory in plain files, and asks you only when it matters.
+Give it a mission. It plans the work, runs it across your machines and GPUs with a team of agents,<br>
+keeps every result in plain files that outlast any session, and asks you only when it matters.
 
 [![Release](https://img.shields.io/github/v/release/fangxm233/cortex-agent?filter=server-v*&label=release)](https://github.com/fangxm233/cortex-agent/releases)
 [![npm](https://img.shields.io/npm/v/@cortex-agent/server?label=npm)](https://www.npmjs.com/package/@cortex-agent/server)
@@ -38,17 +38,27 @@ Other versions are on the [Releases page](https://github.com/fangxm233/cortex-ag
 
 ## What Cortex is
 
-Cortex runs coding agents (Claude Code, or PI with the provider you already pay for) as a
-long-lived service with a real workbench in front of them. It is built for work that takes days
-rather than minutes: research studies, multi-step engineering, and recurring scans and digests. It
-targets the three ways long agent runs go wrong:
+A coding agent in a terminal is built around one session: one task, one machine, done within the
+hour. Auto research and recursive self-improvement (RSI) need more. A study runs for days and
+outlives every session in it. Its results have to be kept and compared run after run. The work
+splits among several agents, and the experiments run on GPU servers rather than on the machine the
+agent started from.
 
-- **Context rot.** A project's mission, status, experiments, and decisions live as plain files on
-  disk, not in a chat history that grows until it decays.
-- **Execution drift.** Non-trivial work starts from a plan you approve. Long tasks keep a live
-  board of where they stand, and claims of completion point at their evidence.
-- **Context limits.** Bounded pieces of work go to subagents and workers that start with a fresh
-  context and return only their result.
+Cortex is the environment for that kind of work. It runs coding agents (Claude Code, or PI with the
+provider you already pay for) as a long-lived service with a workbench in front of them:
+
+- **Work continues across sessions.** A project's mission, status, and decisions live as plain
+  files on disk rather than in a chat history that grows until it decays, so a new session picks up
+  where the last one stopped. Schedules start recurring work, and waitpoints wake a session when a
+  job it launched finishes.
+- **Results are kept.** Each experiment gets its own record of what ran, what came out, and what it
+  means. Confirmed findings and patterns across experiments collect beside them.
+- **Agents work as a team.** A lead session hands pieces to persistent workers and one-shot
+  subagents, each starting with a fresh context, and keeps a live board of where the work stands.
+- **Every machine and GPU is in reach.** One session reads, writes, and runs commands on any
+  machine running `cortex-client`, and the workbench shows each GPU's live load.
+- **The setup itself can improve.** Skills, rules, hooks, and Cortex's own source are files the
+  agents can change, inside a safety boundary you write.
 
 ## A tour of the workbench
 
@@ -81,15 +91,38 @@ the chat header shows how many workers are running and opens a list of what each
 a review, or a verification run go to one-shot subagents instead.
 [Team mode →](https://fangxm233.github.io/cortex-agent/team/)
 
-### All your machines
+### Every experiment on record
+
+<img alt="The memory viewer: a project's mission, status, experiment and knowledge files, with one experiment record open on its run command and results" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/memory.png">
+
+Each experiment lands in project memory as its own Markdown record: what was run, what was
+observed, what was concluded, and what should change next. Findings that hold up become knowledge
+entries, and patterns across experiments get records of their own. The **Memory** view browses all
+of it beside the sessions. [Memory →](https://fangxm233.github.io/cortex-agent/memory/)
+
+### All your machines and GPUs
 
 <p align="center"><img width="560" alt="The machines menu with live CPU, memory, disk and per-GPU telemetry" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/machines.png"></p>
 
-Your GPUs, documents, and tools rarely live on one box. Run `cortex-client` on any Linux, macOS, or
+Your GPUs, data, and tools rarely live on one box. Run `cortex-client` on any Linux, macOS, or
 Windows machine and the agent can read, write, and execute there from the same session. The
-**Machines** menu shows each machine's live CPU, memory, disk, and GPU load. In the desktop app, the
-dock opens a development server running on a remote machine as if it ran locally.
-[Cross-machine →](https://fangxm233.github.io/cortex-agent/cross-machine/)
+**Machines** menu shows each machine's live CPU, memory, disk, and per-GPU load and processes. A
+training run or evaluation starts on whichever machine has the GPUs; the agent arms a
+**waitpoint**, ends its turn, and is woken with the result when the job reports back, with no
+polling in between. In the desktop app, the dock opens a development server running on a remote
+machine as if it ran locally.
+[Cross-machine →](https://fangxm233.github.io/cortex-agent/cross-machine/) · [Waitpoints →](https://fangxm233.github.io/cortex-agent/waitpoints/)
+
+### Skills and code the agents improve
+
+Cortex's behavior is set by plain files: skills, rules, hooks, prompts, and agent roles under
+`$CORTEX_HOME`, each able to override its built-in counterpart. Agents read and rewrite them like
+any other file, and you edit the same skills in Settings. Execution environments choose which
+plugins, rules, and tools a session gets, so variants of an agent can run side by side. Pointed at a
+source checkout through `CORTEX_REPO`, Cortex rebuilds, reinstalls, and restarts itself when its
+code changes. Together these let agents improve the skills and code they run on, while your safety
+boundary decides which of those changes wait for your sign-off.
+[Skills & plugins →](https://fangxm233.github.io/cortex-agent/skills-and-plugins/) · [Configuration →](https://fangxm233.github.io/cortex-agent/configuration/)
 
 ### On your phone
 
@@ -168,16 +201,16 @@ sessions, restarts, and model upgrades, and any agent or person can read them.
 
 ## Safety and approvals
 
-Cortex gives agents real tools: shell, files, GPUs, and other machines. Its guard rails are
-conversational rather than a sandbox:
+Cortex gives agents real tools: shell, files, GPUs, other machines, and the files that define
+their own behavior. Its guard rails are conversational rather than a sandbox:
 
 - **Plan approval.** Non-trivial work starts with a plan that waits until you approve it or send
   it back for changes.
 - **Questions and decisions.** Agents ask through cards that you answer in place, and record the
   choices they make on their own as decisions you can review.
 - **Your rules.** A safety boundary in your `$CORTEX_HOME/AGENTS.md` tells every session what it may
-  do alone, what needs sign-off, and what is forbidden. Operations that need sign-off wait in the
-  **Approval Center**.
+  do alone, what needs sign-off (changing a skill's behavior or Cortex's own code, for example), and
+  what is forbidden. Operations that need sign-off wait in the **Approval Center**.
 
 [Safety and approvals →](https://fangxm233.github.io/cortex-agent/safety-and-approvals/)
 
