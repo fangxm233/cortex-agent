@@ -137,6 +137,8 @@ function GpuRows({ gpus, model, divided }: { gpus: MachineGpuRow[]; model: strin
   return (
     <Section divided={divided}>
       <div data-machine-gpus="" style={METER_GRID}>
+        {model && <div data-machine-gpu-model="" title={model} style={{ gridColumn: '1 / -1', fontWeight: 600,
+          lineHeight: '22px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{model}</div>}
         {gpus.map((gpu) => <GpuRow key={gpu.index} gpu={gpu} showName={!model} open={open.has(gpu.index)}
           onToggle={() => toggle(gpu.index)} />)}
       </div>
@@ -190,12 +192,12 @@ function StatusDot({ online }: { online: boolean }) {
   );
 }
 
-function MachineHead({ machine, open, gpuModel, onToggle }: {
-  machine: MachineInfo; open: boolean; gpuModel: string | null; onToggle: () => void;
+function MachineHead({ machine, open, onToggle }: {
+  machine: MachineInfo; open: boolean; onToggle: () => void;
 }) {
   const lang = useLang();
   const heartbeat = machineHeartbeatText(machine, lang);
-  const meta = machineMetaText(machine, gpuModel, lang);
+  const meta = machineMetaText(machine, lang);
   return (
     <button type="button" aria-expanded={open} onClick={onToggle} data-machine-row={machine.name}
       style={{ display: 'block', width: '100%', border: 0, padding: 0, background: 'transparent', textAlign: 'left', cursor: 'pointer' }}>
@@ -217,7 +219,7 @@ function MachineRow({ machine, open, detail, onToggle, divided }: {
   machine: MachineInfo; open: boolean; detail: MachineDetailResource | undefined; onToggle: () => void; divided: boolean;
 }) {
   return <div style={{ padding: '10px 16px', borderTop: divided ? '1px solid var(--proto-line-2)' : 0 }}>
-    <MachineHead machine={machine} open={open} gpuModel={detail?.facts?.gpuModel ?? null} onToggle={onToggle} />
+    <MachineHead machine={machine} open={open} onToggle={onToggle} />
     {open && detail && <div style={{ marginTop: 10 }}><MachineDetailBody detail={detail} /></div>}
   </div>;
 }

@@ -49,9 +49,9 @@ describe('machine row text', () => {
     expect(machineHeartbeatText(machine(false), 'en', now)).toBe('');
   });
 
-  it('names the probed GPU model when known, else just GPU', () => {
-    expect(machineMetaText(live, 'RTX 6000 Ada', 'en', now)).toBe('2 × RTX 6000 Ada · unix · connected 30m');
-    expect(machineMetaText(live, null, 'zh', now)).toBe('2 × GPU · unix · 已连接 30分钟');
-    expect(machineMetaText(machine(false), null, 'en', now)).toBe('unix');
+  it('counts GPUs without naming the model, which heads the GPU section instead', () => {
+    expect(machineMetaText(live, 'en', now)).toBe('2 × GPU · unix · connected 30m');
+    expect(machineMetaText(live, 'zh', now)).toBe('2 × GPU · unix · 已连接 30分钟');
+    expect(machineMetaText(machine(false), 'en', now)).toBe('unix');
   });
 });

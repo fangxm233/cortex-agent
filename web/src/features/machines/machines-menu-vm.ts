@@ -29,18 +29,13 @@ export function machineHeartbeatText(machine: MachineInfo, lang: TimeLang, now: 
   return `${L.mHeartbeat} ${fmt(L.timeAgo, { span })}`;
 }
 
-/** The line under a machine's name: `2 × RTX 6000 Ada · unix · connected 30m`. The GPU model is only
- *  known once the card has been probed (and only when every card matches); until then it says GPU. */
-export function machineMetaText(
-  machine: MachineInfo,
-  gpuModel: string | null,
-  lang: TimeLang,
-  now: number = Date.now(),
-): string {
+/** The line under a machine's name: `2 × GPU · unix · connected 30m`. The GPU model heads the GPU
+ *  section of the expanded row instead, so this line reads the same collapsed or expanded. */
+export function machineMetaText(machine: MachineInfo, lang: TimeLang, now: number = Date.now()): string {
   const L = pickVocab(lang);
   const connected = formatSince(machine.connectedAt, lang, now);
   return [
-    machine.gpuCount == null ? '' : `${machine.gpuCount} × ${gpuModel ?? L.mGpu}`,
+    machine.gpuCount == null ? '' : `${machine.gpuCount} × ${L.mGpu}`,
     machine.os,
     connected ? `${L.mConnectedFor} ${connected}` : '',
   ].filter(Boolean).join(' · ');
