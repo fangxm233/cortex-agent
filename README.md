@@ -55,8 +55,10 @@ provider you already pay for) as a long-lived service with a workbench in front 
   means. Confirmed findings and patterns across experiments collect beside them.
 - **Agents work as a team.** A lead session hands pieces to persistent workers and one-shot
   subagents, each starting with a fresh context, and keeps a live board of where the work stands.
-- **Every machine and GPU is in reach.** One session reads, writes, and runs commands on any
-  machine running `cortex-client`, and the workbench shows each GPU's live load.
+- **Agents manage model training across your machines.** One session reads, writes, and runs
+  commands on any machine running `cortex-client`. Agents check which GPUs are free, launch training
+  and evaluation runs there, and wait on them without polling, while the workbench shows each GPU's
+  live load.
 - **The setup itself can improve.** Skills, rules, hooks, and Cortex's own source are files the
   agents can change, inside a safety boundary you write.
 
@@ -100,16 +102,17 @@ observed, what was concluded, and what should change next. Findings that hold up
 entries, and patterns across experiments get records of their own. The **Memory** view browses all
 of it beside the sessions. [Memory →](https://fangxm233.github.io/cortex-agent/memory/)
 
-### All your machines and GPUs
+### Training across all your machines
 
 <p align="center"><img width="560" alt="The machines menu with live CPU, memory, disk and per-GPU telemetry" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/machines.png"></p>
 
 Your GPUs, data, and tools rarely live on one box. Run `cortex-client` on any Linux, macOS, or
-Windows machine and the agent can read, write, and execute there from the same session. The
-**Machines** menu shows each machine's live CPU, memory, disk, and per-GPU load and processes. A
-training run or evaluation starts on whichever machine has the GPUs; the agent arms a
-**waitpoint**, ends its turn, and is woken with the result when the job reports back, with no
-polling in between. In the desktop app, the dock opens a development server running on a remote
+Windows machine and the agent can read, write, and execute there from the same session. That is
+what an agent needs to manage model training: it checks which machine has free GPUs, launches the
+run, arms a **waitpoint**, and ends its turn. When the job reports back, the session wakes with the
+result, records it as an experiment, and plans the next run, with no polling in between. The
+**Machines** menu shows you the same picture live: each machine's CPU, memory, disk, and per-GPU
+load and processes. In the desktop app, the dock opens a development server running on a remote
 machine as if it ran locally.
 [Cross-machine →](https://fangxm233.github.io/cortex-agent/cross-machine/) · [Waitpoints →](https://fangxm233.github.io/cortex-agent/waitpoints/)
 
