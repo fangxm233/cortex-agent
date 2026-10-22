@@ -9,8 +9,10 @@
 }
 
 .settings-surface.settings-select-popup {
-  min-width: min(max(160px, var(--radix-select-trigger-width)), var(--radix-select-content-available-width)) !important;
-  max-width: min(440px, var(--radix-select-content-available-width));
+  --settings-popup-trigger-width: var(--radix-select-trigger-width, var(--radix-popover-trigger-width));
+  --settings-popup-available-width: var(--radix-select-content-available-width, var(--radix-popover-content-available-width));
+  min-width: min(max(160px, var(--settings-popup-trigger-width)), var(--settings-popup-available-width)) !important;
+  max-width: min(440px, var(--settings-popup-available-width));
   border: 1px solid var(--settings-control-boundary);
   border-radius: var(--settings-control-radius);
   font-family: inherit;

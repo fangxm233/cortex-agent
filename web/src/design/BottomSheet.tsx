@@ -54,6 +54,27 @@ function useSheetClose(onClose: () => void, setPhase: (phase: Phase) => void, se
   return { close, closed };
 }
 
+const openSheets: symbol[] = [];
+
+function useSheetEscape(onDismiss: () => void): void {
+  const dismissRef = useRef(onDismiss);
+  dismissRef.current = onDismiss;
+  useEffect(() => {
+    const id = Symbol('sheet');
+    openSheets.push(id);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented || openSheets.at(-1) !== id) return;
+      event.preventDefault();
+      dismissRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      openSheets.splice(openSheets.indexOf(id), 1);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, []);
+}
+
 function useSheetBack(onBack: (() => void) | undefined, close: () => void): void {
   const [hardwareBackEpoch, setHardwareBackEpoch] = useState(0);
   // Only hardware back consumes the sentinel; ordinary in-sheet taps don't churn history.
@@ -63,14 +84,7 @@ function useSheetBack(onBack: (() => void) | undefined, close: () => void): void
     setHardwareBackEpoch((value) => value + 1);
   }, [close, onBack]);
   useBackDismiss(onHardwareBack, hardwareBackEpoch);
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented) return;
-      (onBack ?? close)();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [close, onBack]);
+  useSheetEscape(onBack ?? close);
 }
 
 function moveDrag(drag: Drag | null, clientY: number, setDragY: (y: number) => void): void {

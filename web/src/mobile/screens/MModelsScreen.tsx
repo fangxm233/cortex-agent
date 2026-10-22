@@ -23,10 +23,9 @@ function DefaultModel({ c }: { c: ModelsController }) {
   const current = c.snapshot?.models.default;
   return <MSettingsSection><div style={{ padding: PAD }}>
     <MSettingsSelect label={L.stDefaultModel} value={current ? modelKey(current) : ''}
-      disabled={c.pending || !c.options.length} onChange={event => c.setDefault(event.target.value)}>
-      <option value="" disabled>{L.stChooseModel}</option>
-      {c.options.map(ref => <option key={modelKey(ref)} value={modelKey(ref)}>{modelOptionLabel(ref)}</option>)}
-    </MSettingsSelect>
+      disabled={c.pending || !c.options.length} onValueChange={c.setDefault}
+      options={[{ value: '', label: L.stChooseModel, disabled: true },
+        ...c.options.map(ref => ({ value: modelKey(ref), label: modelOptionLabel(ref) }))]} />
   </div></MSettingsSection>;
 }
 

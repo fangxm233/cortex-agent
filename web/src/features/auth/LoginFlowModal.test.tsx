@@ -36,6 +36,10 @@ vi.mock('@/design', () => ({
   MBottomSheet: ({ children, dimDismiss }: any) => <div data-mobile-bottom-sheet data-dim-dismiss={String(dimDismiss)}>{children}</div>,
 }));
 
+vi.mock('@/design/BottomSheet', () => ({
+  MBottomSheet: ({ children }: any) => <div data-mobile-bottom-sheet>{children}</div>,
+}));
+
 vi.mock('@/lib/use-mobile-layout', () => ({ useMobileLayout: () => harness.mobile }));
 vi.mock('@/lib/external-navigation', () => ({ openExternalUrl: async () => {} }));
 
@@ -238,6 +242,29 @@ describe('LoginFlowModal', () => {
     await poll();
     expect(flowStep(renderer)).toBe('done');
     expect(text(renderer)).toContain('Logged in to OpenAI Codex.');
+  });
+
+  it('uses a nested mobile picker with provider descriptions and submits the chosen id', async () => {
+    harness.mobile = true;
+    harness.onStart = () => prompt(1, { kind: 'select', message: 'Choose login method', options: [
+      { id: 'browser', label: 'Browser login', description: 'Open a browser' },
+      { id: 'device', label: 'Device login', description: 'Use another device' },
+    ] });
+    const renderer = mount({ target: CODEX });
+    await flush();
+    expect(renderer.root.findAllByType('select')).toHaveLength(0);
+    const trigger = () => renderer.root.findAll(node => node.type === 'button' && node.props['data-auth-select'])[0]!;
+    expect(trigger().props['aria-labelledby']).toBe('auth-login-prompt-label');
+    act(() => trigger().props.onClick({ defaultPrevented: false }));
+    expect(renderer.root.findAllByProps({ 'data-mobile-bottom-sheet': true })).toHaveLength(2);
+    expect(visibleText(renderer)).toContain('Use another device');
+    act(() => find(renderer, { 'data-m-select-option': 'device' }).props.onClick());
+    expect(renderer.root.findAllByProps({ 'data-mobile-bottom-sheet': true })).toHaveLength(1);
+    expect(trigger().findAllByType('span')[0].children).toEqual(['Device login']);
+    expect(harness.respondCalls).toHaveLength(0);
+    await submit(renderer);
+    expect(harness.respondCalls).toEqual([{ flowId: 'flow-1', value: 'device', promptId: 1 }]);
+    renderer.unmount();
   });
 
   it('answers a secret then two text prompts in turn', async () => {

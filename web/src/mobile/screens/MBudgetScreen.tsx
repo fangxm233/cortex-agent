@@ -60,17 +60,10 @@ function SpendCard(props: { today: number; month: number; daily: number | null; 
   </MSettingsSection>;
 }
 
-export function MBudgetScreen() {
+function useBudgetActions(scope: BudgetScopeId) {
   const L = useVocab();
-  const navigate = useNavigate();
   const { toast } = useToast();
   const writer = useBudgetWriter();
-  const [scope, setScope] = useState<BudgetScopeId>(null);
-  const config = useConfigSnapshot();
-  const projects = useProjectList();
-  const cost = useBudgetSpend(scope);
-  const budget = config.data?.budget ?? null;
-  const resolved = pickScopeBudget(budget, scope);
   const writeSucceeded = (operation: BudgetWriterOperation | null) => {
     if (!operation) return;
     toast({
@@ -87,23 +80,44 @@ export function MBudgetScreen() {
   const clear = () => {
     if (scope && !writer.isPending) void writer.clear(scope).then(writeSucceeded).catch(writeFailed);
   };
-  return <MSettingsQueryPage title={L.stNavBudget} onBack={() => mobileHeaderBack(navigate, '/m/settings')} query={config}>
-    {() => <>
-      <MSettingsSection title={L.stBudgetScope} note={resolved.inherited ? L.stBudgetInherited : undefined}>
-        <div style={{ padding: PAD }}><MSettingsSelect label={L.stBudgetScope} value={scope ?? ''}
-          onChange={(event) => setScope(event.target.value || null)}>
-          <option value="">{L.stBudgetScopeGlobal}</option>
-          {projects.map((project) => <option key={project.id} value={project.id}>{project.id}</option>)}
-        </MSettingsSelect></div>
-        {/* Keyed by scope: a draft typed for one scope must not survive into the next. */}
-        <BudgetLimitsEditor key={scope ?? ''} daily={resolved.daily} monthly={resolved.monthly}
-          pending={writer.isPending} onSave={save} />
-        {hasOverride(budget, scope) && <div style={{ padding: PAD }}>
-          <MButton compact variant="danger-outline" disabled={writer.isPending} onClick={clear}>{L.stBudgetClear}</MButton>
-        </div>}
-      </MSettingsSection>
-      <SpendCard today={cost?.today ?? 0} month={cost?.month ?? 0}
-        daily={resolved.daily} monthly={resolved.monthly} />
-    </>}
+  return { save, clear, pending: writer.isPending };
+}
+
+function useBudgetScreen() {
+  const [scope, setScope] = useState<BudgetScopeId>(null);
+  const config = useConfigSnapshot();
+  const projects = useProjectList();
+  const cost = useBudgetSpend(scope);
+  const budget = config.data?.budget ?? null;
+  const resolved = pickScopeBudget(budget, scope);
+  return { scope, setScope, config, projects, cost, budget, resolved, ...useBudgetActions(scope) };
+}
+
+function BudgetContent({ state: s }: { state: ReturnType<typeof useBudgetScreen> }) {
+  const L = useVocab();
+  return <>
+    <MSettingsSection title={L.stBudgetScope} note={s.resolved.inherited ? L.stBudgetInherited : undefined}>
+      <div style={{ padding: PAD }}><MSettingsSelect label={L.stBudgetScope} value={s.scope ?? ''}
+        onValueChange={value => s.setScope(value || null)}
+        options={[{ value: '', label: L.stBudgetScopeGlobal },
+          ...s.projects.map(project => ({ value: project.id, label: project.id }))]} /></div>
+      {/* Keyed by scope: a draft typed for one scope must not survive into the next. */}
+      <BudgetLimitsEditor key={s.scope ?? ''} daily={s.resolved.daily} monthly={s.resolved.monthly}
+        pending={s.pending} onSave={s.save} />
+      {hasOverride(s.budget, s.scope) && <div style={{ padding: PAD }}>
+        <MButton compact variant="danger-outline" disabled={s.pending} onClick={s.clear}>{L.stBudgetClear}</MButton>
+      </div>}
+    </MSettingsSection>
+    <SpendCard today={s.cost?.today ?? 0} month={s.cost?.month ?? 0}
+      daily={s.resolved.daily} monthly={s.resolved.monthly} />
+  </>;
+}
+
+export function MBudgetScreen() {
+  const L = useVocab();
+  const navigate = useNavigate();
+  const state = useBudgetScreen();
+  return <MSettingsQueryPage title={L.stNavBudget} onBack={() => mobileHeaderBack(navigate, '/m/settings')} query={state.config}>
+    {() => <BudgetContent state={state} />}
   </MSettingsQueryPage>;
 }

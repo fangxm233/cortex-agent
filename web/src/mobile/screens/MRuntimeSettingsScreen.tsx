@@ -162,10 +162,8 @@ function JobInterval(props: {
   return <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 90px', gap: 7, padding: `0 ${MSET_INSET}px 11px` }}>
     <MSettingsField label={L.stBuiltinInterval} type="number" min={1} value={draft.value}
       onChange={(event) => setDraft({ ...draft, value: Number(event.target.value) })} />
-    <MSettingsSelect label={L.setUnitLabel} value={draft.unit}
-      onChange={(event) => setDraft({ ...draft, unit: event.target.value as typeof draft.unit })}>
-      {durationUnits(L).map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
-    </MSettingsSelect>
+    <MSettingsSelect label={L.setUnitLabel} value={draft.unit} options={durationUnits(L)}
+      onValueChange={unit => setDraft({ ...draft, unit: unit as typeof draft.unit })} />
     <div style={{ gridColumn: '1 / -1' }}><MButton compact variant="outline"
       disabled={current === null || next === null || next === current || props.write.pending}
       onClick={() => { if (next !== null) props.write.onSet(props.descriptor.interval, next); }}>

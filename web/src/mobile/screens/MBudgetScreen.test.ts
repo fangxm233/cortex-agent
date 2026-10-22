@@ -79,15 +79,16 @@ vi.mock('@/i18n', () => ({
 }));
 
 import { MBudgetScreen } from './MBudgetScreen';
+import { MSelect } from '@/mobile/ui/kit';
 
 async function mountProjectBudget(): Promise<ReactTestRenderer> {
   let renderer!: ReactTestRenderer;
   await act(async () => {
     renderer = create(createElement(MBudgetScreen));
   });
-  const scope = renderer.root.findAllByType('select')[0];
+  const scope = renderer.root.findByType(MSelect);
   await act(async () => {
-    scope.props.onChange({ target: { value: 'alpha' } });
+    scope.props.onValueChange('alpha');
   });
   return renderer;
 }
@@ -163,7 +164,7 @@ describe('MBudgetScreen writer feedback', () => {
     expect(renderer.root.findAllByType('input')[0].props.value).toBe('6');
 
     await act(async () => {
-      renderer.root.findAllByType('select')[0].props.onChange({ target: { value: 'beta' } });
+      renderer.root.findByType(MSelect).props.onValueChange('beta');
     });
 
     expect(renderer.root.findAllByType('input')[0].props.value).toBe('10');

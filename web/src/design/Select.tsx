@@ -38,14 +38,14 @@ const TRIGGER_CLASS =
 
 // Only the popup blurs; rows and triggers remain unfiltered. Even a stationary popup can
 // resample a changing backdrop, so do not multiply that work by filtering individual rows.
-const CONTENT_CLASS =
+export const SELECT_POPUP_CLASS =
   'z-[100] overflow-hidden rounded-[var(--r-float)] [background:var(--material-overlay-bg)] ' +
   '[backdrop-filter:var(--glass-filter)] [-webkit-backdrop-filter:var(--glass-filter)] ' +
   'text-[13px] text-proto-ink shadow-[shadow:var(--material-overlay-shadow)] ' +
   'data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out ' +
   'motion-reduce:animate-none';
 
-const ITEM_CLASS =
+export const SELECT_ITEM_CLASS =
   'relative flex w-full select-none items-center gap-0.5g px-1g py-menu-row-y pr-3g ' +
   'font-medium leading-normal ' +
   'data-[highlighted]:bg-proto-gray data-[state=checked]:bg-proto-line-2 ' +
@@ -106,7 +106,7 @@ function SelectItem<T extends SelectValue>({
       disabled={option.disabled}
       textValue={option.label}
       title={option.disabledReason}
-      className={ITEM_CLASS}
+      className={SELECT_ITEM_CLASS}
     >
       <RadixSelect.ItemText>{option.label}</RadixSelect.ItemText>
       {option.description ? (
@@ -125,7 +125,7 @@ function SelectPopup<T extends SelectValue>({ options, className = '' }: {
 }): JSX.Element {
   return (
     <RadixSelect.Portal>
-      <RadixSelect.Content position="popper" sideOffset={4} align="start" className={`${CONTENT_CLASS} ${className}`} style={CONTENT_STYLE}
+      <RadixSelect.Content position="popper" sideOffset={4} align="start" className={`${SELECT_POPUP_CLASS} ${className}`} style={CONTENT_STYLE}
         onPointerDownOutside={markSelectOutsideInteraction}>
         <RadixSelect.ScrollUpButton className="py-0.5g text-center text-proto-muted-3">▴</RadixSelect.ScrollUpButton>
         <RadixSelect.Viewport>

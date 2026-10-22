@@ -3,6 +3,7 @@ import type { ButtonHTMLAttributes } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { LoginFlowState } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';
+import { Select } from '@/design';
 import { useTRPCClient } from '@/lib/trpc';
 import { modelKey, modelLabel } from '@/lib/model-selection';
 import { LoginFlowModal, type LoginFlowTarget } from '@/features/auth/LoginFlowModal';
@@ -85,13 +86,11 @@ function ModelSection({ controller }: { controller: ProviderSetupController }) {
     <div className="setup-card-header"><h2><label htmlFor="setup-model">{L.setupModel}</label></h2>
       {current ? <span className="setup-pill">{modelLabel(current)}</span> : null}</div>
     <div className="setup-card-body setup-model-body">
-      <select id="setup-model" className="setup-input" disabled={controller.state.busy || !available.length} value={listed && matching ? key : ''}
-        onChange={event => void controller.select(event.target.value)}>
-        <option value="" disabled>{L.setupChooseModel}</option>
-        {available.map(ref => <option key={modelKey(ref)} value={modelKey(ref)}>
-          {modelLabel(ref)} · {ref.backend}{ref.provider ? ` · ${ref.provider}` : ''}
-        </option>)}
-      </select>
+      <Select id="setup-model" className="setup-input" density="bare"
+        disabled={controller.state.busy || !available.length} value={listed && matching ? key : ''}
+        placeholder={L.setupChooseModel} onValueChange={value => void controller.select(value)}
+        options={available.map(ref => ({ value: modelKey(ref),
+          label: `${modelLabel(ref)} · ${ref.backend}${ref.provider ? ` · ${ref.provider}` : ''}` }))} />
       {!matching ? <p className="setup-hint">{available.length ? L.setupMismatch : L.setupNoModels}</p> : null}
     </div>
   </section>;

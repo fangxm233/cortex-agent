@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { PlatformFieldSnapshot } from '@cortex-agent/ui-contract';
 import { confirmDialog } from '@/design/dialog-store';
+import { Select } from '@/design';
 import { useVocab } from '@/i18n';
 import { FIELD_LABELS, type PlatformDraft } from '@/features/settings/vm/platform-settings-vm';
 import { PS_HINT_STYLE, psFieldStyle } from '@/features/settings/ui/platform-ui';
@@ -39,11 +40,10 @@ function FieldInput({ field, draft, disabled, onChange }: FieldProps) {
   const L = useVocab();
   const value = draft[field.key] ?? (field.secret ? '' : field.value ?? '');
   const locked = disabled || draft[field.key] === null;
-  if (field.key === 'FEISHU_DOMAIN') return <select id={`ps-${field.key}`} value={value || 'feishu'}
-    disabled={disabled} onChange={e => onChange(field.key, e.target.value)} style={psFieldStyle(disabled)}>
-    <option value="feishu">{L.setFeishu}</option>
-    <option value="lark">{L.setLarkInternational}</option>
-  </select>;
+  if (field.key === 'FEISHU_DOMAIN') return <Select id={`ps-${field.key}`} value={value || 'feishu'} density="bare"
+    popupClassName="settings-surface settings-select-popup" disabled={disabled}
+    onValueChange={value => onChange(field.key, value)} style={psFieldStyle(disabled)}
+    options={[{ value: 'feishu', label: L.setFeishu }, { value: 'lark', label: L.setLarkInternational }]} />;
   return <input id={`ps-${field.key}`} name={field.key} type={field.secret ? 'password' : 'text'}
     value={value} autoComplete="off" spellCheck={false} maxLength={4096} disabled={locked}
     placeholder={field.secret ? (field.present ? L.psStored : L.psNotStored) : undefined}

@@ -2,8 +2,12 @@ import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { expect, test, vi } from 'vitest';
 import type { ConfigSnapshot, PlatformSettingsSnapshot } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
+import { Select } from '@/design';
+import { psFieldStyle } from '@/features/settings/ui/platform-ui';
 import { PlatformPanelView } from './PlatformPanel';
 import { connectionPatch } from '@/features/settings/vm/platform-settings-vm';
+
+vi.mock('@/design/Select', () => ({ Select: (props: object) => <button {...props} /> }));
 
 const platform: PlatformSettingsSnapshot = {
   platform: 'feishu', enabled: true, runtimeEnabled: true, missing: [], pendingRestart: false,
@@ -71,9 +75,26 @@ test('skill and destination controls write only their own runtime settings', asy
   view.unmount();
 });
 
+test('domain selection retains its label, styling and persisted connection patch', async () => {
+  const p = props(); const view = render(p);
+  const picker = view.root.findByType(Select);
+  expect(picker.props.id).toBe('ps-FEISHU_DOMAIN');
+  expect(view.root.findByProps({ htmlFor: 'ps-FEISHU_DOMAIN' })).toBeDefined();
+  expect(picker.props.density).toBe('bare');
+  expect(picker.props.style).toEqual(psFieldStyle(false));
+  expect(picker.props.popupClassName).toBe('settings-surface settings-select-popup');
+  expect(picker.props.options.map((option: { value: string }) => option.value)).toEqual(['feishu', 'lark']);
+  act(() => picker.props.onValueChange('lark'));
+  await act(async () => { view.root.findByType('form').props.onSubmit({ preventDefault() {} }); });
+  expect(p.saveConnection).toHaveBeenCalledWith({ platform: 'feishu', fields: { FEISHU_DOMAIN: 'lark' } });
+  view.unmount();
+});
+
 test('insecure transport disables credential entry but leaves runtime preferences usable', () => {
   const view = render(props({ secure: false }));
   expect(view.root.findByProps({ name: 'FEISHU_APP_SECRET' }).props.disabled).toBe(true);
+  expect(view.root.findByType(Select).props.disabled).toBe(true);
+  expect(view.root.findByType(Select).props.style).toEqual(psFieldStyle(true));
   expect(view.root.findByProps({ name: 'feishuAdminChannel' }).props.disabled).toBe(false);
   view.unmount();
 });

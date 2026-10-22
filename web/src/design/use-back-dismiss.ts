@@ -14,11 +14,12 @@ import { useEffect, useRef } from 'react';
 
 export interface BackGuardHost {
   /** Push the throwaway sentinel history entry (URL/hash unchanged). */
-  pushSentinel(): void;
+  pushSentinel(): number;
   /** Remove the sentinel we pushed (a programmatic back). */
   popSentinel(): void;
   /** Whether the current entry is still the sentinel this guard owns. */
-  isSentinelActive(): boolean;
+  isSentinelActive(depth: number): boolean;
+  currentDepth(): number;
   addPopListener(fn: () => void): void;
   removePopListener(fn: () => void): void;
 }
@@ -29,18 +30,18 @@ export interface BackGuardHost {
  */
 export function armBackGuard(host: BackGuardHost, onDismiss: () => void): () => void {
   let dismissedByBack = false;
+  const depth = host.pushSentinel();
   const onPop = (): void => {
-    if (dismissedByBack) return; // a stray/duplicate popstate must not fire a real navigation
+    if (dismissedByBack || host.currentDepth() >= depth) return; // a stray/duplicate popstate must not fire a real navigation
     dismissedByBack = true;
     onDismiss();
   };
-  host.pushSentinel();
   host.addPopListener(onPop);
   return () => {
     host.removePopListener(onPop);
     // Tap-away / pick / drag leaves the sentinel current, so remove it. Route actions replace the
     // sentinel before teardown; never back over that destination. A hardware back already popped it.
-    if (!dismissedByBack && host.isSentinelActive()) host.popSentinel();
+    if (!dismissedByBack && host.isSentinelActive(depth)) host.popSentinel();
   };
 }
 
@@ -49,10 +50,13 @@ function windowBackGuardHost(): BackGuardHost {
     pushSentinel: () => {
       // Spread react-router's history state (usr/key/idx) onto the sentinel so its internal index
       // bookkeeping survives the push-then-back round-trip; omit the URL so the hash stays put.
-      window.history.pushState({ ...(window.history.state as object | null), __cortexOverlay: true }, '');
+      const depth = (window.history.state?.__cortexOverlayDepth ?? 0) + 1;
+      window.history.pushState({ ...(window.history.state as object | null), __cortexOverlay: true, __cortexOverlayDepth: depth }, '');
+      return depth;
     },
     popSentinel: () => window.history.back(),
-    isSentinelActive: () => window.history.state?.__cortexOverlay === true,
+    isSentinelActive: (depth) => window.history.state?.__cortexOverlayDepth === depth,
+    currentDepth: () => window.history.state?.__cortexOverlayDepth ?? 0,
     addPopListener: (fn) => window.addEventListener('popstate', fn),
     removePopListener: (fn) => window.removeEventListener('popstate', fn),
   };
@@ -68,5 +72,11 @@ export function useBackDismiss(onDismiss: () => void, resetKey?: unknown): void 
   ref.current = onDismiss;
   // A nested sheet level consumes the sentinel without unmounting the sheet. Re-arm when that level
   // changes so a second hardware-back press can dismiss the next level instead of navigating away.
-  useEffect(() => armBackGuard(windowBackGuardHost(), () => ref.current()), [resetKey]);
+  useEffect(() => {
+    let cancelled = false;
+    let teardown: (() => void) | undefined;
+    // StrictMode replays effects synchronously; don't push history for its discarded mount.
+    queueMicrotask(() => { if (!cancelled) teardown = armBackGuard(windowBackGuardHost(), () => ref.current()); });
+    return () => { cancelled = true; teardown?.(); };
+  }, [resetKey]);
 }

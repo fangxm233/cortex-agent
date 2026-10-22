@@ -14,8 +14,10 @@ export {
   type ModalSize,
 } from './Modal';
 export { MBottomSheet, shouldFlingClose } from './BottomSheet';
+export { MSelect, type MSelectOption, type MSelectProps } from './MSelect';
 export { Popover, type PopoverProps } from './Popover';
 export { Select, type SelectDensity, type SelectOption, type SelectProps, type SelectValue } from './Select';
+export { Combobox, type ComboboxProps } from './Combobox';
 export { CONTROL_HEIGHT } from './controls';
 export { ToastProvider, useToast, useToastOptional, useToastItems, type ToastInput } from './Toast';
 export { ToastViewport, useAutoDismiss } from './ToastViewport';

@@ -110,6 +110,23 @@ describe('opt-in bottom sheet height', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it('dismisses only the topmost open sheet on Escape', () => {
+    vi.useFakeTimers();
+    window.setTimeout = setTimeout;
+    const outerClose = vi.fn();
+    const innerClose = vi.fn();
+    act(() => { renderer = create(<MBottomSheet onClose={outerClose}>outer</MBottomSheet>); });
+    act(() => renderer.update(<MBottomSheet onClose={outerClose}>outer<MBottomSheet onClose={innerClose}>inner</MBottomSheet></MBottomSheet>));
+    act(() => { window.dispatchEvent(Object.assign(new Event('keydown'), { key: 'Escape' })); });
+    act(() => { vi.advanceTimersByTime(300); });
+    expect(innerClose).toHaveBeenCalledOnce();
+    expect(outerClose).not.toHaveBeenCalled();
+    act(() => renderer.update(<MBottomSheet onClose={outerClose}>outer</MBottomSheet>));
+    act(() => { window.dispatchEvent(Object.assign(new Event('keydown'), { key: 'Escape' })); });
+    act(() => { vi.advanceTimersByTime(300); });
+    expect(outerClose).toHaveBeenCalledOnce();
+  });
+
   it('keeps the grab handle live for drag dismissal', () => {
     vi.useFakeTimers();
     window.setTimeout = setTimeout;

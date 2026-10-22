@@ -62,7 +62,7 @@
 .provider-setup .setup-input { width: 100%; border: 1px solid var(--proto-line); border-radius: var(--r-control); background: var(--material-inset-bg); color: var(--proto-ink); padding: 8px 11px; font-size: 12px; line-height: 1.55; }
 .provider-setup .setup-input:focus { border-color: var(--proto-accent); }
 .provider-setup .setup-input::placeholder { color: var(--proto-muted-3); }
-.provider-setup .setup-input:disabled { opacity: .65; }
+.provider-setup .setup-input:disabled { opacity: .65; cursor: not-allowed; }
 .provider-setup .setup-accounts { display: flex; flex-direction: column; gap: 16px; }
 .provider-setup .setup-accounts-group h3 { margin: 0 0 8px 2px; font-size: 12px; font-weight: 600; color: var(--proto-muted); }
 .provider-setup .setup-accounts-sub + .setup-accounts-sub { margin-top: 12px; }

@@ -1,24 +1,27 @@
+import { createElement } from 'react';
+import { act, create } from 'react-test-renderer';
 import { describe, it, expect, vi } from 'vitest';
-import { armBackGuard, type BackGuardHost } from './use-back-dismiss';
+import { armBackGuard, useBackDismiss, type BackGuardHost } from './use-back-dismiss';
 
 // A fake history/event host so the guard contract is unit-testable without a DOM (this repo's test
 // env has no jsdom; the window/popstate wiring is proven in the live harness).
 function fakeHost() {
   const listeners = new Set<() => void>();
   const calls = { push: 0, pop: 0 };
-  let sentinelActive = true;
+  let depth = 0;
   const host: BackGuardHost = {
-    pushSentinel: () => { calls.push += 1; sentinelActive = true; },
-    popSentinel: () => { calls.pop += 1; sentinelActive = false; },
-    isSentinelActive: () => sentinelActive,
+    pushSentinel: () => { calls.push += 1; depth += 1; return depth; },
+    popSentinel: () => { calls.pop += 1; dispatchBack(); },
+    isSentinelActive: (ownDepth) => depth === ownDepth,
+    currentDepth: () => depth,
     addPopListener: (fn) => { listeners.add(fn); },
     removePopListener: (fn) => { listeners.delete(fn); },
   };
   const dispatchBack = (): void => {
-    sentinelActive = false;
+    depth = Math.max(0, depth - 1);
     for (const fn of [...listeners]) fn();
   };
-  const replaceSentinel = (): void => { sentinelActive = false; };
+  const replaceSentinel = (): void => { depth = 0; };
   return { host, calls, listeners, dispatchBack, replaceSentinel };
 }
 
@@ -73,4 +76,60 @@ describe('armBackGuard', () => {
     teardown();
     expect(calls.pop).toBe(0);
   });
+});
+
+
+describe('nested back guards', () => {
+  it('does not dismiss the outer sheet when picking tears down the inner sheet', () => {
+    const { host, dispatchBack } = fakeHost();
+    const outerDismiss = vi.fn();
+    const innerDismiss = vi.fn();
+    const closeOuter = armBackGuard(host, outerDismiss);
+    const closeInner = armBackGuard(host, innerDismiss);
+    closeInner();
+    expect(innerDismiss).not.toHaveBeenCalled();
+    expect(outerDismiss).not.toHaveBeenCalled();
+    dispatchBack();
+    expect(outerDismiss).toHaveBeenCalledOnce();
+    closeOuter();
+  });
+
+  it('dismisses only the top sheet on back and the outer sheet on the next back', () => {
+    const { host, calls, dispatchBack } = fakeHost();
+    const outerDismiss = vi.fn();
+    const innerDismiss = vi.fn();
+    const closeOuter = armBackGuard(host, outerDismiss);
+    const closeInner = armBackGuard(host, innerDismiss);
+    dispatchBack();
+    expect(innerDismiss).toHaveBeenCalledOnce();
+    expect(outerDismiss).not.toHaveBeenCalled();
+    closeInner();
+    expect(calls.pop).toBe(0);
+    dispatchBack();
+    expect(outerDismiss).toHaveBeenCalledOnce();
+    closeOuter();
+    expect(calls.pop).toBe(0);
+  });
+});
+
+
+function BackGuardProbe({ dismiss }: { dismiss: () => void }): null {
+  useBackDismiss(dismiss);
+  return null;
+}
+
+it('does not pop history during the development effect replay', async () => {
+  const history = { state: {}, pushState: vi.fn((state: object) => { history.state = state; }), back: vi.fn() };
+  vi.stubGlobal('window', Object.assign(new EventTarget(), { history }));
+  let replayed: ReturnType<typeof create> | undefined;
+  try {
+    act(() => { replayed = create(createElement(BackGuardProbe, { dismiss: vi.fn() })); });
+    act(() => replayed!.unmount());
+    await act(async () => { replayed = create(createElement(BackGuardProbe, { dismiss: vi.fn() })); });
+    expect(history.pushState).toHaveBeenCalledOnce();
+    expect(history.back).not.toHaveBeenCalled();
+  } finally {
+    act(() => replayed?.unmount());
+    vi.unstubAllGlobals();
+  }
 });

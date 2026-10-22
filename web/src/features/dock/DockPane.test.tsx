@@ -2,9 +2,12 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { Reorder } from 'motion/react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { ThemeProvider } from '@/theme';
+import { Select } from '@/design';
 import { DockPane } from './DockPane';
 import { DockProvider, useDock } from './DockProvider';
 import type { FileItem } from './dock-tabs';
+
+vi.mock('@/design/Select', () => ({ Select: (props: object) => <button {...props} /> }));
 
 const shot: FileItem = { kind: 'image', name: 'shot.png', url: 'blob:shot' };
 
@@ -45,7 +48,7 @@ function input(renderer: ReactTestRenderer) {
 }
 
 function viewport(renderer: ReactTestRenderer) {
-  return activeBody(renderer).findByType('select');
+  return activeBody(renderer).findByType(Select);
 }
 
 function navigate(renderer: ReactTestRenderer, url: string): void {
@@ -146,10 +149,10 @@ describe('DockPane tab lifetime', () => {
     const renderer = mount();
     action(renderer, 'web');
     navigate(renderer, 'http://127.0.0.1:5173/');
-    act(() => viewport(renderer).props.onChange({ target: { value: 'phone' } }));
+    act(() => viewport(renderer).props.onValueChange('phone'));
     action(renderer, 'web');
     act(() => input(renderer).props.onChange({ target: { value: 'draft-b' } }));
-    act(() => viewport(renderer).props.onChange({ target: { value: 'desktop' } }));
+    act(() => viewport(renderer).props.onValueChange('desktop'));
 
     act(() => renderer.root.findByProps({ 'data-dock-tab': 'browser-tab-0' }).props.onClick());
     expect(input(renderer).props.value).toBe('http://127.0.0.1:5173/');

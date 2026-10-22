@@ -86,7 +86,7 @@ describe('MScheduleSheetView', () => {
     const { renderer } = mount(buildScheduleRows([real], []), editor);
     act(() => renderer.root.findByProps({ 'data-schedule-row': 'sch-1' }).props.onClick());
     const pick = (field: string, value: string) => act(() => {
-      renderer.root.findByProps({ 'data-schedule-select': field }).props.onChange({ target: { value } });
+      renderer.root.findByProps({ 'data-schedule-select': field }).props.onValueChange(value);
     });
     pick('model', modelKey(selection));
     pick('thinking', 'high');

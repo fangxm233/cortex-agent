@@ -52,8 +52,7 @@
 }
 .browser-control:disabled { opacity: 0.4; cursor: default; box-shadow: none; }
 .browser-icon { width: 28px; flex: none; padding: 0; font-size: 16px; }
-.browser-tools select { max-width: 100%; }
-.browser-tools option { background: var(--proto-card); color: var(--proto-ink); }
+.browser-tools [data-select-control] { max-width: 100%; }
 .browser-address {
   flex: 1 1 190px;
   min-width: 0;

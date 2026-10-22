@@ -1,5 +1,5 @@
-import type { ComponentProps, CSSProperties, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
-import { MBackChevron, MBottomSheet, MC, MGroup, MGroupLabel } from '@/mobile/ui/kit';
+import type { ComponentProps, CSSProperties, InputHTMLAttributes, ReactNode } from 'react';
+import { MBackChevron, MBottomSheet, MC, MGroup, MGroupLabel, MSelect, type MSelectProps } from '@/mobile/ui/kit';
 import { useVocab, useVocabOptional } from '@/i18n';
 import type { SettingsQuery } from '@/features/settings/controllers/useConfigSnapshot';
 import '@/features/settings/ui/settings-style.css';
@@ -175,20 +175,17 @@ export function MSettingsField(
 }
 
 export function MSettingsSelect(
-  props: SelectHTMLAttributes<HTMLSelectElement> & MSettingsControlFeedback,
+  props: Omit<MSelectProps, 'title'> & MSettingsControlFeedback,
 ) {
-  const { label, hint, error, children, ...select } = props;
+  const { label, hint, error, ...select } = props;
   const hasError = error !== undefined && error !== null;
   return (
     <label style={{ display: 'block' }}>
       <span style={{ ...MSET_KEY, display: 'block', marginBottom: 4 }}>{label}</span>
-      <select
-        {...select}
+      <MSelect
+        {...select} title={label} sheetClassName="settings-surface mobile-settings mobile-settings-sheet"
         aria-invalid={select['aria-invalid'] ?? (hasError || undefined)}
-        style={{ ...FIELD, borderColor: hasError ? MC.failBorder : undefined, ...select.style }}
-      >
-        {children}
-      </select>
+      />
       <MSettingsFeedback hint={hint} error={error} />
     </label>
   );

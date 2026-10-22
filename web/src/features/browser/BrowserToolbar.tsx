@@ -1,6 +1,7 @@
 import type { ReactNode, RefObject } from 'react';
 import { openExternalUrl } from '@/lib/external-navigation';
 import { useVocabOptional } from '@/i18n';
+import { Select } from '@/design';
 import { browserTabForwardSource, canGoBack, canGoForward, VIEWPORT_PRESETS, type BrowserTabState, type ViewportPreset } from './browser-target';
 
 interface ToolbarProps {
@@ -28,10 +29,9 @@ export function BrowserToolbar(props: ToolbarProps): JSX.Element {
       </div>
       <BrowserAddress {...props} />
       <div className="browser-tools">
-        <select className="browser-control" title={L.brViewportWidth} aria-label={L.brViewportWidth} value={props.tab.viewportId}
-          onChange={(event) => props.onViewport(event.target.value as ViewportPreset['id'])}>
-          {VIEWPORT_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.id === 'fit' ? L.brViewportFit : preset.label}</option>)}
-        </select>
+        <Select density="bare" className="browser-control" title={L.brViewportWidth} aria-label={L.brViewportWidth}
+          value={props.tab.viewportId} onValueChange={props.onViewport}
+          options={VIEWPORT_PRESETS.map(preset => ({ value: preset.id, label: preset.id === 'fit' ? L.brViewportFit : preset.label }))} />
         <button type="button" className="browser-control" title={L.brPortsTitle}
           aria-expanded={props.portsOpen} aria-controls={`browser-ports-${props.tab.id}`} onClick={props.onTogglePorts}>{L.brPorts}</button>
         <BrowserButton title={L.brOpenExternal} disabled={props.url === null}

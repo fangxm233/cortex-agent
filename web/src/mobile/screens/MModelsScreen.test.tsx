@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { en, LangProvider } from '@/i18n';
 import { modelKey } from '@/lib/model-selection';
+import { MSelect } from '@/mobile/ui/kit';
 import type { ModelsController } from '@/features/settings/controllers/useModelsController';
 import { MModelsView } from './MModelsScreen';
 import { buildMSettingsVm } from './m-settings-vm';
@@ -20,8 +21,8 @@ function controller(): ModelsController {
 }
 
 // The sheet's own motion and back-guard need a browser; here it only has to render its content.
-vi.mock('@/design', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@/design')>(),
+vi.mock('@/design/BottomSheet', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/design/BottomSheet')>(),
   MBottomSheet: ({ children }: { children: ReactNode }) => <div data-sheet-stub="">{children}</div>,
 }));
 
@@ -111,9 +112,12 @@ describe('mobile models', () => {
     expect(view.root.findAll(node => node.props['data-model-sheet'] !== undefined)).toHaveLength(0);
     act(() => view.root.findAllByType('button').find(button => button.children.includes(en.stAddFavorite))!.props.onClick());
     expect(c.add).toHaveBeenCalledWith({ ...ref, model: 'pro' });
-    const select = view.root.findAllByType('select')[0];
+    expect(view.root.findAllByType('select')).toHaveLength(0);
+    const select = view.root.findByType(MSelect);
     expect(select.props.value).toBe(modelKey(ref));
-    act(() => select.props.onChange({ target: { value: modelKey(ref) } }));
+    act(() => select.findByType('button').props.onClick({ defaultPrevented: false }));
+    expect(view.root.findByProps({ 'data-m-select-option': '' }).props.disabled).toBe(true);
+    act(() => view.root.findByProps({ 'data-m-select-option': modelKey(ref) }).props.onClick());
     expect(c.setDefault).toHaveBeenCalledWith(modelKey(ref));
     view.unmount();
   });
@@ -133,7 +137,7 @@ describe('mobile models', () => {
     const c = { ...controller(), facts: [], catalogOpen: false };
     const view = create(<LangProvider><MModelsView controller={c} onBack={vi.fn()} /></LangProvider>);
     expect(JSON.stringify(view.toJSON())).toContain(en.stNoFavorites);
-    expect(view.root.findByType('select').props.value).toBe(modelKey(ref));
+    expect(view.root.findByType(MSelect).props.value).toBe(modelKey(ref));
     view.unmount();
   });
 });
