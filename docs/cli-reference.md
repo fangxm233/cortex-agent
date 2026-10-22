@@ -58,8 +58,8 @@ Model answers use this shape (the selected pair must be among detected models):
 
 ```json
 {
-  "defaultChoice": { "mode": "openai-codex", "model": "gpt-5.5" },
-  "favorites": [{ "mode": "openai-codex", "model": "gpt-5.5" }]
+  "defaultChoice": { "mode": "openai-codex", "model": "gpt-6.1-sol" },
+  "favorites": [{ "mode": "openai-codex", "model": "gpt-6.1-sol" }]
 }
 ```
 

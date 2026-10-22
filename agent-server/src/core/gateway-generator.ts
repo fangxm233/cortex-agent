@@ -86,15 +86,14 @@ export interface DiscoveredEndpoint {
  * forces gateway routing) or direct-call the upstream (if the spawn path leaves models.json
  * untouched for that provider). Full provider plumbing remains future work.
  */
-const PI_PROVIDER_UPSTREAM: Record<string, { url: string; auth_style: string }> = {
+export const PI_PROVIDER_UPSTREAM: Record<string, { url: string; auth_style: string }> = {
   // Anthropic-protocol providers (PI's `api: anthropic-messages`)
   anthropic: { url: 'https://api.anthropic.com', auth_style: 'bearer' },
   fireworks: { url: 'https://api.fireworks.ai/inference', auth_style: 'bearer' },
   'github-copilot': { url: 'https://api.individual.githubcopilot.com', auth_style: 'bearer' },
-  'kimi-coding': { url: 'https://api.kimi.com/coding', auth_style: 'bearer' },
   minimax: { url: 'https://api.minimax.io/anthropic', auth_style: 'bearer' },
   'minimax-cn': { url: 'https://api.minimaxi.com/anthropic', auth_style: 'bearer' },
-  opencode: { url: 'https://opencode.ai/zen', auth_style: 'bearer' },
+  opencode: { url: 'https://opencode.ai/inference', auth_style: 'bearer' },
   'vercel-ai-gateway': { url: 'https://ai-gateway.vercel.sh', auth_style: 'bearer' },
 
   // OpenAI-completions / OpenAI-responses providers
@@ -102,9 +101,10 @@ const PI_PROVIDER_UPSTREAM: Record<string, { url: string; auth_style: string }> 
   deepseek: { url: 'https://api.deepseek.com', auth_style: 'bearer' },
   groq: { url: 'https://api.groq.com/openai/v1', auth_style: 'bearer' },
   huggingface: { url: 'https://router.huggingface.co/v1', auth_style: 'bearer' },
+  'kimi-coding': { url: 'https://api.kimi.com/coding/v1', auth_style: 'bearer' },
   mistral: { url: 'https://api.mistral.ai', auth_style: 'bearer' },
   openai: { url: 'https://api.openai.com/v1', auth_style: 'bearer' },
-  'opencode-go': { url: 'https://opencode.ai/zen/go/v1', auth_style: 'bearer' },
+  'opencode-go': { url: 'https://opencode.ai/inference/go/v1', auth_style: 'bearer' },
   openrouter: { url: 'https://openrouter.ai/api/v1', auth_style: 'bearer' },
   xai: { url: 'https://api.x.ai/v1', auth_style: 'bearer' },
   zai: { url: 'https://api.z.ai/api/coding/paas/v4', auth_style: 'bearer' },
@@ -120,6 +120,44 @@ const PI_PROVIDER_UPSTREAM: Record<string, { url: string; auth_style: string }> 
   // env-driven URLs (region / account ID / resource name) — not safely templated here.
   // Users wanting these through the gateway must edit gateway.yaml manually.
 };
+
+/**
+ * Upstream URLs the table above held for a PI provider before PI moved it (PI 1.3.0). A stored
+ * route still on one of these is the route Cortex wrote, not a hand-pointed relay, so it follows
+ * the provider to its current upstream; mergeGatewayConfig never rewrites an existing route.
+ */
+const RETIRED_PI_UPSTREAMS: Record<string, readonly string[]> = {
+  'kimi-coding': ['https://api.kimi.com/coding'],
+  opencode: ['https://opencode.ai/zen'],
+  'opencode-go': ['https://opencode.ai/zen/go/v1'],
+};
+
+/** Point every stored route still on a retired PI upstream at the current one; returns how many moved. */
+export function refreshRetiredPiUpstreams(endpoints: EndpointMap): number {
+  let moved = 0;
+  for (const [provider, retired] of Object.entries(RETIRED_PI_UPSTREAMS)) {
+    for (const route of Object.values(endpoints[provider] ?? {})) {
+      if (!retired.includes(route.base_url as string)) continue;
+      route.base_url = PI_PROVIDER_UPSTREAM[provider].url;
+      moved += 1;
+    }
+  }
+  return moved;
+}
+
+/** Rewrite gateway.yaml (backing it up first) when a stored route is on a retired PI upstream. */
+export function migrateRetiredPiUpstreams(configPath = path.join(AISTATUS_DIR, 'gateway.yaml')): number {
+  const parsed = readGatewayYaml(configPath);
+  if (!parsed) return 0;
+  const moved = refreshRetiredPiUpstreams(parsed.endpoints);
+  if (moved === 0) return 0;
+  copyFileSync(configPath, `${configPath}.bak`);
+  atomicWriteSync(configPath, serializeGatewayYaml({
+    endpoints: parsed.endpoints, top: parsed.top, preservedCustom: [], droppedFromDiscovery: [],
+  }));
+  log.info(`Moved ${moved} gateway route(s) off retired PI upstream URLs in ${configPath}`);
+  return moved;
+}
 
 // ─── Scanning: PI via the bundled SDK model runtime ───────────────
 

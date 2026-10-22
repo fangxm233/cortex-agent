@@ -6,6 +6,7 @@ import { AISTATUS_DIR, DATA_DIR, DEFAULTS_DIR, PROJECTS_DIR } from '@core/paths.
 import { compareCalVer } from '@core/calver.js';
 import { atomicWrite } from '@core/atomic-write.js';
 import { RETIRED_MCP_TOOLS } from '@core/mcp-tool-gate.js';
+import { migrateRetiredPiUpstreams } from '@core/gateway-generator.js';
 import { createLogger } from '@core/log.js';
 import { validateHookEntry, type HookEntry, type HookRun } from './hook-registry.js';
 import { migrateProviderStateFromSchedules } from './provider-state-repo.js';
@@ -549,6 +550,13 @@ const stepMigrations: StepMigration[] = [
       const report = await retireProfiles({ dataDir, storeDir });
       if (report.skipped === 'immutable') return false;
     },
+  },
+  // S11: PI 1.3.0 moved Kimi Coding and OpenCode to new base URLs. Gateway routes Cortex wrote for
+  // the old ones follow; hand-pointed relays are left alone.
+  {
+    key: 'sentinel:pi-retired-upstreams',
+    version: '2026.10.22',
+    run: async () => { migrateRetiredPiUpstreams(path.join(AISTATUS_DIR, 'gateway.yaml')); },
   },
 ];
 
