@@ -72,5 +72,11 @@ export function useBackDismiss(onDismiss: () => void, resetKey?: unknown): void 
   ref.current = onDismiss;
   // A nested sheet level consumes the sentinel without unmounting the sheet. Re-arm when that level
   // changes so a second hardware-back press can dismiss the next level instead of navigating away.
-  useEffect(() => armBackGuard(windowBackGuardHost(), () => ref.current()), [resetKey]);
+  useEffect(() => {
+    let cancelled = false;
+    let teardown: (() => void) | undefined;
+    // StrictMode replays effects synchronously; don't push history for its discarded mount.
+    queueMicrotask(() => { if (!cancelled) teardown = armBackGuard(windowBackGuardHost(), () => ref.current()); });
+    return () => { cancelled = true; teardown?.(); };
+  }, [resetKey]);
 }

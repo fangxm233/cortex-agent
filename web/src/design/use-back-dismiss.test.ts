@@ -1,5 +1,7 @@
+import { createElement } from 'react';
+import { act, create } from 'react-test-renderer';
 import { describe, it, expect, vi } from 'vitest';
-import { armBackGuard, type BackGuardHost } from './use-back-dismiss';
+import { armBackGuard, useBackDismiss, type BackGuardHost } from './use-back-dismiss';
 
 // A fake history/event host so the guard contract is unit-testable without a DOM (this repo's test
 // env has no jsdom; the window/popstate wiring is proven in the live harness).
@@ -108,4 +110,26 @@ describe('nested back guards', () => {
     closeOuter();
     expect(calls.pop).toBe(0);
   });
+});
+
+
+function BackGuardProbe({ dismiss }: { dismiss: () => void }): null {
+  useBackDismiss(dismiss);
+  return null;
+}
+
+it('does not pop history during the development effect replay', async () => {
+  const history = { state: {}, pushState: vi.fn((state: object) => { history.state = state; }), back: vi.fn() };
+  vi.stubGlobal('window', Object.assign(new EventTarget(), { history }));
+  let replayed: ReturnType<typeof create> | undefined;
+  try {
+    act(() => { replayed = create(createElement(BackGuardProbe, { dismiss: vi.fn() })); });
+    act(() => replayed!.unmount());
+    await act(async () => { replayed = create(createElement(BackGuardProbe, { dismiss: vi.fn() })); });
+    expect(history.pushState).toHaveBeenCalledOnce();
+    expect(history.back).not.toHaveBeenCalled();
+  } finally {
+    act(() => replayed?.unmount());
+    vi.unstubAllGlobals();
+  }
 });
