@@ -1,9 +1,12 @@
 import { createRef } from 'react';
+import { Select } from '@/design';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { BrowserToolbar } from './BrowserToolbar';
 import { BrowserNotice, PortsPanel, type PortPickerState } from './BrowserPanels';
 import { createBrowserTab } from './browser-target';
+
+vi.mock('@/design/Select', () => ({ Select: (props: object) => <button {...props} /> }));
 
 function toolbar(portsOpen = false) {
   return create(<BrowserToolbar tab={createBrowserTab('preview')} url={null} inputRef={createRef()}
@@ -20,7 +23,10 @@ describe('browser presentation', () => {
   it('labels compact controls and exposes disabled navigation and expanded ports', () => {
     const renderer = toolbar(true);
     expect(renderer.root.findByType('input').props['aria-label']).toBe('Browser address');
-    expect(renderer.root.findByType('select').props['aria-label']).toBe('Viewport width');
+    const viewport = renderer.root.findByType(Select);
+    expect(viewport.props['aria-label']).toBe('Viewport width');
+    expect(viewport.props.density).toBe('bare');
+    expect(viewport.props.className).toBe('browser-control');
     for (const label of ['Back', 'Forward', 'Reload', 'Open in system browser']) {
       expect(renderer.root.findByProps({ 'aria-label': label }).props.disabled).toBe(true);
     }

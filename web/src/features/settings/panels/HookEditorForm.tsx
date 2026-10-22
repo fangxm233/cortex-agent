@@ -1,4 +1,4 @@
-import { Select } from '@/design';
+import { Combobox, Select } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import {
   RadioDot,
@@ -34,9 +34,6 @@ const FIELD_ERROR_LABEL: Record<HookFieldError, keyof Vocab> = {
   'timeout-invalid': 'hkErrTimeout',
   'result-illegal': 'hkErrResult',
 };
-
-const SCRIPT_LIST_ID = 'cortex-hook-scripts';
-const EVENT_LIST_ID = 'cortex-hook-events';
 
 // ── fields ───────────────────────────────────────────────────────────────────────────────────
 
@@ -184,16 +181,9 @@ function RunTargetField({ draft, scripts, onDraftChange }: {
   }
   return (
     <SFieldRow label={L.hkFieldScript}>
-      <input
-        data-hook-field="script"
-        list={SCRIPT_LIST_ID}
-        value={draft.script}
-        onChange={(e) => onDraftChange({ ...draft, script: e.target.value })}
-        style={S_CONTROL_STYLE}
-      />
-      <datalist id={SCRIPT_LIST_ID}>
-        {scripts.map((script) => <option key={script.name} value={script.name} />)}
-      </datalist>
+      <Combobox data-hook-field="script" aria-label={L.hkFieldScript} value={draft.script}
+        options={scripts.map(script => script.name)} popupClassName="settings-surface settings-select-popup"
+        onValueChange={script => onDraftChange({ ...draft, script })} style={S_CONTROL_STYLE} />
     </SFieldRow>
   );
 }
@@ -306,65 +296,43 @@ interface EditorSectionProps {
   err: (key: HookFieldError | undefined) => string | undefined;
 }
 
-export function HookEditor({
-  draft,
-  creating,
-  errors,
-  scripts,
-  eventOptions,
-  onDraftChange,
-}: {
-  draft: HookFormState;
+interface HookEditorProps extends Omit<EditorSectionProps, 'err'> {
   creating: boolean;
-  errors: ReturnType<typeof validateHookForm>;
   scripts: HookScriptInfo[];
   eventOptions: string[];
-  onDraftChange: (next: HookFormState) => void;
-}) {
+}
+
+function IdentityFields({ draft, creating, errors, eventOptions, onDraftChange, err }: HookEditorProps & Pick<EditorSectionProps, 'err'>) {
+  const L = useVocab();
+  // Keep the result legal for both typed custom events and picked suggestions.
+  const changeEvent = (event: string) =>
+    onDraftChange({ ...draft, event, result: reconcileResultForEvent(draft.result, event) });
+  return <>
+    {creating ? <SFieldRow label={L.hkFieldId} hint={err(errors.id)} hintTone="danger">
+      <input data-hook-field="id" value={draft.id} style={S_CONTROL_STYLE}
+        onChange={e => onDraftChange({ ...draft, id: e.target.value })} />
+    </SFieldRow> : null}
+    <SFieldRow label={L.hkFieldEvent} hint={err(errors.event)} hintTone="danger">
+      <Combobox data-hook-field="event" aria-label={L.hkFieldEvent} value={draft.event}
+        options={eventOptions} onValueChange={changeEvent} style={S_CONTROL_STYLE}
+        popupClassName="settings-surface settings-select-popup" />
+    </SFieldRow>
+  </>;
+}
+
+export function HookEditor(props: HookEditorProps) {
   const L = useVocab();
   const err = (key: HookFieldError | undefined) => (key ? L[FIELD_ERROR_LABEL[key]] : undefined);
-  const section = { draft, errors, onDraftChange, err };
-
-  return (
-    <>
-      <SSectionLabel>{L.hkSecTrigger}</SSectionLabel>
-      {creating ? (
-        <SFieldRow label={L.hkFieldId} hint={err(errors.id)} hintTone="danger">
-          <input
-            data-hook-field="id"
-            value={draft.id}
-            onChange={(e) => onDraftChange({ ...draft, id: e.target.value })}
-            style={S_CONTROL_STYLE}
-          />
-        </SFieldRow>
-      ) : null}
-      <SFieldRow label={L.hkFieldEvent} hint={err(errors.event)} hintTone="danger">
-        <input
-          data-hook-field="event"
-          list={EVENT_LIST_ID}
-          value={draft.event}
-          onChange={(e) => {
-            const event = e.target.value;
-            // The result select is constrained per event, so a stale illegal mode is dropped here
-            // rather than sent to the loader to be rejected.
-            onDraftChange({ ...draft, event, result: reconcileResultForEvent(draft.result, event) });
-          }}
-          style={S_CONTROL_STYLE}
-        />
-        <datalist id={EVENT_LIST_ID}>
-          {eventOptions.map((event) => <option key={event} value={event} />)}
-        </datalist>
-      </SFieldRow>
-      <TriggerFields {...section} />
-
-      <SSectionLabel>{L.hkSecAction}</SSectionLabel>
-      <ActionFields {...section} scripts={scripts} />
-
-      <SSectionLabel>{L.hkSecScope}</SSectionLabel>
-      <ScopeFields draft={draft} onDraftChange={onDraftChange} />
-
-      <SSectionLabel>{L.hkSecAdvanced}</SSectionLabel>
-      <ResultField {...section} />
-    </>
-  );
+  const section = { draft: props.draft, errors: props.errors, onDraftChange: props.onDraftChange, err };
+  return <>
+    <SSectionLabel>{L.hkSecTrigger}</SSectionLabel>
+    <IdentityFields {...props} err={err} />
+    <TriggerFields {...section} />
+    <SSectionLabel>{L.hkSecAction}</SSectionLabel>
+    <ActionFields {...section} scripts={props.scripts} />
+    <SSectionLabel>{L.hkSecScope}</SSectionLabel>
+    <ScopeFields draft={props.draft} onDraftChange={props.onDraftChange} />
+    <SSectionLabel>{L.hkSecAdvanced}</SSectionLabel>
+    <ResultField {...section} />
+  </>;
 }

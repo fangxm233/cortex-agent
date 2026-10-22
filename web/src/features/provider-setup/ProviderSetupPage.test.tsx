@@ -8,6 +8,7 @@ import { ProviderSetupController } from './provider-setup';
 vi.mock('@/i18n', async importOriginal => ({ ...await importOriginal<typeof import('@/i18n')>(), useVocab: () => en, useLang: () => 'en' }));
 vi.mock('@/features/auth/LoginFlowModal', () => ({ LoginFlowModal: (props: object) => <aside {...props} /> }));
 vi.mock('@/lib/trpc', () => ({ useTRPCClient: vi.fn() }));
+vi.mock('@/design/Select', () => ({ Select: (props: object) => <button {...props} /> }));
 const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => navigate }));
 vi.mock('./SetupHeader', () => ({ SetupHeader: () => null }));
@@ -108,7 +109,10 @@ it('writes the selected favorite as a complete default engine selection', async 
   const view = await renderPage();
   const picker = view.root.findByProps({ id: 'setup-model' });
   const key = JSON.stringify(['pi', 'openai', 'fixture-model']);
-  await act(async () => picker.props.onChange({ target: { value: key } }));
+  expect(picker.props.density).toBe('bare');
+  expect(picker.props.className).toBe('setup-input');
+  expect(view.root.findByProps({ htmlFor: 'setup-model' })).toBeDefined();
+  await act(async () => picker.props.onValueChange(key));
   expect(select).toHaveBeenCalledWith({ selection: {
     backend: 'pi', provider: 'openai', model: 'fixture-model', thinking: null, mode: 'openai',
   } });
