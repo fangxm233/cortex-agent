@@ -11,6 +11,7 @@ export { MC, MONO, M_FLOAT_BOTTOM, M_GUTTER, M_NUM, M_TAB_BODY_PADDING } from '@
 // the kit they compose everything else from.
 export { MBottomSheet } from '@/design';
 export { MComposer } from './composer';
+export { MSelect, type MSelectOption, type MSelectProps } from '@/design/MSelect';
 
 // ── Palette (scheme-mobile.dc.html system tokens, L57-73) ─────────────────────
 // Each value resolves to a CSS variable (defined in src/index.css `:root` / `[data-theme='dark']`)

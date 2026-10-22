@@ -1,7 +1,7 @@
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { MGroup } from '@/mobile/ui/kit';
-import { MSettingsField, MSettingsPage, MSettingsRow, MSettingsSection, MSettingsToggle } from './MSettingsControls';
+import { MGroup, MSelect } from '@/mobile/ui/kit';
+import { MSettingsField, MSettingsPage, MSettingsRow, MSettingsSection, MSettingsSelect, MSettingsToggle } from './MSettingsControls';
 
 describe('mobile Settings primitives', () => {
   it('keeps the header outside the single content scroller', () => {
@@ -39,6 +39,20 @@ describe('mobile Settings primitives', () => {
     expect(input.props.style.minHeight).toBe(44);
     expect(view.root.findByType('label').findByType('input')).toBe(input);
     expect(view.root.findByProps({ 'data-settings-field-error': true }).children).toEqual(['Required']);
+  });
+
+  it('preserves selector labels, hints, error feedback and the portaled settings scope', () => {
+    const props = { label: 'Model', value: 'one', options: [{ value: 'one', label: 'First' }], onValueChange: vi.fn() };
+    const view = create(<MSettingsSelect {...props} hint="Choose a model" />);
+    expect(JSON.stringify(view.toJSON())).toContain('Choose a model');
+    act(() => view.update(<MSettingsSelect {...props} hint="Choose a model" error="Required" data-field="model" />));
+    const select = view.root.findByType(MSelect);
+    expect(select.props.title).toBe('Model');
+    expect(select.props.sheetClassName).toBe('settings-surface mobile-settings mobile-settings-sheet');
+    expect(select.findByType('button').props).toMatchObject({ 'aria-invalid': true, 'data-field': 'model' });
+    expect(view.root.findByProps({ 'data-settings-field-error': true }).children).toEqual(['Required']);
+    expect(JSON.stringify(view.toJSON())).not.toContain('Choose a model');
+    view.unmount();
   });
 
   it('lays a section straight on the mesh: a sentence-case label over rows split by inset hairlines', () => {

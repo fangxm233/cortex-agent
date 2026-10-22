@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import { useVocab } from '@/i18n';
 import { modelKey } from '@/lib/model-selection';
-import { MBackChevron, MC } from '@/mobile/ui/kit';
+import { MBackChevron, MC, MSelect } from '@/mobile/ui/kit';
 import {
   DAY_OPTIONS,
   INTERVAL_UNITS,
@@ -111,10 +111,9 @@ function IntervalField({ copy, form, editableFields, onChange }: FieldsProps) {
         <input style={field} type="number" min={1} value={form.intervalValue}
           disabled={!editableFields.interval}
           onChange={(event) => onChange({ intervalValue: Number(event.target.value) })} />
-        <select style={field} value={form.intervalUnit} disabled={!editableFields.interval}
-          onChange={(event) => onChange({ intervalUnit: event.target.value as ScheduleForm['intervalUnit'] })}>
-          {INTERVAL_UNITS.map((unit) => <option key={unit} value={unit}>{scheduleOptionLabel(unit, copy)}</option>)}
-        </select>
+        <MSelect style={field} title={copy.scEvery} value={form.intervalUnit} disabled={!editableFields.interval}
+          onValueChange={value => onChange({ intervalUnit: value as ScheduleForm['intervalUnit'] })}
+          options={INTERVAL_UNITS.map(unit => ({ value: unit, label: scheduleOptionLabel(unit, copy) }))} />
       </div>
     </div>
   );
@@ -128,10 +127,9 @@ function DelayField({ copy, form, editableFields, onChange }: FieldsProps) {
       <div style={pair}>
         <input style={field} type="number" min={1} value={form.delayValue}
           onChange={(event) => onChange({ delayValue: Number(event.target.value) })} />
-        <select style={field} value={form.delayUnit}
-          onChange={(event) => onChange({ delayUnit: event.target.value as ScheduleForm['delayUnit'] })}>
-          {INTERVAL_UNITS.map((unit) => <option key={unit} value={unit}>{scheduleOptionLabel(unit, copy)}</option>)}
-        </select>
+        <MSelect style={field} title={copy.scIn} value={form.delayUnit}
+          onValueChange={value => onChange({ delayUnit: value as ScheduleForm['delayUnit'] })}
+          options={INTERVAL_UNITS.map(unit => ({ value: unit, label: scheduleOptionLabel(unit, copy) }))} />
       </div>
     </div>
   );
@@ -154,10 +152,9 @@ function DayField({ copy, form, editableFields, onChange }: FieldsProps) {
   return (
     <label>
       <span style={label}>{copy.scDay}</span>
-      <select style={field} value={form.dayOfWeek} disabled={!editableFields.dayOfWeek}
-        onChange={(event) => onChange({ dayOfWeek: Number(event.target.value) })}>
-        {DAY_OPTIONS.map((day) => <option key={day} value={day}>{labels[day]}</option>)}
-      </select>
+      <MSelect style={field} title={copy.scDay} value={String(form.dayOfWeek)} disabled={!editableFields.dayOfWeek}
+        onValueChange={value => onChange({ dayOfWeek: Number(value) })}
+        options={DAY_OPTIONS.map(day => ({ value: String(day), label: labels[day] }))} />
     </label>
   );
 }
@@ -166,14 +163,12 @@ function ModelField({ copy, form, editableFields, modelOptions, onChange }: Fiel
   return (
     <label>
       <span style={label}>{copy.scModel}</span>
-      <select style={field} data-schedule-select="model" aria-label={copy.scModel}
+      <MSelect style={field} title={copy.scModel} data-schedule-select="model" aria-label={copy.scModel}
         value={form.selection ? modelKey(form.selection) : ''} disabled={!editableFields.selection}
-        onChange={(event) => onChange(scheduleModelPatch(modelOptions, event.target.value))}>
-        <option value="" disabled>{copy.scChooseModel}</option>
-        {modelOptions.map((option) => <option key={option.value} value={option.value} disabled={!option.selection.mode}>
-          {option.favorite ? '★ ' : ''}{option.label}
-        </option>)}
-      </select>
+        onValueChange={value => onChange(scheduleModelPatch(modelOptions, value))}
+        options={[{ value: '', label: copy.scChooseModel, disabled: true }, ...modelOptions.map(option => ({
+          value: option.value, label: `${option.favorite ? '★ ' : ''}${option.label}`, disabled: !option.selection.mode,
+        }))]} />
     </label>
   );
 }
@@ -182,13 +177,10 @@ function ThinkingField({ copy, form, editableFields, thinkingOptions, onChange }
   return (
     <label>
       <span style={label}>{copy.scThinking}</span>
-      <select style={field} data-schedule-select="thinking" aria-label={copy.scThinking}
+      <MSelect style={field} title={copy.scThinking} data-schedule-select="thinking" aria-label={copy.scThinking}
         value={form.selection?.thinking ?? ''} disabled={!editableFields.selection || !form.selection}
-        onChange={(event) => onChange(scheduleThinkingPatch(form, event.target.value))}>
-        {thinkingOptions.map((value) => <option key={value} value={value}>
-          {value || copy.scThinkingDefault}
-        </option>)}
-      </select>
+        onValueChange={value => onChange(scheduleThinkingPatch(form, value))}
+        options={thinkingOptions.map(value => ({ value, label: value || copy.scThinkingDefault }))} />
     </label>
   );
 }

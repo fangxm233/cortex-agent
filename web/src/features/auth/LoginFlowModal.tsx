@@ -6,6 +6,7 @@ import { useClipboardFeedback } from '@/design/useClipboardFeedback';
 import { fmt, useVocab, type Vocab } from '@/i18n';
 import { openExternalUrl } from '@/lib/external-navigation';
 import { useMobileLayout } from '@/lib/use-mobile-layout';
+import { MSelect } from '@/design/MSelect';
 import { ProviderIcon } from './ProviderIcon';
 import {
   authTypeLabel,
@@ -201,12 +202,8 @@ function PromptSelect({ prompt, value, onChange }: {
       value={value} options={options} onValueChange={onChange} className={INPUT_CLASS}
       popupClassName="![font-family:inherit] !text-ui" />;
   }
-  return (
-    <select data-auth-select aria-labelledby="auth-login-prompt-label" value={value}
-      onChange={event => onChange(event.target.value)} className={INPUT_CLASS}>
-      {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-    </select>
-  );
+  return <MSelect data-auth-select aria-labelledby="auth-login-prompt-label" title={prompt.message}
+    value={value} options={options} onValueChange={onChange} placeholder={prompt.placeholder} />;
 }
 
 function PromptInput({ prompt, value, onChange, onSubmit }: {
