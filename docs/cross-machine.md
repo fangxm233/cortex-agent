@@ -169,12 +169,12 @@ host:
     "gpuCount": 2
   },
   "trainer": {
-    "cortexPath": "/home/user/Cortex",
+    "cortexPath": "/home/user",
     "gpuCount": 1,
     "ssh": "user@192.0.2.10"
   },
   "desk": {
-    "cortexPath": "D:\\Projects\\Cortex",
+    "cortexPath": "C:\\Users\\user",
     "gpuCount": 0,
     "ssh": "user@desk.example.com",
     "win": true
@@ -188,7 +188,9 @@ host:
 ```
 
 Each entry:
-- `cortexPath` (required) — the working directory path on that machine
+- `cortexPath` (required) — an existing directory on that machine, normally the
+  user's home directory. The Machines panel reports disk space for the
+  filesystem holding it, and relative `!sendfile` paths resolve against it
 - `gpuCount` (required) — number of GPUs (0 for non-GPU machines). Each client
   probes its own machine with `nvidia-smi` and reports the count when it connects;
   the server writes a differing value straight back into this file, so a stale
@@ -296,7 +298,7 @@ the server as follows:
 ```json
 {
   "worker": {
-    "cortexPath": "/srv/workspace",
+    "cortexPath": "/home/user",
     "gpuCount": 1,
     "ssh": "user@worker",
     "clientConnection": "ssh-reverse",

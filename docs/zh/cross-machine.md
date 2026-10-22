@@ -117,12 +117,12 @@ node --import tsx src/domain/remote/client-bootstrap.ts \
     "gpuCount": 2
   },
   "trainer": {
-    "cortexPath": "/home/user/Cortex",
+    "cortexPath": "/home/user",
     "gpuCount": 1,
     "ssh": "user@192.0.2.10"
   },
   "desk": {
-    "cortexPath": "D:\\Projects\\Cortex",
+    "cortexPath": "C:\\Users\\user",
     "gpuCount": 0,
     "ssh": "user@desk.example.com",
     "win": true
@@ -136,7 +136,7 @@ node --import tsx src/domain/remote/client-bootstrap.ts \
 ```
 
 每个条目：
-- `cortexPath`（必填）— 该机器上的工作目录路径
+- `cortexPath`（必填）— 该机器上一个已存在的目录，通常是用户主目录。机器面板显示该目录所在文件系统的磁盘空间，`!sendfile` 的相对路径也以它为起点
 - `gpuCount`（必填）— GPU 数量（无 GPU 的机器填 0）。每个客户端连接时会用 `nvidia-smi` 探测本机并上报数量；服务器发现数值不一致时会直接写回本文件，因此过期的数字会在下次连接时自动纠正。无法运行 `nvidia-smi` 的机器不上报，保留你在这里填写的值。
 - `ssh`（可选）— SSH 连接用的 `user@host`。省略时视为本地机器，不需要 SSH
 - `win`（可选）— Windows 目标设为 `true`（会改变 SSH 命令语法）
@@ -206,7 +206,7 @@ ingress:
 ```json
 {
   "worker": {
-    "cortexPath": "/srv/workspace",
+    "cortexPath": "/home/user",
     "gpuCount": 1,
     "ssh": "user@worker",
     "clientConnection": "ssh-reverse",

@@ -12,7 +12,7 @@ function shellQuote(value: string): string {
 
 /**
  * One command, one round trip. Every stage is individually failure-tolerant (`2>/dev/null`) so a
- * host without nvidia-smi, /proc or `free` still returns the sections it can fill — the parser maps
+ * host without nvidia-smi or /proc still returns the sections it can fill — the parser maps
  * the missing ones to null rather than to zero. `df -kP` forces POSIX single-line output.
  */
 export function buildProbeCommand(cortexPath: string | null): string {
@@ -25,7 +25,8 @@ export function buildProbeCommand(cortexPath: string | null): string {
     `echo '##SYS'`,
     'echo "cores=$(nproc 2>/dev/null)"',
     `echo "load1=$(cut -d' ' -f1 /proc/loadavg 2>/dev/null)"`,
-    `free -m 2>/dev/null | awk '/^Mem:/{printf "memTotalMb=%s\\nmemUsedMb=%s\\n", $2, $3}'`,
+    // Git Bash has no `free`, and its /proc/meminfo lacks MemAvailable; MemFree there is available memory.
+    `awk '/^MemTotal:/{t=$2} /^MemAvailable:/{a=$2} /^MemFree:/{f=$2} END{if(a=="")a=f; if(t>0&&a!="")printf "memTotalMb=%d\\nmemUsedMb=%d\\n", t/1024, (t-a)/1024}' /proc/meminfo 2>/dev/null`,
     `df -kP ${diskTarget} 2>/dev/null | awk 'NR==2{printf "diskTotalKb=%s\\ndiskFreeKb=%s\\n", $2, $4}'`,
     `echo "uptimeSec=$(cut -d' ' -f1 /proc/uptime 2>/dev/null)"`,
   ].join('\n');

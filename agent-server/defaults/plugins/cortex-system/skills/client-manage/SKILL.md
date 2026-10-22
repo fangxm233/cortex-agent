@@ -97,7 +97,7 @@ Test each candidate from the remote device. Use the first one that works.
 Read `machines.json` on the server for the current device list. Key fields per device:
 
 - `ssh` — How the server reaches this device (empty = local)
-- `cortexPath` — Path to user's workspace on the device
+- `cortexPath` — The user's home directory on the device (`/home/<user>`, `C:\Users\<user>` on Windows). It must exist: the Machines panel reports disk space for the filesystem holding it, and relative `!sendfile` paths resolve against it
 - `gpuCount` — Number of GPUs
 - `win` — `true` for Windows
 - `clientCommand` — (optional) command the server runs over SSH to launch the client; defaults to `node "$HOME/.cortex/client/current/client.mjs"` (`%USERPROFILE%` on Windows). Override on machines where `node` isn't on the **non-login** SSH PATH — e.g. nvm installs: set an absolute node path like `"/home/u/.nvm/versions/node/v20.19.5/bin/node /home/u/.cortex/client/current/client.mjs"`. See Troubleshooting.
@@ -106,7 +106,7 @@ Read `machines.json` on the server for the current device list. Key fields per d
 
 ### 1. Register in machines.json
 
-Edit `machines.json` on the server to add the device entry.
+Edit `machines.json` on the server to add the device entry. Set `cortexPath` to the user's home directory on the device and confirm it exists (`ssh user@host 'echo $HOME'`).
 
 ### 2. Deploy the client bundle
 
