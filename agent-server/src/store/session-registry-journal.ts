@@ -934,6 +934,8 @@ async function writeReplacementFile(tmp: string, events: SessionRegistryEvent[])
 }
 
 async function syncParentDir(filePath: string): Promise<void> {
+  // Windows rejects fsync on a directory handle with EPERM; NTFS journals the rename itself.
+  if (process.platform === 'win32') return;
   const handle = await fsp.open(path.dirname(filePath), 'r');
   try {
     await handle.sync();
