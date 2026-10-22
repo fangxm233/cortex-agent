@@ -109,7 +109,7 @@ function WorkerPill({ name, worker }: { name: string; worker: SessionInfo | null
   const open = worker && onOpenWorker ? () => onOpenWorker(worker.sessionId) : null;
   // A name in the line, not a capsule: the dot carries the worker's state, the name opens it.
   const style: CSSProperties = {
-    display: 'inline-flex', alignItems: 'center', gap: 6, flex: 'none', maxWidth: 220, padding: 0,
+    display: 'inline-flex', alignItems: 'center', gap: 6, flex: '0 1 auto', minWidth: 0, maxWidth: 220, padding: 0,
     border: 0, background: 'transparent', borderRadius: 4,
     fontSize: 'inherit', fontWeight: 550, color: 'var(--proto-ink-2)', lineHeight: 'inherit',
   };
@@ -173,7 +173,7 @@ function fullText(text: string, partial: boolean): string {
 }
 
 /** A spawn: who was started, with the first two lines of the brief. The model is a detail: on desktop
- *  it trails the name and is the first thing to give way (the name never does); on a phone there is
+ *  it trails the name and gives way before the name; on a phone there is
  *  no width for it beside the name and the open link, so it moves to the line's tooltip and the
  *  opened brief. */
 function SpawnCard({ action, touch }: { action: TeamActionView; touch: boolean }): JSX.Element {
@@ -209,15 +209,32 @@ function SpawnCard({ action, touch }: { action: TeamActionView; touch: boolean }
   );
 }
 
-/** send / answer / stop: one line, the message clipped; a tap shows it whole. */
-function ActionLine({ action, touch }: { action: TeamActionView; touch: boolean }): JSX.Element {
+function ActionLineContent({ action, open }: { action: TeamActionView; open: boolean }): JSX.Element {
   const L = useVocabOptional();
   const { workers } = useStream();
-  const [open, setOpen] = useState(false);
   const worker = findWorker(workers, action.worker);
   const message = action.op === 'stop' ? null : action.text;
-  const canOpen = action.op !== 'stop' && !!action.text;
   const time = messageTimeLabel(action.ts ?? undefined);
+  return (
+    <>
+      <ActionIcon action={action} />
+      <span style={VERB}>{actionVerb(action, L)}</span>
+      {action.worker && <WorkerPill name={action.worker} worker={worker} />}
+      {message && (
+        <span data-team-action-preview="" style={{ ...ELLIPSIS, flex: '0 1000 auto', color: 'var(--proto-muted)' }}>
+          {open ? null : message}
+        </span>
+      )}
+      <span style={{ flex: 1 }} />
+      {time && <span style={TIME}>{time}</span>}
+    </>
+  );
+}
+
+/** send / answer / stop: one line, the message clipped; a tap shows it whole. */
+function ActionLine({ action, touch }: { action: TeamActionView; touch: boolean }): JSX.Element {
+  const [open, setOpen] = useState(false);
+  const canOpen = action.op !== 'stop' && !!action.text;
   const line = (
     <div data-team-action={action.op} {...(canOpen ? toggleKeys(() => setOpen((v) => !v)) : {})}
       aria-expanded={canOpen ? open : undefined}
@@ -226,16 +243,7 @@ function ActionLine({ action, touch }: { action: TeamActionView; touch: boolean 
         minHeight: touch ? 40 : 30, fontSize: touch ? 13.5 : 13, color: 'var(--proto-muted)',
         cursor: canOpen ? 'pointer' : undefined,
       }}>
-      <ActionIcon action={action} />
-      <span style={VERB}>{actionVerb(action, L)}</span>
-      {action.worker && <WorkerPill name={action.worker} worker={worker} />}
-      {message && (
-        <span style={{ ...ELLIPSIS, color: 'var(--proto-muted)' }}>
-          {open ? null : message}
-        </span>
-      )}
-      <span style={{ flex: 1 }} />
-      {time && <span style={TIME}>{time}</span>}
+      <ActionLineContent action={action} open={open} />
     </div>
   );
   if (!open || !action.text) return line;

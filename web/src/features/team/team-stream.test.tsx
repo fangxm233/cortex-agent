@@ -179,6 +179,23 @@ describe('team rows', () => {
     act(() => touch.unmount());
   });
 
+  it.each([false, true])('lets action names shrink after their previews (touch: %s)', (touch) => {
+    const worker = 'orchard-analysis-worker-with-a-long-name';
+    const ops = ['spawn', 'send', 'answer', 'stop'] as const;
+    const actions = ops.map((op) => ({ op, worker, text: 'A long message preview. '.repeat(20), partial: false, model: null, requestId: null, ts: at(0) }));
+    const r = render(<>{actions.map((action) => <TeamActionRow key={action.op} action={action} touch={touch} />)}</>, [session(worker)]);
+    const names = r.root.findAll((n) => typeof n.type === 'string' && n.props['data-worker-pill'] === worker);
+    expect(names).toHaveLength(4);
+    for (const name of names) {
+      expect(name.props.style).toMatchObject({ flex: '0 1 auto', minWidth: 0, maxWidth: 220 });
+      expect(visible(name)).toBe(worker);
+    }
+    const previews = r.root.findAll((n) => typeof n.type === 'string' && n.props['data-team-action-preview'] !== undefined);
+    expect(previews).toHaveLength(2);
+    for (const preview of previews) expect(preview.props.style.flex).toBe('0 1000 auto');
+    act(() => r.unmount());
+  });
+
   it('the lead line names the worker it waits on, and stays away while the lead runs', () => {
     const workers = [session('atlas', { waitingOn: 1 }), session('docs')];
     const idle = render(<LeadWaitingLine />, workers);
