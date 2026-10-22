@@ -41,6 +41,9 @@ vi.mock('@/lib/trpc', () => ({
     config: {
       get: { queryFilter: (input: unknown) => ({ queryKey: ['config.get', input] }) },
     },
+    models: {
+      catalog: { queryFilter: (input: unknown) => ({ queryKey: ['models.catalog', input] }) },
+    },
   }),
 }));
 
@@ -105,6 +108,7 @@ describe('useAccountsController', () => {
     expect(mounted.invalidate.mock.calls.map(call => call[0])).toEqual([
       { queryKey: ['auth.status', {}] },
       { queryKey: ['config.get', {}] },
+      { queryKey: ['models.catalog', {}] },
     ]);
     await vi.waitFor(() => expect(adapter.toast).toHaveBeenCalledWith({ title: 'Logged out of OpenRouter', tone: 'done' }));
     mounted.renderer.unmount();

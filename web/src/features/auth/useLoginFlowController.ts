@@ -80,6 +80,7 @@ function useDoneInvalidation(state: LoginFlowState | null, onDone?: (state: Logi
     reported.current = state.flowId;
     void queryClient.invalidateQueries(trpc.auth.status.queryFilter({}));
     void queryClient.invalidateQueries(trpc.config.get.queryFilter({}));
+    void queryClient.invalidateQueries(trpc.models.catalog.queryFilter({}));
     doneRef.current?.(state);
   }, [state, queryClient, trpc]);
 }

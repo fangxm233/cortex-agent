@@ -3,6 +3,7 @@ import {
   anthropicModelDiscovery, anthropicModelIds, anthropicModelThinking,
   type DiscoveredAnthropicModel,
 } from '@core/anthropic-model-discovery.js';
+import { hasClaudeCredential } from '@core/claude-credentials.js';
 import { readGatewayYaml } from '@core/gateway-generator.js';
 import {
   defaultCustomProviderStores,
@@ -18,7 +19,8 @@ import type { ModelCatalogRoute, ModelCatalogSnapshot, UiServiceDeps, QueryParam
  * The catalog is a UNION, never an intersection: a model must stay selectable for an endpoint the
  * host cannot currently enumerate (PI reports only providers with usable auth, and a scan can fail
  * outright). Every source therefore only ADDS — an endpoint known solely from gateway.yaml still
- * appears, with an empty model list, and the editor falls back to free text for it.
+ * appears, with an empty model list, and the editor falls back to free text for it. The one gate is
+ * the Claude backend itself: a host holding no Claude credential gets no Claude route at all.
  *
  * Deliberately its own query rather than a field of the high-frequency `config.get`: reading PI's
  * models loads the bundled SDK (~100 MB, see core/pi-sdk.ts), a cost only a caller that actually
@@ -83,6 +85,9 @@ class RouteBuilder {
 }
 
 export interface ModelsCatalogReaders {
+  /** Whether this host holds any Claude credential. Defaults to the host's stores; injected in
+   *  tests so the catalog never depends on this machine's login. */
+  claudeAvailable?: () => boolean;
   /** The Anthropic models this account can reach, waiting out a cold fetch. Defaults to the host
    *  discovery singleton; injected in tests so the catalog never depends on a live credential. */
   claudeModels?: () => Promise<DiscoveredAnthropicModel[]>;
@@ -99,55 +104,63 @@ export async function handleModelsCatalog(
   _params: QueryParams<'models.catalog'>,
   readers: ModelsCatalogReaders = {},
 ): Promise<ModelCatalogSnapshot> {
-  const claudeModels = readers.claudeModels ?? (() => anthropicModelDiscovery.ensure());
-  const piModels = readers.piModels ?? (() => piProviderDiscovery.ensureModels());
-  const piPeek = readers.piPeek ?? (() => piProviderDiscovery.peekModels());
+  const gatewayModes = (readers.gatewayModes ?? readGatewayModes)();
+  const claudeAvailable = (readers.claudeAvailable ?? (() => hasClaudeCredential()))();
+  const builder = new RouteBuilder(gatewayModes);
+  if (claudeAvailable) await addClaudeRoute(builder, readers);
+  await addPiRoutes(builder, readers);
   const customProviders =
     readers.customProviders
     ?? (() => listCustomProviders(deps.customProviderStores ?? defaultCustomProviderStores()));
-  const gatewayModes = (readers.gatewayModes ?? readGatewayModes)();
-
-  const builder = new RouteBuilder(gatewayModes);
-  // Discovered ids UNIONED with the shipped table, never replacing it: a host with no credential
-  // or no network keeps the list it always had. `source` stays 'builtin' because the route's
-  // identity did not change — only how completely its models are known.
-  const claude = await claudeModels();
-  builder.add(
-    CLAUDE_ENDPOINT, 'claude', 'builtin',
-    anthropicModelIds(claude, ANTHROPIC_MODELS), anthropicModelThinking(claude),
-  );
-
-  // `ensureModels()` waits out a COLD scan (bounded) and serves a warm cache at once: a picker's
-  // whole purpose is the list, so an empty first answer would only become a spinner. A scan that
-  // is still failing is not retried here — it left a backoff, and `piPending` reports the gap.
-  const discovered = await piModels();
-  const byProvider = new Map<string, string[]>();
-  const thinkingByProvider = new Map<string, Record<string, string[]>>();
-  for (const pair of discovered) {
-    const models = byProvider.get(pair.provider) ?? [];
-    if (!models.includes(pair.model)) models.push(pair.model);
-    byProvider.set(pair.provider, models);
-    if (pair.thinkingLevels) {
-      const levels = thinkingByProvider.get(pair.provider) ?? {};
-      levels[pair.model] = pair.thinkingLevels;
-      thinkingByProvider.set(pair.provider, levels);
-    }
-  }
-  for (const [provider, models] of byProvider) {
-    builder.add(provider, 'pi', 'pi', models, thinkingByProvider.get(provider) ?? {});
-  }
-
   for (const provider of customProviders()) {
     builder.add(provider.name, 'pi', 'custom', provider.models.map((model) => model.id));
   }
-
   for (const endpoint of Object.keys(gatewayModes)) {
-    builder.add(endpoint, endpoint === CLAUDE_ENDPOINT ? 'claude' : 'pi', 'gateway', []);
+    if (endpoint !== CLAUDE_ENDPOINT) builder.add(endpoint, 'pi', 'gateway', []);
+    else if (claudeAvailable) builder.add(endpoint, 'claude', 'gateway', []);
   }
-
+  const piPeek = readers.piPeek ?? (() => piProviderDiscovery.peekModels());
   return {
     routes: builder.build(),
     piPending: piPeek().length === 0,
     thinkingLevels: { claude: [...THINKING_LEVELS_BY_BACKEND.claude], pi: [...THINKING_LEVELS_BY_BACKEND.pi] },
   };
+}
+
+/**
+ * Only a host holding a Claude credential gets the route, the way PI lists only providers with
+ * usable auth. Discovered ids are UNIONED with the shipped table, never replacing it: a logged-in
+ * host with no network keeps the list it always had. `source` stays 'builtin' because the route's
+ * identity did not change — only how completely its models are known.
+ */
+async function addClaudeRoute(builder: RouteBuilder, readers: ModelsCatalogReaders): Promise<void> {
+  const claudeModels = readers.claudeModels ?? (() => anthropicModelDiscovery.ensure());
+  const claude = await claudeModels();
+  builder.add(
+    CLAUDE_ENDPOINT, 'claude', 'builtin',
+    anthropicModelIds(claude, ANTHROPIC_MODELS), anthropicModelThinking(claude),
+  );
+}
+
+/**
+ * `ensureModels()` waits out a COLD scan (bounded) and serves a warm cache at once: a picker's
+ * whole purpose is the list, so an empty first answer would only become a spinner. A scan that is
+ * still failing is not retried here — it left a backoff, and `piPending` reports the gap.
+ */
+async function addPiRoutes(builder: RouteBuilder, readers: ModelsCatalogReaders): Promise<void> {
+  const piModels = readers.piModels ?? (() => piProviderDiscovery.ensureModels());
+  const byProvider = new Map<string, string[]>();
+  const thinkingByProvider = new Map<string, Record<string, string[]>>();
+  for (const pair of await piModels()) {
+    const models = byProvider.get(pair.provider) ?? [];
+    if (!models.includes(pair.model)) models.push(pair.model);
+    byProvider.set(pair.provider, models);
+    if (!pair.thinkingLevels) continue;
+    const levels = thinkingByProvider.get(pair.provider) ?? {};
+    levels[pair.model] = pair.thinkingLevels;
+    thinkingByProvider.set(pair.provider, levels);
+  }
+  for (const [provider, models] of byProvider) {
+    builder.add(provider, 'pi', 'pi', models, thinkingByProvider.get(provider) ?? {});
+  }
 }

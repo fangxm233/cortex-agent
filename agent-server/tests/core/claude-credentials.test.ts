@@ -7,9 +7,11 @@ import {
   claudeCredentialsPath,
   claudeKeychainService,
   claudeOwnsOAuthCredential,
+  hasClaudeCredential,
   resolveClaudeCredential,
 } from '../../src/core/claude-credentials.js';
 import { CLAUDE_CONFIG_HOME, CONFIG_DIR } from '../../src/core/paths.js';
+import { GATEWAY_MANAGED_KEY_PLACEHOLDER } from '../../src/core/utils.js';
 
 const CLAUDE_DIR = '/fixture/.claude';
 const CREDENTIALS = path.join(CLAUDE_DIR, '.credentials.json');
@@ -155,4 +157,33 @@ test('the credential store defaults to Cortex\'s own Claude config dir, never an
   const expected = path.join(CLAUDE_CONFIG_HOME, '.credentials.json');
   assert.equal(claudeCredentialsPath(), expected);
   assert.equal(claudeCredentialsPath({ env: { CLAUDE_CONFIG_DIR: '/elsewhere' } }), expected);
+});
+
+test('a host with no Claude store, key or token has no Claude credential', () => {
+  assert.equal(hasClaudeCredential({
+    env: { ANTHROPIC_API_KEY: GATEWAY_MANAGED_KEY_PLACEHOLDER },
+    claudeConfigDir: CLAUDE_DIR,
+    readFile: reader({}),
+    platform: 'linux',
+  }), false);
+});
+
+test('an expired login still counts as a Claude credential — Claude Code refreshes it', () => {
+  assert.equal(hasClaudeCredential({
+    env: {},
+    claudeConfigDir: CLAUDE_DIR,
+    readFile: reader({ [CREDENTIALS]: oauthFile({ expiresAt: 1_000, refreshToken: 'refresh' }) }),
+    now: () => 2_000_000,
+    platform: 'linux',
+  }), true);
+});
+
+test('a saved API key or an ambient auth token counts as a Claude credential', () => {
+  const base = { claudeConfigDir: CLAUDE_DIR, platform: 'linux' as const };
+  assert.equal(hasClaudeCredential({
+    ...base, env: {}, readFile: reader({ [DOTENV]: 'ANTHROPIC_API_KEY=sk-saved\n' }),
+  }), true);
+  assert.equal(hasClaudeCredential({
+    ...base, env: { ANTHROPIC_AUTH_TOKEN: 'proxy-token' }, readFile: reader({}),
+  }), true);
 });

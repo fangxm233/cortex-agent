@@ -29,6 +29,7 @@ export function useAccountsController(): AccountsController {
     onSuccess: () => {
       void queryClient.invalidateQueries(trpc.auth.status.queryFilter({}));
       void queryClient.invalidateQueries(trpc.config.get.queryFilter({}));
+      void queryClient.invalidateQueries(trpc.models.catalog.queryFilter({}));
     },
     onError: error => toast({ title: `${L.accountsLogoutFailed}: ${error.message}`, tone: 'failed' }),
   }));

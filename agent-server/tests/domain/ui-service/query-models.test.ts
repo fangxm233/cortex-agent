@@ -11,6 +11,7 @@ function readers(overrides: Partial<ModelsCatalogReaders> = {}): ModelsCatalogRe
   return {
     // Always injected: the default reader would ask the live Models API with this host's own
     // credential, which a unit test must never depend on.
+    claudeAvailable: () => true,
     claudeModels: async () => [],
     piModels: async () => [],
     piPeek: () => [{ provider: 'deepseek', model: 'deepseek-v4-flash' }],
@@ -35,6 +36,18 @@ test('anthropic falls back to the built-in model table when discovery answers no
   assert.deepEqual(anthropic.models, [...ANTHROPIC_MODELS]);
   // No gateway section read ⇒ the claude endpoint still offers its conventional route.
   assert.deepEqual(anthropic.modes, ['plan']);
+});
+
+test('a host with no Claude credential offers no Claude models and skips discovery', async () => {
+  let discovered = 0;
+  const snapshot = await handleModelsCatalog(DEPS, {}, readers({
+    claudeAvailable: () => false,
+    claudeModels: async () => { discovered += 1; return []; },
+    gatewayModes: () => ({ anthropic: ['plan', 'api'], deepseek: ['deepseek'] }),
+  }));
+  assert.equal(snapshot.routes.some((route) => route.backend === 'claude'), false);
+  assert.equal(discovered, 0);
+  assert.equal(routeOf(snapshot.routes, 'deepseek').backend, 'pi');
 });
 
 test('gateway.yaml owns the mode list of an endpoint it declares', async () => {

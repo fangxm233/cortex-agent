@@ -276,3 +276,14 @@ export function claudeOwnsOAuthCredential(deps: ClaudeCredentialDeps = {}): bool
   const probe = deps.probeKeychain ?? probeKeychainItem;
   return probe(claudeKeychainService(deps));
 }
+
+/**
+ * Can a Claude spawn on this host authenticate at all? Any store counts, unlike
+ * resolveClaudeCredential: an expired login still refreshes inside Claude Code, a macOS keychain
+ * login is never readable here, and ANTHROPIC_AUTH_TOKEN reaches a child only through the env.
+ */
+export function hasClaudeCredential(deps: ClaudeCredentialDeps = {}): boolean {
+  const env = deps.env ?? process.env;
+  if (credentialValue(env.ANTHROPIC_AUTH_TOKEN)) return true;
+  return resolveClaudeCredential(deps) !== null || claudeOwnsOAuthCredential(deps);
+}
