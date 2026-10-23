@@ -302,11 +302,6 @@ class Scheduler {
   // Internal: invoke the runner for a task
   async _runTask(task: ScheduleTask): Promise<void> {
     log.info(`Firing task ${task.id} (${task.type}, dispatch=${task.dispatchType || 'llm'}, model=${task.selection?.model || 'default'}, project=${task.projectId}): "${task.message}"`);
-    void emitCortexEvent('cortex:schedule.fired', {
-      scheduleId: task.id,
-      name: task.message,
-      project: task.projectId,
-    }).catch(() => {});
     try {
       await this._dispatchTask(task);
     } catch (e) {
@@ -316,6 +311,7 @@ class Scheduler {
 
   async _dispatchTask(task: ScheduleTask): Promise<void> {
     if (!task.dispatchType) {
+      emitScheduleFired(task);
       await this.runner({
         message: `[Scheduled Task] ${task.message}`,
         projectId: task.projectId,
@@ -329,8 +325,17 @@ class Scheduler {
       log.warn(`Skipping task ${task.id}: unregistered dispatch type "${task.dispatchType}"`);
       return;
     }
+    emitScheduleFired(task);
     await handler({ channel: task.projectId, scheduleTaskId: task.id });
   }
+}
+
+function emitScheduleFired(task: ScheduleTask): void {
+  void emitCortexEvent('cortex:schedule.fired', {
+    scheduleId: task.id,
+    name: task.id,
+    project: task.projectId,
+  }).catch(() => {});
 }
 
 export { Scheduler };

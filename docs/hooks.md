@@ -175,10 +175,10 @@ These fire inside the agent-server process itself, dispatched by the HookBus.
 | `cortex:session.new` | A session is closing via `!new` or the "New" status button | `channel`, `sessionId`, `backendSessionId`, `executionId`, `backend`, `model`, `trigger` (`new`), `timestampIso` |
 | `cortex:session.messageEnd` | An assistant turn completes | same shape, with `trigger` set to `messageEnd` |
 
-In `cortex:schedule.fired`, `name` carries the schedule's message and
-`project` its `projectId`. The event fires once the schedule's `preCheck` has
-passed, before Cortex checks whether the run can start, so it also fires for a
-run that is then skipped.
+In `cortex:schedule.fired`, `name` carries the schedule's id and `project` its
+`projectId`. The event fires once the schedule's `preCheck` has passed and its
+run is about to be dispatched; a programmatic schedule whose job type is no
+longer registered is skipped without firing it.
 
 ### Matchers
 

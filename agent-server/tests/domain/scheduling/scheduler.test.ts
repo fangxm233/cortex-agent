@@ -182,6 +182,28 @@ test('scheduler skips an unregistered dispatch type instead of falling through t
   });
 
   assert.equal(calls.length, 0);
+  assert.equal(hookBus.emitCortexEvent.mock.calls.length, 0);
+}));
+
+test('scheduler emits cortex:schedule.fired for a registered dispatch type', withTempSchedules(async ({ scheduler }) => {
+  const handled = [];
+  scheduler.programmaticHandlers['digest-job'] = async (payload) => { handled.push(payload); };
+
+  await scheduler._runTask({
+    id: 'digest-1',
+    type: 'interval',
+    intervalMs: 60_000,
+    message: 'nightly digest',
+    dispatchType: 'digest-job',
+    projectId: 'general',
+    createdAt: 1,
+  });
+
+  assert.equal(handled.length, 1);
+  assert.deepEqual(hookBus.emitCortexEvent.mock.calls, [[
+    'cortex:schedule.fired',
+    { scheduleId: 'digest-1', name: 'digest-1', project: 'general' },
+  ]]);
 }));
 
 test('schedule updates reject built-in job dispatch types', withTempSchedules(async ({ scheduler }) => {
@@ -208,7 +230,7 @@ test('scheduler run emits cortex:schedule.fired with matcher payload keys', with
 
   assert.deepEqual(hookBus.emitCortexEvent.mock.calls, [[
     'cortex:schedule.fired',
-    { scheduleId: 'schedule-1', name: 'refresh project index', project: 'atlas' },
+    { scheduleId: 'schedule-1', name: 'schedule-1', project: 'atlas' },
   ]]);
   assert.equal(calls.length, 1);
 }));

@@ -569,7 +569,7 @@ const SAMPLE_PAYLOADS: Readonly<Record<string, unknown>> = {
   'agent:turn-end': { hook_event_name: 'Stop', session_id: 'sess_example', cwd: '/tmp' },
   'cortex:server.start': { version: '0.0.0', pid: 0 },
   'cortex:server.shutdown': { version: '0.0.0', pid: 0, reason: 'SIGTERM' },
-  'cortex:schedule.fired': { scheduleId: 'sch_example', name: 'example', project: 'my-project' },
+  'cortex:schedule.fired': { scheduleId: 'sch_example', name: 'sch_example', project: 'my-project' },
   'cortex:client.connected': { device: 'workstation' },
   'cortex:client.disconnected': { device: 'workstation', reason: 'socket closed' },
   'cortex:session.new': { ...SAMPLE_SESSION_ENVELOPE, trigger: 'new' },

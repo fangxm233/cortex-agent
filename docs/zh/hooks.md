@@ -109,7 +109,7 @@ Claude 编译器只为前三个事件生成设置；后四个只到达 PI。要�
 | `cortex:session.new` | 会话因 `!new` 或 "New" 状态按钮而关闭 | `channel`、`sessionId`、`backendSessionId`、`executionId`、`backend`、`model`、`trigger`（`new`）、`timestampIso` |
 | `cortex:session.messageEnd` | 一次助手回合完成 | 形状相同，`trigger` 为 `messageEnd` |
 
-在 `cortex:schedule.fired` 中，`name` 承载定时任务的消息，`project` 承载它的 `projectId`。该事件在定时任务的 `preCheck` 通过后触发，早于 Cortex 检查这次运行能否启动，因此即使这次运行随后被跳过，事件也照样触发。
+在 `cortex:schedule.fired` 中，`name` 承载定时任务的 id，`project` 承载它的 `projectId`。该事件在定时任务的 `preCheck` 通过、这次运行即将派发时触发；任务类型已不再注册的程序化定时任务会被跳过，不触发该事件。
 
 ### Matcher {#matchers}
 
