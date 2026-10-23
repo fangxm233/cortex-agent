@@ -105,6 +105,8 @@ test.each([
   'getaddrinfo EAI_AGAIN api.deepseek.com', 'network request timed out', 'Connection error.',
   'Codex error: An error occurred while processing your request. You can retry your request. Request ID: req_123',
   'You have hit your ChatGPT usage limit (prolite plan). Try again in ~7737 min.',
+  "ENOSPC: no space left on device, write", 'EMFILE: too many open files, open', 'spawn ENFILE',
+  'read EAGAIN',
 ])('classifies transient provider failure: %s', message => {
   expect(isRetryableError(new Error(message))).toBe(true);
 });
@@ -116,7 +118,7 @@ test.each([
   'forbidden', 'model not found', 'request body too large', 'context window exceeded',
   'insufficient_balance', 'billing unavailable', 'quota exhausted', 'HTTP 400 invalid request',
   'HTTP 403 forbidden', 'HTTP 404 model not found', 'insufficient balance: billing quota exhausted',
-  'processed 500 input tokens successfully',
+  'processed 500 input tokens successfully', 'EAGAINST policy', 'XENOSPC',
 ])('classifies permanent failure: %s', message => {
   expect(isRetryableError(new Error(message))).toBe(false);
 });
