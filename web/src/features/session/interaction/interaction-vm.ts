@@ -73,6 +73,16 @@ export interface AskCardModel {
   timeLabel: string | null;
 }
 
+/** A model option that only means "free text" — the card already renders its own Other… chip. */
+const BARE_OTHER_RE = /^(?:other|其他|其它)\s*(?:\.{3}|…)?$/i;
+type AskPayloadQuestion = NonNullable<TranscriptInteractionDetail['payload']['questions']>[number];
+
+function askOptions(q: AskPayloadQuestion): AskOptionVM[] {
+  return (q.options ?? [])
+    .filter((o) => !BARE_OTHER_RE.test(o.label.trim()))
+    .map((o) => ({ label: o.label, description: o.description ?? null }));
+}
+
 export function askCardModel(detail: TranscriptInteractionDetail, ts?: string | null): AskCardModel | null {
   const questions = detail.payload.questions ?? [];
   if (!questions.length) return null;
@@ -85,7 +95,7 @@ export function askCardModel(detail: TranscriptInteractionDetail, ts?: string | 
     level: payload.level ?? null,
     questions: questions.map((q) => ({
       question: q.question,
-      options: (q.options ?? []).map((o) => ({ label: o.label, description: o.description ?? null })),
+      options: askOptions(q),
       multiSelect: !!q.multiSelect,
       answer: answers[q.question] ?? null,
     })),

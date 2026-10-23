@@ -65,6 +65,14 @@ describe('askCardModel', () => {
     const m = askCardModel(askDetail('answered', { answers: { 'A or B?': 'A', 'checks?': 'x, y', 'free?': 'none' } }));
     expect(m!.questions.map((q) => q.answer)).toEqual(['A', 'x, y', 'none']);
   });
+  it('drops a model-supplied "Other" option since the card has its own free-text chip', () => {
+    const labels = ['A', 'Other', ' other... ', 'OTHER…', '其他', '其他…', 'Other team'];
+    const m = askCardModel({
+      id: 'req-other', kind: 'ask-user', status: 'pending',
+      payload: { questions: [{ question: 'Which?', header: 'Q', options: labels.map((label) => ({ label })), multiSelect: false }] },
+    });
+    expect(m!.questions[0].options.map((o) => o.label)).toEqual(['A', 'Other team']);
+  });
   it('returns null when the payload has no questions', () => {
     expect(askCardModel({ id: 'x', kind: 'ask-user', status: 'pending', payload: {} })).toBeNull();
   });
