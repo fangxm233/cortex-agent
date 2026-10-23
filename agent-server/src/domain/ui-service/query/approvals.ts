@@ -19,10 +19,11 @@ const FIELD_KEYS: Record<
   Reason: 'reason',
   Impact: 'impact',
   'Command/Action': 'command',
-  // Owning project (need-approval skill template). Legacy/system-level entries omit it → null.
+  // Owning project, an optional bullet on hand-written entries. The approval-gate builder omits it
+  // (system-level operations), so those entries parse to null.
   Project: 'projectId',
-  // The only real origin/task carrier — an OPTIONAL freeform bullet a subset of entries add. Not
-  // emitted by either writer (need-approval skill / approval-gate builder); honest null when absent.
+  // The only real origin/task carrier — an OPTIONAL freeform bullet some hand-written entries add.
+  // The approval-gate builder never emits it; honest null when absent.
   Provenance: 'provenance',
 };
 

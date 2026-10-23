@@ -99,8 +99,9 @@ export async function handleRejectApproval(
 }
 
 /**
- * Build the markdown block for a queued high-privilege operation, matching the `need-approval`
- * skill's format exactly (so `parseApprovals` reads it back and the Approval Center renders it).
+ * Build the markdown block for a queued high-privilege operation in the PENDING_APPROVALS.md entry
+ * format (`## <date> <title>` plus `- **Field**:` bullets), so `parseApprovals` reads it back and
+ * the Approval Center renders it.
  * SECURITY: every prose field is SERVER-constructed from the closed `kind` enum — the browser never
  * supplies markdown. The only free-text input, `machineName`, is sanitized (newlines stripped,
  * length-capped) so it cannot inject a new `##` heading or bullet. Returns the heading line (for a

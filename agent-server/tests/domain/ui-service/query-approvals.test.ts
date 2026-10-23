@@ -97,7 +97,7 @@ test('parseApprovals assigns stable, distinct ids', () => {
 });
 
 // ── (4b) provenance + taskRef (§12 C item 13): real-when-present, honest null else ──
-// The canonical writer (need-approval skill) and the approval-gate builder BOTH emit only
+// The approval-gate builder emits only
 // Operation/Reason/Impact/Command/Status — NO origin/task/ttl structured field. The only real
 // carrier of "who raised this" + a task ref is the OPTIONAL freeform `Provenance` bullet some
 // entries add. We parse it verbatim (provenance) + extract a 4-hex task ref (taskRef, reusing the
@@ -140,7 +140,7 @@ test('parseApprovals captures a verbatim Provenance bullet + parses its task ref
 });
 
 // ── (4c) project attribution: `- **Project**:` bullet → projectId, honest null else ──
-// Entries raised inside a project carry a `Project` bullet (need-approval skill template); legacy
+// Hand-written entries raised inside a project may carry a `Project` bullet; legacy
 // and system-level entries have none → projectId null, rendered as "global" by the UI.
 const PROJECT_SAMPLE = `# Pending Approvals
 

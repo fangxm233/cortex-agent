@@ -1314,7 +1314,7 @@ export interface ApprovalInfo {
   id: string;
   title: string;
   /**
-   * Owning project from the `- **Project**:` bullet (need-approval skill template). `null` (honest
+   * Owning project from the optional `- **Project**:` bullet on hand-written entries. `null` (honest
    * placeholder, never fabricated) for legacy entries and system-level operations — the UI renders
    * those as "global".
    */

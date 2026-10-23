@@ -17,8 +17,8 @@ import { useApprovalQueue } from './useApprovalQueue';
 // the target entry's Status line in PENDING_APPROVALS.md and the list re-invalidates → live refresh.
 //
 // DATA GAPS rendered structurally + flagged (workbench precedent). §12 C item 13 verified the real
-// source of the origin/task/ttl slots against BOTH writers (need-approval skill + approval-gate
-// builder) and the live queue:
+// source of the origin/task/ttl slots against the approval-gate builder, hand-written entries
+// and the live queue:
 //   • origin / from (left card + meta) — REAL when present via the optional `provenance` bullet
 //     (verbatim), honest-omit when absent. Not fabricated.
 //   • task (meta row)                  — REAL when present: `taskRef` (4-hex, parseTaskRef) parsed
