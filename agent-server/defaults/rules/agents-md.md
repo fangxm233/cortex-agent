@@ -9,7 +9,7 @@ Directory index + entry map. Loaded into the context of every agent that works i
 
 ## Hard Constraints
 
-- **Hard cap: 120 lines AND 8KB** (enforced by guard hook). The hook path truncates at 9,500 characters, so content past that line is never injected at all — pure waste.
+- **Hard cap: at most 120 lines and at most 8KB** (enforced by guard hook, which rejects a write that exceeds either limit). The hook path truncates at 9,500 characters, so content past that line is never injected at all — pure waste.
 - **Each index line <=200 characters**: one sentence of purpose + pointer.
 - **One line per atomic directory**: experiments/, knowledge/, patterns/, decisions/ each take a single line in the index, pointing at their auto-generated index.md (or the directory itself). **Never enumerate per-entry summaries** — summaries already live in the atomic files' frontmatter and index.md; copies in the index are pure redundancy.
 

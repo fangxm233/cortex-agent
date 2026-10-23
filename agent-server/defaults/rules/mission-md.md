@@ -11,7 +11,7 @@ The project's "constitution": defines goals and success conditions. It is the ba
 
 - **Stable file**: Can only be modified after user confirmation. Cortex must not rewrite or expand scope on its own.
 - **Modification trigger condition**: User explicitly directs a re-orientation, pivot, or scope change. Do not touch in any other case.
-- **Limit: 100 lines AND 8KB**. Too long means content that belongs in roadmap/STATUS or a project-pitch document has been mixed in; trimming also requires user confirmation.
+- **Limit: at most 100 lines and at most 8KB**. Exceeding either means content that belongs in roadmap/STATUS or a project-pitch document has been mixed in; trimming also requires user confirmation.
 
 ## Required Sections
 

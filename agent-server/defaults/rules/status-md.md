@@ -17,7 +17,7 @@ It answers exactly four questions: where are we, what is in flight, what is in t
 ## Hard Constraints
 
 - **Update mode: overwrite-rewrite the snapshot**. Every "add a line" must be paired with a check for which existing lines it makes stale — delete those.
-- **Length limit: 80 lines AND 6KB, both hard**. Scan before writing: at >=60 lines or >=4KB, warn and trim proactively; over the limit, trim below it before the write is allowed.
+- **Length limit: at most 80 lines and at most 6KB, both hard**: exceeding either one blocks the write. Scan before writing: at >=60 lines or >=4KB, warn and trim proactively; over either limit, trim below both before the write is allowed.
 - **Each bullet <= 2 lines**. If it doesn't fit, the detail belongs elsewhere — keep one sentence + a pointer.
 - **Facts with a durable home appear only as pointers**: EXP-NNN / K-NNN / DR-NNNN / commit SHA / file path. The only content unique to STATUS is the one-sentence synthesis of the current situation.
 

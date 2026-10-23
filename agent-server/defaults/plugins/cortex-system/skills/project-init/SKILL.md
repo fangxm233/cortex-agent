@@ -51,7 +51,7 @@ This is the entry point for future sessions. Must include:
 
 | File | Type | Purpose |
 |------|------|---------|
-| STATUS.md | Overwrite | Present-tense state register (hard cap 80 lines AND 6KB) |
+| STATUS.md | Overwrite | Present-tense state register (hard caps <=80 lines and <=6KB; exceeding either is rejected) |
 | experiments/ | Atomic file | One EXP-NNN.md per experiment (YAML frontmatter + body), index.md auto-generated |
 | knowledge/ | Atomic file | One K-NNN.md per knowledge entry, index.md auto-generated |
 | patterns/ | Atomic file | Cross-experiment patterns, index.md auto-generated |
@@ -80,7 +80,7 @@ This is the entry point for future sessions. Must include:
 
 ### STATUS.md (required) — Current state snapshot
 
-Format is governed by `rules/status-md.md` (overwrite-style state register, hard cap 80 lines AND 6KB, each bullet <=2 lines, facts with a durable home appear as pointers only):
+Format is governed by `rules/status-md.md` (overwrite-style state register, hard caps <=80 lines and <=6KB with either one rejecting the write, each bullet <=2 lines, facts with a durable home appear as pointers only):
 
 ```markdown
 # [Project Name] Status

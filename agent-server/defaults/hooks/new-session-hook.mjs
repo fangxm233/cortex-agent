@@ -40,7 +40,7 @@ Examples of what to record:
 - A new project dependency or constraint was discovered → update STATUS.md
 
 File update rules you MUST respect:
-- **STATUS.md** — state register (hard cap 80 lines AND 6KB): replace stale lines with the latest state, never append; one line + pointer per change, details live in EXP/K entries; adding a line requires checking which old lines expired
+- **STATUS.md** — state register (hard caps <=80 lines and <=6KB; exceeding either is rejected): replace stale lines with the latest state, never append; one line + pointer per change, details live in EXP/K entries; adding a line requires checking which old lines expired
 - **ISSUES.md** — append mode: add new entries at the end, keep history
 - **knowledge/K-NNN.md** — atomic: one file per knowledge entry, with YAML frontmatter
 - **knowledge/index.md, experiments/index.md, patterns/index.md** — AUTO-GENERATED, do NOT edit manually

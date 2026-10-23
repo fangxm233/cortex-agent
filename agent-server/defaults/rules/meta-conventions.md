@@ -31,9 +31,9 @@ PostToolUse hook automatically records Read/Grep access to atomic files (EXP/K/P
 
 | File | Dedicated rule | Update mode |
 |------|----------------|-------------|
-| `STATUS.md` | status-md.md | Overwrite snapshot (state register), hard limit 80 lines AND 6KB, each bullet <=2 lines |
-| `ISSUES.md` | issues-md.md | Append, resolved entries deleted directly, hard limit 80 lines AND 6KB, each entry <=4 lines |
-| `AGENTS.md` (directory index) | agents-md.md | Pointer-style index, hard limit 120 lines AND 8KB, one line per atomic directory |
+| `STATUS.md` | status-md.md | Overwrite snapshot (state register), hard limits <=80 lines and <=6KB (exceeding either is rejected), each bullet <=2 lines |
+| `ISSUES.md` | issues-md.md | Append, resolved entries deleted directly, hard limits <=80 lines and <=6KB (exceeding either is rejected), each entry <=4 lines |
+| `AGENTS.md` (directory index) | agents-md.md | Pointer-style index, hard limits <=120 lines and <=8KB (exceeding either is rejected), one line per atomic directory |
 | `mission.md` | mission-md.md | Modify after user confirmation |
 | `roadmap.md` | roadmap-md.md | Stable, milestones must contain testable checklist |
 | `OVERVIEW.md` | overview-md.md | Synchronous update, hard limit 60 lines |

@@ -24,7 +24,7 @@ const LIMIT_RULES = [
     maxBytes: 6 * 1024,
     warnLines: 60,
     warnBytes: 4 * 1024,
-    capLabel: '80 lines AND 6KB',
+    capLabel: '<=80 lines and <=6KB',
     trimAdvice: [
       'STATUS is a state register, not a changelog. Trim before writing:',
       '- delete entries that no longer affect decisions (their content already lives in git / EXP records),',
@@ -40,7 +40,7 @@ const LIMIT_RULES = [
     maxBytes: 6 * 1024,
     warnLines: 60,
     warnBytes: 4 * 1024,
-    capLabel: '80 lines AND 6KB',
+    capLabel: '<=80 lines and <=6KB',
     trimAdvice: [
       'ISSUES.md is a friction log with <=4-line entries. Trim before writing:',
       '- delete resolved entries outright (no changelog),',
@@ -56,7 +56,7 @@ const LIMIT_RULES = [
     maxBytes: 8 * 1024,
     warnLines: 90,
     warnBytes: 6656,
-    capLabel: '120 lines AND 8KB',
+    capLabel: '<=120 lines and <=8KB',
     trimAdvice: [
       'AGENTS.md is a directory index loaded into every agent that works here: it answers "what is here, where to look", not the content itself. Trim before writing:',
       '- collapse atomic directories (experiments/ knowledge/ patterns/ decisions/) to one line each pointing at their index.md,',
@@ -89,7 +89,7 @@ function proposedContent(toolName, toolInput, currentContent) {
 
 function denyReason(rule, lineCount, byteCount) {
   return [
-    `${rule.name} write rejected: the result would be ${lineCount} lines / ${byteCount} bytes — the hard cap is ${rule.capLabel} (${rule.ruleFile}).`,
+    `${rule.name} write rejected: the result would be ${lineCount} lines / ${byteCount} bytes — the hard cap is ${rule.capLabel}, and exceeding either limit is rejected (${rule.ruleFile}).`,
     '',
     ...rule.trimAdvice,
     '',
@@ -150,9 +150,9 @@ function main() {
         hookSpecificOutput: {
           hookEventName: 'PreToolUse',
           permissionDecision: 'allow',
-          permissionDecisionReason: `Still over the ${rule.name} cap (${lineCount} lines / ${byteCount} bytes > ${rule.capLabel}) but shrinking — keep trimming to within the limit.`,
+          permissionDecisionReason: `Still over the ${rule.name} cap (${lineCount} lines / ${byteCount} bytes; cap ${rule.capLabel}) but shrinking — keep trimming until both limits are met.`,
         },
-        systemMessage: `${rule.name} is still over the ${rule.capLabel} cap (${lineCount} lines / ${byteCount} bytes). This write shrinks it and is allowed — keep trimming.`,
+        systemMessage: `${rule.name} is still over its cap of ${rule.capLabel} (${lineCount} lines / ${byteCount} bytes). This write shrinks it and is allowed — keep trimming.`,
       }));
       return;
     }

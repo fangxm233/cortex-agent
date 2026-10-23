@@ -9,7 +9,7 @@ Records execution friction affecting work efficiency: misleading requirements, c
 
 ## Hard Constraints
 
-- **Length limit: 80 lines AND 6KB** (enforced by guard hook; the dual limit prevents gaming the line cap with mega-lines). Exceeding means unresolved issues are accumulating, triggering cleanup.
+- **Length limit: at most 80 lines and at most 6KB** (enforced by guard hook, which rejects a write that exceeds either limit; the byte limit keeps mega-lines from gaming the line cap). Exceeding means unresolved issues are accumulating, triggering cleanup.
 - **Each entry <=4 lines**. Investigation detail not fitting is a signal to pointer-ize, not to lengthen the line.
 - **Append mode**: New issues are appended to the end.
 - **Resolved entries are deleted directly**: No archiving, no history retained. Delete the corresponding entry from the file immediately after fixing.

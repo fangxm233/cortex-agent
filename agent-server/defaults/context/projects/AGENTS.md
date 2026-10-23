@@ -12,7 +12,7 @@ One subdirectory per active project.
 
 | File | Type | Purpose |
 |------|------|---------|
-| `STATUS.md` | Overwrite | Present-tense state register: overwritten when the project situation changes (hard cap 80 lines AND 6KB; see rules/status-md.md) |
+| `STATUS.md` | Overwrite | Present-tense state register: overwritten when the project situation changes (hard caps <=80 lines and <=6KB, exceeding either is rejected; see rules/status-md.md) |
 | `ISSUES.md` | Append | Record issues affecting work efficiency |
 | `experiments/` | Atomic file | One `.md` file per experiment (YAML frontmatter + body), `index.md` auto-generated |
 | `knowledge/` | Atomic file | One `.md` file per knowledge entry, `index.md` auto-generated |
