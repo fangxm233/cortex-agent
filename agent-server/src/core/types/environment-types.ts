@@ -13,8 +13,7 @@ export type AgentSettingSource = 'user' | 'project' | 'local';
 
 /** The environment fields an agent definition owns. Every default equals the behaviour an agent that
  *  declares none of them already had, so adding the block to a definition changes nothing by itself.
- *  Mixed into {@link AgentDefinition} and {@link ResolvedEnvironment}; `delegable` sits on the
- *  definition alone because it describes what the agent is rather than how one use of it runs. */
+ *  Mixed into {@link AgentDefinition} and {@link ResolvedEnvironment}. */
 export interface AgentEnvironment {
   loadRules?: boolean;               // default true: prepend the ambient global rules
   disableHooks?: boolean;            // default false: same fact as the template-level field, ANDed with it
@@ -28,7 +27,6 @@ export interface AgentEnvironment {
 export interface AgentDefinition extends AgentEnvironment {
   name: string;                      // agent ID (key in agents map)
   description?: string;              // human-readable description
-  persistSession?: boolean;          // accepted for older files; conversations always keep their session
   directive?: string;                 // agent role/identity definition, prepended to the prompt
   systemPrompt?: string;             // full system prompt override (--system-prompt flag, replaces default)
   promptTemplate?: string;           // template with an {{input}} var
@@ -39,9 +37,6 @@ export interface AgentDefinition extends AgentEnvironment {
   disabledPlugins?: string[];        // built-in plugin ids this agent leaves out; every other built-in loads
   mcpComposition?: McpComposition;   // explicit MCP privilege surface for this agent
   mcpToolAllowlist?: string[];        // optional per-tool MCP allowlist; absent preserves full surface
-  /** Whether this template may be named as a subagent delegation target. Declared now so a
-   *  definition can carry the intent; nothing reads it yet. */
-  delegable?: boolean;
 }
 
 // --- What a run opens with ---

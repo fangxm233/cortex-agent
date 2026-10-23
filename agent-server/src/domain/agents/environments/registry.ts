@@ -6,7 +6,7 @@ import type { AgentDefinition } from '@core/types/environment-types.js';
 import { ENVIRONMENTS_DIR } from './paths.js';
 import { environmentPluginDirs } from '@domain/plugins/builtin.js';
 import { fsRefResolver, resolveFileRef } from './file-refs.js';
-import { validateEnvironment } from './schema.js';
+import { RETIRED_ENVIRONMENT_KEYS, validateEnvironment } from './schema.js';
 
 const log = createLogger('environments');
 
@@ -42,7 +42,7 @@ function readDefinitions(dir: string): Record<string, AgentDefinition> {
       log.warn(`Skipping environment ${file}: name field "${(def as any)?.name}" ≠ filename`);
       continue;
     }
-    delete (def as AgentDefinition & { profile?: unknown }).profile;
+    for (const key of ['profile', ...RETIRED_ENVIRONMENT_KEYS]) delete (def as unknown as Record<string, unknown>)[key];
     out[name] = def;
   }
   return out;

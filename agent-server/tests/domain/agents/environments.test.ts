@@ -52,6 +52,17 @@ describe('environment registry', () => {
     expect(validateEnvironment('main', env('main', { profile: 42 })).errors).toEqual([]);
   });
 
+  test('retired persistSession and delegable load silently and are dropped', () => {
+    const legacy = env('main', { persistSession: true, delegable: false, tools: 'Read' });
+    seed('main', legacy);
+    loadEnvironments();
+    expect(getEnvironment('main')).toMatchObject({ name: 'main', tools: 'Read' });
+    expect(getEnvironment('main')).not.toHaveProperty('persistSession');
+    expect(getEnvironment('main')).not.toHaveProperty('delegable');
+    expect(environmentSchema.parse(legacy)).toEqual({ name: 'main', tools: 'Read' });
+    expect(validateEnvironment('main', legacy)).toEqual({ errors: [], warnings: [] });
+  });
+
   test('resolves file prompt refs and plugin dirs on read, leaving the stored definition raw', () => {
     mkdirSync(path.join(PROMPTS_DIR, 'systemPrompts'), { recursive: true });
     writeFileSync(path.join(PROMPTS_DIR, 'systemPrompts', 'env-test.md'), 'You are a test.');

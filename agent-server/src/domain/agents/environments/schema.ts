@@ -28,7 +28,6 @@ export const environmentFieldsShape = {
 export const environmentSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
-  persistSession: z.boolean().optional(),
   directive: z.string().optional(),
   systemPrompt: z.string().optional(),
   promptTemplate: z.string().optional(),
@@ -39,12 +38,15 @@ export const environmentSchema = z.object({
   disabledPlugins: z.array(z.string()).optional(),
   mcpComposition: z.enum(['direct', 'none']).optional(),
   mcpToolAllowlist: z.array(z.string()).optional(),
-  delegable: z.boolean().optional(),
   ...environmentFieldsShape,
 });
 
+/** Fields older files may still carry. They no longer do anything: accepted without a warning and
+ *  dropped on load. */
+export const RETIRED_ENVIRONMENT_KEYS = ['persistSession', 'delegable'] as const;
+
 // Keys the schema knows about. Anything else is a warning, never an error.
-const ENVIRONMENT_KEYS = new Set(Object.keys(environmentSchema.shape));
+const ENVIRONMENT_KEYS = new Set([...Object.keys(environmentSchema.shape), ...RETIRED_ENVIRONMENT_KEYS]);
 
 function formatPath(segments: ReadonlyArray<PropertyKey>): string {
   let out = '';
