@@ -6,11 +6,11 @@ import { createSubscription } from '../../../src/domain/ui-service/subscribe.js'
 test('subscribe receives published events matching filter', async () => {
   const bus = new EventBus();
   const sub = createSubscription(bus, {
-    events: ['board.updated', 'scheduler.tick'],
+    events: ['board.updated', 'rate-limit.changed'],
   });
 
   bus.publish({ type: 'board.updated', boardId: 'b1', projectId: 'p1' });
-  bus.publish({ type: 'scheduler.tick', jobKey: 'memory-index-regen' });
+  bus.publish({ type: 'rate-limit.changed' });
 
   const iter = sub[Symbol.asyncIterator]();
   const event1 = await iter.next();
@@ -20,7 +20,7 @@ test('subscribe receives published events matching filter', async () => {
 
   const event2 = await iter.next();
   assert.equal(event2.done, false);
-  assert.equal(event2.value.type, 'scheduler.tick');
+  assert.equal(event2.value.type, 'rate-limit.changed');
 
   sub.close();
 });
@@ -52,16 +52,16 @@ test('subscribe close() unsubscribes all bus handlers', async () => {
   let called = false;
 
   // Subscribe normally to verify handler is registered
-  const sub1 = bus.subscribe('scheduler.tick', () => { called = true; });
+  const sub1 = bus.subscribe('rate-limit.changed', () => { called = true; });
   const sub = createSubscription(bus, {
-    events: ['scheduler.tick'],
+    events: ['rate-limit.changed'],
   });
 
   // Close the UI subscription
   sub.close();
 
   // Publish event — the original handler (sub1) still fires, but the UI subscription handler doesn't
-  bus.publish({ type: 'scheduler.tick', jobKey: 'memory-index-regen' });
+  bus.publish({ type: 'rate-limit.changed' });
 
   // The external handler should still work
   assert.equal(called, true);
@@ -146,7 +146,7 @@ test('a delta flood from another session cannot evict a subscriber own events', 
 test('subscribe close() unblocks pending iterator next()', async () => {
   const bus = new EventBus();
   const sub = createSubscription(bus, {
-    events: ['scheduler.tick'],
+    events: ['rate-limit.changed'],
   });
 
   const iter = sub[Symbol.asyncIterator]();

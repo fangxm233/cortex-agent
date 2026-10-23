@@ -90,9 +90,10 @@ function TabContent({
       // Send query for initial data
       sendFrameRef.current({ type: 'ui.query', id: queryId, scope: tab === 'cost' ? 'cost.summary' : `${tab}.list`, params: projectId ? { projectId } : {} });
 
-      // Subscribe to events
-      sendFrameRef.current({ type: 'ui.subscribe', id: queryId, filter: { events: scope.events, projectId } });
-      onRegisterSubscriptionRef.current(queryId, tab);
+      if (scope.events.length > 0) {
+        sendFrameRef.current({ type: 'ui.subscribe', id: queryId, filter: { events: scope.events, projectId } });
+        onRegisterSubscriptionRef.current(queryId, tab);
+      }
     }
 
     // Cleanup on unmount

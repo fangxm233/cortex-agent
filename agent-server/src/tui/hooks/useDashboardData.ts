@@ -28,7 +28,7 @@ export const EMPTY_DASH_STATE: DashState = {
 };
 
 export const TAB_SCOPES: Record<TabName, { queryId: string; events: string[] }> = {
-  schedules: { queryId: 'dash-schedules', events: ['scheduler.tick'] },
+  schedules: { queryId: 'dash-schedules', events: [] },
   executions: { queryId: 'dash-executions', events: ['agent.started', 'agent.completed', 'agent.failed', 'agent.superseded'] },
   cost: { queryId: 'dash-cost', events: ['agent.completed'] },
 };

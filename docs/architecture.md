@@ -106,7 +106,7 @@ A synchronous, type-safe event bus with JSONL logging.
 - **Agent lifecycle**: `agent.started`, `agent.completed`, `agent.failed`, `agent.superseded`
 - **Auth**: `auth.required`, `auth.recovered`
 - **Board**: `board.updated`, `board.style-updated`
-- **System**: `system.notice`, `config.changed`, `llm.active-count-delta`, `rate-limit.changed`, `ui.mutate-invoked`, and `scheduler.tick` (declared for the TUI dashboard; no server component publishes it)
+- **System**: `system.notice`, `config.changed`, `llm.active-count-delta`, `rate-limit.changed`, and `ui.mutate-invoked`
 
 ### Layer 3: `domain/` — Business Logic
 

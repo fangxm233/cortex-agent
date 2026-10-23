@@ -84,16 +84,16 @@ test('_handleQueryResult with unknown id is no-op', () => {
 test('_handleEvent refreshes tab on matching event', () => {
   // Simulate a tab having an active subscription
   const activeSubs = new Map<string, TabName>();
-  activeSubs.set('dash-schedules', 'schedules');
+  activeSubs.set('dash-executions', 'executions');
 
   const state = _handleEvent(
     EMPTY_DASH_STATE,
     activeSubs,
-    makeUiEvent('dash-schedules', 'scheduler.tick'),
+    makeUiEvent('dash-executions', 'agent.completed'),
   );
 
   // The tab should be marked as needing refresh (loading = true or stale flag)
   // For now, events just set loading = true (trigger re-fetch on next render)
-  assert.equal(state.tabs.schedules.loading, true);
-  assert.equal(state.tabs.schedules.error, null);
+  assert.equal(state.tabs.executions.loading, true);
+  assert.equal(state.tabs.executions.error, null);
 });

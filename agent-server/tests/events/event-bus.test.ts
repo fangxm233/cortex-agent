@@ -33,11 +33,11 @@ test('fan-out order — handlers called in subscription-registration order', () 
   const bus = new EventBus();
   const order: string[] = [];
 
-  bus.subscribe('scheduler.tick', () => { order.push('h1'); });
-  bus.subscribe('scheduler.tick', () => { order.push('h2'); });
+  bus.subscribe('rate-limit.changed', () => { order.push('h1'); });
+  bus.subscribe('rate-limit.changed', () => { order.push('h2'); });
   bus.subscribe('*', () => { order.push('h3'); });
 
-  bus.publish({ type: 'scheduler.tick', jobKey: 'test' });
+  bus.publish({ type: 'rate-limit.changed' });
 
   assert.deepEqual(order, ['h1', 'h2', 'h3'],
     'handlers must fire in the order they were subscribed');
@@ -52,10 +52,10 @@ test('handler error — does not block subsequent handlers and emits event-bus.h
   bus.subscribe('event-bus.handler-failed', (e) => { metaEvents.push(e); });
 
   let h2Called = false;
-  bus.subscribe('scheduler.tick', () => { throw new Error('boom'); });
-  bus.subscribe('scheduler.tick', () => { h2Called = true; });
+  bus.subscribe('rate-limit.changed', () => { throw new Error('boom'); });
+  bus.subscribe('rate-limit.changed', () => { h2Called = true; });
 
-  bus.publish({ type: 'scheduler.tick', jobKey: 'test' });
+  bus.publish({ type: 'rate-limit.changed' });
 
   assert.ok(h2Called, 'handler after the failing one must still be called');
   assert.equal(metaEvents.length, 1, 'exactly one event-bus.handler-failed meta event');
@@ -78,10 +78,10 @@ test('logger backpressure — drops oldest event and emits event-logger.dropped 
   createEventLogger(bus, { bufferSize: 3, logDir });
 
   // Publish 4 events to a buffer of size 3: the 4th triggers a drop of the 1st
-  bus.publish({ type: 'scheduler.tick', jobKey: 'k1' });
-  bus.publish({ type: 'scheduler.tick', jobKey: 'k2' });
-  bus.publish({ type: 'scheduler.tick', jobKey: 'k3' });
-  bus.publish({ type: 'scheduler.tick', jobKey: 'k4' });
+  bus.publish({ type: 'system.notice', level: 'info', text: 'k1' });
+  bus.publish({ type: 'system.notice', level: 'info', text: 'k2' });
+  bus.publish({ type: 'system.notice', level: 'info', text: 'k3' });
+  bus.publish({ type: 'system.notice', level: 'info', text: 'k4' });
 
   await bus.close();
 
@@ -93,10 +93,10 @@ test('logger backpressure — drops oldest event and emits event-logger.dropped 
 
   const content = await fs.readFile(path.join(logDir, files[0]), 'utf8');
   const lines = content.trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
-  const jobKeys = lines.map((e: any) => e.payload?.jobKey).filter(Boolean);
+  const texts = lines.map((e: any) => e.payload?.text).filter(Boolean);
 
-  assert.ok(!jobKeys.includes('k1'), 'k1 (oldest) must have been dropped from the log');
-  assert.ok(jobKeys.includes('k4'), 'k4 (newest) must be present in the log');
+  assert.ok(!texts.includes('k1'), 'k1 (oldest) must have been dropped from the log');
+  assert.ok(texts.includes('k4'), 'k4 (newest) must be present in the log');
 });
 
 // ── (c2) transient events are not logged ─────────────────────────────────
@@ -133,7 +133,7 @@ test('SIGTERM flush — bus.close() drains buffered events to disk', async () =>
   // Publish 5 events (well below buffer threshold; flush timer is unref'd so
   // it may not fire in test — bus.close() must flush them explicitly)
   for (let i = 0; i < 5; i++) {
-    bus.publish({ type: 'scheduler.tick', jobKey: `job-${i}` });
+    bus.publish({ type: 'system.notice', level: 'info', text: `job-${i}` });
   }
 
   await bus.close();
@@ -153,9 +153,9 @@ test('event logger stops and resumes appending and flushing after a runtime sett
   const bus = new EventBus();
   createEventLogger(bus, { logDir });
 
-  bus.publish({ type: 'scheduler.tick', jobKey: 'before-disable' });
+  bus.publish({ type: 'system.notice', level: 'info', text: 'before-disable' });
   liveSettings.eventLog = false;
-  bus.publish({ type: 'scheduler.tick', jobKey: 'while-disabled' });
+  bus.publish({ type: 'system.notice', level: 'info', text: 'while-disabled' });
 
   await new Promise((resolve) => setTimeout(resolve, 150));
   let files: string[] = [];
@@ -163,11 +163,11 @@ test('event logger stops and resumes appending and flushing after a runtime sett
   assert.equal(files.length, 0, 'the periodic flush must honor the disabled setting');
 
   liveSettings.eventLog = true;
-  bus.publish({ type: 'scheduler.tick', jobKey: 'after-enable' });
+  bus.publish({ type: 'system.notice', level: 'info', text: 'after-enable' });
   await bus.close();
 
   files = await fs.readdir(logDir);
   const content = await fs.readFile(path.join(logDir, files[0]), 'utf8');
-  const jobKeys = content.trim().split('\n').map((line) => JSON.parse(line).payload?.jobKey);
-  assert.deepEqual(jobKeys, ['before-disable', 'after-enable']);
+  const texts = content.trim().split('\n').map((line) => JSON.parse(line).payload?.text);
+  assert.deepEqual(texts, ['before-disable', 'after-enable']);
 });

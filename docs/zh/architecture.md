@@ -106,7 +106,7 @@ L5  entry/         → everything (composition root)
 - **Agent lifecycle**：`agent.started`、`agent.completed`、`agent.failed`、`agent.superseded`
 - **Auth**：`auth.required`、`auth.recovered`
 - **Board**：`board.updated`、`board.style-updated`
-- **System**：`system.notice`、`config.changed`、`llm.active-count-delta`、`rate-limit.changed`、`ui.mutate-invoked`，以及 `scheduler.tick`（为 TUI 仪表盘声明；没有服务器组件发布它）
+- **System**：`system.notice`、`config.changed`、`llm.active-count-delta`、`rate-limit.changed` 和 `ui.mutate-invoked`
 
 ### 第 3 层：`domain/` — 业务逻辑 {#layer-3-domain-business-logic}
 
