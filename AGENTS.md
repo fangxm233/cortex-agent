@@ -24,10 +24,10 @@ The server follows a six-layer structure (`agent-server/src/`):
 | Layer | Directory | Purpose |
 |-------|-----------|---------|
 | L0 | `core/` | Shared kernel: types, path constants, settings, async-mutex, run/session state, CLI utils. No runtime imports of other layers; type-only imports are allowed |
-| L1 | `store/` | Persistence: 13 JSON-based repositories with atomic writes |
+| L1 | `store/` | Persistence: JSON and JSONL repositories with atomic writes, plus startup data migrations |
 | L2 | `events/` | Event bus: typed EventBus, daily-rolling JSONL logger |
 | L3 | `domain/` | Business logic: agents, sessions, runs, executions, costs, scheduling, waitpoints, memory, remote clients, MCP |
-| L4 | `orchestration/` | Message routing, the `Turn` (one owner per conversation turn) + background holds, the `session-gateway` entry, 15 !commands, interactions |
+| L4 | `orchestration/` | Message routing, the `Turn` (one owner per conversation turn) + background holds, the `session-gateway` entry, the `!command` router (`routing/commands/`), interactions |
 | L5 | `entry/` | Entry points: app.ts (composition root), daemon.ts (process supervisor), CLI |
 
 The server supports two LLM backends via `agent-adapter/`: Claude Code and PI. Platform adapters in `platform/` support Slack and Feishu/Lark.
