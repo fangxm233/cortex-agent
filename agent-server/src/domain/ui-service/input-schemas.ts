@@ -490,7 +490,7 @@ const hookDraftShape = {
   timeoutSec: z.number().finite().positive().optional(),
   backends: z.array(z.enum(['claude', 'pi'])).optional(),
   requiresTool: z.string().min(1).optional(),
-  result: z.enum(['hook-result', 'stdout-as-prompt', 'none']).optional(),
+  result: z.enum(['stdout-as-prompt', 'none']).optional(),
   enabled: z.boolean().optional(),
 };
 

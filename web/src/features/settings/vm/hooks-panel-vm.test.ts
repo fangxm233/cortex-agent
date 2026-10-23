@@ -167,7 +167,6 @@ describe('hooks-panel-vm / result legality', () => {
   it('resets an illegal result when the event changes, and keeps a legal one', () => {
     expect(reconcileResultForEvent('stdout-as-prompt', 'agent:pre-tool')).toBe('none');
     expect(reconcileResultForEvent('stdout-as-prompt', 'cortex:session.messageEnd')).toBe('stdout-as-prompt');
-    expect(reconcileResultForEvent('hook-result', 'cortex:session.messageEnd')).toBe('none');
     expect(reconcileResultForEvent('none', 'cortex:session.messageEnd')).toBe('none');
   });
 });

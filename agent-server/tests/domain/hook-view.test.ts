@@ -52,9 +52,9 @@ test('scope.backends that excludes the only implicit backend leaves no target', 
 
 // ── result capability ─────────────────────────────────────────────
 
-test('thread lifecycle events allow hook-result', () => {
+test('thread lifecycle events allow no result mode', () => {
   for (const event of ['cortex:thread.start', 'cortex:thread.transition', 'cortex:thread.end']) {
-    assert.deepEqual(legalResultModes(event as HookEntry['event']), ['none', 'hook-result'], event);
+    assert.deepEqual(legalResultModes(event as HookEntry['event']), ['none'], event);
   }
 });
 

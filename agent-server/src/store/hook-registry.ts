@@ -20,7 +20,7 @@ export type HookRun = (
   | { command: string; script?: never }
 ) & { timeout?: number };
 export type HookFilterValue = string | number | boolean | null;
-export type HookResultMode = 'hook-result' | 'stdout-as-prompt' | 'none';
+export type HookResultMode = 'stdout-as-prompt' | 'none';
 
 export interface HookEntry {
   id: string;
@@ -110,17 +110,18 @@ const AGENT_EVENTS = new Set([
   'agent:turn-end',
 ]);
 const CALVER_RE = /^\d{4}\.\d{1,2}\.\d{1,2}(?:-\d+)?$/;
-const RESULT_MODES = new Set<HookResultMode>(['hook-result', 'stdout-as-prompt', 'none']);
+const RESULT_MODES = new Set<HookResultMode>(['stdout-as-prompt', 'none']);
+const RETIRED_RESULT_MODE = 'hook-result';
 export const RESULT_CAPABILITY_BY_EVENT: ReadonlyMap<
   HookEvent,
   Exclude<HookResultMode, 'none'>
 > = new Map([
-  ['cortex:thread.start', 'hook-result'],
-  ['cortex:thread.transition', 'hook-result'],
-  ['cortex:thread.end', 'hook-result'],
   ['cortex:session.new', 'stdout-as-prompt'],
   ['cortex:session.messageEnd', 'stdout-as-prompt'],
 ]);
+
+/** A configuration that was once valid but no longer does anything: skipped with a warning. */
+class RetiredHookConfigError extends Error {}
 
 function asObject(value: unknown, field: string): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -225,8 +226,11 @@ function validateBlocking(value: unknown): void {
 
 function validateResult(value: unknown, event: HookEvent): void {
   if (value === undefined) return;
+  if (value === RETIRED_RESULT_MODE) {
+    throw new RetiredHookConfigError(`result mode "${RETIRED_RESULT_MODE}" is retired; remove the hook or its result field`);
+  }
   if (typeof value !== 'string' || !RESULT_MODES.has(value as HookResultMode)) {
-    throw new Error('result must be hook-result, stdout-as-prompt, or none');
+    throw new Error('result must be stdout-as-prompt or none');
   }
   if (value !== 'none' && RESULT_CAPABILITY_BY_EVENT.get(event) !== value) {
     throw new Error(`result mode "${value}" is not permitted for event "${event}"`);
@@ -257,7 +261,8 @@ export function validateHookEntry(value: unknown): HookEntry {
 
 function reportInvalid(source: string, error: unknown): void {
   const message = error instanceof Error ? error.message : String(error);
-  console.error(`[hook-registry] skipped ${source}: ${message}`);
+  const report = error instanceof RetiredHookConfigError ? console.warn : console.error;
+  report(`[hook-registry] skipped ${source}: ${message}`);
 }
 
 function registryFiles(directory: string | null): Set<string> {

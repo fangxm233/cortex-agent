@@ -177,15 +177,13 @@ test('uses a caller timeout default only for registry hooks that omit one', asyn
   );
 });
 
-test('interprets hook-result, stdout-as-prompt, none, and omitted result modes', async () => {
+test('interprets stdout-as-prompt, none, and omitted result modes', async () => {
   initHookBus({ entries: [
-    entry('json', { result: 'hook-result' }),
     entry('prompt', { result: 'stdout-as-prompt' }),
     entry('none', { result: 'none' }),
     entry('omitted'),
   ] });
   runner.runHookProcess
-    .mockResolvedValueOnce({ stdout: ' {"insertAgent":true} ', stderr: '' })
     .mockResolvedValueOnce({ stdout: '  follow up  ', stderr: '' })
     .mockResolvedValueOnce({ stdout: 'ignored', stderr: '' })
     .mockResolvedValueOnce({ stdout: 'also ignored', stderr: '' });
@@ -193,7 +191,6 @@ test('interprets hook-result, stdout-as-prompt, none, and omitted result modes',
   const results = await emitCortexEvent('cortex:thread.end', {});
 
   assert.deepEqual(results, [
-    { id: 'json', result: { insertAgent: true } },
     { id: 'prompt', result: 'follow up' },
     { id: 'none' },
     { id: 'omitted' },
@@ -221,12 +218,12 @@ test('returns successful hook stderr so callers can preserve diagnostics', async
 test('reports and logs each failure without rejecting or skipping later hooks', async (t) => {
   initHookBus({ entries: [
     entry('process-failure', { result: 'stdout-as-prompt' }),
-    entry('bad-json', { result: 'hook-result' }),
+    entry('spawn-failure', { result: 'stdout-as-prompt' }),
     entry('success', { result: 'stdout-as-prompt' }),
   ] });
   runner.runHookProcess
     .mockResolvedValueOnce({ stdout: '', stderr: 'bad', error: 'exited with code 7' })
-    .mockResolvedValueOnce({ stdout: 'not json', stderr: '' })
+    .mockRejectedValueOnce(new Error('spawn ENOENT'))
     .mockResolvedValueOnce({ stdout: 'done', stderr: '' });
   const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
   t.onTestFinished(() => errorLog.mockRestore());
@@ -234,8 +231,7 @@ test('reports and logs each failure without rejecting or skipping later hooks', 
   const results = await emitCortexEvent('cortex:thread.end', {});
 
   assert.deepEqual(results[0], { id: 'process-failure', error: 'exited with code 7' });
-  assert.equal(results[1]?.id, 'bad-json');
-  assert.match(results[1]?.error ?? '', /JSON|Unexpected token/);
+  assert.deepEqual(results[1], { id: 'spawn-failure', error: 'spawn ENOENT' });
   assert.deepEqual(results[2], { id: 'success', result: 'done' });
   assert.equal(runner.runHookProcess.mock.calls.length, 3);
   assert.equal(errorLog.mock.calls.length, 2);

@@ -151,12 +151,9 @@ test('skips invalid entries with loud errors and continues loading', (t) => {
 });
 
 const RESULT_CAPABILITY_CASES: Array<[string, HookEntry['event'], HookEntry['result']]> = [
-  ['thread start HookResult', 'cortex:thread.start', 'hook-result'],
-  ['thread transition HookResult', 'cortex:thread.transition', 'hook-result'],
-  ['thread end HookResult', 'cortex:thread.end', 'hook-result'],
   ['new-session prompt', 'cortex:session.new', 'stdout-as-prompt'],
   ['message-end prompt', 'cortex:session.messageEnd', 'stdout-as-prompt'],
-  ['explicit fire-and-forget on a result-capable event', 'cortex:thread.end', 'none'],
+  ['explicit fire-and-forget on a result-capable event', 'cortex:session.new', 'none'],
   ['explicit fire-and-forget elsewhere', 'cortex:dispatch.started', 'none'],
 ];
 
@@ -171,9 +168,7 @@ test.each(RESULT_CAPABILITY_CASES)('accepts result capability: %s', (_name, even
 });
 
 const INVALID_RESULT_CAPABILITY_CASES: Array<[string, HookEntry['event'], HookEntry['result']]> = [
-  ['HookResult on an agent event', 'agent:pre-tool', 'hook-result'],
-  ['HookResult on a session event', 'cortex:session.new', 'hook-result'],
-  ['HookResult on an unconsumed server event', 'cortex:dispatch.started', 'hook-result'],
+  ['prompt output on an agent event', 'agent:pre-tool', 'stdout-as-prompt'],
   ['prompt output on a thread event', 'cortex:thread.end', 'stdout-as-prompt'],
   ['prompt output on an unconsumed server event', 'cortex:task.completed', 'stdout-as-prompt'],
 ];
@@ -191,21 +186,33 @@ test.each(INVALID_RESULT_CAPABILITY_CASES)('rejects result capability: %s', (_na
 test('skips invalid result combinations with loud errors and keeps valid combinations', (t) => {
   const directory = makeRegistry(t);
   const run = { command: 'true' };
-  writeEntry(directory, '01-thread.json', { id: 'thread', event: 'cortex:thread.end', matcher: {}, run, result: 'hook-result' });
   writeEntry(directory, '02-session.json', { id: 'session', event: 'cortex:session.new', run, result: 'stdout-as-prompt' });
   writeEntry(directory, '03-none.json', { id: 'none', event: 'cortex:dispatch.started', run, result: 'none' });
   writeEntry(directory, '04-invalid-thread.json', { id: 'invalid-thread', event: 'cortex:thread.end', matcher: {}, run, result: 'stdout-as-prompt' });
-  writeEntry(directory, '05-invalid-session.json', { id: 'invalid-session', event: 'cortex:session.new', run, result: 'hook-result' });
-  writeEntry(directory, '06-invalid-enum.json', { id: 'invalid-enum', event: 'cortex:thread.end', matcher: {}, run, result: { mode: 'hook-result' } });
+  writeEntry(directory, '06-invalid-enum.json', { id: 'invalid-enum', event: 'cortex:thread.end', matcher: {}, run, result: { mode: 'none' } });
   const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
   t.onTestFinished(() => error.mockRestore());
 
-  assert.deepEqual(loadHookRegistry(only(directory)).map((entry) => entry.id), ['thread', 'session', 'none']);
-  assert.equal(error.mock.calls.length, 3);
+  assert.deepEqual(loadHookRegistry(only(directory)).map((entry) => entry.id), ['session', 'none']);
+  assert.equal(error.mock.calls.length, 2);
   const messages = error.mock.calls.flat().join('\n');
   assert.match(messages, /04-invalid-thread\.json.*stdout-as-prompt.*cortex:thread\.end/);
-  assert.match(messages, /05-invalid-session\.json.*hook-result.*cortex:session\.new/);
-  assert.match(messages, /06-invalid-enum\.json.*result must be hook-result, stdout-as-prompt, or none/);
+  assert.match(messages, /06-invalid-enum\.json.*result must be stdout-as-prompt or none/);
+});
+
+test('warns about and skips a hook that still declares the retired hook-result mode', (t) => {
+  const directory = makeRegistry(t);
+  const run = { command: 'true' };
+  writeEntry(directory, '01-retired.json', { id: 'retired', event: 'cortex:thread.end', matcher: {}, run, result: 'hook-result' });
+  writeEntry(directory, '02-session.json', { id: 'session', event: 'cortex:session.new', run, result: 'stdout-as-prompt' });
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  t.onTestFinished(() => { warn.mockRestore(); error.mockRestore(); });
+
+  assert.deepEqual(loadHookRegistry(only(directory)).map((entry) => entry.id), ['session']);
+  assert.equal(error.mock.calls.length, 0);
+  assert.equal(warn.mock.calls.length, 1);
+  assert.match(warn.mock.calls.flat().join('\n'), /01-retired\.json.*hook-result.*retired/);
 });
 
 test('validates optional matcher shape by event namespace', (t) => {

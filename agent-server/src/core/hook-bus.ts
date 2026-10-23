@@ -8,7 +8,7 @@ export type HookSpec = {
   command: string;
   args?: string[];
   timeoutMs: number;
-  result?: 'hook-result' | 'stdout-as-prompt' | 'none';
+  result?: 'stdout-as-prompt' | 'none';
 };
 
 export type HookEmitResult = {
@@ -76,14 +76,7 @@ function failure(id: string, error: unknown): HookEmitResult {
 }
 
 function parsedResult(hook: HookSpec, stdout: string): HookEmitResult {
-  switch (hook.result) {
-    case 'hook-result':
-      return { id: hook.id, result: JSON.parse(stdout) as unknown };
-    case 'stdout-as-prompt':
-      return { id: hook.id, result: stdout.trim() };
-    default:
-      return { id: hook.id };
-  }
+  return hook.result === 'stdout-as-prompt' ? { id: hook.id, result: stdout.trim() } : { id: hook.id };
 }
 
 function interpretResult(hook: HookSpec, stdout: string, stderr: string): HookEmitResult {
