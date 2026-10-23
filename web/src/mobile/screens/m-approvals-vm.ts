@@ -1,6 +1,7 @@
 // Pure view-model for the 1f 审批队列 screen (scheme-mobile.dc.html 1f L354-385, project grouping
-// added post-scheme). Maps the REAL `ApprovalInfo` DTO (parsed from PENDING_APPROVALS.md) into
-// project groups (current project → 全局 → others) of pending cards plus a flat list in group order —
+// added post-scheme). Maps the REAL `ApprovalInfo` DTO (parsed from PENDING_APPROVALS.md) and the
+// sessions' pending plan approvals into project groups (current project → 全局 → others) of pending
+// cards plus a flat list of queue cards in group order —
 // the same DTO→slot discipline as the desktop approval center (approval-center-vm.ts), adapted so ANY
 // card can be the expanded one (1f lets you tap a collapsed card to swap which is expanded).
 // Honest placeholders — NO fabrication (851f precedent):
@@ -35,10 +36,21 @@ export interface MApprovalCard {
   provenance: string | null;
 }
 
+/** A session's pending plan approval (sessions.pendingInteraction); approved from its plan page. */
+export interface MPendingPlan {
+  sessionId: string;
+  requestId: string;
+  projectId: string | null;
+  title: string;
+  /** Label of the session asking for the approval. */
+  session: string;
+}
+
 export interface MApprovalGroup {
   /** Group key: the owning project id, or null for the 全局 (unattributed) bucket. */
   projectId: string | null;
   cards: MApprovalCard[];
+  plans: MPendingPlan[];
 }
 
 export interface MApprovalsVm {
@@ -49,14 +61,8 @@ export interface MApprovalsVm {
   cards: MApprovalCard[];
 }
 
-export function buildMApprovalsVm(
-  entries: ApprovalInfo[],
-  now: number,
-  currentProjectId: string | null,
-  lang: TimeLang,
-): MApprovalsVm {
-  const pending = entries.filter((e) => e.status === 'pending');
-  const toCard = (e: ApprovalInfo): MApprovalCard => ({
+function toCard(e: ApprovalInfo, now: number, lang: TimeLang): MApprovalCard {
+  return {
     id: e.id,
     projectId: e.projectId,
     operation: e.operation,
@@ -66,24 +72,39 @@ export function buildMApprovalsVm(
     impact: e.impact,
     command: e.command,
     provenance: e.provenance,
-  });
+  };
+}
 
-  // Bucket by projectId preserving input order inside each bucket; '' keys the 全局 (null) bucket.
-  const buckets = new Map<string, MApprovalCard[]>();
-  for (const e of pending) {
-    const key = e.projectId ?? '';
-    if (!buckets.has(key)) buckets.set(key, []);
-    buckets.get(key)!.push(toCard(e));
+/** Buckets by projectId preserving input order; '' keys the 全局 (null) bucket. */
+function bucketByProject<T extends { projectId: string | null }>(items: T[]): Map<string, T[]> {
+  const buckets = new Map<string, T[]>();
+  for (const item of items) {
+    const key = item.projectId ?? '';
+    buckets.set(key, [...(buckets.get(key) ?? []), item]);
   }
+  return buckets;
+}
 
-  // Group order: current project first, then 全局, then remaining projects by id.
-  const keys = [...buckets.keys()].sort((a, b) => {
-    const rank = (k: string): number => (k === currentProjectId ? 0 : k === '' ? 1 : 2);
-    return rank(a) - rank(b) || a.localeCompare(b);
-  });
-  const groups: MApprovalGroup[] = keys.map((key) => ({
+/** Group order: current project first, then 全局, then remaining projects by id. */
+function groupKeys(keys: Iterable<string>, currentProjectId: string | null): string[] {
+  const rank = (k: string): number => (k === currentProjectId ? 0 : k === '' ? 1 : 2);
+  return [...new Set(keys)].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+}
+
+export function buildMApprovalsVm(
+  entries: ApprovalInfo[],
+  now: number,
+  currentProjectId: string | null,
+  lang: TimeLang,
+  plans: MPendingPlan[] = [],
+): MApprovalsVm {
+  const cards = bucketByProject(entries.filter((e) => e.status === 'pending').map((e) => toCard(e, now, lang)));
+  const planBuckets = bucketByProject(plans);
+  const groups: MApprovalGroup[] = groupKeys([...cards.keys(), ...planBuckets.keys()], currentProjectId).map((key) => ({
     projectId: key === '' ? null : key,
-    cards: buckets.get(key)!,
+    cards: cards.get(key) ?? [],
+    plans: planBuckets.get(key) ?? [],
   }));
-  return { pendingCount: pending.length, groups, cards: groups.flatMap((g) => g.cards) };
+  const flat = groups.flatMap((g) => g.cards);
+  return { pendingCount: flat.length + plans.length, groups, cards: flat };
 }

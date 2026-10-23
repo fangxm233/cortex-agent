@@ -1,6 +1,7 @@
+import type { ReactNode } from 'react';
 import { MScreen, MDrillHeader, MScrollBody, MButton, MCard, MCollapsedCard, MC, MONO, M_NUM } from '@/mobile/ui/kit';
 import { useVocabOptional, type Vocab } from '@/i18n';
-import type { MApprovalsVm, MApprovalCard } from './m-approvals-vm';
+import type { MApprovalsVm, MApprovalCard, MPendingPlan } from './m-approvals-vm';
 
 export interface MApprovalsViewProps {
   vm: MApprovalsVm;
@@ -13,6 +14,7 @@ export interface MApprovalsViewProps {
   onFeedback: (value: string) => void;
   onApprove: (id: string) => void;
   onReject: (id: string, feedback: string) => void;
+  onOpenPlan: (plan: MPendingPlan) => void;
 }
 
 export function MApprovalsView({
@@ -25,6 +27,7 @@ export function MApprovalsView({
   onFeedback,
   onApprove,
   onReject,
+  onOpenPlan,
 }: MApprovalsViewProps) {
   const copy = useVocabOptional();
   return (
@@ -44,7 +47,7 @@ export function MApprovalsView({
       }
     >
       <MScrollBody gap={10}>
-        {vm.cards.length === 0 && (
+        {vm.pendingCount === 0 && (
           <div style={{ padding: '40px 0', textAlign: 'center', color: MC.muted, fontSize: 13 }}>
             {copy.apprEmpty}
           </div>
@@ -53,6 +56,15 @@ export function MApprovalsView({
         {vm.groups.map((group) => (
           <div key={group.projectId ?? '__global__'} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <GroupDivider label={group.projectId ?? copy.apprGlobalGroup} />
+            {group.plans.map((plan) => (
+              <MCollapsedCard
+                key={plan.requestId}
+                leading={<AmberPill>{copy.ixPlan}</AmberPill>}
+                title={plan.title}
+                sub={plan.session}
+                onExpand={() => onOpenPlan(plan)}
+              />
+            ))}
             {group.cards.map((card) =>
               card.id === expandedId ? (
                 <ExpandedCard
@@ -90,6 +102,10 @@ function GroupDivider({ label }: { label: string }) {
 
 // The amber tier pill — static label `审批` joined with the real operation (scheme L368).
 function TierPill({ copy, operation }: { copy: Vocab; operation: string }) {
+  return <AmberPill>{copy.apprTier} · {operation}</AmberPill>;
+}
+
+function AmberPill({ children }: { children: ReactNode }) {
   return (
     <span
       style={{
@@ -105,7 +121,7 @@ function TierPill({ copy, operation }: { copy: Vocab; operation: string }) {
         textOverflow: 'ellipsis',
       }}
     >
-      {copy.apprTier} · {operation}
+      {children}
     </span>
   );
 }

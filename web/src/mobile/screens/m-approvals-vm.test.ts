@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
-import { buildMApprovalsVm } from './m-approvals-vm';
+import { buildMApprovalsVm, type MPendingPlan } from './m-approvals-vm';
 
 // Neutral placeholder approvals (守则11 — no real project names / ids).
 function apr(over: Partial<ApprovalInfo>): ApprovalInfo {
@@ -69,5 +69,21 @@ describe('buildMApprovalsVm', () => {
     );
     expect(vm.groups.map((g) => g.projectId)).toEqual([null, 'orchard']);
     expect(vm.cards.find((c) => c.id === 'o1')?.projectId).toBe('orchard');
+  });
+
+  it('counts pending plan approvals and groups them with the queue by project', () => {
+    const plan = (requestId: string, projectId: string | null): MPendingPlan => (
+      { sessionId: `s-${requestId}`, requestId, projectId, title: `Plan ${requestId}`, session: 'nimbus sweep' });
+    const vm = buildMApprovalsVm(
+      [apr({ id: 'g1', projectId: null })],
+      now,
+      'nimbus',
+      'en',
+      [plan('p1', 'atlas'), plan('p2', 'nimbus')],
+    );
+    expect(vm.pendingCount).toBe(3);
+    expect(vm.groups.map((g) => g.projectId)).toEqual(['nimbus', null, 'atlas']);
+    expect(vm.groups.map((g) => g.plans.map((p) => p.requestId))).toEqual([['p2'], [], ['p1']]);
+    expect(vm.cards.map((c) => c.id)).toEqual(['g1']);
   });
 });

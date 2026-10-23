@@ -18,6 +18,7 @@ const vm: MApprovalsVm = {
       command: null,
       provenance: null,
     }],
+    plans: [],
   }],
   cards: [],
 };
@@ -38,6 +39,7 @@ describe('MApprovalsView', () => {
         onFeedback={onFeedback}
         onApprove={vi.fn()}
         onReject={onReject}
+        onOpenPlan={vi.fn()}
       />,
     );
 
@@ -51,5 +53,29 @@ describe('MApprovalsView', () => {
     expect(reject).toBeDefined();
     reject?.props.onClick();
     expect(onReject).toHaveBeenCalledWith('apr-1', '  reduce scope  ');
+  });
+
+  it('lists pending plan approvals in the count and opens the plan on tap', () => {
+    const plan = { sessionId: 's-1', requestId: 'req-1', projectId: null, title: 'Nimbus sweep plan', session: 'nimbus' };
+    const onOpenPlan = vi.fn();
+    const renderer = create(
+      <MApprovalsView
+        vm={{ pendingCount: 1, groups: [{ projectId: null, cards: [], plans: [plan] }], cards: [] }}
+        expandedId={null}
+        feedback=""
+        busy={false}
+        onBack={vi.fn()}
+        onExpand={vi.fn()}
+        onFeedback={vi.fn()}
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+        onOpenPlan={onOpenPlan}
+      />,
+    );
+    const text = JSON.stringify(renderer.toJSON());
+    expect(text).toContain('Nimbus sweep plan');
+    expect(text).not.toContain('No pending approvals');
+    renderer.root.findAll((node) => typeof node.props.onClick === 'function' && node.type !== 'button')[0]?.props.onClick();
+    expect(onOpenPlan).toHaveBeenCalledWith(plan);
   });
 });

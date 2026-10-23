@@ -24,6 +24,7 @@ vi.mock('@/features/projects/CurrentProjectProvider', () => ({
 }));
 vi.mock('@/i18n', () => ({ useLang: () => 'en' }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn(), useLocation: () => state.location }));
+vi.mock('./usePendingPlans', () => ({ usePendingPlans: () => [] }));
 vi.mock('./MApprovalsView', () => ({
   MApprovalsView: (props: unknown) => {
     state.viewProps = props;
