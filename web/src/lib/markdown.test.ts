@@ -65,6 +65,25 @@ describe('parseInline', () => {
     expect(parseInline('_em_')).toEqual([{ type: 'italic', text: 'em' }]);
   });
 
+  it('keeps intraword underscores literal and italicizes only flanking pairs', () => {
+    const literal = (text: string) => expect(parseInline(text)).toEqual([{ type: 'text', text }]);
+    literal('set random_state and base_lr');
+    literal('call snake_case_name()');
+    literal('the __init__ method');
+    literal('a _ b _ c');
+    expect(parseInline('this is _real italics_.')).toEqual([
+      { type: 'text', text: 'this is ' },
+      { type: 'italic', text: 'real italics' },
+      { type: 'text', text: '.' },
+    ]);
+    expect(parseInline('tune random_state, _then_ base_lr')).toEqual([
+      { type: 'text', text: 'tune random_state, ' },
+      { type: 'italic', text: 'then' },
+      { type: 'text', text: ' base_lr' },
+    ]);
+    expect(parseInline('中文_斜体_中文')).toEqual([{ type: 'text', text: '中文_斜体_中文' }]);
+  });
+
   it('parses inline dollar and parenthesized math only when enabled', () => {
     expect(parseInline('$x_i * y_i$').some((node) => node.type === 'math')).toBe(false);
     expect(parseInline('Energy $x_i * y_i$ and \\(z^2\\).', { math: true })).toEqual([

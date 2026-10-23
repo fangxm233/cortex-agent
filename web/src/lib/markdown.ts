@@ -81,14 +81,16 @@ export function splitFrontmatter(content: string): { frontmatter: Frontmatter | 
 /** A link or image target: any run without parentheses, plus balanced pairs nested up to two deep,
  *  so `https://en.wikipedia.org/wiki/Rust_(programming_language)` stays whole. */
 const TARGET = String.raw`(?:[^()]|\((?:[^()]|\([^()]*\))*\))+`;
+/** `_x_` opens and closes only at word edges, so `random_state` and `__init__` stay literal. */
+const WORD_CHAR = String.raw`[\p{L}\p{N}_]`;
 const INLINE_RE = new RegExp([
   String.raw`(?<bold>\*\*[^*]+\*\*)`,
   String.raw`(?<code>(?<ticks>\x60+)(?<codeText>.*?)\k<ticks>)`,
   String.raw`(?<image>!\[(?<alt>[^\]]*)\]\((?<src>${TARGET})\))`,
   String.raw`(?<link>\[(?<linkText>[^\]]+)\]\((?<href>${TARGET})\))`,
   String.raw`(?<italicStar>\*[^*]+\*)`,
-  String.raw`(?<italicUnderscore>_[^_]+_)`,
-].join('|'));
+  String.raw`(?<italicUnderscore>(?<!${WORD_CHAR})_(?!\s)[^_]+(?<!\s)_(?!${WORD_CHAR}))`,
+].join('|'), 'u');
 const INLINE_KINDS = ['bold', 'code', 'image', 'link', 'italicStar', 'italicUnderscore'] as const;
 
 type InlineKind = (typeof INLINE_KINDS)[number];
