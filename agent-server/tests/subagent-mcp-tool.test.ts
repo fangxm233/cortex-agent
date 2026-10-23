@@ -46,7 +46,7 @@ function registerTools(
 function ctx(overrides: Partial<CortexToolContext> = {}): CortexToolContext {
   return {
     channel: 'web:42', sessionId: 'sess-1', selection: { backend: 'claude', provider: null, model: 'opus', thinking: 'high', mode: 'plan' }, project: 'proj', backend: 'claude',
-    scheduleTaskId: null, callbackSource: null, branchMachine: null,
+    scheduleTaskId: null, callbackSource: null,
     webhookBaseUrl: 'http://127.0.0.1:3001', webhookToken: 'tok',
     slackBotToken: null, toolAllowlist: null,
     subagentPiModels: [], subagentClaudeModels: [],

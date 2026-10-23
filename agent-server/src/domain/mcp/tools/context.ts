@@ -27,7 +27,6 @@ export interface CortexToolContext {
   subagentClaudeModels: SubagentModelOption[];
   scheduleTaskId: string | null;
   callbackSource: string | null;
-  branchMachine: string | null;
   /** Daemon webhook root, e.g. `http://127.0.0.1:3001`. */
   webhookBaseUrl: string;
   /** Shared secret for the daemon webhook gate (`x-cortex-token`). Empty when unavailable. */
@@ -77,7 +76,6 @@ export function toolContextFromEnv(env: NodeJS.ProcessEnv = process.env): Cortex
     subagentClaudeModels: decodeSubagentModels(env.CORTEX_SUBAGENT_CLAUDE_MODELS),
     scheduleTaskId: optional(env.CORTEX_SCHEDULE_TASK_ID),
     callbackSource: optional(env.CORTEX_CALLBACK_SOURCE),
-    branchMachine: optional(env.CORTEX_BRANCH_MACHINE),
     webhookBaseUrl: `http://127.0.0.1:${positiveInt(env.WEBHOOK_PORT, DEFAULT_WEBHOOK_PORT)}`,
     webhookToken: env.CORTEX_WEBHOOK_TOKEN || '',
     slackBotToken: optional(env.SLACK_BOT_TOKEN),
