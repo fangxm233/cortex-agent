@@ -221,3 +221,15 @@ it('opens the login target for the tapped provider row', async () => {
   expect(view.root.findByType('aside').props.target).toEqual({ backend: 'pi', provider: 'deepseek', authType: 'api_key', label: 'deepseek' });
   view.unmount();
 });
+it('shows no Claude detection status where this client cannot detect it', async () => {
+  const controller = new ProviderSetupController({
+    status: async () => ({ accounts: [], piRuntime: { available: true, version: null, entry: null, error: null }, generatedAt: '' }),
+    config: async () => ({ models: emptyModels }), catalog, sync: vi.fn(), select: vi.fn(), claude: vi.fn(), install: vi.fn(), canInstall: () => false,
+  });
+  let view!: ReturnType<typeof create>;
+  await act(async () => { await controller.load(); view = create(<ProviderSetupView controller={controller} leave={vi.fn()} />); });
+  const pills = view.root.findAll(node => node.type === 'span' && node.props.className === 'setup-pill');
+  expect(pills[0].children.join('')).toBe(en.setupOptional);
+  expect(JSON.stringify(view.toJSON())).not.toContain(en.setupUnknown);
+  view.unmount();
+});

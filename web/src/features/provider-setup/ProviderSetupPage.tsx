@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import type { ButtonHTMLAttributes } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { LoginFlowState } from '@cortex-agent/ui-contract';
-import { useVocab } from '@/i18n';
+import { useVocab, type Vocab } from '@/i18n';
 import { Select } from '@/design';
 import { useTRPCClient } from '@/lib/trpc';
 import { modelKey, modelLabel } from '@/lib/model-selection';
@@ -58,15 +58,21 @@ function ClaudeActions({ controller, account, login }: {
       onClick={() => subscription && void start({ backend: 'claude', provider: account.provider, authType: subscription.authType, label: account.label })}>
       {L.setupCcInstall}</SetupButton></div>;
 }
+/** Install status for the pill; null where this client cannot detect it or detection is still running. */
+function claudeStatus(s: ProviderSetupController['state'], L: Vocab): string | null {
+  if (!canSetupClaude() || (s.claude === null && s.claudeBusy)) return null;
+  if (s.claude === null) return L.setupUnknown;
+  return s.claude.installed ? L.setupCcInstalled : L.setupCcMissing;
+}
 function ClaudeSection({ controller, login }: {
   controller: ProviderSetupController; login: (target: LoginFlowTarget) => void;
 }) {
   const L = useVocab(), s = controller.state;
   const log = useClaudeLog();
-  const installed = s.claude === null ? L.setupUnknown : s.claude.installed ? L.setupCcInstalled : L.setupCcMissing;
+  const status = claudeStatus(s, L);
   return <section className="setup-card">
     <div className="setup-card-header"><ProviderIcon provider="claude-code" label="Claude Code" size={20} />
-      <h2>Claude Code</h2><span className="setup-pill">{L.setupOptional} · {installed}</span></div>
+      <h2>Claude Code</h2><span className="setup-pill">{status ? `${L.setupOptional} · ${status}` : L.setupOptional}</span></div>
     <div className="setup-card-body setup-cc-body">
       <ClaudeActions controller={controller} account={s.status ? buildAccountsVm(s.status).claude : null} login={login} />
       {s.claudeBusy ? <p className="setup-hint" role="status">{L.setupWorking}</p> : null}
