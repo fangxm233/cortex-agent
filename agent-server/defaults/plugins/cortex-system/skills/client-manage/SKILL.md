@@ -4,8 +4,8 @@ description: "Use when creating, deploying, updating, or troubleshooting cortex-
 allowed-tools: Read, Write, Edit, Bash, mcp__cortex-core__remote_bash, mcp__cortex-core__remote_read, mcp__cortex-core__remote_write, mcp__cortex-core__remote_edit, mcp__cortex-core__remote_glob, mcp__cortex-core__remote_grep
 metadata:
   author: "Cortex"
-  version: "1.4.0"
-  date: "2026-05-03"
+  version: "1.4.1"
+  date: "2026-10-22"
 ---
 
 # Client Manage
@@ -52,7 +52,13 @@ The client resolves its server URL by precedence (`server-url.ts`): `CORTEX_SERV
 - `clientToken` — The server's `CORTEX_CLIENT_TOKEN` (see Authentication). Required unless injected via the `CORTEX_CLIENT_TOKEN` env at launch.
 - `deviceName` — Must match the name in `machines.json` on the server.
 
-**This config file is managed by you (LLM).** The server never writes it. Server only starts/kills the client process.
+Who writes this file:
+
+- The bootstrap script (step 2 below) writes `serverHost`, `serverPort` and `deviceName`, replacing the whole file. Re-running bootstrap drops any `serverUrl` or `clientToken` you added.
+- `cortex init` writes it for a local desktop client it prepares, and server startup finishes an interrupted preparation. It records ownership in `client/local-install.json` and refuses to overwrite a config that was edited afterwards.
+- `cortex client remove` deletes it together with the client install.
+
+Any other edit, such as switching a device to `serverUrl`, is yours to make on the device.
 
 ## Connectivity — The Most Important Part
 
@@ -180,12 +186,13 @@ To force a refresh, kill the client — the server relaunches it and the reconne
 ssh user@host "pkill -f client.mjs"
 ```
 
-If a bad bundle leaves the client unable to start, roll back or redeploy:
+If a bad bundle leaves the client unable to start, switch back to the prior version in `previous/` or re-run the bootstrap deployment (step 2 above). `current/` and `previous/` are real directories, not symlinks. Move the failing version aside into an unused name rather than deleting it; the command checks that `previous/` exists and `broken/` is free before moving anything:
 
 ```bash
-ssh user@host "rm -rf ~/.cortex/client/current && mv ~/.cortex/client/previous ~/.cortex/client/current"
-# or re-run the bootstrap deployment (step 2 above)
+ssh user@host 'cd ~/.cortex/client && test -d previous && test ! -e broken && mv current broken && mv previous current'
 ```
+
+On Windows devices, run the PowerShell form from `docs/cross-machine.md`. The server relaunches the client from `current/`. On reconnect it pushes its own bundle again whenever the hashes differ, so a rollback holds only until the server's bundle is fixed; setting `clientHotReloadEnabled` to `false` in the server's `settings.json` turns update pushes off meanwhile. Remove `broken/` once the device is healthy.
 
 ### Edit the config
 
@@ -201,7 +208,7 @@ mcp__cortex-core__remote_edit({
 After editing, kill the client — server will restart it:
 
 ```bash
-ssh user@host "pkill -f 'node.*cortex-client'"
+ssh user@host "pkill -f client.mjs"
 ```
 
 ## Troubleshooting

@@ -1,6 +1,6 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "cortex-system",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Cortex system skill bundle — approval / browser / client-manage / project-init / schedule / user-learn."
 }
