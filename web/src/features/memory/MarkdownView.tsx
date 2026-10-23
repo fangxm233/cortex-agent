@@ -129,7 +129,7 @@ function ListBlock({ block }: { block: BlockOf<'list'> }): JSX.Element {
   const Tag = block.ordered ? 'ol' : 'ul';
   return (
     // The base stylesheet strips list markers; a document's lists read as lists only with them back.
-    <Tag style={{ ...PROSE, paddingLeft: 22, listStyleType: block.ordered ? 'decimal' : 'disc' }}>
+    <Tag start={block.start} style={{ ...PROSE, paddingLeft: 22, listStyleType: block.ordered ? 'decimal' : 'disc' }}>
       {block.items.map((item, j) => (
         <li key={j} style={{ paddingLeft: 2 }}>{renderInline(item)}</li>
       ))}

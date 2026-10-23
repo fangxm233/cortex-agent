@@ -26,7 +26,7 @@ export type InlineNode =
 export type Block =
   | { type: 'heading'; level: number; inline: InlineNode[] }
   | { type: 'paragraph'; inline: InlineNode[] }
-  | { type: 'list'; ordered: boolean; items: InlineNode[][] }
+  | { type: 'list'; ordered: boolean; start?: number; items: InlineNode[][] }
   | { type: 'code'; lang: string | null; text: string }
   | { type: 'math'; text: string }
   | { type: 'table'; header: InlineNode[][]; rows: InlineNode[][][] }
@@ -355,17 +355,32 @@ function readBlockquote(lines: string[], index: number, options: ParseOptions): 
   return { block: { type: 'blockquote', inline: parseInline(buffer.join(' ').trim(), options) }, next: cursor };
 }
 
+const ORDERED_MARKER = /^\s*(\d+)\.\s+/;
+
+/** Index of the list's next item from `from`: the adjacent line, or, across blank lines (a loose
+ *  list), the next line when it is an item of the same kind. -1 once the list ends. */
+function nextListItem(lines: string[], from: number, ordered: boolean): number {
+  if (from < lines.length && isListLine(lines[from])) return from;
+  let cursor = from;
+  while (cursor < lines.length && !lines[cursor].trim()) cursor++;
+  if (cursor === from || cursor >= lines.length || !isListLine(lines[cursor])) return -1;
+  return ORDERED_MARKER.test(lines[cursor]) === ordered ? cursor : -1;
+}
+
 function readList(lines: string[], index: number, options: ParseOptions): BlockRead | null {
   if (!isListLine(lines[index])) return null;
-  const ordered = /^\s*\d+\.\s+/.test(lines[index]);
+  const marker = ORDERED_MARKER.exec(lines[index]);
+  const ordered = marker !== null;
   const items: InlineNode[][] = [];
   let cursor = index;
-  while (cursor < lines.length && isListLine(lines[cursor])) {
-    const text = lines[cursor].replace(/^\s*([-*+]|\d+\.)\s+/, '');
-    items.push(parseInline(text.trim(), options));
-    cursor++;
+  let end = index;
+  while (cursor !== -1) {
+    items.push(parseInline(lines[cursor].replace(/^\s*([-*+]|\d+\.)\s+/, '').trim(), options));
+    end = cursor + 1;
+    cursor = nextListItem(lines, end, ordered);
   }
-  return { block: { type: 'list', ordered, items }, next: cursor };
+  const start = marker ? { start: Number(marker[1]) } : {};
+  return { block: { type: 'list', ordered, ...start, items }, next: end };
 }
 
 const BLOCK_READERS: BlockReader[] = [

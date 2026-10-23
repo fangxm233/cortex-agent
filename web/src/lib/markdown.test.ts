@@ -137,7 +137,27 @@ describe('parseBlocks', () => {
     expect(ul[0]).toMatchObject({ type: 'list', ordered: false });
     expect((ul[0] as any).items).toHaveLength(2);
     const ol = parseBlocks('1. first\n2. second');
-    expect(ol[0]).toMatchObject({ type: 'list', ordered: true });
+    expect(ol[0]).toMatchObject({ type: 'list', ordered: true, start: 1 });
+  });
+
+  it('keeps a loose list (blank lines between items) as one list', () => {
+    const blocks = parseBlocks('1. first\n\n2. second\n\n3. third\n\nafter');
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]).toMatchObject({ type: 'list', ordered: true, start: 1 });
+    expect((blocks[0] as any).items).toHaveLength(3);
+    expect(blocks[1]).toMatchObject({ type: 'paragraph' });
+  });
+
+  it('records the first number of an ordered list as its start', () => {
+    const blocks = parseBlocks('intro\n\n3. third\n4. fourth');
+    expect(blocks[1]).toMatchObject({ type: 'list', ordered: true, start: 3 });
+  });
+
+  it('does not bridge a blank line into a list of the other kind', () => {
+    const blocks = parseBlocks('- a\n\n1. b');
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]).toMatchObject({ ordered: false });
+    expect(blocks[1]).toMatchObject({ ordered: true, start: 1 });
   });
 
   it('parses a GFM pipe table with a separator row', () => {

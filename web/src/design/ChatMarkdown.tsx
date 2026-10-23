@@ -71,7 +71,7 @@ function ListBlock({ block }: { block: BlockOf<'list'> }): JSX.Element {
   const Tag = block.ordered ? 'ol' : 'ul';
   return (
     // The base stylesheet strips list markers; a reply's lists read as lists only with them back.
-    <Tag style={{ margin: '0', paddingLeft: 22, listStyleType: block.ordered ? 'decimal' : 'disc', display: 'flex', flexDirection: 'column', gap: 4 }}>
+    <Tag start={block.start} style={{ margin: '0', paddingLeft: 22, listStyleType: block.ordered ? 'decimal' : 'disc', display: 'flex', flexDirection: 'column', gap: 4 }}>
       {block.items.map((item, index) => <li key={index}><Inline nodes={item} /></li>)}
     </Tag>
   );
