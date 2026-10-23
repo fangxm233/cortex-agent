@@ -8,7 +8,7 @@ import {
   publishAuthRequired,
 } from '../src/domain/auth/auth-events.js';
 import { createAuthLoginService } from '../src/domain/auth/login-service.js';
-import { registerAuthWatch } from '../src/domain/auth/auth-watch.js';
+import { registerAuthWatch, wasAuthRecentlyNotified } from '../src/domain/auth/auth-watch.js';
 import { EventBus } from '../src/events/event-bus.js';
 import type { CortexEvent } from '../src/events/event-types.js';
 import { CommandActionRouter } from '../src/orchestration/interactions/command-action-router.js';
@@ -150,7 +150,7 @@ test.each([
   assert.equal(metadata.authType, expected);
 });
 
-test('a repeated unresolved pair within 24 hours is suppressed', async () => {
+test('a repeated failure in the same channel within 24 hours is suppressed', async () => {
   const { bus, adapter, clock } = setup();
 
   publishRequired(bus);
@@ -160,6 +160,42 @@ test('a repeated unresolved pair within 24 hours is suppressed', async () => {
   await flush();
 
   assert.equal(adapter.posted.length, 1);
+});
+
+test('each channel that hits the same failing pair gets its own notice', async () => {
+  const { bus, adapter, clock } = setup();
+
+  publishRequired(bus);
+  await flush();
+  clock.now = HOUR_MS;
+  publishRequired(bus, { channel: 'feishu:oc_other' });
+  publishRequired(bus, { channel: null, sessionId: null });
+  await flush();
+  publishRequired(bus, { channel: 'feishu:oc_other' });
+  publishRequired(bus, { channel: null, sessionId: null });
+  await flush();
+
+  assert.deepEqual(adapter.posted.map(({ destination }) => (
+    destination.type === 'interactive-reply' ? destination.conduit : destination.type
+  )), [
+    'slack:C1', 'feishu:oc_other', 'system-notice',
+  ]);
+});
+
+test('the pair counts as recently notified while any channel is within 24 hours', async () => {
+  const { bus, clock } = setup();
+
+  publishRequired(bus);
+  await flush();
+  clock.now = 2 * HOUR_MS;
+  publishRequired(bus, { channel: null, sessionId: null });
+  await flush();
+
+  clock.now = 24 * HOUR_MS;
+  assert.equal(wasAuthRecentlyNotified('pi', 'deepseek'), true);
+  clock.now = 26 * HOUR_MS;
+  assert.equal(wasAuthRecentlyNotified('pi', 'deepseek'), false);
+  assert.equal(wasAuthRecentlyNotified('pi', 'openrouter'), false);
 });
 
 test('an unresolved pair is delivered again at exactly 24 hours', async () => {
@@ -174,17 +210,20 @@ test('an unresolved pair is delivered again at exactly 24 hours', async () => {
   assert.equal(adapter.posted.length, 2);
 });
 
-test('auth.recovered clears the pair so the next failure delivers immediately', async () => {
+test('auth.recovered clears every channel of the pair so the next failure delivers immediately', async () => {
   const { bus, adapter, clock } = setup();
 
   publishRequired(bus);
+  publishRequired(bus, { channel: 'slack:C2' });
   await flush();
   clock.now = HOUR_MS;
   bus.publish({ type: 'auth.recovered', backend: 'pi', provider: 'deepseek' });
+  assert.equal(wasAuthRecentlyNotified('pi', 'deepseek'), false);
   publishRequired(bus);
+  publishRequired(bus, { channel: 'slack:C2' });
   await flush();
 
-  assert.equal(adapter.posted.length, 2);
+  assert.equal(adapter.posted.length, 4);
 });
 
 function authCardCount(adapter: MockAdapter): number {
@@ -244,7 +283,7 @@ test('expired notice to one-click success recovers once and resets the reminder 
   assert.equal(authCardCount(adapter), 2);
 });
 
-test('a null channel uses the system-notice path once', async () => {
+test('a null channel uses the system-notice path once, with a login button', async () => {
   const { bus, adapter } = setup();
   const notices: Extract<CortexEvent, { type: 'system.notice' }>[] = [];
   bus.subscribe('system.notice', (event) => { notices.push(event); });
@@ -255,7 +294,20 @@ test('a null channel uses the system-notice path once', async () => {
   assert.equal(notices.length, 1);
   assert.equal(notices[0].level, 'error');
   assert.equal(adapter.posted.length, 1);
-  assert.deepEqual(adapter.posted[0].destination, { type: 'system-notice' });
+  const [post] = adapter.posted;
+  assert.deepEqual(post.destination, { type: 'system-notice' });
+  assert.equal(
+    post.content.text,
+    'Authentication for deepseek failed (invalid API key). SSH to the Cortex host, run pi, then enter /login and choose deepseek.',
+  );
+  const actions = post.content.richBlocks?.find(block => block.type === 'actions');
+  assert.ok(actions?.type === 'actions');
+  const metadata = JSON.parse(actions.elements[0].value);
+  assert.equal(actions.elements[0].actionId, 'cmd:login:open');
+  assert.deepEqual(
+    { backend: metadata.backend, provider: metadata.provider, authType: metadata.authType, channel: metadata.channel },
+    { backend: 'pi', provider: 'deepseek', authType: 'api_key', channel: '' },
+  );
 });
 
 test('a failed delivery remains retryable without blocking other subscribers', async () => {

@@ -46,6 +46,42 @@ function pairKey(event: { backend: string; provider: string }): string {
   return `${event.backend}:${event.provider}`;
 }
 
+interface Reminder { notifiedAt: number; attempt: symbol }
+
+/** One reminder per pair and channel every 24h; a null channel (internal run) is its own bucket. */
+class ReminderLedger {
+  private readonly byPair = new Map<string, Map<string | null, Reminder>>();
+
+  constructor(private readonly now: () => number) {}
+
+  private fresh(reminder: Reminder | undefined): boolean {
+    return reminder !== undefined && this.now() - reminder.notifiedAt < REMINDER_INTERVAL_MS;
+  }
+
+  anyRecent(pair: string): boolean {
+    return [...(this.byPair.get(pair)?.values() ?? [])].some(reminder => this.fresh(reminder));
+  }
+
+  /** Reserve before async delivery so concurrent events cannot create a retry storm. */
+  reserve(pair: string, channel: string | null): symbol | null {
+    const channels = this.byPair.get(pair) ?? new Map<string | null, Reminder>();
+    if (this.fresh(channels.get(channel))) return null;
+    const attempt = Symbol(pair);
+    channels.set(channel, { notifiedAt: this.now(), attempt });
+    this.byPair.set(pair, channels);
+    return attempt;
+  }
+
+  release(pair: string, channel: string | null, attempt: symbol): void {
+    const channels = this.byPair.get(pair);
+    if (channels?.get(channel)?.attempt === attempt) channels.delete(channel);
+  }
+
+  clear(pair: string): void {
+    this.byPair.delete(pair);
+  }
+}
+
 export type WasAuthRecentlyNotified = (
   backend: AuthRequiredEvent['backend'],
   provider: string,
@@ -169,6 +205,18 @@ async function postPlatformNotice(
   }, platformContent(text, button));
 }
 
+/** Internal runs have no conversation: the notice and its login button go to the admin channel. */
+async function emitAdminNotice(
+  adapter: PlatformAdapter,
+  notice: { title: string; text: string },
+  action: AuthNoticeAction | null,
+  buildAction?: AuthWatchDependencies['buildPlatformAction'],
+): Promise<void> {
+  const button = action && buildAction ? buildAction(action, '', notice.text) : null;
+  const { richBlocks } = platformContent(notice.text, button);
+  await emitSystemNotice(adapter, { ...notice, level: 'error', richBlocks });
+}
+
 async function deliverNotice(
   bus: EventBus,
   adapter: PlatformAdapter,
@@ -177,11 +225,12 @@ async function deliverNotice(
 ): Promise<void> {
   const web = event.channel?.startsWith('web:') ?? false;
   const snapshot = await readSnapshot(dependencies.readStatus ?? getAuthStatus);
-  const action = event.channel ? resolveAction(event, snapshot) : null;
-  const actionable = !!action && (web || !!dependencies.buildPlatformAction);
+  const action = resolveAction(event, snapshot);
+  // The admin notice's Web toast cannot carry the button, so its text keeps the manual guidance.
+  const actionable = !!action && event.channel !== null && (web || !!dependencies.buildPlatformAction);
   const notice = buildNotice(event, findAccount(snapshot, event), actionable);
   if (event.channel === null) {
-    await emitSystemNotice(adapter, { ...notice, level: 'error' });
+    await emitAdminNotice(adapter, notice, action, dependencies.buildPlatformAction);
   } else if (web) {
     publishWebNotice(bus, event as AuthRequiredEvent & { channel: string }, notice.text, action);
   } else {
@@ -198,26 +247,18 @@ export function registerAuthWatch(
   dependencies: AuthWatchDependencies = {},
 ): void {
   // A restart may repeat one reminder; keeping this local avoids shared mutable publisher state.
-  const reminders = new Map<string, { notifiedAt: number; attempt: symbol }>();
-  const now = dependencies.now ?? Date.now;
-  const wasRecentlyNotified: WasAuthRecentlyNotified = (backend, provider) => {
-    const previous = reminders.get(pairKey({ backend, provider }))?.notifiedAt;
-    return previous !== undefined && now() - previous < REMINDER_INTERVAL_MS;
-  };
-  recentNotificationQuery = wasRecentlyNotified;
+  const reminders = new ReminderLedger(dependencies.now ?? Date.now);
+  recentNotificationQuery = (backend, provider) => reminders.anyRecent(pairKey({ backend, provider }));
   bus.subscribe('auth.required', (event) => {
     const key = pairKey(event);
-    const current = now();
-    if (wasRecentlyNotified(event.backend, event.provider)) return;
-    // Reserve before async delivery so concurrent events cannot create a retry storm.
-    const attempt = Symbol(key);
-    reminders.set(key, { notifiedAt: current, attempt });
+    const attempt = reminders.reserve(key, event.channel);
+    if (!attempt) return;
     void deliverNotice(bus, adapter, event, dependencies).catch(() => {
-      if (reminders.get(key)?.attempt === attempt) reminders.delete(key);
+      reminders.release(key, event.channel, attempt);
       log.error(`Failed to deliver authentication notice for ${key}`);
     });
   });
   bus.subscribe('auth.recovered', (event) => {
-    reminders.delete(pairKey(event));
+    reminders.clear(pairKey(event));
   });
 }
