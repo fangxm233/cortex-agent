@@ -1,5 +1,5 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useFitLevel } from './useFitLevel';
 
 // `need` stands in for how many folds the row takes to fit: it overflows while the level is below it.
@@ -14,6 +14,8 @@ function mount(need: number, resetKey = 'a'): ReactTestRenderer {
   return renderer;
 }
 const level = (r: ReactTestRenderer): number => r.root.findByType('div').props['data-level'];
+
+afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('useFitLevel', () => {
   it('stays at full size when the row fits', () => {
@@ -35,6 +37,27 @@ describe('useFitLevel', () => {
     expect(level(r)).toBe(2);
     act(() => r.update(<Probe need={0} resetKey="b" />));
     expect(level(r)).toBe(0);
+  });
+
+  it('re-fits when the box narrows while the row is still at full size', () => {
+    const box = { width: 600, need: 0 };
+    const resized: Array<() => void> = [];
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: () => void) { resized.push(callback); }
+      observe(): void {}
+      disconnect(): void {}
+    });
+    function Live(): JSX.Element {
+      const { ref, level: current } = useFitLevel<HTMLDivElement>(3, (_el, at) => at < box.need, 'a');
+      return <div ref={ref} data-level={current} />;
+    }
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = create(<Live />, { createNodeMock: () => ({ get clientWidth() { return box.width; } }) }); });
+    expect(level(renderer)).toBe(0);
+    box.width = 380;
+    box.need = 2;
+    act(() => resized.forEach((callback) => callback()));
+    expect(level(renderer)).toBe(2);
   });
 
   it('does nothing without a mounted element', () => {

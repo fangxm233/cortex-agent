@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useReducer, useRef, useState, type RefObject } from 'react';
 import { flushSync } from 'react-dom';
 
 /**
@@ -22,6 +22,8 @@ export function useFitLevel<T extends HTMLElement>(
 ): { ref: RefObject<T>; level: number } {
   const ref = useRef<T>(null);
   const [level, setLevel] = useState(0);
+  // A resize must re-measure even when the level is already 0 and setLevel(0) alone would not render.
+  const [, remeasure] = useReducer((n: number) => n + 1, 0);
 
   useEffect(() => {
     const el = ref.current;
@@ -32,7 +34,7 @@ export function useFitLevel<T extends HTMLElement>(
       if (el.clientWidth === width) return;
       width = el.clientWidth;
       // Synchronous, so the re-fit (and the steps it triggers) lands in this frame.
-      flushSync(() => setLevel(0));
+      flushSync(() => { setLevel(0); remeasure(); });
     });
     observer.observe(el);
     return () => observer.disconnect();
