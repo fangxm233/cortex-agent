@@ -86,19 +86,15 @@ export function parseSignalArgs(argv: string[]): ParsedArgs {
 
 /** `--exit-code` is the ergonomic form: one flag turns `$?` into both a status and a message. */
 function resolveStatus(parsed: ParsedArgs): { status: string; message: string | null } {
-  if (parsed.exitCode !== null) {
-    const code = Number.parseInt(parsed.exitCode, 10);
-    if (!Number.isFinite(code)) {
-      throw cliError(formatError(`--exit-code must be a number, got '${parsed.exitCode}'`));
-    }
-    const status = parsed.status ?? (code === 0 ? 'ok' : 'fail');
-    return { status, message: parsed.message ?? `exit=${code}` };
+  if (parsed.status !== null && !STATUSES.includes(parsed.status)) {
+    throw cliError(formatError(`Invalid --status '${parsed.status}'`, { validValues: STATUSES }));
   }
-  const status = parsed.status ?? 'ok';
-  if (!STATUSES.includes(status)) {
-    throw cliError(formatError(`Invalid --status '${status}'`, { validValues: STATUSES }));
+  if (parsed.exitCode === null) return { status: parsed.status ?? 'ok', message: parsed.message };
+  const code = Number.parseInt(parsed.exitCode, 10);
+  if (!Number.isFinite(code)) {
+    throw cliError(formatError(`--exit-code must be a number, got '${parsed.exitCode}'`));
   }
-  return { status, message: parsed.message };
+  return { status: parsed.status ?? (code === 0 ? 'ok' : 'fail'), message: parsed.message ?? `exit=${code}` };
 }
 
 function readData(spec: string | null): unknown {

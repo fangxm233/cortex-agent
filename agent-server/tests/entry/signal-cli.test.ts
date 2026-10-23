@@ -99,6 +99,14 @@ test('a non-numeric --exit-code and an invalid --status are usage errors', async
   assert.match(badStatus.stderr, /Invalid --status/);
 });
 
+test('an invalid --status next to --exit-code is a usage error and sends nothing', async () => {
+  const { calls, options } = capturing();
+  const result = await runSignalCli(['--exit-code', '0', '--status', 'maybe'], options);
+  assert.equal(result.exitCode, 2);
+  assert.match(result.stderr, /Invalid --status 'maybe'/);
+  assert.equal(calls.length, 0);
+});
+
 // ── data ───────────────────────────────────────────────────────
 
 test('--data @file reads the file and a missing one is reported by name', async () => {
