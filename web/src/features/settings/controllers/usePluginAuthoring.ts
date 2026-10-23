@@ -1,12 +1,13 @@
 import { useCallback, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type {
+  PluginsMcpRead,
   PluginsSkillWriteReturn,
   MutateArgs,
 } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
-import { useTRPC } from '@/lib/trpc';
+import { trpcErrorCode, useTRPC } from '@/lib/trpc';
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -23,7 +24,7 @@ export interface PluginAuthoringActions {
   pluginCreate: (args: MutateArgs<'plugins.create'>) => Promise<boolean>;
   pluginRemove: (args: MutateArgs<'plugins.remove'>) => Promise<boolean>;
   convertToPortable: (args: MutateArgs<'plugins.convertToPortable'>) => Promise<boolean>;
-  mcpWrite: (args: MutateArgs<'plugins.mcpWrite'>) => Promise<boolean>;
+  mcpWrite: (args: MutateArgs<'plugins.mcpWrite'>) => Promise<PluginsMcpRead | null>;
 }
 
 type Mutation<A> = { mutateAsync: (args: A) => Promise<unknown> };
@@ -55,7 +56,8 @@ export function usePluginAuthoring(): PluginAuthoringActions {
       toast({ title: label, tone: 'done' });
       return data;
     } catch (error) {
-      toast({ title: `${L.plToastActionFailed}: ${errorMessage(error)}`, tone: 'failed' });
+      const conflict = trpcErrorCode(error) === 'CONFLICT';
+      toast({ title: conflict ? L.ttToastConflict : `${L.plToastActionFailed}: ${errorMessage(error)}`, tone: 'failed' });
       return null;
     } finally {
       setBusy(false);
@@ -100,7 +102,7 @@ export function usePluginAuthoring(): PluginAuthoringActions {
       flag(L.plToastConverted, () => convertM.mutateAsync(args))
     ), [flag, convertM, L]),
     mcpWrite: useCallback((args) => (
-      flag(L.plToastMcpSaved, () => mcpWriteM.mutateAsync(args))
-    ), [flag, mcpWriteM, L]),
+      run(L.plToastMcpSaved, async () => await mcpWriteM.mutateAsync(args) as PluginsMcpRead)
+    ), [run, mcpWriteM, L]),
   };
 }

@@ -8,7 +8,7 @@ import type {
   UiPluginCatalogEntry,
   MutateArgs,
 } from '@cortex-agent/ui-contract';
-import { LangProvider } from '@/i18n';
+import { LangProvider, en } from '@/i18n';
 
 const adapter = vi.hoisted(() => ({
   skillFile: null as PluginsSkillFile | null,
@@ -73,6 +73,7 @@ function mutation<A>(impl: (args: A) => Promise<unknown>) {
 }
 
 vi.mock('@/lib/trpc', () => ({
+  trpcErrorCode: (error: { data?: { code?: string } }) => error?.data?.code ?? null,
   useTRPC: () => ({
     plugins: {
       list: {
@@ -194,6 +195,7 @@ beforeEach(() => {
     servers: [
       { name: 'local', type: 'stdio', command: './bin/server', args: ['--verbose'], envKeys: ['TOKEN'] },
     ],
+    baseHash: 'c'.repeat(64),
   };
   for (const fn of [adapter.skillWrite, adapter.skillCreate, adapter.skillMove, adapter.skillRemove, adapter.skillRevert,
     adapter.create, adapter.remove, adapter.convert, adapter.mcpWrite, adapter.toast]) {
@@ -388,6 +390,7 @@ describe('MCP servers', () => {
     expect(payloadOf(adapter.mcpWrite)).toEqual({
       pluginId: 'alpha',
       servers: [{ name: 'local', type: 'stdio', command: './bin/other', args: ['--verbose'], env: { TOKEN: null } }],
+      baseHash: 'c'.repeat(64),
     });
     await cleanup(renderer, queryClient);
   });
@@ -406,7 +409,24 @@ describe('MCP servers', () => {
     expect(payloadOf(adapter.mcpWrite)).toEqual({
       pluginId: 'alpha',
       servers: [{ name: 'local', type: 'stdio', command: './bin/server', args: ['--verbose'], env: { TOKEN: 'fresh-token' } }],
+      baseHash: 'c'.repeat(64),
     });
+    await cleanup(renderer, queryClient);
+  });
+
+  it('keeps the edits and says the file changed on disk when the save conflicts', async () => {
+    adapter.mcpWrite.mockRejectedValue(Object.assign(new Error("'alpha/mcp.json' changed on disk"), { data: { code: 'CONFLICT' } }));
+    const queryClient = testQueryClient();
+    const renderer = mount(queryClient);
+    await ready(renderer);
+    await openTab(renderer, 'mcp');
+    await vi.waitFor(() => expect(renderer.root.findAllByProps({ 'data-plugin-secret': 'TOKEN' })).not.toHaveLength(0));
+
+    await change(byField(renderer, 'mcp-command'), './bin/other');
+    await click(byAction(renderer, 'mcp-save'));
+
+    await vi.waitFor(() => expect(adapter.toast).toHaveBeenCalledWith({ title: en.ttToastConflict, tone: 'failed' }));
+    expect(byField(renderer, 'mcp-command').props.value).toBe('./bin/other');
     await cleanup(renderer, queryClient);
   });
 

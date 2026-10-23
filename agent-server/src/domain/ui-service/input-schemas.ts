@@ -621,6 +621,7 @@ export const pluginsMcpWriteInput = z.object({
     env: pluginSecretPatch.optional(),
     headers: pluginSecretPatch.optional(),
   })).max(32),
+  baseHash: sha256HashInput,
 });
 
 // environments.get / validate / save / delete — the environment editing surface. The name pattern

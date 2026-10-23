@@ -358,9 +358,42 @@ test('mcpRead carries what a form needs and never a secret value', async () => {
   assert.equal(serialized.includes('super-secret-header'), false);
 });
 
+async function mcpBaseHash(pluginId: string): Promise<string> {
+  return (await handlePluginsMcpRead(deps(), { pluginId })).baseHash;
+}
+
+test('writes mcp.json only when the caller started from what is on disk', async () => {
+  const read = await handlePluginsMcpRead(deps(), { pluginId: 'alpha' });
+  const servers = [{ name: 'local', type: 'stdio' as const, command: './bin/server', env: { SECRET_TOKEN: null } }];
+
+  const saved = ok(await handlePluginsMcpWrite(deps(), { pluginId: 'alpha', servers, baseHash: read.baseHash }));
+  assert.notEqual(saved.baseHash, read.baseHash);
+  assert.equal(saved.baseHash, await mcpBaseHash('alpha'));
+  const written = readFileSync(path.join(PLUGINS_DIR, 'alpha', 'mcp.json'), 'utf8');
+
+  const stale = err(await handlePluginsMcpWrite(deps(), {
+    pluginId: 'alpha', servers: [], baseHash: read.baseHash,
+  }));
+  assert.equal(stale.code, 'conflict');
+  assert.equal(readFileSync(path.join(PLUGINS_DIR, 'alpha', 'mcp.json'), 'utf8'), written);
+});
+
+test('a plugin without mcp.json can get its first one', async () => {
+  const read = await handlePluginsMcpRead(deps(), { pluginId: 'beta' });
+  assert.deepEqual(read.servers, []);
+
+  ok(await handlePluginsMcpWrite(deps(), {
+    pluginId: 'beta',
+    servers: [{ name: 'remote', type: 'sse', url: 'https://api.example.com/sse' }],
+    baseHash: read.baseHash,
+  }));
+  assert.deepEqual((await handlePluginsMcpRead(deps(), { pluginId: 'beta' })).servers.map((server) => server.name), ['remote']);
+});
+
 test('a null secret keeps the value on disk, so an editor never has to hold it', async () => {
   ok(await handlePluginsMcpWrite(deps(), {
     pluginId: 'alpha',
+    baseHash: await mcpBaseHash('alpha'),
     servers: [
       { name: 'local', type: 'stdio', command: './bin/server', args: ['--quiet'], env: { SECRET_TOKEN: null } },
       { name: 'remote', type: 'streamable-http', url: 'https://api.example.com/v2', headers: { Authorization: null } },
@@ -377,6 +410,7 @@ test('a null secret keeps the value on disk, so an editor never has to hold it',
 test('a null secret with nothing stored is refused rather than written as empty', async () => {
   const failure = err(await handlePluginsMcpWrite(deps(), {
     pluginId: 'alpha',
+    baseHash: await mcpBaseHash('alpha'),
     servers: [{ name: 'local', type: 'stdio', command: './bin/server', env: { NEW_KEY: null } }],
   }));
 
@@ -389,6 +423,7 @@ test('an mcp.json the loader would reject is refused before it reaches disk', as
 
   const failure = err(await handlePluginsMcpWrite(deps(), {
     pluginId: 'alpha',
+    baseHash: await mcpBaseHash('alpha'),
     servers: [{ name: 'local', type: 'stdio', command: './bin/server', env: { PLUGIN_ROOT: 'x' } }],
   }));
 

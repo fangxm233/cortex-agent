@@ -11,6 +11,7 @@ const READ: PluginsMcpRead = {
     { name: 'local', type: 'stdio', command: './bin/server', args: ['--verbose'], cwd: '${PLUGIN_ROOT}', envKeys: ['TOKEN'] },
     { name: 'remote', type: 'streamable-http', url: 'https://api.example.com/mcp', headerKeys: ['Authorization'] },
   ],
+  baseHash: 'a'.repeat(64),
 };
 
 describe('isCanonicalName', () => {

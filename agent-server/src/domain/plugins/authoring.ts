@@ -315,10 +315,18 @@ export function convertToPortable(id: string): void {
   atomicWriteSync(containedTarget(root), `${JSON.stringify(body, null, 2)}\n`);
 }
 
+function parseJsonObject(text: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 function readJson(filePath: string): Record<string, unknown> | null {
   try {
-    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+    return parseJsonObject(fs.readFileSync(filePath, 'utf8'));
   } catch {
     return null;
   }
@@ -333,20 +341,34 @@ function effectiveMcpFile(pluginId: string): string | null {
   return inLayer(defaultBuiltinPluginsDir(), pluginId, 'mcp.json', isRegularFile);
 }
 
-/** The raw envelope, secrets included. Only the ui-service redaction layer may see this — it must
- *  never be returned to a browser unfiltered (that is the whole point of PLUGIN_MCP_RUNTIME). */
-export function readMcpEnvelope(pluginId: string): Record<string, unknown> {
-  const file = effectiveMcpFile(pluginId);
-  if (!file) return {};
-  const parsed = readJson(file);
-  if (!parsed) throw fail('invalid-args', `'${pluginId}/mcp.json' is not valid JSON`);
-  const servers = parsed.mcpServers;
-  return servers && typeof servers === 'object' && !Array.isArray(servers)
-    ? servers as Record<string, unknown>
-    : {};
+export interface McpSource {
+  servers: Record<string, unknown>;
+  /** Hash of the mcp.json bytes in effect; an absent file hashes as empty. */
+  baseHash: string;
 }
 
-export function writeMcpEnvelope(pluginId: string, servers: Record<string, unknown>): void {
+/** The raw envelope, secrets included. Only the ui-service redaction layer may see this — it must
+ *  never be returned to a browser unfiltered (that is the whole point of PLUGIN_MCP_RUNTIME). */
+export function readMcpSource(pluginId: string): McpSource {
+  const file = effectiveMcpFile(pluginId);
+  if (!file) return { servers: {}, baseHash: sha256('') };
+  const text = fs.readFileSync(file, 'utf8');
+  const parsed = parseJsonObject(text);
+  if (!parsed) throw fail('invalid-args', `'${pluginId}/mcp.json' is not valid JSON`);
+  const servers = parsed.mcpServers;
+  const valid = servers && typeof servers === 'object' && !Array.isArray(servers);
+  return { servers: valid ? servers as Record<string, unknown> : {}, baseHash: sha256(text) };
+}
+
+export function readMcpEnvelope(pluginId: string): Record<string, unknown> {
+  return readMcpSource(pluginId).servers;
+}
+
+/** Optimistic concurrency, same contract as writeSkillSource. */
+export function writeMcpEnvelope(pluginId: string, servers: Record<string, unknown>, baseHash: string): void {
+  if (readMcpSource(pluginId).baseHash !== baseHash) {
+    throw fail('conflict', `'${pluginId}/mcp.json' changed on disk`);
+  }
   const envelope = { $schema: AGENT_PLUGIN_V1_MCP_SCHEMA_URL, mcpServers: servers };
   const parsed = portableMcpSchema.safeParse(envelope);
   if (!parsed.success) {

@@ -3,7 +3,7 @@
 // command it was never given — but it stops at the same line the catalog does: env and header
 // VALUES never leave the server, only their key names.
 
-import { readMcpEnvelope, readSkillSource } from '@domain/plugins/authoring.js';
+import { readMcpSource, readSkillSource } from '@domain/plugins/authoring.js';
 import { readPluginCatalogSnapshot, skillOrigin } from '../plugins-shared.js';
 import type {
   PluginsMcpRead,
@@ -61,11 +61,12 @@ export async function handlePluginsSkillFile(
 
 export function readMcpDrafts(pluginId: string): PluginsMcpRead {
   const entry = readPluginCatalogSnapshot().byId.get(pluginId);
-  const servers = Object.entries(readMcpEnvelope(pluginId))
+  const source = readMcpSource(pluginId);
+  const servers = Object.entries(source.servers)
     .map(([name, raw]) => draftServer(name, raw))
     .filter((server): server is UiPluginMcpDraft => server !== null)
     .sort((left, right) => left.name.localeCompare(right.name));
-  return { pluginId, supported: entry?.kind === 'portable', servers };
+  return { pluginId, supported: entry?.kind === 'portable', servers, baseHash: source.baseHash };
 }
 
 export async function handlePluginsMcpRead(

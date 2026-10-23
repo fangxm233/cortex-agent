@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { UiPluginCatalogEntry } from '@cortex-agent/ui-contract';
+import type { PluginsMcpRead, UiPluginCatalogEntry } from '@cortex-agent/ui-contract';
 import { Select } from '@/design';
 import { useVocab, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
@@ -135,34 +135,62 @@ function ConvertNotice(props: { pluginId: string; busy: boolean; actions: Plugin
   );
 }
 
+/** The drafts being edited and the hash of the mcp.json they started from. */
+interface McpForm {
+  drafts: McpServerDraft[];
+  baseHash: string;
+}
+
+function formFromRead(read: PluginsMcpRead): McpForm {
+  return { drafts: draftsFromRead(read), baseHash: read.baseHash };
+}
+
+/** The read and the form seeded from it. The form keeps its hash until a save succeeds, so a save
+ *  after someone else changed mcp.json is refused rather than overwriting that change. */
+function useMcpForm(pluginId: string) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const query = useQuery(trpc.plugins.mcpRead.queryOptions({ pluginId }));
+  const [form, setForm] = useState<McpForm | null>(null);
+
+  useEffect(() => {
+    setForm(null);
+  }, [pluginId]);
+  useEffect(() => {
+    const data = query.data;
+    if (data) setForm((current) => current ?? formFromRead(data));
+  }, [query.data]);
+
+  // The shared action controller refreshes the catalog list, not every per-plugin query.
+  const refresh = () => queryClient.invalidateQueries(trpc.plugins.mcpRead.queryFilter({ pluginId }));
+  return { query, form, setForm, refresh };
+}
+
 /** Split from {@link PluginMcpTab} so the legacy branch renders without a query client at all:
  *  hooks cannot be skipped, and a legacy plugin has no mcp.json worth reading. */
 function McpServerForms(props: { plugin: UiPluginCatalogEntry; actions: PluginAuthoringActions }) {
   const L = useVocab();
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
-  const query = useQuery(trpc.plugins.mcpRead.queryOptions({ pluginId: props.plugin.id }));
-  const [drafts, setDrafts] = useState<McpServerDraft[] | null>(null);
+  const { query, form, setForm, refresh } = useMcpForm(props.plugin.id);
   const [nextId, setNextId] = useState(0);
 
-  // Re-baseline whenever a fresh read lands for a different plugin, or after a save changed it.
-  useEffect(() => {
-    setDrafts(null);
-  }, [props.plugin.id]);
-  useEffect(() => {
-    if (query.data) setDrafts((current) => current ?? draftsFromRead(query.data));
-  }, [query.data]);
-
-  if (query.isLoading || !drafts) {
-    return <EmptyMessage text={L.plLoading} dataAttr="data-plugin-mcp-loading" />;
-  }
   if (query.isError) {
     return <EmptyMessage text={`${L.plMcpSaveFailed} ${errorMessage(query.error)}`} dataAttr="data-plugin-mcp-error" />;
   }
+  if (query.isLoading || !form) {
+    return <EmptyMessage text={L.plLoading} dataAttr="data-plugin-mcp-loading" />;
+  }
 
-  const baseline = draftsFromRead(query.data);
-  const dirty = !sameMcpDrafts(baseline, drafts);
+  const { drafts } = form;
+  const setDrafts = (next: McpServerDraft[]) => setForm({ ...form, drafts: next });
+  const dirty = !sameMcpDrafts(draftsFromRead(query.data), drafts);
   const issues = mcpDraftIssues(drafts);
+  const save = async () => {
+    const saved = await props.actions.mcpWrite({
+      pluginId: props.plugin.id, servers: drafts.map(toInput), baseHash: form.baseHash,
+    });
+    if (saved) setForm(formFromRead(saved));
+    await refresh();
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -180,16 +208,7 @@ function McpServerForms(props: { plugin: UiPluginCatalogEntry; actions: PluginAu
         </SButton>
         <SButton tone="primary" data-action="mcp-save"
           disabled={props.actions.busy || !dirty || issues.length > 0}
-          onClick={async () => {
-            const done = await props.actions.mcpWrite({
-              pluginId: props.plugin.id, servers: drafts.map(toInput),
-            });
-            if (!done) return;
-            // The write is only visible to this tab once its own read is refetched — the shared
-            // action controller refreshes the catalog list, not every per-plugin query.
-            await queryClient.invalidateQueries(trpc.plugins.mcpRead.queryFilter({ pluginId: props.plugin.id }));
-            setDrafts(null);
-          }}>
+          onClick={save}>
           {L.plSave}
         </SButton>
       </div>

@@ -205,7 +205,7 @@ export async function handlePluginsMcpWrite(
     for (const server of args.servers) {
       next[server.name] = buildServer(server, current[server.name]);
     }
-    writeMcpEnvelope(args.pluginId, next);
+    writeMcpEnvelope(args.pluginId, next, args.baseHash);
     return readMcpDrafts(args.pluginId);
   });
 }

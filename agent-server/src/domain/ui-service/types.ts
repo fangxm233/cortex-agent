@@ -1206,6 +1206,8 @@ export interface PluginsMcpRead {
   /** False when the plugin is legacy, where mcp.json is never loaded however it is written. */
   supported: boolean;
   servers: UiPluginMcpDraft[];
+  /** Send back on save: a write from a stale read is refused as a conflict. */
+  baseHash: string;
 }
 
 /** Secret maps are patches, not replacements: `null` keeps whatever is on disk under that key, a
