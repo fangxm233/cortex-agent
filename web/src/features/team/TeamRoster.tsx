@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type CSSProperties } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { MENU_FOCUS, MENU_SURFACE, useDismissMenu } from '@/design/MenuChrome';
 import { fmt, useLangOptional, useVocabOptional } from '@/i18n';
@@ -198,47 +198,95 @@ export function TeamCapsule({ workers, onOpen }: {
   workers: SessionInfo[];
   onOpen: (sessionId: string) => void;
 }): JSX.Element | null {
-  const L = useVocabOptional();
   const compact = useHeaderCapsuleFit().team === 'compact';
   const roster = useMemo(() => teamRoster(workers), [workers]);
   const [open, setOpen] = useState(false);
-  const [hover, setHover] = useState(false);
+  const anchor = useRef<HTMLSpanElement>(null);
+  const panelBox = usePanelBox(open, anchor);
   const close = useCallback(() => setOpen(false), []);
   useDismissMenu(open, close, close);
   if (roster.active.length === 0) return null;
   return (
-    <span style={{ position: 'relative', display: 'inline-flex', flex: 'none' }}>
-      <button
-        type="button"
-        data-team-capsule=""
-        className={MENU_FOCUS}
-        aria-expanded={open}
-        aria-label={L.wbTeamWorkers}
-        title={`${L.wbTeamWorkers} · ${teamSummaryText(roster.active, L)}`}
-        data-compact={compact ? 'true' : undefined}
-        onClick={(event) => { event.stopPropagation(); setOpen((v) => !v); }}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
-        style={{ ...capsuleStyle({ lit: hover, pressed: open }), maxWidth: 360 }}
-      >
-        <WorkerDotStack workers={roster.active} />
-        {compact
-          ? <span data-team-count={roster.active.length} style={CHIP_COUNT}>{roster.active.length}</span>
-          : <TeamSummaryLabel active={roster.active} />}
-      </button>
-      {open && (
-        <div
-          data-team-panel=""
-          onClick={(event) => event.stopPropagation()}
-          style={{
-            position: 'absolute', right: 0, top: 34, width: 380, maxHeight: '70vh', overflowY: 'auto',
-            boxSizing: 'border-box', padding: 6, ...MENU_SURFACE,
-            border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', zIndex: 40,
-          }}
-        >
-          <TeamRosterPanel roster={roster} onOpen={(id) => { close(); onOpen(id); }} />
-        </div>
-      )}
+    <span ref={anchor} style={{ position: 'relative', display: 'inline-flex', flex: 'none' }}>
+      <TeamCapsuleButton active={roster.active} open={open} compact={compact} onToggle={() => setOpen((v) => !v)} />
+      {open && <TeamPanel roster={roster} box={panelBox} onOpen={(id) => { close(); onOpen(id); }} />}
     </span>
+  );
+}
+
+function TeamCapsuleButton({ active, open, compact, onToggle }: {
+  active: SessionInfo[];
+  open: boolean;
+  compact: boolean;
+  onToggle: () => void;
+}): JSX.Element {
+  const L = useVocabOptional();
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      type="button"
+      data-team-capsule=""
+      className={MENU_FOCUS}
+      aria-expanded={open}
+      aria-label={L.wbTeamWorkers}
+      title={`${L.wbTeamWorkers} · ${teamSummaryText(active, L)}`}
+      data-compact={compact ? 'true' : undefined}
+      onClick={(event) => { event.stopPropagation(); onToggle(); }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{ ...capsuleStyle({ lit: hover, pressed: open }), maxWidth: 360 }}
+    >
+      <WorkerDotStack workers={active} />
+      {compact
+        ? <span data-team-count={active.length} style={CHIP_COUNT}>{active.length}</span>
+        : <TeamSummaryLabel active={active} />}
+    </button>
+  );
+}
+
+const PANEL_WIDTH = 380;
+const PANEL_MIN_WIDTH = 240;
+const PANEL_GAP = 8;
+
+/** Horizontal bounds of the nearest ancestor that clips overflow (the chat pane), else the viewport's. */
+function clipBounds(el: HTMLElement): { left: number; right: number } {
+  for (let node = el.parentElement; node; node = node.parentElement) {
+    if (getComputedStyle(node).overflowX !== 'visible') return node.getBoundingClientRect();
+  }
+  return { left: 0, right: window.innerWidth };
+}
+
+/** The panel hangs left from the capsule. A narrow pane first narrows it, then shifts it right, so its
+ *  left side never runs under the pane's edge. `right` ≤ 0 is the shift. */
+function usePanelBox(open: boolean, anchor: RefObject<HTMLElement>): { width: number; right: number } {
+  const [box, setBox] = useState({ width: PANEL_WIDTH, right: 0 });
+  useLayoutEffect(() => {
+    const el = anchor.current;
+    if (!open || !el) return;
+    const clip = clipBounds(el);
+    const room = el.getBoundingClientRect().right - clip.left - PANEL_GAP;
+    const width = Math.min(PANEL_WIDTH, clip.right - clip.left - 2 * PANEL_GAP, Math.max(PANEL_MIN_WIDTH, room));
+    setBox({ width, right: Math.min(0, room - width) });
+  }, [open, anchor]);
+  return box;
+}
+
+function TeamPanel({ roster, box, onOpen }: {
+  roster: TeamRoster;
+  box: { width: number; right: number };
+  onOpen: (sessionId: string) => void;
+}): JSX.Element {
+  return (
+    <div
+      data-team-panel=""
+      onClick={(event) => event.stopPropagation()}
+      style={{
+        position: 'absolute', right: box.right, top: 34, width: box.width, maxHeight: '70vh', overflowY: 'auto',
+        boxSizing: 'border-box', padding: 6, ...MENU_SURFACE,
+        border: '1px solid var(--proto-line)', borderRadius: 'var(--r-card)', zIndex: 40,
+      }}
+    >
+      <TeamRosterPanel roster={roster} onOpen={onOpen} />
+    </div>
   );
 }
