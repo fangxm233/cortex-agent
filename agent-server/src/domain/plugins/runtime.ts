@@ -12,7 +12,7 @@ import {
   pluginMcpRuntime, portableNamespace, skillRoot, type PluginCatalogEntry, type PluginMcpServer,
 } from './catalog-types.js';
 import { listImmediateChildNames, realPath } from './fs-helpers.js';
-import { markInUse, sweepStaleRuntimeDirs } from './runtime-gc.js';
+import { markInUse, sweepStaleClaudeMcpFiles, sweepStaleRuntimeDirs } from './runtime-gc.js';
 import { safeClaudeManifestVersion, safeNativeComposite } from '@core/native-name.js';
 import {
   buildProjectedSkillTree,
@@ -775,6 +775,7 @@ export function resolvePluginRuntime(options: ResolvePluginRuntimeOptions): Reso
   );
   warnLegacySkillCollisions(portable.skillClaims, classified.selectedLegacySkills);
   sweepStaleRuntimeDirs(path.join(runtimeDir, options.backend), directoriesInUse(portable.details));
+  sweepStaleClaudeMcpFiles(runtimeDir);
   const resolved = resolvedRuntime(options.backend, classified.items, portable.details);
   return withWarnings(resolved, [...classified.warnings, ...portable.warnings]);
 }

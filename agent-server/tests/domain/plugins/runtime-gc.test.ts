@@ -3,7 +3,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, test } from 'vitest';
-import { _resetSweepThrottle, markInUse, sweepStaleRuntimeDirs } from '../../../src/domain/plugins/runtime-gc.js';
+import {
+  _resetSweepThrottle, markInUse, sweepStaleClaudeMcpFiles, sweepStaleRuntimeDirs,
+} from '../../../src/domain/plugins/runtime-gc.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const roots: string[] = [];
@@ -54,4 +56,30 @@ test('a reused directory is marked live, and sweeps are throttled per backend di
   const stale = dir(path.join(backend, 'plugin_later_abc'), 8);
   assert.deepEqual(sweepStaleRuntimeDirs(backend, new Set()), [], 'second sweep within the hour is skipped');
   assert.deepEqual(sweepStaleRuntimeDirs(backend, new Set(), Date.now() + 2 * 60 * 60 * 1000), [stale]);
+});
+
+function file(target: string, ageDays: number): string {
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, '{}\n');
+  const when = new Date(Date.now() - ageDays * DAY);
+  fs.utimesSync(target, when, when);
+  return target;
+}
+
+test('removes Claude MCP and proxy configs untouched for a week, and only those', () => {
+  const runtime = path.dirname(backendDir());
+  const hash = (char: string) => char.repeat(64);
+  const staleConfig = file(path.join(runtime, 'claude-mcp', `${hash('a')}.json`), 8);
+  const freshConfig = file(path.join(runtime, 'claude-mcp', `${hash('b')}.json`), 1);
+  const staleTemp = file(path.join(runtime, 'claude-mcp', `${hash('c')}.json.tmp.123.456.abc`), 8);
+  const staleProxy = file(path.join(runtime, 'claude-mcp-proxies', `${hash('d')}.json`), 8);
+  const freshProxy = file(path.join(runtime, 'claude-mcp-proxies', `${hash('e')}.json`), 1);
+  const foreign = file(path.join(runtime, 'claude-mcp', 'notes.json'), 30);
+  const staleDir = dir(path.join(runtime, 'claude-mcp', `${hash('f')}.json`), 30);
+
+  const removed = sweepStaleClaudeMcpFiles(runtime);
+
+  assert.deepEqual(removed.sort(), [staleConfig, staleTemp, staleProxy].sort());
+  for (const kept of [freshConfig, freshProxy, foreign, staleDir]) assert.ok(fs.existsSync(kept), kept);
+  assert.deepEqual(sweepStaleClaudeMcpFiles(runtime), [], 'second sweep within the hour is skipped');
 });

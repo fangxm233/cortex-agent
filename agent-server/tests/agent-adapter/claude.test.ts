@@ -335,6 +335,21 @@ test('writeClaudeSupplementalMcpConfig isolates a remote proxy config failure', 
   }
 });
 
+test('writeClaudeSupplementalMcpConfig marks a reused config live so the runtime sweep keeps it', () => {
+  const runtimeDir = fs.mkdtempSync(path.join(tmpdir(), 'claude-mcp-config-touch-'));
+  try {
+    const written = writePrivateSupplemental(runtimeDir);
+    const weekAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+    fs.utimesSync(written.path, weekAgo, weekAgo);
+
+    writePrivateSupplemental(runtimeDir);
+
+    assert.ok(Date.now() - fs.statSync(written.path).mtimeMs < 60_000);
+  } finally {
+    fs.rmSync(runtimeDir, { recursive: true, force: true });
+  }
+});
+
 test('writeClaudeSupplementalMcpConfig is deterministic, atomic, private on disk, and revalidatable', () => {
   const runtimeDir = fs.mkdtempSync(path.join(tmpdir(), 'claude-mcp-config-'));
   try {

@@ -100,11 +100,22 @@ function writePrivateAtomic(filePath: string, text: string): void {
   fs.chmodSync(filePath, 0o600);
 }
 
+/** Reuse refreshes the mtime: the plugin-runtime sweep removes only files untouched for a week. */
+function markLive(filePath: string): void {
+  try {
+    const now = new Date();
+    fs.utimesSync(filePath, now, now);
+  } catch {
+    // A failed touch only makes the file eligible for a sweep; the next spawn writes it again.
+  }
+}
+
 function privateContentFile(directory: string, text: string, label: string): string {
   ensurePrivateDirectory(directory, label);
   const filePath = path.join(directory, `${sha256(text)}.json`);
   if (fs.existsSync(filePath)) {
     validateExistingFile(filePath, text);
+    markLive(filePath);
     return filePath;
   }
   try {
