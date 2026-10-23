@@ -119,6 +119,14 @@ function OpenSettingsBody(props: SettingsBodyProps & { open: boolean }) {
   return <SettingsBody {...bodyProps} />;
 }
 
+/** Open focus lands on the selected section's nav row, not the first one, so one row reads as current. */
+function focusCurrentSection(event: Event): void {
+  const current = (event.target as HTMLElement | null)?.querySelector<HTMLElement>('[data-settings-nav][aria-current]');
+  if (!current) return;
+  event.preventDefault();
+  current.focus();
+}
+
 export function SettingsModal({ open, onClose, initialSection = 'appearance' }: SettingsModalProps) {
   const L = useVocab();
   // A panel holding an unsaved committed-on-save draft blocks nav and close: the Platform
@@ -131,7 +139,7 @@ export function SettingsModal({ open, onClose, initialSection = 'appearance' }: 
       <RadixDialog.Portal>
         <RadixDialog.Overlay style={BACKDROP_STYLE} className="animate-cxfade motion-reduce:animate-none" />
         <RadixDialog.Content aria-describedby={undefined} style={MODAL_STYLE} className="settings-surface settings-modal animate-cxmodal focus:outline-none motion-reduce:animate-none"
-          onPointerDownOutside={preventSelectOutsideInteraction}>
+          onPointerDownOutside={preventSelectOutsideInteraction} onOpenAutoFocus={focusCurrentSection}>
           <RadixDialog.Title style={SR_ONLY}>{L.settings}</RadixDialog.Title>
           <OpenSettingsBody open={open} onClose={requestClose} panelDirty={dirty}
             onPanelDirtyChange={setDirty} initialSection={initialSection} />
