@@ -16,6 +16,7 @@ import { migrateClaudeConfigHome } from './claude-transcript-migration.js';
 import { retireCommissions } from './board-migration.js';
 import { migrateToBuiltinOverlay } from './builtin-overlay-migration.js';
 import { retireProfiles } from './retire-profiles-migration.js';
+import { appendMemoryIndexIgnores } from './gitignore-migration.js';
 import {
   CODER_COMMIT_POLICY_REPLACEMENTS,
   CODER_REVIEWER_COMMIT_POLICY_REPLACEMENTS,
@@ -413,6 +414,11 @@ const migrations: Migration[] = [
 
       return { ...state, providerUsage: kept };
     },
+  },
+  // M12: anchor the shipped memory-index ignore rules under context/ in existing installs.
+  {
+    filePath: '.gitignore', version: '2026.10.22', format: 'text',
+    migrate: (data) => typeof data === 'string' ? appendMemoryIndexIgnores(data) : data,
   },
 ];
 

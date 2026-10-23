@@ -38,9 +38,9 @@ __pycache__/
 .venv/
 
 # Generated: memory index files (auto-rebuilt by memory-watcher / memory-index-regen)
-projects/*/experiments/index.md
-projects/*/knowledge/index.md
-projects/*/patterns/index.md
+context/projects/*/experiments/index.md
+context/projects/*/knowledge/index.md
+context/projects/*/patterns/index.md
 
 # Local worktrees
 .claude/worktrees/
