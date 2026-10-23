@@ -72,8 +72,19 @@ function ListBlock({ block }: { block: BlockOf<'list'> }): JSX.Element {
   return (
     // The base stylesheet strips list markers; a reply's lists read as lists only with them back.
     <Tag start={block.start} style={{ margin: '0', paddingLeft: 22, listStyleType: block.ordered ? 'decimal' : 'disc', display: 'flex', flexDirection: 'column', gap: 4 }}>
-      {block.items.map((item, index) => <li key={index}><Inline nodes={item} /></li>)}
+      {block.items.map((item, index) => <li key={index}><ListItemBody blocks={item} /></li>)}
     </Tag>
+  );
+}
+
+/** A one-paragraph item renders as bare text, as a tight list reads; an item with continuation
+ *  paragraphs, code or a sublist stacks its blocks inside the item. */
+function ListItemBody({ blocks }: { blocks: Block[] }): JSX.Element {
+  if (blocks.length === 1 && blocks[0].type === 'paragraph') return <Inline nodes={blocks[0].inline} />;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {blocks.map((b, i) => <BlockView key={i} block={b} ctx={{ wideTables: false, first: i === 0 }} />)}
+    </div>
   );
 }
 

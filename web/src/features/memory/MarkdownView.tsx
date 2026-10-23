@@ -131,7 +131,7 @@ function ListBlock({ block }: { block: BlockOf<'list'> }): JSX.Element {
     // The base stylesheet strips list markers; a document's lists read as lists only with them back.
     <Tag start={block.start} style={{ ...PROSE, paddingLeft: 22, listStyleType: block.ordered ? 'decimal' : 'disc' }}>
       {block.items.map((item, j) => (
-        <li key={j} style={{ paddingLeft: 2 }}>{renderInline(item)}</li>
+        <li key={j} style={{ paddingLeft: 2 }}>{renderListItem(item)}</li>
       ))}
     </Tag>
   );
@@ -357,6 +357,13 @@ function TableBlock({ block, bleed }: { block: BlockOf<'table'>; bleed: Markdown
       </div>
     </div>
   );
+}
+
+/** A one-paragraph item renders as bare text; continuation paragraphs, code or a sublist render as
+ *  blocks inside the item. */
+function renderListItem(blocks: Block[]): ReactNode {
+  if (blocks.length === 1 && blocks[0].type === 'paragraph') return renderInline(blocks[0].inline);
+  return blocks.map((block, i) => renderBlock({ block, anchor: null }, i, NO_BLEED));
 }
 
 function renderBlock({ block: b, anchor }: MemoryDocBlock, i: number, bleed: MarkdownBleed): ReactNode {

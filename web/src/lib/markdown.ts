@@ -26,7 +26,8 @@ export type InlineNode =
 export type Block =
   | { type: 'heading'; level: number; inline: InlineNode[] }
   | { type: 'paragraph'; inline: InlineNode[] }
-  | { type: 'list'; ordered: boolean; start?: number; items: InlineNode[][] }
+  /** Each item is its own run of blocks: its text, plus any continuation paragraphs, code or sublists. */
+  | { type: 'list'; ordered: boolean; start?: number; items: Block[][] }
   | { type: 'code'; lang: string | null; text: string }
   | { type: 'math'; text: string }
   | { type: 'table'; header: InlineNode[][]; rows: InlineNode[][][] }
@@ -355,32 +356,71 @@ function readBlockquote(lines: string[], index: number, options: ParseOptions): 
   return { block: { type: 'blockquote', inline: parseInline(buffer.join(' ').trim(), options) }, next: cursor };
 }
 
-const ORDERED_MARKER = /^\s*(\d+)\.\s+/;
+interface ListMarker {
+  indent: number;
+  ordered: boolean;
+  start: number;
+  /** Column where the item's text begins; continuation lines are dedented up to it. */
+  content: number;
+}
 
-/** Index of the list's next item from `from`: the adjacent line, or, across blank lines (a loose
- *  list), the next line when it is an item of the same kind. -1 once the list ends. */
-function nextListItem(lines: string[], from: number, ordered: boolean): number {
-  if (from < lines.length && isListLine(lines[from])) return from;
+function listMarker(line: string): ListMarker | null {
+  const match = /^(\s*)([-*+]|(\d+)\.)\s+/.exec(line);
+  if (!match) return null;
+  return { indent: match[1].length, ordered: match[3] !== undefined, start: Number(match[3] ?? 1), content: match[0].length };
+}
+
+function indentOf(line: string): number {
+  return line.length - line.trimStart().length;
+}
+
+function skipBlankLines(lines: string[], from: number): number {
   let cursor = from;
   while (cursor < lines.length && !lines[cursor].trim()) cursor++;
-  if (cursor === from || cursor >= lines.length || !isListLine(lines[cursor])) return -1;
-  return ORDERED_MARKER.test(lines[cursor]) === ordered ? cursor : -1;
+  return cursor;
+}
+
+/** A line continues the open item when it is indented past the marker, or — straight after item
+ *  text, with no blank line between — when it starts no block of its own (a lazy continuation). */
+function continuesItem(lines: string[], index: number, marker: ListMarker, afterBlank: boolean, options: ParseOptions): boolean {
+  if (indentOf(lines[index]) > marker.indent) return true;
+  if (afterBlank || isListLine(lines[index])) return false;
+  return readStructuredBlock(lines, index, options) === null;
+}
+
+/** One item's source, dedented to its text column, and the index just past its last line. */
+function readListItem(lines: string[], index: number, marker: ListMarker, options: ParseOptions): { body: string[]; next: number } {
+  const body = [lines[index].slice(marker.content)];
+  let cursor = index + 1;
+  for (let line = skipBlankLines(lines, cursor); line < lines.length; line = skipBlankLines(lines, cursor)) {
+    if (!continuesItem(lines, line, marker, line > cursor, options)) break;
+    body.push(...Array<string>(line - cursor).fill(''), lines[line].slice(Math.min(indentOf(lines[line]), marker.content)));
+    cursor = line + 1;
+  }
+  return { body, next: cursor };
+}
+
+/** The next sibling item's marker and line, across blank lines; null once the list ends. */
+function nextSibling(lines: string[], from: number, ordered: boolean): { marker: ListMarker; index: number } | null {
+  const index = skipBlankLines(lines, from);
+  const marker = index < lines.length ? listMarker(lines[index]) : null;
+  return marker && marker.ordered === ordered ? { marker, index } : null;
 }
 
 function readList(lines: string[], index: number, options: ParseOptions): BlockRead | null {
-  if (!isListLine(lines[index])) return null;
-  const marker = ORDERED_MARKER.exec(lines[index]);
-  const ordered = marker !== null;
-  const items: InlineNode[][] = [];
-  let cursor = index;
+  const first = listMarker(lines[index]);
+  if (!first) return null;
+  const items: Block[][] = [];
+  let item: { marker: ListMarker; index: number } | null = { marker: first, index };
   let end = index;
-  while (cursor !== -1) {
-    items.push(parseInline(lines[cursor].replace(/^\s*([-*+]|\d+\.)\s+/, '').trim(), options));
-    end = cursor + 1;
-    cursor = nextListItem(lines, end, ordered);
+  while (item) {
+    const read = readListItem(lines, item.index, item.marker, options);
+    items.push(parseBlocks(read.body.join('\n'), options));
+    end = read.next;
+    item = nextSibling(lines, end, first.ordered);
   }
-  const start = marker ? { start: Number(marker[1]) } : {};
-  return { block: { type: 'list', ordered, ...start, items }, next: end };
+  const start = first.ordered ? { start: first.start } : {};
+  return { block: { type: 'list', ordered: first.ordered, ...start, items }, next: end };
 }
 
 const BLOCK_READERS: BlockReader[] = [

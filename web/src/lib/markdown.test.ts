@@ -153,6 +153,52 @@ describe('parseBlocks', () => {
     expect(blocks[1]).toMatchObject({ type: 'list', ordered: true, start: 3 });
   });
 
+  it('keeps an indented continuation paragraph inside its item', () => {
+    const blocks = parseBlocks('1. first\n\n   more about first\n\n2. second');
+    expect(blocks).toHaveLength(1);
+    const items = (blocks[0] as any).items;
+    expect(items).toHaveLength(2);
+    expect(items[0]).toEqual([
+      { type: 'paragraph', inline: [{ type: 'text', text: 'first' }] },
+      { type: 'paragraph', inline: [{ type: 'text', text: 'more about first' }] },
+    ]);
+    expect(items[1]).toEqual([{ type: 'paragraph', inline: [{ type: 'text', text: 'second' }] }]);
+  });
+
+  it('nests an indented list under its parent item', () => {
+    const blocks = parseBlocks('- a\n  - b\n  - c\n- d');
+    expect(blocks).toHaveLength(1);
+    const items = (blocks[0] as any).items;
+    expect(items).toHaveLength(2);
+    expect(items[0][1]).toMatchObject({ type: 'list', ordered: false });
+    expect(items[0][1].items).toHaveLength(2);
+  });
+
+  it('keeps a fenced code block, blank lines included, inside its item', () => {
+    const blocks = parseBlocks('1. run\n\n   ```bash\n   ls\n\n   pwd\n   ```\n2. next');
+    expect(blocks).toHaveLength(1);
+    const items = (blocks[0] as any).items;
+    expect(items[0][1]).toEqual({ type: 'code', lang: 'bash', text: 'ls\n\npwd' });
+    expect(items).toHaveLength(2);
+  });
+
+  it('folds an unindented line straight after item text into the item (lazy continuation)', () => {
+    const blocks = parseBlocks('- a\nb');
+    expect(blocks).toHaveLength(1);
+    expect((blocks[0] as any).items[0]).toEqual([{ type: 'paragraph', inline: [{ type: 'text', text: 'a b' }] }]);
+  });
+
+  it('ends a list at a block that starts right after it', () => {
+    const blocks = parseBlocks('- a\n# Heading');
+    expect(blocks.map((b) => b.type)).toEqual(['list', 'heading']);
+  });
+
+  it('treats items sharing an indentation as siblings, not nesting', () => {
+    const blocks = parseBlocks('  - a\n  - b');
+    expect(blocks).toHaveLength(1);
+    expect((blocks[0] as any).items).toHaveLength(2);
+  });
+
   it('does not bridge a blank line into a list of the other kind', () => {
     const blocks = parseBlocks('- a\n\n1. b');
     expect(blocks).toHaveLength(2);
