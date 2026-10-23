@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from 'react';
+import { Fragment } from 'react';
 import { MButton, MDot, MC } from '@/mobile/ui/kit';
 import { MSET_INSET, MSettingsFrame, MSettingsGroup, MSettingsHeader as MDrillHeader,
   MSettingsBody as MScrollBody } from './MSettingsControls';
@@ -162,13 +162,7 @@ function ExpandedPanel({ card, L, panel }: { card: MMachineCard; L: Vocab; panel
   );
 }
 
-// ── inert actions (scheme L590-591): retry-connect / view-logs need a daemon-side op with no tRPC
-// surface here → rendered, non-functional, mirroring the desktop settings machines pattern.
-function InertButton({ children }: { children: ReactNode }) {
-  return <MButton compact style={{ flex: 'none' }}>{children}</MButton>;
-}
-
-// ── one machine row: status dot · name + os over heartbeat · offline actions; tap to expand ──────
+// ── one machine row: status dot · name + os over heartbeat; tap to expand ──────────────────────
 function MachineRow({ card, L, expanded, panel, onToggle }: {
   card: MMachineCard;
   L: Vocab;
@@ -184,7 +178,6 @@ function MachineRow({ card, L, expanded, panel, onToggle }: {
           <StatusDot online={card.online} />
           <MachineSummary card={card} L={L} />
         </div>
-        {!card.online && <><InertButton>{L.machRetry}</InertButton><InertButton>{L.machLogs}</InertButton></>}
       </div>
       {expanded && <ExpandedPanel card={card} L={L} panel={panel} />}
     </div>

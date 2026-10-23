@@ -48,7 +48,6 @@ export function MMachinesScreen() {
   const vm = useMemo(() => buildMMachinesVm(resource.machines, lang, Date.now()), [resource.machines, lang]);
   const panel = detailPanel(expanded ? resource.detailFor(expanded) : undefined);
   const requestAdd = useAddMachine(resource);
-  // retry-connect / view-logs remain inert: no browser-safe daemon operation exists.
   return <>{resource.loading
     ? <MSettingsPage title={L.stNavMachines} onBack={() => mobileHeaderBack(navigate, '/m/settings')}>
         <div style={{ color: MC.muted, fontSize: 13 }}>{L.machEmpty}</div></MSettingsPage>
