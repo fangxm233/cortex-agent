@@ -26,7 +26,7 @@ if (!serverHost) {
 const serverPort = getArg('--server-port') || '3002';
 
 if (!sshHost) {
-  log.error(`Usage: node --import tsx src/client-bootstrap.ts --host user@host --device-name NAME [options]
+  log.error(`Usage (from agent-server/): node --import tsx src/domain/remote/client-bootstrap.ts --host user@host --device-name NAME [options]
 
 Options:
   --host <user@host>        SSH target (required)
