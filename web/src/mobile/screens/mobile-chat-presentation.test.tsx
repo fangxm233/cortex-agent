@@ -42,7 +42,7 @@ describe('mobile chat presentation', () => {
     expect(html).toContain(en.mPlanReadFull);
     expect(html).toMatch(/>plan\.md</);
     const button = (label: string) => html.match(new RegExp(`<button[^>]*>${label.replace('&', '&amp;')}</button>`))?.[0] ?? '';
-    const approve = button(en.ixApproveRun);
+    const approve = button(en.ixApprovePlan);
     expect(approve).toContain('background:var(--ink-solid-bg)');
     expect(html).not.toContain('accent-glow');
     expect(html).not.toContain('var(--m-run-border)');

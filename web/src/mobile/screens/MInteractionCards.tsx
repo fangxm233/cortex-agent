@@ -353,7 +353,7 @@ export function MPlanCard({ model, copy, dimmed = false, onApprove, onRejectStar
           <PlanFileRow model={model} copy={copy} link={copy.mPlanReadFull} onOpenRead={onOpenRead} />
           <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
             <button type="button" onClick={onRejectStart} style={SECONDARY_ACTION}>{copy.ixRejectNote}</button>
-            <button type="button" onClick={onApprove} style={PRIMARY_ACTION}>{copy.ixApproveRun}</button>
+            <button type="button" onClick={onApprove} style={PRIMARY_ACTION}>{copy.ixApprovePlan}</button>
           </div>
         </div>
       </div>

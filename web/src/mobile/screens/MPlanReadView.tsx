@@ -106,7 +106,7 @@ export function MPlanReadView({ model, onBack, onApprove, onReject }: MPlanReadV
               onClick={onApprove}
               style={{ flex: 1, height: 48, borderRadius: 'var(--r-control)', background: MC.inkSolid, color: MC.inkSolidFg, border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, cursor: 'pointer' }}
             >
-              <span style={{ fontFamily: 'var(--font-ui)', fontSize: 15, fontWeight: 600 }}>{vocab.ixApproveRun}</span>
+              <span style={{ fontFamily: 'var(--font-ui)', fontSize: 15, fontWeight: 600 }}>{vocab.ixApprovePlan}</span>
             </button>
           </div>
         ) : (

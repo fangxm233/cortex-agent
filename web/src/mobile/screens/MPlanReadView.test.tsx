@@ -30,7 +30,7 @@ describe('MPlanReadView', () => {
     act(() => buttons[2].props.onClick());
     expect(onReject).toHaveBeenCalledOnce();
     expect(onApprove).toHaveBeenCalledOnce();
-    expect(JSON.stringify(renderer.toJSON())).toContain(en.ixApproveRun);
+    expect(JSON.stringify(renderer.toJSON())).toContain(en.ixApprovePlan);
   });
 
   it('keeps terminal status visible and removes pending controls', () => {
