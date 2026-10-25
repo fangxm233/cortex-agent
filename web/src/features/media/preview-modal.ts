@@ -27,32 +27,56 @@ export function usePreviewModalChrome(onClose: () => void): void {
 export interface PreviewHost<T extends PreviewItem> {
   /** The item the modal shows, if any. */
   item: T | null;
-  /** Opens `next` in the modal — or, while the dock is open, opens (or focuses) its dock tab. */
-  open: (next: T) => void;
+  /** Where `item` sits in the group it was opened from; a lone item is 0 of 1. */
+  index: number;
+  count: number;
+  /** Opens `next` in the modal — or, while the dock is open, opens (or focuses) its dock tab.
+   *  `group` (which must contain `next`) is what `step` moves through. */
+  open: (next: T, group?: readonly T[]) => void;
+  /** Shows the previous (-1) or next (+1) item of the group; stops at either end. */
+  step: (delta: number) => void;
   close: () => void;
-  /** ◧: hands the open item to a dock tab and dismisses the modal. Absent where no dock exists. */
+  /** ◧: hands the shown item to a dock tab and dismisses the modal. Absent where no dock exists. */
   pin?: () => void;
 }
 
+interface Shown<T> {
+  items: readonly T[];
+  index: number;
+}
+
+function shownFrom<T>(next: T, group: readonly T[] | undefined): Shown<T> {
+  const index = group ? group.indexOf(next) : -1;
+  return index < 0 ? { items: [next], index: 0 } : { items: group!, index };
+}
+
+function stepped<T>(shown: Shown<T> | null, delta: number): Shown<T> | null {
+  if (!shown) return null;
+  const index = Math.min(Math.max(shown.index + delta, 0), shown.items.length - 1);
+  return index === shown.index ? shown : { ...shown, index };
+}
+
 export function usePreviewHost<T extends PreviewItem>(): PreviewHost<T> {
-  const [item, setItem] = useState<T | null>(null);
+  const [shown, setShown] = useState<Shown<T> | null>(null);
   const dock = useDockIntake();
+  const item = shown ? shown.items[shown.index] : null;
   const open = useCallback(
-    (next: T) => {
+    (next: T, group?: readonly T[]) => {
       if (dock.active) {
         dock.openFile(next);
         return;
       }
-      setItem(next);
+      setShown(shownFrom(next, group));
     },
     [dock],
   );
-  const close = useCallback(() => setItem(null), []);
+  const step = useCallback((delta: number) => setShown((cur) => stepped(cur, delta)), []);
+  const close = useCallback(() => setShown(null), []);
   const pin = dock.canDock
     ? () => {
         if (item) dock.openFile(item);
-        setItem(null);
+        setShown(null);
       }
     : undefined;
-  return { item, open, close, pin };
+  return { item, index: shown?.index ?? 0, count: shown?.items.length ?? 0, open, step, close, pin };
 }

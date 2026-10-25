@@ -7,6 +7,8 @@ import { useMediaViewer } from '@/features/media/MediaViewer';
 import { docKindOfAttachment } from '@/features/media/doc-kind';
 import { mediaKindOf } from '@/features/media/media-kind';
 import { useWorkspaceObjectUrl } from '@/features/media/useWorkspaceObjectUrl';
+import { attachmentMediaGroup, groupMember } from '@/features/media/attachment-media-group';
+import type { MediaItem } from '@/features/media/preview-item';
 import { VideoThumb } from '@/features/media/VideoThumb';
 import type { AttachmentMeta as Attachment } from '@/features/attachments/types';
 import { useVocabOptional } from '@/i18n';
@@ -46,9 +48,10 @@ function MediaTileBody({ attachment, url, kind }: {
   );
 }
 
-function MediaTile({ attachment, kind }: {
+function MediaTile({ attachment, kind, group }: {
   attachment: Attachment;
   kind: 'image' | 'video';
+  group: readonly MediaItem[];
 }): JSX.Element {
   const { openMedia } = useMediaViewer();
   const hostRef = useRef<HTMLDivElement>(null);
@@ -56,7 +59,7 @@ function MediaTile({ attachment, kind }: {
   const url = useWorkspaceObjectUrl(near ? attachment.path : null);
   const width = attachment.type === 'video' ? 104 : 74;
   return (
-    <div ref={hostRef} role="button" onClick={() => openMedia({ kind, name: attachment.name, path: attachment.path })} style={{ width, height: 74, borderRadius: 'var(--r-card)', background: url ? 'var(--media-stage-bg)' : STRIPES, position: 'relative', overflow: 'hidden', flex: 'none', cursor: 'pointer' }}>
+    <div ref={hostRef} role="button" onClick={() => openMedia(groupMember(group, attachment), group)} style={{ width, height: 74, borderRadius: 'var(--r-card)', background: url ? 'var(--media-stage-bg)' : STRIPES, position: 'relative', overflow: 'hidden', flex: 'none', cursor: 'pointer' }}>
       <MediaTileBody attachment={attachment} url={url} kind={kind} />
     </div>
   );
@@ -76,9 +79,9 @@ function FileTile({ attachment }: { attachment: Attachment }): JSX.Element {
   );
 }
 
-function AttachmentTile({ attachment }: { attachment: Attachment }): JSX.Element {
+function AttachmentTile({ attachment, group }: { attachment: Attachment; group: readonly MediaItem[] }): JSX.Element {
   const kind = mediaKindOf(attachment.type);
-  if (kind) return <MediaTile attachment={attachment} kind={kind} />;
+  if (kind) return <MediaTile attachment={attachment} kind={kind} group={group} />;
   return <FileTile attachment={attachment} />;
 }
 
@@ -89,11 +92,12 @@ export function AttachmentGroup({ attachments, side = 'right' }: {
   const edge = side === 'left' ? 'flex-start' : 'flex-end';
   const views = attachments.filter((attachment) => attachment.type === 'view');
   const tiles = attachments.filter((attachment) => attachment.type !== 'view');
+  const group = attachmentMediaGroup(tiles);
   return (
     <div style={{ alignSelf: views.length > 0 ? 'stretch' : edge, display: 'flex', flexDirection: 'column', gap: 6, alignItems: views.length > 0 ? 'stretch' : edge }}>
       {views.map((attachment, index) => <ViewTile key={`view-${index}`} attachment={attachment} />)}
       {tiles.length > 0 && <div style={{ alignSelf: edge, display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: edge, maxWidth: '100%', minWidth: 0 }}>
-        {tiles.map((attachment, index) => <AttachmentTile key={index} attachment={attachment} />)}
+        {tiles.map((attachment, index) => <AttachmentTile key={index} attachment={attachment} group={group} />)}
       </div>}
     </div>
   );

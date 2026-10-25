@@ -10,7 +10,7 @@ import { SubagentBlock } from './SubagentBlock';
 import { SubagentTranscriptDetail } from './SubagentTranscriptDetail';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import type { AttachmentMeta, AttachmentMeta as Attachment } from '@/features/attachments/types';
-import { AgentFileGroup, AttachmentCard } from './MessageAttachmentCards';
+import { AgentFileGroup, UserAttachmentRow } from './MessageAttachmentCards';
 import { interactionView, emptyDeskAsk, type DeskAskState } from '@/features/session/interaction/interaction-vm';
 import type { InteractionActions } from '@/features/session/interaction/useInteractionActions';
 import { DeskAskCard, DeskPlanCard } from '@/features/session/interaction/InteractionCards';
@@ -131,13 +131,7 @@ function UserBubble({ text, attachments, ts, edited, actions = false, onStartEdi
         </span>
       )}
       {/* Attachments above the bubble */}
-      {hasAttachments && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          {attachments!.map((a, i) => (
-            <AttachmentCard key={i} a={a} />
-          ))}
-        </div>
-      )}
+      {hasAttachments && <UserAttachmentRow attachments={attachments!} />}
       {text && (
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'flex-end', maxWidth: '100%' }}>
           <div

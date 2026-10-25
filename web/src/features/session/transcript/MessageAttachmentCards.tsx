@@ -10,6 +10,8 @@ import { thumbStageStyle } from '@/features/media/thumb-stage';
 import { mediaKindOf } from '@/features/media/media-kind';
 import { VideoThumb } from '@/features/media/VideoThumb';
 import { MediaPreview } from '@/features/media/MediaPreview';
+import { attachmentMediaGroup, groupMember } from '@/features/media/attachment-media-group';
+import type { MediaItem } from '@/features/media/preview-item';
 import { docKindOfAttachment } from '@/features/media/doc-kind';
 import { HtmlBody } from '@/features/media/HtmlBody';
 import { useDockIntake } from '@/design/dock-intake';
@@ -43,8 +45,9 @@ function ThumbBody({ url, kind, name }: {
   return <VideoThumb src={url} style={style} />;
 }
 
-function MediaThumb({ a, width, height }: {
+function MediaThumb({ a, group, width, height }: {
   a: { name: string; path: string; type: 'image' | 'video' | 'file' | 'view' };
+  group: readonly MediaItem[];
   width: number;
   height: number;
 }): JSX.Element {
@@ -54,7 +57,7 @@ function MediaThumb({ a, width, height }: {
   const near = useNearViewport(hostRef);
   const url = useWorkspaceObjectUrl(near ? a.path : null);
   return (
-    <div ref={hostRef} role="button" title={a.name} onClick={() => openMedia({ kind, name: a.name, path: a.path })} style={thumbStageStyle(url, width, height)}>
+    <div ref={hostRef} role="button" title={a.name} onClick={() => openMedia(groupMember(group, a), group)} style={thumbStageStyle(url, width, height)}>
       <ThumbBody url={url} kind={kind} name={a.name} />
       {kind === 'video' && <span style={smallPlayStyle}>▶</span>}
       <span style={{ ...mediaNameStyle, maxWidth: width - 12 }}>{a.name}</span>
@@ -119,9 +122,10 @@ const userFileStyle: CSSProperties = {
   boxShadow: '0 0 0 1px var(--proto-line)',
 };
 
-export function AttachmentCard({ a }: { a: AttachmentMeta }): JSX.Element {
+/** `group`: the message's media, which the lightbox steps through (`attachmentMediaGroup`). */
+export function AttachmentCard({ a, group = attachmentMediaGroup([a]) }: { a: AttachmentMeta; group?: readonly MediaItem[] }): JSX.Element {
   const { openDoc } = useDocViewer();
-  if (a.type === 'image' || a.type === 'video') return <MediaThumb a={a} width={150} height={98} />;
+  if (a.type === 'image' || a.type === 'video') return <MediaThumb a={a} group={group} width={150} height={98} />;
   const docKind = docKindOfAttachment(a);
   const preview = docKind
     ? () => openDoc({ kind: docKind, name: a.name, path: a.path, mimeType: a.mimeType })
@@ -130,6 +134,16 @@ export function AttachmentCard({ a }: { a: AttachmentMeta }): JSX.Element {
     <div role={preview ? 'button' : undefined} data-attachment-file="user" title={a.path} onClick={preview}
       style={{ ...userFileStyle, cursor: preview ? 'pointer' : 'default' }}>
       <FileRowContent a={a} />
+    </div>
+  );
+}
+
+/** A user message's uploads, above its bubble; its images and videos open as one lightbox group. */
+export function UserAttachmentRow({ attachments }: { attachments: AttachmentMeta[] }): JSX.Element {
+  const group = attachmentMediaGroup(attachments);
+  return (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+      {attachments.map((a, i) => <AttachmentCard key={i} a={a} group={group} />)}
     </div>
   );
 }
@@ -231,7 +245,7 @@ function MediaDownload({ a, onDownload }: {
   );
 }
 
-function AgentMediaPreview({ a }: { a: Attachment }): JSX.Element {
+function AgentMediaPreview({ a, group }: { a: Attachment; group: readonly MediaItem[] }): JSX.Element {
   const dl = useDownloadFile();
   const kind = mediaKindOf(a.type)!;
   const { openMedia } = useMediaViewer();
@@ -241,7 +255,7 @@ function AgentMediaPreview({ a }: { a: Attachment }): JSX.Element {
   const [hover, setHover] = useState(false);
   return (
     <div ref={hostRef} style={{ maxWidth: '100%' }} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-      <MediaPreview url={url} kind={kind} name={a.name} onOpen={() => openMedia({ kind, name: a.name, path: a.path })}>
+      <MediaPreview url={url} kind={kind} name={a.name} onOpen={() => openMedia(groupMember(group, a), group)}>
         {hover && <MediaDownload a={a} onDownload={dl} />}
       </MediaPreview>
     </div>
@@ -253,12 +267,13 @@ export function AgentFileGroup({ attachments }: { attachments: Attachment[] }): 
   const dl = useDownloadFile();
   const views = attachments.filter((a) => a.type === 'view');
   const media = attachments.filter((a) => mediaKindOf(a.type) !== null);
+  const group = attachmentMediaGroup(media);
   const files = attachments.filter((a) => a.type !== 'view' && mediaKindOf(a.type) === null);
   const viewWidth = widestViewWidth(views);
   const box: CSSProperties = viewWidth ? viewGroupBox(viewWidth) : { maxWidth: '75%' };
   return (
     <div style={{ ...box, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, marginTop: 10 }}>
-      {media.length > 0 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{media.map((a, i) => <AgentMediaPreview key={`media-${i}`} a={a} />)}</div>}
+      {media.length > 0 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{media.map((a, i) => <AgentMediaPreview key={`media-${i}`} a={a} group={group} />)}</div>}
       {views.map((a, i) => <AgentViewCard key={`view-${i}`} a={a} />)}
       {files.map((a, i) => <AgentFileCard key={`file-${i}`} a={a} />)}
       {attachments.length >= 3 && (
