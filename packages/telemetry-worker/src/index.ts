@@ -1,9 +1,8 @@
 import { createAccessVerifier, type AccessVerifier } from './access.js';
 import { handleDashboard } from './dashboard/handler.js';
-import type { Env, ExecutionContext, ScheduledController } from './env.js';
+import type { Env } from './env.js';
 import { jsonResponse, methodNotAllowed, notFound } from './http.js';
 import { handleBatch } from './ingest.js';
-import { applyRetention } from './retention.js';
 
 export interface WorkerDeps {
   verifier: AccessVerifier;
@@ -38,8 +37,5 @@ export async function handleRequest(request: Request, env: Env, deps: WorkerDeps
 export default {
   fetch(request: Request, env: Env): Promise<Response> {
     return handleRequest(request, env);
-  },
-  scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
-    ctx.waitUntil(applyRetention(env.DB, new Date(controller.scheduledTime)));
   },
 };

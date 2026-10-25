@@ -28,11 +28,3 @@ export interface Env {
   DASHBOARD_LOCAL_BYPASS?: string;
 }
 
-export interface ScheduledController {
-  cron: string;
-  scheduledTime: number;
-}
-
-export interface ExecutionContext {
-  waitUntil(promise: Promise<unknown>): void;
-}

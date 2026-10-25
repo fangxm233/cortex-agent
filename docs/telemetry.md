@@ -230,10 +230,10 @@ The desktop app keeps its own files in the `telemetry` folder of its app data di
 
 ## Retention and deletion
 
-The collector deletes crash reports, error samples, upgrade reports and migration failures after
-90 days. Daily rollups, heartbeats, onboarding steps and per-day activity records are kept for 13
-months. An install's record is deleted 13 months after the install was last seen. The data is
-readable only by the project's maintainers.
+The collector keeps what it receives with no expiry, so version adoption and crash trends can be
+compared across releases. Crashes are stored per group with only the latest sample, so a crash that
+keeps recurring adds to a count rather than to new rows. The data is readable only by the project's
+maintainers.
 
 To have your data deleted, email [privacy@fangxm.me](mailto:privacy@fangxm.me) with your install
 ID. You can copy the ID from **Settings → Privacy**. The ID is random and tied to nothing else, so

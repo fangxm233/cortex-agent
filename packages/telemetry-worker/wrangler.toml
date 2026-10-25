@@ -30,6 +30,3 @@ database_name = "cortex-telemetry"
 database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
 
-# Daily retention sweep (UTC).
-[triggers]
-crons = ["17 3 * * *"]

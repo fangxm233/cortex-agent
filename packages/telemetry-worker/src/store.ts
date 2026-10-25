@@ -114,7 +114,7 @@ function crashStatements(db: D1Database, ctx: IngestContext, event: CrashEvent):
   )];
 }
 
-/** The rollup as stored: error samples move to `errors`, which has a shorter retention. */
+/** The rollup as stored: error samples move to the `errors` table. */
 function dailyPayload(event: DailyEvent): string {
   const { errors, ...rest } = event;
   return JSON.stringify({ ...rest, errors: { byModule: errors.byModule } });
