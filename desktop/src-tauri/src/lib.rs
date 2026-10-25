@@ -325,6 +325,7 @@ pub fn run() {
             if let Some(ready) = start_local_daemon(app.handle(), &initial_config) {
                 runtime_repair = !ready && setup::local_runtime_needs_repair();
                 shell_log!("[cortex-desktop] local daemon ready={ready}");
+                setup::autostart::refresh_in_background();
             }
 
             let open_workbench = connection::has_credentials(&initial_config) && !runtime_repair;

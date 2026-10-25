@@ -23,6 +23,14 @@ fn switched_off(approval: &[u8]) -> bool {
     approval.first().is_some_and(|flag| flag & 1 == 1)
 }
 
+/// This app's entry naming another executable (an older install location) is moved to this one;
+/// anything else under the name is left alone.
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn needs_refresh(run: Option<&str>, exe: &Path) -> bool {
+    let ours = run.is_some_and(|value| value.ends_with(&format!("\" {START_SERVER_ARG}")));
+    ours && run != Some(command_line(exe).as_str())
+}
+
 /// An entry naming another executable (an older install location) is stale: off, and turning it
 /// on rewrites it for this one.
 #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
@@ -54,6 +62,19 @@ pub(super) fn enable() -> Result<(), String> {
     }
     registry::delete(APPROVED_KEY, VALUE);
     Ok(())
+}
+
+/// Keep this app's entry on the executable running now. A Task Manager switch-off is kept.
+#[cfg(target_os = "windows")]
+pub(super) fn refresh() -> Result<bool, String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    if !needs_refresh(registry::get_string(RUN_KEY, VALUE).as_deref(), &exe) {
+        return Ok(false);
+    }
+    if !registry::set_string(RUN_KEY, VALUE, &command_line(&exe)) {
+        return Err("cannot write the login entry".into());
+    }
+    Ok(true)
 }
 
 /// Ok(true) = an entry was removed; Ok(false) = there was none.
@@ -165,6 +186,14 @@ mod tests {
         assert_eq!(state_of(None, None, &exe()), AutostartState::Off);
         let stale = "\"D:\\Old\\cortex-desktop.exe\" --start-server";
         assert_eq!(state_of(Some(stale), None, &exe()), AutostartState::Off);
+    }
+
+    #[test]
+    fn only_this_apps_entry_follows_the_executable() {
+        assert!(needs_refresh(Some("\"D:\\Old\\cortex-desktop.exe\" --start-server"), &exe()));
+        assert!(!needs_refresh(Some(&command_line(&exe())), &exe()));
+        assert!(!needs_refresh(Some("C:\\Tools\\other.exe"), &exe()));
+        assert!(!needs_refresh(None, &exe()));
     }
 
     #[test]

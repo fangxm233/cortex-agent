@@ -74,6 +74,16 @@ fn require_local(state: &AppState) -> Result<(), String> {
     }
 }
 
+/// At launch, in the background: keep this app's registration on the runtime and executable in use
+/// now, so the next login does not start a Node.js an update left behind. Failures are only logged.
+pub fn refresh_in_background() {
+    std::thread::spawn(|| match platform::refresh() {
+        Ok(true) => shell_log!("[cortex-desktop] autostart: registration updated to the current runtime"),
+        Ok(false) => {}
+        Err(e) => shell_log!("[cortex-desktop] autostart: refresh skipped ({e})"),
+    });
+}
+
 /// Remove this app's registration as part of uninstalling. Ok(true) = one was removed.
 #[cfg_attr(target_os = "android", allow(dead_code))]
 pub(crate) fn remove() -> Result<bool, String> {
@@ -94,17 +104,29 @@ mod platform {
     }
 
     pub fn enable(app: &AppHandle, run: &str) -> Result<bool, String> {
+        let launch = current_launch()?;
+        if service::resume_user_service(&launch)? {
+            return Ok(true);
+        }
+        service::enable_user_service(app, run, &launch)
+    }
+
+    pub fn refresh() -> Result<bool, String> {
+        service::refresh_user_service(&current_launch()?)
+    }
+
+    /// How the daemon runs on the runtime the app has selected now.
+    fn current_launch() -> Result<service::ServiceLaunch, String> {
         let selected =
             process::selected_runtime()?.ok_or("RUNTIME_MISSING: installation record unavailable")?;
         let server = selected.server.as_ref().ok_or("CLI_NOT_ON_PATH")?;
-        let launch = service::ServiceLaunch {
+        Ok(service::ServiceLaunch {
             program: selected.node.clone(),
             args: vec![daemon_service_entry(&server.bin)?.into_os_string()],
             home: cortex_home().ok_or("RUNTIME_MISSING: home unavailable")?,
             path: selected.path(&process::inherited_path())?,
             npm_prefix: Some(selected.prefix.clone()),
-        };
-        service::enable_user_service(app, run, &launch)
+        })
     }
 
     pub fn withdraw() -> Result<(), String> {
@@ -165,6 +187,10 @@ mod platform {
         login_entry::disable().map(drop)
     }
 
+    pub fn refresh() -> Result<bool, String> {
+        login_entry::refresh()
+    }
+
     pub fn remove() -> Result<bool, String> {
         login_entry::disable()
     }
@@ -187,6 +213,10 @@ mod platform {
 
     pub fn withdraw() -> Result<(), String> {
         Ok(())
+    }
+
+    pub fn refresh() -> Result<bool, String> {
+        Ok(false)
     }
 
     pub fn remove() -> Result<bool, String> {
