@@ -54,6 +54,7 @@ export const WRITABLE_BOOLEAN_SETTING_KEYS = [
   'teamEnabled',
   'claudeWindowWarmupEnabled',
   'memoryIndexRegenEnabled',
+  'telemetryEnabled',
 ] as const;
 export const WRITABLE_INTERVAL_SETTING_KEYS = [
   'memoryIndexRegenIntervalMs',

@@ -22,6 +22,7 @@ const SECTION_PATH: Partial<Record<SettingsSectionKey, string>> = {
   accounts: '/m/settings/accounts', models: '/m/settings/models', budget: '/m/settings/budget',
   usage: '/m/settings/usage', machines: '/m/machines', mcp: '/m/settings/mcp',
   notifications: '/m/settings/notifications', hooks: '/m/settings/hooks', advanced: '/m/settings/advanced',
+  privacy: '/m/settings/privacy',
 };
 
 export function MSettingsScreen() {

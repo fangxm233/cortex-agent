@@ -34,7 +34,7 @@ describe('fetchFileObjectUrl', () => {
     const controller = new AbortController();
     try {
       expect(await fetchFileObjectUrl('workspace/image.png', 'inline', controller.signal)).toBe('blob:preview');
-      expect(fetch).toHaveBeenCalledWith(expect.any(String), { headers: {}, signal: controller.signal });
+      expect(fetch).toHaveBeenCalledWith(expect.any(String), { headers: { 'x-cortex-client': 'browser' }, signal: controller.signal });
     } finally {
       create.mockRestore();
       vi.unstubAllGlobals();

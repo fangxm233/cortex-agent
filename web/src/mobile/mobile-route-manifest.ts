@@ -23,6 +23,7 @@ const ROUTES = [
   { id: 'settingsMcp', path: '/m/settings/mcp', parent: 'settings' },
   { id: 'settingsNotifications', path: '/m/settings/notifications', parent: 'settings' },
   { id: 'settingsAdvanced', path: '/m/settings/advanced', parent: 'settings' },
+  { id: 'settingsPrivacy', path: '/m/settings/privacy', parent: 'settings' },
   { id: 'settingsHooks', path: '/m/settings/hooks', parent: 'settings' },
   { id: 'settingsUsage', path: '/m/settings/usage', parent: 'settings' },
   { id: 'daemon', path: '/m/daemon', parent: 'settings' },

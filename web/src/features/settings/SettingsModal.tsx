@@ -18,6 +18,7 @@ import { AppearancePanel } from '@/features/settings/panels/AppearancePanel';
 import { AccountsPanel } from '@/features/settings/panels/AccountsPanel';
 import { PluginsPanel } from '@/features/settings/panels/PluginsPanel';
 import { UsagePanel } from '@/features/settings/panels/UsagePanel';
+import { PrivacyPanel } from '@/features/settings/panels/PrivacyPanel';
 import { SettingsHeaderSlotContext } from '@/features/settings/ui/settings-kit';
 import { useConfigSnapshot } from '@/features/settings/controllers/useConfigSnapshot';
 import '@/features/settings/ui/settings-style.css';
@@ -311,6 +312,7 @@ const INDEPENDENT_PANEL_RENDERERS: Partial<Record<SettingsSectionKey, Independen
   appearance: () => <AppearancePanel />,
   usage: () => <UsagePanel />,
   plugins: () => <PluginsPanel />,
+  privacy: () => <PrivacyPanel />,
 };
 
 function IndependentSettingsPanel(props: IndependentPanelProps) {

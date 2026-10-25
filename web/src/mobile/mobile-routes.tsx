@@ -26,6 +26,7 @@ import { MModelsScreen } from './screens/MModelsScreen';
 import { MBudgetScreen } from './screens/MBudgetScreen';
 import { MMcpScreen } from './screens/MMcpScreen';
 import { MAdvancedScreen, MNotificationsScreen } from './screens/MRuntimeSettingsScreen';
+import { MPrivacyScreen } from './screens/MPrivacyScreen';
 
 const MOBILE_ROUTE_ELEMENTS: Readonly<Record<MobileRouteId, ReactNode>> = {
   // One home screen: /m/project is the same list with the Projects panel open over it.
@@ -48,6 +49,7 @@ const MOBILE_ROUTE_ELEMENTS: Readonly<Record<MobileRouteId, ReactNode>> = {
   settingsMcp: <MMcpScreen />,
   settingsNotifications: <MNotificationsScreen />,
   settingsAdvanced: <MAdvancedScreen />,
+  settingsPrivacy: <MPrivacyScreen />,
   settingsHooks: <MHooksScreen />,
   settingsUsage: <MUsageScreen />,
   daemon: <MDaemonScreen />,
