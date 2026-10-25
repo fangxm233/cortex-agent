@@ -107,20 +107,22 @@ describe('apiBase / authHeaders (non-tRPC transport)', () => {
     delete (globalThis as MockGlobal).__CORTEX_DESKTOP_CONFIG;
   });
 
-  it('browser/ui-http mode: empty base + no auth header (same-origin, proxy/Access supplies auth)', () => {
+  it('browser/ui-http mode: empty base + only the client kind (same-origin, proxy/Access supplies auth)', () => {
     expect(apiBase()).toBe('');
-    expect(authHeaders()).toEqual({});
+    expect(authHeaders()).toEqual({ 'x-cortex-client': 'browser' });
   });
 
   it('native-shell/remote mode: absolute server base + x-cortex-token header', () => {
     (globalThis as MockGlobal).__CORTEX_DESKTOP_CONFIG = { serverUrl: 'https://cortex.example.com', token: 'tok' };
+    (globalThis as MockGlobal).__CORTEX_DESKTOP__ = true;
     expect(apiBase()).toBe('https://cortex.example.com');
     expect(authHeaders()).toEqual({ 'x-cortex-token': 'tok' });
+    delete (globalThis as MockGlobal).__CORTEX_DESKTOP__;
   });
 
   it('partial config (serverUrl without token) falls back to browser mode', () => {
     (globalThis as MockGlobal).__CORTEX_DESKTOP_CONFIG = { serverUrl: 'https://cortex.example.com' };
     expect(apiBase()).toBe('');
-    expect(authHeaders()).toEqual({});
+    expect(authHeaders()).toEqual({ 'x-cortex-client': 'browser' });
   });
 });

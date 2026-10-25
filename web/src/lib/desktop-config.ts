@@ -1,5 +1,6 @@
 import type { RemoteConfig } from './trpc';
 import type { NativePageConfig } from './native-bridge';
+import { clientKindHeaders } from './client-kind';
 
 export interface DesktopConfig extends RemoteConfig {
   providerSetupPending?: boolean;
@@ -42,12 +43,12 @@ export function apiBase(): string {
 }
 
 /**
- * Auth headers for an authenticated non-tRPC fetch: `x-cortex-token` in native-shell / remote mode,
- * empty in browser / ui-http mode (the same-origin dev proxy / Cloudflare Access supplies auth).
+ * Headers for an authenticated non-tRPC fetch: `x-cortex-token` in native-shell / remote mode (the
+ * same-origin dev proxy / Cloudflare Access supplies auth in the browser), plus the client kind.
  */
 export function authHeaders(): Record<string, string> {
   const cfg = readDesktopConfig();
-  return cfg ? { 'x-cortex-token': cfg.token } : {};
+  return { ...clientKindHeaders(), ...(cfg ? { 'x-cortex-token': cfg.token } : {}) };
 }
 
 /**

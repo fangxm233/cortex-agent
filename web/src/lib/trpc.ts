@@ -2,6 +2,7 @@
 // token. The subscription link supplies authentication through a fetch-based EventSource.
 
 import { httpTransportFetch } from './http-transport';
+import { clientKindHeaders } from './client-kind';
 import {
   createTRPCClient,
   httpBatchLink,
@@ -62,7 +63,7 @@ export function buildSseFetch(
   return (url: string | URL, init: EventSourceFetchInit) =>
     fetch(url as RequestInfo, {
       signal: init.signal as AbortSignal | null,
-      headers: { ...init.headers, 'x-cortex-token': token },
+      headers: { ...init.headers, ...clientKindHeaders(), 'x-cortex-token': token },
       mode: init.mode,
       credentials: init.credentials,
       cache: init.cache,
@@ -107,7 +108,8 @@ export function createTrpcClient(config?: RemoteConfig) {
           : httpSubscriptionLink({ url }),
         false: httpBatchLink({
           url,
-          headers: () => headers,
+          // Per request: native shells add the client kind once the server accepts it.
+          headers: () => ({ ...clientKindHeaders(), ...headers }),
           fetch: httpTransportFetch(config?.serverUrl),
         }),
       }),

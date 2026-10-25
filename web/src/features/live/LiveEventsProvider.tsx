@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useQueryClient } from '@tanstack/react-query';
 import { useTRPC, useTRPCClient } from '@/lib/trpc';
 import type { TrpcConnState } from '@/features/connection/connection-status';
+import { loadTiming, sseReconnects } from '@/features/telemetry/load-perf';
 import {
   applyConnState,
   dispatchLiveEvent,
@@ -148,6 +149,14 @@ export function LiveEventsProvider({ children }: { children: ReactNode }): JSX.E
       document.removeEventListener('visibilitychange', wake);
     };
   }, [clearRetry]);
+
+  // Telemetry: the first connection is when the page became usable; each epoch is one reconnect.
+  useEffect(() => {
+    if (conn.accum.hasConnected) loadTiming.markInteractive();
+  }, [conn.accum.hasConnected]);
+  useEffect(() => {
+    if (conn.accum.epoch > 0) sseReconnects.record();
+  }, [conn.accum.epoch]);
 
   // Stable across connection-state changes — otherwise every listener would re-register on each
   // connect/drop (harmless but pointless churn, and it would re-run consumers' effects).
