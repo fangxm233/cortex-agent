@@ -152,6 +152,9 @@ fn run(app: &AppHandle, scope: Scope, delete_data: bool) -> Vec<Step> {
         (Scope::Server, Some(server)) => teardown::teardown(&server, delete_data),
         _ => Vec::new(),
     };
+    // The Windows login entry launches this app, so it goes with the app even when the server stays.
+    #[cfg(target_os = "windows")]
+    let _ = crate::setup::autostart::remove();
     if steps.iter().any(|s| s.status == StepStatus::Failed) {
         return steps;
     }

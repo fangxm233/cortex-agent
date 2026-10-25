@@ -167,6 +167,21 @@ mod initial_route_tests {
 // ─── App entry point ───────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// A local install has no one else to start it: bring the daemon up before the workbench opens
+/// onto a dead server. Bounded — see setup::ensure_local_daemon. None = not a usable local install.
+fn start_local_daemon(app: &tauri::AppHandle, config: &ConnectionConfig) -> Option<bool> {
+    if config.mode != ConnectionMode::Local {
+        return None;
+    }
+    let (Some(bin), Some(url), Some(token)) =
+        (config.cortex_bin.as_deref(), config.server_url.as_deref(), config.token.as_deref())
+    else {
+        shell_log!("[cortex-desktop] local mode without a usable install record");
+        return None;
+    };
+    Some(setup::ensure_local_daemon(app, bin, url, token))
+}
+
 pub fn run() {
     // Route the `log` facade to logcat on Android (Rust stderr is not captured there) so the shell's
     // OTA/seed diagnostics are observable via `adb logcat -s cortex-desktop`. init_once is safe to call
@@ -228,7 +243,9 @@ pub fn run() {
             setup::setup_run_init,
             setup::setup_enable_ui,
             setup::setup_start_daemon,
-            setup::setup_enable_autostart,
+            setup::autostart::setup_enable_autostart,
+            setup::autostart::autostart_status,
+            setup::autostart::autostart_set,
             setup::setup_terminal_cli,
             setup::telemetry::setup_telemetry_lang,
             telemetry::telemetry_take_native_crash,
@@ -298,22 +315,16 @@ pub fn run() {
             shell_log!("[cortex-desktop] {}", creds::diagnostics(&app.handle()));
             let initial_config = connection::load_initial_config(&app.handle());
 
-            // A local install has no one else to start it: bring the daemon up before the workbench
-            // opens onto a dead server. Bounded — see setup::ensure_local_daemon.
+            // The Windows login entry: bring the local daemon up, then leave without a window.
+            if setup::autostart::headless_launch() {
+                let ready = start_local_daemon(app.handle(), &initial_config);
+                shell_log!("[cortex-desktop] login start: local daemon ready={ready:?}");
+                std::process::exit(0);
+            }
             let mut runtime_repair = false;
-            if initial_config.mode == ConnectionMode::Local {
-                match (
-                    initial_config.cortex_bin.as_deref(),
-                    initial_config.server_url.as_deref(),
-                    initial_config.token.as_deref(),
-                ) {
-                    (Some(bin), Some(url), Some(token)) => {
-                        let ready = setup::ensure_local_daemon(app.handle(), bin, url, token);
-                        runtime_repair = !ready && setup::local_runtime_needs_repair();
-                        shell_log!("[cortex-desktop] local daemon ready={ready}");
-                    }
-                    _ => shell_log!("[cortex-desktop] local mode without a usable install record"),
-                }
+            if let Some(ready) = start_local_daemon(app.handle(), &initial_config) {
+                runtime_repair = !ready && setup::local_runtime_needs_repair();
+                shell_log!("[cortex-desktop] local daemon ready={ready}");
             }
 
             let open_workbench = connection::has_credentials(&initial_config) && !runtime_repair;

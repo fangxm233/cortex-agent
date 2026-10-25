@@ -5,9 +5,12 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use super::autostart::AutostartState;
 use super::process::run_streaming;
 
 const LABEL: &str = "cc.cortex.agent-server";
+const SYSTEMCTL: &str = "/usr/bin/systemctl";
+const LAUNCHCTL: &str = "/bin/launchctl";
 const UNIT: &str = "cortex.service";
 const OWNER: &str = "Managed by Cortex desktop user-service v1; do not edit.";
 
@@ -455,37 +458,111 @@ fn enable_launchd(
 /// Remove the autostart registration setup made. Ok(false) = none registered (or no autostart on
 /// this platform). A registration this app did not write is reported and left alone.
 pub(super) fn disable_user_service() -> Result<bool, String> {
-    let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
+    let Some(home) = login_home() else {
         return Ok(false);
     };
-    disable_for(std::env::consts::OS, &home, &mut |program, args, _| {
-        let output = Command::new(program)
-            .args(args)
-            .output()
-            .map_err(|_| format!("cannot run {program}"))?;
-        Ok(Output {
-            ok: output.status.success(),
-            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-        })
+    disable_for(std::env::consts::OS, &home, &mut quiet)
+}
+
+/// Whether this app's registration starts the server at the next login.
+pub(super) fn user_service_state() -> AutostartState {
+    let Some(home) = login_home() else {
+        return AutostartState::Off;
+    };
+    state_for(std::env::consts::OS, &home, &mut quiet)
+}
+
+/// Stop starting at login while the running daemon keeps running. The file stays, so turning it
+/// back on re-enables the same registration instead of meeting a loaded job with no file.
+pub(super) fn withdraw_user_service() -> Result<(), String> {
+    let Some(home) = login_home() else {
+        return Ok(());
+    };
+    withdraw_for(std::env::consts::OS, &home, &mut quiet)
+}
+
+fn login_home() -> Option<PathBuf> {
+    std::env::var_os("HOME").map(PathBuf::from)
+}
+
+fn quiet(program: &str, args: &[OsString], _private: bool) -> Result<Output, String> {
+    let output = Command::new(program)
+        .args(args)
+        .output()
+        .map_err(|_| format!("cannot run {program}"))?;
+    Ok(Output {
+        ok: output.status.success(),
+        stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
     })
 }
 
-fn disable_for(os: &str, home: &Path, runner: &mut Runner<'_>) -> Result<bool, String> {
+/// Ok(None) = nothing registered; Err = a registration this app did not write.
+fn owned_registration(os: &str, home: &Path) -> Result<Option<PathBuf>, String> {
     let path = match os {
         "linux" => home.join(".config/systemd/user").join(UNIT),
         "macos" => home.join("Library/LaunchAgents").join(format!("{LABEL}.plist")),
-        _ => return Ok(false),
+        _ => return Ok(None),
     };
     if fs::symlink_metadata(&path).is_err() {
-        return Ok(false);
+        return Ok(None);
     }
     if !fs::read_to_string(&path).is_ok_and(|content| content.contains(OWNER)) {
         return Err(format!("{} was not created by Cortex; preserved unchanged", path.display()));
     }
+    Ok(Some(path))
+}
+
+fn disable_for(os: &str, home: &Path, runner: &mut Runner<'_>) -> Result<bool, String> {
+    let Some(path) = owned_registration(os, home)? else {
+        return Ok(false);
+    };
     match os {
         "linux" => unregister_systemd(home, &path, runner),
         _ => unregister_launchd(&path, runner),
     }
+}
+
+fn state_for(os: &str, home: &Path, runner: &mut Runner<'_>) -> AutostartState {
+    match owned_registration(os, home) {
+        Err(_) => AutostartState::External,
+        Ok(None) => AutostartState::Off,
+        Ok(Some(_)) if starts_at_login(os, runner) => AutostartState::On,
+        Ok(Some(_)) => AutostartState::Off,
+    }
+}
+
+fn starts_at_login(os: &str, runner: &mut Runner<'_>) -> bool {
+    if os == "linux" {
+        let args = ["--user".into(), "is-enabled".into(), UNIT.into()];
+        // is-enabled exits non-zero for anything but "enabled", so read the answer, not the status.
+        return runner(SYSTEMCTL, &args, true).is_ok_and(|out| out.stdout.trim() == "enabled");
+    }
+    let Ok((domain, _)) = launchd_target(runner) else {
+        return false;
+    };
+    let args = ["print-disabled".into(), domain.into()];
+    runner(LAUNCHCTL, &args, true).is_ok_and(|out| out.ok && !launchd_disabled(&out.stdout))
+}
+
+/// `launchctl print-disabled` lists overrides as `"label" => disabled` (`=> true` before macOS 13).
+fn launchd_disabled(listing: &str) -> bool {
+    let key = format!("\"{LABEL}\" =>");
+    listing
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix(key.as_str()))
+        .any(|value| matches!(value.trim(), "disabled" | "true"))
+}
+
+fn withdraw_for(os: &str, home: &Path, runner: &mut Runner<'_>) -> Result<(), String> {
+    if owned_registration(os, home)?.is_none() {
+        return Ok(());
+    }
+    let (program, args): (&str, Vec<OsString>) = match os {
+        "linux" => (SYSTEMCTL, vec!["--user".into(), "disable".into(), UNIT.into()]),
+        _ => (LAUNCHCTL, vec!["disable".into(), launchd_target(runner)?.1.into()]),
+    };
+    let args = args.iter().map(OsString::as_os_str).collect::<Vec<_>>();
+    invoke(runner, program, &args, false).map(drop)
 }
 
 // Disabling is best-effort: a unit systemd never loaded cannot be stopped, and removing the file

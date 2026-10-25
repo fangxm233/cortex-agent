@@ -47,14 +47,8 @@ pub fn teardown(server: &LocalServer, purge: bool) -> Vec<Step> {
     teardown_with(server, purge, user_home.as_deref(), &mut ports)
 }
 
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn autostart_off() -> Result<bool, String> {
-    super::service::disable_user_service()
-}
-
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
-fn autostart_off() -> Result<bool, String> {
-    Ok(false)
+    super::autostart::remove()
 }
 
 /// A daemon that would not stop keeps the runtime and data in use, so nothing is deleted then.

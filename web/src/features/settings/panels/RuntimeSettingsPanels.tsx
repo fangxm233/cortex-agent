@@ -19,6 +19,7 @@ import {
   Toggle,
 } from '@/features/settings/ui/settings-ui';
 import { AppUpdateCard } from './AppUpdateCard';
+import { AutostartCard } from './AutostartCard';
 import { UninstallCard } from './UninstallCard';
 import { UiSignOutCard } from './UiSignOutCard';
 import {
@@ -475,6 +476,7 @@ export function AdvancedPanelView({ snapshot, pending, onToggle, onSet }: Advanc
         <GpuMockRow snapshot={snapshot} />
       </SRowGroup>
       <BuiltinJobsSection settings={settings} pending={pending} onToggle={onToggle} onSet={onSet} />
+      <AutostartCard />
       <AppUpdateCard />
       <UiSignOutCard />
       <UninstallCard />
