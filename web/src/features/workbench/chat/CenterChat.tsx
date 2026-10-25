@@ -257,6 +257,8 @@ export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
                 <MessageStream
                   rows={rows}
                   loading={!!sessionId && chat.transcriptPending}
+                  fetched={chat.transcriptFetched}
+                  readMark={active ? { lastReadAt: active.lastReadAt, origin: active.origin } : undefined}
                   interactionActions={chat.interactionActions}
                   edit={edit}
                   streamKey={sessionId}

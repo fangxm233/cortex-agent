@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type DependencyList, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, type DependencyList, type MutableRefObject, type RefObject } from 'react';
 
 /** Within this many px of the bottom the view counts as pinned. */
 const PIN_SLACK = 40;
@@ -22,6 +22,8 @@ export interface StickToBottom {
   freeze: () => void;
   /** Stop following, e.g. before jumping to an earlier message. */
   release: () => void;
+  /** Following the latest message right now. */
+  pinned: () => boolean;
 }
 
 /**
@@ -65,14 +67,24 @@ export function useStickToBottom(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contentRef]);
 
+  return controls(scrollRef, pinned, frozenUntil, options.freezeMs);
+}
+
+function controls(
+  scrollRef: RefObject<HTMLElement>,
+  pinned: MutableRefObject<boolean>,
+  frozenUntil: MutableRefObject<number>,
+  freezeMs: number | undefined,
+): StickToBottom {
   return {
     onScroll: () => {
       const el = scrollRef.current;
       if (el) pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < PIN_SLACK;
     },
     freeze: () => {
-      if (options.freezeMs) frozenUntil.current = Date.now() + options.freezeMs;
+      if (freezeMs) frozenUntil.current = Date.now() + freezeMs;
     },
     release: () => { pinned.current = false; },
+    pinned: () => pinned.current,
   };
 }

@@ -348,6 +348,9 @@ export interface SessionInfo {
    *  it (`sessions.markRead` → registry lastReadAt). Legacy records with no lastReadAt are treated
    *  as read (no unread flood on first deploy). */
   unread: boolean;
+  /** When the user last viewed the session (`sessions.markRead`); null when never. The chat finds
+   *  the first reply that landed after it. Optional for rolling compatibility with older servers. */
+  lastReadAt?: string | null;
 }
 
 // ── sessions.transcript DTO (S4 chat) ─────────────────────────────
