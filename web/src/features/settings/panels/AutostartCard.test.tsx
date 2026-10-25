@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { en } from '@/i18n/vocab';
 import type { AutostartController } from '@/features/settings/controllers/useAutostartController';
 import { SetupAutostartCard } from '@/features/provider-setup/SetupAutostartCard';
-import { AutostartCardView } from './AutostartCard';
+import { AutostartRow } from './AutostartCard';
 
 vi.mock('@/i18n', async importOriginal => ({ ...await importOriginal<typeof import('@/i18n')>(), useVocab: () => en }));
 
@@ -12,7 +12,7 @@ function controller(patch: Partial<AutostartController> = {}): AutostartControll
 }
 
 const CARDS = [
-  ['Settings → Advanced', (c: AutostartController) => <AutostartCardView controller={c} />],
+  ['Settings → Advanced', (c: AutostartController) => <AutostartRow controller={c} />],
   ['post-install page', (c: AutostartController) => <SetupAutostartCard controller={c} />],
 ] as const;
 

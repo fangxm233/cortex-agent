@@ -1,5 +1,5 @@
 import { mobileHeaderBack } from '@/mobile/mobile-navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { LocalNotificationsCard } from '@/features/settings/panels/LocalNotificationsCard';
 import { useNavigate } from 'react-router-dom';
 import type { ConfigSettingEntry, ConfigSnapshot, SystemNoticeEntry } from '@cortex-agent/ui-contract';
@@ -13,18 +13,22 @@ import { useConfigSnapshot } from '@/features/settings/controllers/useConfigSnap
 import { useUiSignOut } from '@/features/settings/controllers/useUiSignOut';
 import { MNativeNotificationsCard } from './MNativeNotificationsCard';
 import {
-  ADVANCED_FLAGS, ADVANCED_NUMBER_SETTINGS, BUILTIN_JOB_SETTINGS, NOTIFY_SETTINGS,
+  NOTIFY_SETTINGS,
   durationDraftFromMs, durationDraftToMs, durationUnits, numberSettingLoaded, parseNumberSettingDraft,
-  hasAnyKey, indexEnv, indexSettings, type AdvancedFlag,
-  type BuiltinJobSettingDescriptor, type NumberSettingDescriptor,
+  hasAnyKey, indexEnv, indexSettings,
+  type BuiltinJobSettingDescriptor, type EnvIndex, type NumberSettingDescriptor,
   type SettingToggleDescriptor, type SettingsIndex,
 } from '@/features/settings/vm/platform-env';
+import {
+  ADVANCED_SECTIONS, advancedToggleState, envFlagOn, visibleAdvancedRows,
+  type AdvancedEnvRow, type AdvancedRow, type AdvancedSection, type AdvancedToggleRow,
+} from '@/features/settings/vm/advanced-sections';
 import {
   useRuntimeSettingWrite,
   type RuntimeSettingWriter,
 } from '@/features/settings/controllers/runtime-settings-writer';
 import {
-  MSET_INSET, MSET_KEY, MSET_SUB, MSET_TITLE, MSettingsField, MSettingsQueryPage,
+  MSET_INSET, MSET_SUB, MSET_TITLE, MSettingsField, MSettingsQueryPage,
   MSettingsRow, MSettingsSection, MSettingsSelect, MSettingsToggle,
 } from './MSettingsControls';
 
@@ -92,15 +96,21 @@ function NotificationsContent(props: { snapshot: ConfigSnapshot; write: RuntimeS
   </>;
 }
 
-function EnvFlagRow(props: {
-  descriptor: Extract<AdvancedFlag, { kind: 'env' }>;
-  snapshot: ConfigSnapshot;
-}) {
+function EnvFlagRow(props: { row: AdvancedEnvRow; env: EnvIndex }) {
   const L = useVocab();
-  const entry = indexEnv(props.snapshot.env)[props.descriptor.env];
-  const value = entry?.enabled ?? entry?.present === true;
-  return <MSettingsRow dataKey={props.descriptor.env} title={L[props.descriptor.titleKey]}
-    trailing={<MSettingsToggle value={value} label={L[props.descriptor.titleKey]} disabled />} />;
+  const title = L[props.row.titleKey];
+  return <MSettingsRow dataKey={props.row.env} title={title}
+    trailing={<MSettingsToggle value={envFlagOn(props.env[props.row.env])} label={title} disabled />} />;
+}
+
+function AdvancedToggle(props: { row: AdvancedToggleRow; settings: SettingsIndex; write: RuntimeSettingWriter }) {
+  const L = useVocab();
+  const { row } = props;
+  const state = advancedToggleState(row, props.settings);
+  return <MSettingsRow dataKey={row.setting} title={L[row.titleKey]} sub={row.descKey && L[row.descKey]}
+    trailing={<MSettingsToggle value={state.on} label={L[row.titleKey]}
+      disabled={!state.editable || props.write.pending}
+      onChange={() => props.write.onToggle(row.setting, state.next)} />} />;
 }
 
 function NumberSettingRow(props: {
@@ -127,26 +137,6 @@ function NumberSettingRow(props: {
       <MButton compact variant="outline" disabled={!canSave}
         onClick={() => { if (next.valid) props.write.onSet(props.descriptor.setting, next.value); }}>{L.stBuiltinSave}</MButton>
     </div>} />;
-}
-
-function AdvancedReadOnly(props: { snapshot: ConfigSnapshot }) {
-  const L = useVocab();
-  const gpuMock = indexEnv(props.snapshot.env).CORTEX_GPU_MONITOR_MOCK?.present === true;
-  return <MSettingsRow title={L.stGpuMock}
-    trailing={<span style={MSET_KEY}>{gpuMock ? L.stSet : '—'}</span>} />;
-}
-
-function AdvancedFlags(props: { snapshot: ConfigSnapshot; write: RuntimeSettingWriter }) {
-  const settings = indexSettings(props.snapshot.settings);
-  return <MSettingsSection>
-    {ADVANCED_FLAGS.map((flag) => flag.kind === 'env'
-      ? <EnvFlagRow key={`env:${flag.env}`} descriptor={flag} snapshot={props.snapshot} />
-      : <ToggleRow key={flag.setting} descriptor={flag} settings={settings}
-          pending={props.write.pending} onToggle={props.write.onToggle} />)}
-    {ADVANCED_NUMBER_SETTINGS.map((descriptor) => <NumberSettingRow key={descriptor.setting}
-      descriptor={descriptor} settings={settings} write={props.write} />)}
-    <AdvancedReadOnly snapshot={props.snapshot} />
-  </MSettingsSection>;
 }
 
 function JobInterval(props: {
@@ -197,15 +187,35 @@ function SignOutCard() {
   </div>;
 }
 
-function AdvancedContent(props: { snapshot: ConfigSnapshot; write: RuntimeSettingWriter }) {
+interface AdvancedRowContext { settings: SettingsIndex; env: EnvIndex; write: RuntimeSettingWriter }
+
+type AdvancedRowView<K extends AdvancedRow['kind']> = (
+  row: Extract<AdvancedRow, { kind: K }>, ctx: AdvancedRowContext,
+) => ReactNode;
+
+const ADVANCED_ROW_VIEWS: { [K in AdvancedRow['kind']]: AdvancedRowView<K> } = {
+  toggle: (row, ctx) => <AdvancedToggle key={row.setting} row={row} settings={ctx.settings} write={ctx.write} />,
+  env: (row, ctx) => <EnvFlagRow key={row.env} row={row} env={ctx.env} />,
+  number: (row, ctx) => <NumberSettingRow key={row.descriptor.setting} descriptor={row.descriptor}
+    settings={ctx.settings} write={ctx.write} />,
+  job: (row, ctx) => <JobRow key={row.descriptor.enabled} descriptor={row.descriptor}
+    settings={ctx.settings} write={ctx.write} />,
+};
+
+function AdvancedSectionCard(props: { section: AdvancedSection; ctx: AdvancedRowContext }) {
   const L = useVocab();
-  const settings = indexSettings(props.snapshot.settings);
+  const render = (row: AdvancedRow) => (ADVANCED_ROW_VIEWS[row.kind] as AdvancedRowView<AdvancedRow['kind']>)(row, props.ctx);
+  return <MSettingsSection title={L[props.section.titleKey]}>
+    {visibleAdvancedRows(props.section, props.ctx.env).map(render)}
+  </MSettingsSection>;
+}
+
+function AdvancedContent(props: { snapshot: ConfigSnapshot; write: RuntimeSettingWriter }) {
+  const ctx: AdvancedRowContext = {
+    settings: indexSettings(props.snapshot.settings), env: indexEnv(props.snapshot.env), write: props.write,
+  };
   return <>
-    <AdvancedFlags snapshot={props.snapshot} write={props.write} />
-    <MSettingsSection title={L.stBuiltinJobsTitle}>
-      {BUILTIN_JOB_SETTINGS.map((descriptor) => <JobRow key={descriptor.enabled}
-        descriptor={descriptor} settings={settings} write={props.write} />)}
-    </MSettingsSection>
+    {ADVANCED_SECTIONS.map((section) => <AdvancedSectionCard key={section.key} section={section} ctx={ctx} />)}
     <SignOutCard />
   </>;
 }

@@ -6,10 +6,14 @@ const h = vi.hoisted(() => ({ native: true, invoke: vi.fn() }));
 vi.mock('@/lib/desktop-config', () => ({ isNativeShell: () => h.native }));
 vi.mock('@/lib/native-bridge', () => ({ safeInvoke: h.invoke }));
 
-import { AppUpdateCard } from './AppUpdateCard';
+import { AppUpdateRow, useAppUpdateController } from './AppUpdateCard';
 import { LangProvider, useSetLang } from '@/i18n';
 
 const PREFS = { silent: true, failedAttempts: 0 };
+
+function AppUpdateCard() {
+  return <AppUpdateRow controller={useAppUpdateController()} />;
+}
 
 /** get_update_prefs answers `prefs`; set_update_silent answers the stored result of the edit. */
 function shellWith(prefs: Record<string, unknown>) {
@@ -115,14 +119,14 @@ describe('silent app update switch', () => {
 
     await act(async () => renderer.root.findByProps({ 'data-lang': 'en' }).props.onClick());
 
-    expect(renderer.root.findByProps({ role: 'switch' }).props['aria-label']).toBe('Install updates automatically');
+    expect(renderer.root.findByProps({ role: 'switch' }).props['aria-label']).toBe('Install app updates automatically');
     expect(allText(renderer)).toContain('Automatic installation failed; confirmation is now required.');
     expect(allText(renderer)).toContain('Retry automatic installation');
     expect(allText(renderer)).toContain('Last updated to 2026.9.20');
 
     await act(async () => renderer.root.findByProps({ 'data-lang': 'zh' }).props.onClick());
 
-    expect(renderer.root.findByProps({ role: 'switch' }).props['aria-label']).toBe('自动安装更新');
+    expect(renderer.root.findByProps({ role: 'switch' }).props['aria-label']).toBe('自动安装 App 更新');
     expect(allText(renderer)).toContain('自动安装失败，已改为安装前询问。');
     expect(allText(renderer)).toContain('重试自动安装');
     expect(allText(renderer)).toContain('上次更新到 2026.9.20');

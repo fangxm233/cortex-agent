@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type { ConfigSnapshot, PlatformSettingsSnapshot, PlatformSettingsPatch } from '@cortex-agent/ui-contract';
 import { useVocab, type Vocab } from '@/i18n';
 import { apiBase } from '@/lib/desktop-config';
@@ -12,6 +12,8 @@ import {
 } from '@/features/settings/ui/settings-ui';
 import { safeCredentialTransport } from '@/lib/sensitive-transport';
 import { usePlatformSettings, type PlatformWriteFeedback } from '@/features/settings/controllers/usePlatformSettings';
+import { useRuntimeSettingWrite } from '@/features/settings/controllers/runtime-settings-writer';
+import { RuntimeSettingToggleRow } from './RuntimeSettingsPanels';
 import '@/features/settings/ui/platform-settings.css';
 import '@/features/settings/ui/desktop-panels.css';
 
@@ -109,10 +111,24 @@ export function PlatformCard(props: CardProps) {
   </article>;
 }
 
+/** Shown in every platform's messages, so it sits above the per-platform cards. */
+function ToolCallsRow({ settings }: { settings: ConfigSnapshot['settings'] }) {
+  const L = useVocab();
+  const write = useRuntimeSettingWrite();
+  const entry = settings?.find(s => s.key === 'showToolCalls');
+  return <SRowGroup>
+    <RuntimeSettingToggleRow settingKey="showToolCalls" value={entry?.value === true}
+      source={entry && typeof entry.value === 'boolean' ? entry.source : null} title={L.psToolCalls}
+      pending={write.pending} onToggle={write.onToggle} />
+  </SRowGroup>;
+}
+
 export function PlatformPanelView(props: {
   snapshot: ConfigSnapshot; secure: boolean; pending: boolean; feedback: PlatformWriteFeedback;
   saveConnection: CardProps['saveConnection']; saveRuntime: CardProps['saveRuntime'];
   onDirtyChange: CardProps['onDirtyChange'];
+  /** Settings shared by every platform, listed above the cards. */
+  shared?: ReactNode;
 }) {
   const L = useVocab();
   const feedback = { saved: L.psSaved, runtimeSaved: L.psRuntimeSaved, failed: L.psFailed, refreshFailed: L.psRefreshFailed };
@@ -122,6 +138,7 @@ export function PlatformPanelView(props: {
   return <div className="ps-panel">
     {!props.secure && <SNotice tone="amber" role="alert">{L.psHttps}</SNotice>}
     {props.feedback && <SNotice tone="accent" role="status">{feedback[props.feedback]}</SNotice>}
+    {props.shared}
     <div className="settings-platform-list">{props.snapshot.platforms.map(platform => <PlatformCard key={platform.platform}
       {...props} platform={platform} settings={props.snapshot.settings} />)}</div>
     <p style={PROSE_STYLE}>{L.psRestart}</p>
@@ -139,5 +156,6 @@ export function PlatformPanel({ snapshot, onDirtyChange }: {
   useEffect(() => { onDirtyChange?.(Object.values(dirty).some(Boolean)); }, [dirty, onDirtyChange]);
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const secure = safeCredentialTransport(apiBase(), globalThis.location?.href ?? '');
-  return <PlatformPanelView snapshot={snapshot} secure={secure} {...write} onDirtyChange={dirtyChanged} />;
+  return <PlatformPanelView snapshot={snapshot} secure={secure} {...write} onDirtyChange={dirtyChanged}
+    shared={<ToolCallsRow settings={snapshot.settings} />} />;
 }

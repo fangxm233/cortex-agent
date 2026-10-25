@@ -150,6 +150,48 @@ describe('runtime settings panel save gates', () => {
   });
 });
 
+describe('advanced panel sections', () => {
+  function mount(entries: ConfigSettingEntry[] = settings, onToggle = vi.fn()) {
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<LangProvider><AdvancedPanelView snapshot={{ ...snapshot, settings: entries }}
+        pending={false} onToggle={onToggle} onSet={() => {}} /></LangProvider>);
+    });
+    return renderer;
+  }
+  const row = (renderer: ReturnType<typeof create>, key: string) =>
+    renderer.root.findByProps({ 'data-setting-key': key });
+
+  it('groups the rows under titled sections in a fixed order', () => {
+    const renderer = mount();
+    const sections = renderer.root.findAll((node) => typeof node.props['data-advanced-section'] === 'string'
+      && typeof node.type !== 'string');
+    expect(sections.map((node) => node.props['data-advanced-section']))
+      .toEqual(['agent', 'updates', 'data', 'diagnostics']);
+    expect(renderer.root.findAllByProps({ 'data-setting-key': 'showToolCalls' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-env-key': 'CORTEX_GPU_MONITOR_MOCK' })).toHaveLength(0);
+  });
+
+  it('shows USER.md injection as on when the disable key is off, and writes the disable key', () => {
+    const onToggle = vi.fn();
+    const renderer = mount(settings.map((entry) => (
+      entry.key === 'disableUserContext' ? { ...entry, value: false } : entry)), onToggle);
+    const toggle = row(renderer, 'disableUserContext').findByProps({ role: 'switch' });
+    expect(toggle.props['aria-checked']).toBe(true);
+    act(() => { toggle.props.onClick(); });
+    expect(onToggle).toHaveBeenCalledWith('disableUserContext', true);
+  });
+
+  it('locks automatic server installs while the update check is off', () => {
+    const entries: ConfigSettingEntry[] = [...settings, { key: 'serverAutoUpdate', value: true, source: 'default' }];
+    const checkOn = mount(entries);
+    expect(row(checkOn, 'serverAutoUpdate').findByProps({ role: 'switch' }).props.onClick).toBeTypeOf('function');
+    const checkOff = mount(entries.map((entry) => (
+      entry.key === 'serverUpdateDisable' ? { ...entry, value: true } : entry)));
+    expect(row(checkOff, 'serverAutoUpdate').findByProps({ role: 'switch' }).props.onClick).toBeUndefined();
+  });
+});
+
 describe('settings control material transitions', () => {
   it('keeps the flat ink primary fill on a color longhand through repeated hover cycles', () => {
     const renderer = create(<SButton tone="primary">Save</SButton>);

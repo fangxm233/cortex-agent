@@ -103,6 +103,28 @@ describe('mobile runtime Advanced settings', () => {
     expect(toggle.props.disabled).toBe(true);
   });
 
+  it('shows the update check as on and writes the inverse disable key', () => {
+    const renderer = mountAdvanced();
+    const toggle = renderer.root.findByProps({ 'data-settings-row': 'serverUpdateDisable' })
+      .findByProps({ role: 'switch' });
+    expect(toggle.props['aria-checked']).toBe(true);
+    act(() => toggle.props.onClick());
+    expect(adapter.onToggle).toHaveBeenCalledWith('serverUpdateDisable', true);
+  });
+
+  it('lists the GPU mock only while it is set', () => {
+    expect(mountAdvanced().root.findAllByProps({ 'data-settings-row': 'CORTEX_GPU_MONITOR_MOCK' })).toHaveLength(0);
+    adapter.snapshot = { ...snapshot, env: [{ key: 'CORTEX_GPU_MONITOR_MOCK', present: true, masked: '••' }] };
+    expect(mountAdvanced().root.findAllByProps({ 'data-settings-row': 'CORTEX_GPU_MONITOR_MOCK' })).toHaveLength(1);
+  });
+
+  it('titles each group of rows', () => {
+    const text = JSON.stringify(mountAdvanced().toJSON());
+    for (const title of [en.stAdvSecAgent, en.stAdvSecUpdates, en.stAdvSecData, en.stAdvSecDiagnostics]) {
+      expect(text).toContain(title);
+    }
+  });
+
   it('writes retention by its descriptor key and rejects unsafe integer drafts', () => {
     const renderer = mountAdvanced();
     const row = renderer.root.findByProps({ 'data-settings-row': 'sessionRetentionDays' });

@@ -1,9 +1,13 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, expect, it, vi } from 'vitest';
 import { en } from '@/i18n/vocab';
-import { UninstallCard } from './UninstallCard';
+import { UninstallRow, useUninstallController } from './UninstallCard';
 vi.mock('@/i18n', () => ({ useVocab: () => en }));
 afterEach(() => { vi.unstubAllGlobals(); });
+
+function UninstallCard() {
+  return <UninstallRow controller={useUninstallController()} />;
+}
 
 const text = (view: ReactTestRenderer) => JSON.stringify(view.toJSON());
 

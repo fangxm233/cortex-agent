@@ -89,7 +89,7 @@ Web 和移动端编辑器选择模型与思考档位。CLI 与聊天命令的 `-
 
 ## 内置周期作业 {#built-in-periodic-jobs}
 
-Provider 用量采集和记忆索引重建是 daemon 自有的作业。它们不会出现在 `schedules.json`、`!schedule list`、`cortex schedule list` 或 Web 调度列表中。它们的开关和间隔是 `config/settings.json` 中的两组键：`providerUsageCollectionEnabled` / `providerUsageCollectionIntervalMs`（默认开启，每 5 分钟一次）和 `memoryIndexRegenEnabled` / `memoryIndexRegenIntervalMs`（默认开启，每 24 小时一次）。记忆索引这一组也可以在 **Settings → Advanced → Built-in jobs** 中设置。
+Provider 用量采集和记忆索引重建是 daemon 自有的作业。它们不会出现在 `schedules.json`、`!schedule list`、`cortex schedule list` 或 Web 调度列表中。它们的开关和间隔是 `config/settings.json` 中的两组键：`providerUsageCollectionEnabled` / `providerUsageCollectionIntervalMs`（默认开启，每 5 分钟一次）和 `memoryIndexRegenEnabled` / `memoryIndexRegenIntervalMs`（默认开启，每 24 小时一次）。记忆索引这一组也可以在 **设置 → 高级 → 数据与维护** 中设置。
 
 已启用的作业会在 daemon 启动时运行一次。设置修改会热重载：禁用作业会清除它的下一个 timer，启用作业会立即运行一次，修改间隔会重新安排下一次空闲运行。默认值和取值范围见 [configuration.md](./configuration.md#configsettingsjson)。
 

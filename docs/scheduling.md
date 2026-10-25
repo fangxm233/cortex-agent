@@ -94,7 +94,7 @@ Each schedule is stored as a JSON object in `~/.cortex/data/schedules.json`:
 
 ## Built-in periodic jobs
 
-Provider-usage collection and memory-index rebuild are daemon-owned jobs. They do not appear in `schedules.json`, `!schedule list`, `cortex schedule list`, or the Web schedule list. Their switches and intervals are the `config/settings.json` pairs `providerUsageCollectionEnabled` / `providerUsageCollectionIntervalMs` (on, every 5 minutes) and `memoryIndexRegenEnabled` / `memoryIndexRegenIntervalMs` (on, every 24 hours). The memory-index pair is also on **Settings → Advanced → Built-in jobs**.
+Provider-usage collection and memory-index rebuild are daemon-owned jobs. They do not appear in `schedules.json`, `!schedule list`, `cortex schedule list`, or the Web schedule list. Their switches and intervals are the `config/settings.json` pairs `providerUsageCollectionEnabled` / `providerUsageCollectionIntervalMs` (on, every 5 minutes) and `memoryIndexRegenEnabled` / `memoryIndexRegenIntervalMs` (on, every 24 hours). The memory-index pair is also on **Settings → Advanced → Data & maintenance**.
 
 Enabled jobs run once when the daemon starts. Settings edits hot-reload: disabling a job clears its next timer, enabling it runs immediately, and changing an interval reschedules the next idle run. See [configuration.md](./configuration.md#configsettingsjson) for defaults and bounds.
 

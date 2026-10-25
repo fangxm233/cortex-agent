@@ -185,7 +185,7 @@ Web UI 宿主服务浏览器工作台、桌面 App 和手机 App。[浏览器访
 
 | 变量 | 默认值 | 用途 |
 |---|---|---|
-| `DEBUG` | — | 启用服务器全局调试模式。除调试级日志外，桌面端 transcript 会提供 hover 检查器，用于查看发送给 agent 的确切消息，以及每次工具调用的完整输入/结果。仅 `DEBUG=1` 启用，其他值均关闭。**设置 → 高级** 中有对应开关；修改后需重启 agent-server |
+| `DEBUG` | — | 启用服务器全局调试模式。除调试级日志外，桌面端 transcript 会提供 hover 检查器，用于查看发送给 agent 的确切消息，以及每次工具调用的完整输入/结果。仅 `DEBUG=1` 启用，其他值均关闭。**设置 → 高级 → 诊断** 中显示其是否开启；修改后需重启 agent-server |
 | `CORTEX_DEBUG_TOOL_WARNING_CHARS` | `10000` | DEBUG transcript 中，若格式化后的完整参数与完整结果之和严格超过该 Unicode 字符数，则将工具名称 badge 标为琥珀色。仅接受正整数，非法值使用默认值。修改后需重启 agent-server |
 | `CORTEX_BG_GRACE_S` | `90` | 后端报告已完成但从未宣告的后台任务，运行会等待它的秒数（见[后端如何工作](./backends.md#how-backends-work)） |
 | `CORTEX_BG_WAIT_MAX_S` | `1800` | 一轮等待仍在运行的后台工作的秒数，超过即停止等待；工作本身继续 |
@@ -369,7 +369,7 @@ Cortex 随包提供两个：
 | `turnNotify` | boolean | `true` | 当一个耗时较长的回合结束时，向会话发送一条新消息，让你收到推送通知（内联状态是以编辑方式封口为「✓ Done」，而 Slack 与飞书都不会对消息编辑推送）。成功和失败都会提醒 | `CORTEX_TURN_NOTIFY` |
 | `turnNotifyThresholdS` | number | `60` | 触发上述完成提醒所需的最短回合时长（秒）。更短的回合保持静默 | `CORTEX_TURN_NOTIFY_THRESHOLD_S` |
 | `notifyCompaction` | boolean | `true` | 在 agent 的上下文被压缩时向会话发送一条提示。覆盖 Claude Code（print 模式）与 pi 两个后端 | `CORTEX_NOTIFY_COMPACTION` |
-| `showToolCalls` | boolean | `false` | 在 VirtualMessage 尾部内联渲染工具调用 | `CORTEX_SHOW_TOOL_CALLS` |
+| `showToolCalls` | boolean | `false` | 在 Slack 与飞书的回复中为每次工具调用发一行简短记录，连续调用同一工具时合并为一行。也可在 **设置 → 平台** 中设置 | `CORTEX_SHOW_TOOL_CALLS` |
 | `statusNewqButton` | boolean | `false` | 在状态消息上显示「New (quiet)」按钮（`=!newq`，跳过 pre-close 钩子） | `CORTEX_STATUS_NEWQ_BUTTON` |
 | `autoResume` | boolean | `true` | 当用量限制窗口重置后，自动继续被该限制中断的对话，并注入一条提示让其从中断处接着做。设为 `false` 可让被中断的工作保持暂停、由人工继续 | `CORTEX_AUTO_RESUME` |
 | `providerRateLimits` | object | `{}` | 按 provider 和额度窗口配置限流策略。Provider 条目包含由 `{ type, label?, enabled, threshold? }` 组成的 `windows` 数组；`threshold` 是大于 `0` 且不超过 `1` 的比率 | — |
@@ -406,7 +406,7 @@ Cortex 随包提供两个：
 | `adminChannel` | string \| null | `null` | 发送系统通知（启动、限流、磁盘告警）的 Slack 频道。第一次给机器人发私信时会被自动探测并持久化到这里 | `SLACK_ADMIN_CHANNEL`，然后 `CORTEX_ADMIN_CHANNEL` |
 | `feishuAdminChannel` | string \| null | `null` | 同类通知的飞书 admin `chat_id`（`oc_...`）。与 `adminChannel` 相互独立——Slack 的频道 id 在飞书上不可用 | `FEISHU_ADMIN_CHANNEL` |
 
-Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）、**设置 → 高级**（`eventLog`、`diskMonitor`、`showToolCalls`、`disableUserContext`、`serverUpdateDisable`、`serverAutoUpdate`、`teamEnabled`、`sessionRetentionDays`、`maxContextTokens`、`piCompactReserveTokens`、`memoryIndexRegenEnabled` 和 `memoryIndexRegenIntervalMs`）、**设置 → 平台**（`adminChannel`、`feishuAdminChannel`、`feishuSkillsInWeb`）、**设置 → 隐私**（`telemetryEnabled`），以及桌面端/移动端的 **用量** 页面（`providerRateLimits`）。其余键都靠手工编辑该文件。
+Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）、**设置 → 高级**（`disableUserContext`、`teamEnabled`、`claudeWindowWarmupEnabled`、`maxContextTokens`、`piCompactReserveTokens`、`serverUpdateDisable`、`serverAutoUpdate`、`sessionRetentionDays`、`memoryIndexRegenEnabled`、`memoryIndexRegenIntervalMs`、`diskMonitor` 和 `eventLog`）、**设置 → 平台**（`showToolCalls`、`adminChannel`、`feishuAdminChannel`、`feishuSkillsInWeb`）、**设置 → 隐私**（`telemetryEnabled`），以及桌面端/移动端的 **用量** 页面（`providerRateLimits`）。其余键都靠手工编辑该文件。
 
 `providerRateLimits` 是 `settings.json` 中以 provider id 为键的对象。每个 provider 条目可包含 `windows` 数组，数组元素为 `{ type, label?, enabled, threshold? }`。普通额度行以 provider 上报的 `type` 为身份；模型级额度行同时使用 `type` 和 provider 上报的精确 `label`。精确的窗口条目优先于旧的 provider 级 `enabled`/`threshold` 字段。这些根字段保留为向后兼容的回退，非默认时会出现在用量页面中，并附带清除它们的操作。
 
@@ -414,9 +414,9 @@ Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`aut
 
 内置作业间隔必须是 `1000` 到 `2147483647` 之间的整数毫秒，这是 Node timer 的安全范围。启用的作业会在 daemon 启动时执行一次。记忆索引重建从不重叠运行；修改后的间隔在当前运行结束后生效。
 
-`sessionRetentionDays` 是 **设置 → 高级** 中唯一的数值型保留控制项。桌面 Web UI 通过与布尔运行时开关相同的 `config.set { section: 'settings' }` 路径写入它，客户端也执行与服务端校验相同的上界。`piCompactReserveTokens` 在同一张卡片、走同一条路径；客户端接受 `1024`–`131072`，与服务端校验完全一致。Cortex 在创建 PI 会话时把它写进 PI 的私有 `settings.json`，所以新值无需重启即可作用于下一个 PI 会话——已经在池中的会话保留创建时的余量。
+`sessionRetentionDays` 是 **设置 → 高级 → 数据与维护** 中唯一的数值型保留控制项。桌面 Web UI 通过与布尔运行时开关相同的 `config.set { section: 'settings' }` 路径写入它，客户端也执行与服务端校验相同的上界。`piCompactReserveTokens` 位于 **智能体** 分组，走同一条路径；客户端接受 `1024`–`131072`，与服务端校验完全一致。Cortex 在创建 PI 会话时把它写进 PI 的私有 `settings.json`，所以新值无需重启即可作用于下一个 PI 会话——已经在池中的会话保留创建时的余量。
 
-`maxContextTokens` 也在这张卡片里。输入框接受 `100000`–`1000000`；清空后保存为 `null`，即每个模型使用自身窗口。PI 每次判断是否压缩时都会读取这个上限，所以运行中的 PI 会话立即遵循新值。Claude 在 CLI 进程启动时读取它，所以新值作用于下一个 Claude 会话；固定版本的 CLI 兼容性试运行从不接收它。
+`maxContextTokens` 也在 **智能体** 分组里。输入框接受 `100000`–`1000000`；清空后保存为 `null`，即每个模型使用自身窗口。PI 每次判断是否压缩时都会读取这个上限，所以运行中的 PI 会话立即遵循新值。Claude 在 CLI 进程启动时读取它，所以新值作用于下一个 Claude 会话；固定版本的 CLI 兼容性试运行从不接收它。
 
 这个保留时钟覆盖六类 housekeeping surface：live session-registry 过期删除（先写 `delete-intent`，再写 `delete-commit`）、孤儿 `data/conversation-history/*.jsonl`、`logs/sessions-pi/` 下的孤儿 PI transcript bundle、`logs/sessions/` 下的孤儿 Claude capture 文件、`tmp/tool-images/` 下按会话存放的孤儿图片目录，以及同步 Claude 用户 `cleanupPeriodDays` 的 helper。当会话既不在用、也不在待删除状态，且目录内在保留窗口内没有任何变动时，其图片目录会被删除。孤儿 history 与 PI 文件采用两轮确认后才删除。活跃直接会话、运行中的 execution、待响应 interaction/bg-held 会话、仍在使用的 PI backend session id，以及活跃 Claude capture pair 都受保护。
 

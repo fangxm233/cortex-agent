@@ -251,7 +251,7 @@ Access in depth.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `DEBUG` | — | Enable server-wide debug mode. In addition to debug-level logs, the desktop transcript shows hover inspectors for the exact agent message and each tool call's complete input/result. Only `DEBUG=1` enables it; all other values disable it. **Settings → Advanced** has a switch for it; restart agent-server after changing it |
+| `DEBUG` | — | Enable server-wide debug mode. In addition to debug-level logs, the desktop transcript shows hover inspectors for the exact agent message and each tool call's complete input/result. Only `DEBUG=1` enables it; all other values disable it. **Settings → Advanced → Diagnostics** shows whether it is on; restart agent-server after changing it |
 | `CORTEX_DEBUG_TOOL_WARNING_CHARS` | `10000` | In DEBUG transcripts, mark a tool-name badge amber when its formatted complete parameters plus complete result strictly exceed this Unicode character count. Positive integers only; invalid values use the default. Restart agent-server after changing it |
 | `CORTEX_BG_GRACE_S` | `90` | Seconds a run waits for a background task the backend reported finished but never announced (see [How backends work](./backends.md#how-backends-work)) |
 | `CORTEX_BG_WAIT_MAX_S` | `1800` | Seconds a turn waits on still-running background work before it stops waiting; the work itself continues |
@@ -551,7 +551,7 @@ Unknown keys are ignored.
 | `turnNotify` | boolean | `true` | When a long-running turn finishes, post a fresh message to the conversation so you get a push notification (the inline status seals to "✓ Done" with an edit, which Slack and Feishu do not notify on). Both success and failure are announced | `CORTEX_TURN_NOTIFY` |
 | `turnNotifyThresholdS` | number | `60` | Minimum turn duration, in seconds, before that completion notification is posted. Shorter turns stay quiet | `CORTEX_TURN_NOTIFY_THRESHOLD_S` |
 | `notifyCompaction` | boolean | `true` | Post a chat notice when an agent's context is compacted. Covers the Claude Code (print mode) and pi backends | `CORTEX_NOTIFY_COMPACTION` |
-| `showToolCalls` | boolean | `false` | Inline tool-call rendering in VirtualMessage tails | `CORTEX_SHOW_TOOL_CALLS` |
+| `showToolCalls` | boolean | `false` | Post a compact line for each tool call in Slack and Feishu replies, merging consecutive calls to the same tool. Also on **Settings → Platform** | `CORTEX_SHOW_TOOL_CALLS` |
 | `statusNewqButton` | boolean | `false` | Show the "New (quiet)" button on status messages (`=!newq`, which skips the pre-close hook) | `CORTEX_STATUS_NEWQ_BUTTON` |
 | `autoResume` | boolean | `true` | When a usage-limit window resets, automatically continue the conversations the limit interrupted, injecting a note to pick up where they left off. Set to `false` to leave interrupted work paused for manual continuation | `CORTEX_AUTO_RESUME` |
 | `providerRateLimits` | object | `{}` | Per-provider, per-quota-window throttle policy. Provider entries contain a `windows` array of `{ type, label?, enabled, threshold? }`; `threshold` is a ratio greater than `0` and at most `1` | — |
@@ -590,11 +590,11 @@ Unknown keys are ignored.
 
 The Web workbench writes a subset of these from **Settings → Notifications**
 (`turnNotify`, `autoResume`, `notifyCompaction`), **Settings → Advanced**
-(`eventLog`, `diskMonitor`, `showToolCalls`, `disableUserContext`,
-`serverUpdateDisable`, `serverAutoUpdate`, `teamEnabled`, `sessionRetentionDays`,
-`maxContextTokens`, `piCompactReserveTokens`, `memoryIndexRegenEnabled` and
-`memoryIndexRegenIntervalMs`), **Settings → Platform** (`adminChannel`,
-`feishuAdminChannel`, `feishuSkillsInWeb`), **Settings → Privacy** (`telemetryEnabled`),
+(`disableUserContext`, `teamEnabled`, `claudeWindowWarmupEnabled`, `maxContextTokens`,
+`piCompactReserveTokens`, `serverUpdateDisable`, `serverAutoUpdate`,
+`sessionRetentionDays`, `memoryIndexRegenEnabled`, `memoryIndexRegenIntervalMs`,
+`diskMonitor` and `eventLog`), **Settings → Platform** (`showToolCalls`,
+`adminChannel`, `feishuAdminChannel`, `feishuSkillsInWeb`), **Settings → Privacy** (`telemetryEnabled`),
 and the desktop/mobile **Usage**
 screens (`providerRateLimits`). Every other key is edited by hand in the file.
 
@@ -625,16 +625,16 @@ startup. Memory-index runs never overlap; a changed interval takes effect
 after an active run finishes.
 
 `sessionRetentionDays` is the one numeric retention control in **Settings →
-Advanced**. The desktop Web UI writes it through the same
+Advanced → Data & maintenance**. The desktop Web UI writes it through the same
 `config.set { section: 'settings' }` path as the boolean runtime toggles, and
 the client enforces the same upper bound the server validates.
-`piCompactReserveTokens` sits in the same card and takes the same path; the
+`piCompactReserveTokens` sits in the **Agent** section and takes the same path; the
 client accepts `1024`–`131072`, exactly what the server validates. Cortex writes
 it into PI's private `settings.json` when a PI session is created, so a new value
 reaches the next PI session without a restart — sessions already pooled keep the
 reserve they were built with.
 
-`maxContextTokens` sits in the same card. Its field accepts `100000`–`1000000`;
+`maxContextTokens` sits in the **Agent** section too. Its field accepts `100000`–`1000000`;
 clearing the field saves `null`, which leaves every model at its own window. PI
 reads the cap each time it decides whether to compact, so running PI sessions
 follow a new value at once. Claude takes it when its CLI process starts, so it
