@@ -6,6 +6,7 @@ import * as fs from 'node:fs';
 import * as dotenv from 'dotenv';
 
 import { runCli } from '../../src/entry/cli.js';
+import { createPairingStore, PAIRING_FILE_NAME } from '../../src/platform/ui-http/ui-pairing.js';
 
 const tempDirs: string[] = [];
 
@@ -75,4 +76,36 @@ test('ui enable prints a human summary when --json is absent', async () => {
   assert.equal(result.exitCode, 0);
   assert.match(result.stdout, /http:\/\/127\.0\.0\.1:3004/);
   assert.doesNotMatch(result.stdout, /[0-9a-f]{64}/, 'the token must not be printed in plain output');
+});
+
+test('ui pair --json mints a code the server of that home will redeem', async () => {
+  const home = makeHome();
+
+  const result = await runCli(['ui', 'pair', '--home', home, '--json']);
+
+  assert.equal(result.exitCode, 0, result.stderr);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.ok, true);
+  assert.match(payload.code, /^[0-9A-Z]{4}-[0-9A-Z]{4}$/);
+  assert.ok(payload.expiresAt > Date.now());
+  const server = createPairingStore({ file: path.join(home, 'data', PAIRING_FILE_NAME) });
+  assert.equal(server.redeem(payload.code), true);
+});
+
+test('ui pair prints the code and where to enter it', async () => {
+  const home = makeHome();
+
+  const result = await runCli(['ui', 'pair', '--home', home]);
+
+  assert.equal(result.exitCode, 0, result.stderr);
+  assert.match(result.stdout, /Pairing code: [0-9A-Z]{4}-[0-9A-Z]{4}/);
+  assert.match(result.stdout, /10 minutes/);
+});
+
+test('ui rejects an unknown subcommand and lists both valid ones', async () => {
+  const result = await runCli(['ui', 'bogus']);
+
+  assert.equal(result.exitCode, 1);
+  assert.match(result.stderr, /enable/);
+  assert.match(result.stderr, /pair/);
 });

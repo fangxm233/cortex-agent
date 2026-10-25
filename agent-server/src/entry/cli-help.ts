@@ -68,21 +68,23 @@ export function getTuiHelp(): string {
 export function getUiHelp(): string {
   return formatHelp({
     name: 'cortex ui',
-    description: 'Manage the local Web UI endpoint used by the Cortex desktop app',
-    usage: 'cortex ui enable [--port <port>] [--home <path>] [--json]',
+    description: 'Manage the Web UI endpoint used by the Cortex apps and browsers',
+    usage: 'cortex ui <enable|pair> [--port <port>] [--home <path>] [--json]',
     commands: [
       { name: 'enable', description: 'Turn on the loopback Web UI endpoint and print how to reach it' },
+      { name: 'pair', description: 'Print a one-time pairing code (10 minutes) for a new app or browser' },
     ],
     options: [
-      { flag: '--port <port>', description: 'TCP port to serve the Web UI on', default: 'the configured CORTEX_UI_PORT, else 3004' },
-      { flag: '--home <path>', description: 'CORTEX_HOME to configure', default: '$CORTEX_HOME or ~/.cortex' },
-      { flag: '--json', description: 'Print the endpoint, token and change state as JSON' },
+      { flag: '--port <port>', description: 'enable: TCP port to serve the Web UI on', default: 'the configured CORTEX_UI_PORT, else 3004' },
+      { flag: '--home <path>', description: 'CORTEX_HOME to use', default: '$CORTEX_HOME or ~/.cortex' },
+      { flag: '--json', description: 'Print the result as JSON (enable: endpoint, token, change state; pair: code, expiry)' },
       { flag: '--help, -h', description: 'Show this help' },
     ],
     examples: [
       { description: 'Enable the endpoint, keeping the configured port', command: 'cortex ui enable' },
       { description: 'Serve on another port', command: 'cortex ui enable --port 4000' },
       { description: 'Machine-readable output for the desktop setup flow', command: 'cortex ui enable --json' },
+      { description: 'Get a code to connect a phone or another computer', command: 'cortex ui pair' },
     ],
   });
 }

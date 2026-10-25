@@ -73,7 +73,7 @@ favorite `mode:model` pairs.
 Make this install reachable by the Cortex desktop app. Generates the client
 token if it is missing, sets `CORTEX_UI_HTTP=1` and `CORTEX_UI_PORT`, and adds
 the app's origins to `uiCorsOrigins`. Idempotent — running it twice changes
-nothing the second time. `ui` has no other subcommand.
+nothing the second time. Its output ends by pointing at `cortex ui pair`.
 
 Restart the daemon when it reports that the configuration changed: `.env` is
 read once at process start.
@@ -82,6 +82,20 @@ Options:
 - `--port <n>` — the port to listen on. Without it, a `CORTEX_UI_PORT` already in `.env` is kept, and `3004` is used when there is none; an invalid port exits 1
 - `--home <path>` — set `CORTEX_HOME` (default: `$CORTEX_HOME` or `~/.cortex`)
 - `--json` — print `{ ok, home, url, token, port, changed }`
+
+**`cortex ui pair [--home <path>] [--json]`**
+
+Print a one-time pairing code (`XXXX-XXXX`) for a new app or browser. The code
+is valid for 10 minutes and works once; enter it with the server's address in
+the desktop or Android app, or on the browser sign-in page. The code is written
+to `$CORTEX_HOME/data/ui-pairing.json`, which the running server reads, so no
+restart is needed. Signed-in devices can create the same codes under
+**Settings → Machines → Connected apps** (see
+[Browser access](browser-access.md#pairing-codes-and-connected-apps)).
+
+Options:
+- `--home <path>` — set `CORTEX_HOME` (default: `$CORTEX_HOME` or `~/.cortex`)
+- `--json` — print `{ ok, code, expiresAt }`
 
 **`cortex client remove --device <name> [--keep-remote] [--dry-run] [--home <path>]`**
 

@@ -290,7 +290,7 @@ WebSocket 协议用于**远程设备命令执行**，不承载聊天或 UI 流�
 
 - **tRPC** 位于 `/trpc/` 下。query 和 mutation 是针对 `domain/ui-service/app-router.ts` 中 `AppRouter` 的普通 HTTP 请求；web 应用从 `packages/ui-contract` 获取类型。
 - **实时事件**通过 Server-Sent Events 上的单个 `subscribe` 订阅传递。客户端指定想要的事件类型，可限定到某个项目或会话，服务器经有界队列转发总线上匹配的 `CortexEvent`，客户端跟不上时发送 `ui-subscribe.dropped`。订阅流式文本的客户端会先收到一份进行中的助手消息快照。
-- **认证**按顺序检查：携带客户端 token 的 `x-cortex-token` 头（桌面和移动应用）、token 登录得到的 `cortex_ui` 会话 cookie（`/api/ui/login`、`/api/ui/logout`、`/api/ui/session`），或 Cloudflare Access JWT。非同源的浏览器来源需要在 `uiCorsOrigins` 设置中添加条目。
+- **认证**按顺序检查：携带客户端 token 或已配对应用自己设备 token 的 `x-cortex-token` 头（桌面和移动应用）、token 登录得到的 `cortex_ui` 会话 cookie（`/api/ui/login`、`/api/ui/logout`、`/api/ui/session`），或 Cloudflare Access JWT。应用和浏览器用一次性配对码接入（`/api/ui/pair`、`/api/ui/pairing-code`）；已配对的应用通过 `/api/ui/devices` 与 `/api/ui/devices/revoke` 查看和撤销。非同源的浏览器来源需要在 `uiCorsOrigins` 设置中添加条目。
 - **其他路由**：文件下载与附件上传（`/api/files/download`、`/api/attachments/upload`）、看板资源（`/api/boards/asset`）、桌面应用下载的 web bundle 更新（`/api/ui-ota/manifest.json`、`/api/ui-ota/bundle.zip`）、原生应用更新清单（`/api/app-update/manifest.json`）、到远程机器的端口转发（`/api/forward/*`，配合 `/forward` WebSocket），以及 agent 浏览器：会话列表、接管和输入文本（`/api/browser/*`），实时画面走 `/api/browser/stream` WebSocket。
 - 同一个宿主还提供构建好的 web 应用，因此浏览器从同一个源加载 UI 及其 API。
 

@@ -14,6 +14,7 @@ import {
   SRowGroup,
   SSection,
 } from '@/features/settings/ui/settings-ui';
+import { PairedAppsSection } from './PairedAppsSection';
 
 const NAME_STYLE: CSSProperties = {
   width: 88, flex: 'none', fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)', overflowWrap: 'anywhere',
@@ -119,6 +120,9 @@ export function MachinesPanel() {
       toast({ title: `${L.stToastCouldNotQueue}: ${message}`, tone: 'failed' });
     }
   };
-  return <MachinesPanelView machines={machines.machines} loading={machines.loading}
-    error={machines.error} addPending={machines.addPending} onAdd={onAdd} />;
+  return <div className="settings-stack">
+    <MachinesPanelView machines={machines.machines} loading={machines.loading}
+      error={machines.error} addPending={machines.addPending} onAdd={onAdd} />
+    <PairedAppsSection />
+  </div>;
 }

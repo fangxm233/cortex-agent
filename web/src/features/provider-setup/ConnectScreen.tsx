@@ -2,7 +2,9 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useLang, useVocab } from '@/i18n';
 import { invokeNative, safeInvoke } from '@/lib/native-bridge';
 import { nativeErrorMessage } from '@/lib/native-error';
-import { normalizeServerUrl, probeFailureText, probeServer } from './remote-connect';
+import { isMobileShell } from '@/lib/desktop-config';
+import { pairingDeviceName, splitPairingLink } from '@/lib/pairing';
+import { checkConnection, normalizeServerUrl } from './remote-connect';
 import { BackIcon, ChevronIcon, DownloadIcon, MonitorIcon, ServerIcon } from './onboarding-icons';
 import { WORKBENCH_PAGE } from './local-setup';
 import { recordSetupLang } from './setup-telemetry';
@@ -59,17 +61,25 @@ export function RemoteConnectScreen({ onBack, leave = page => window.location.re
     });
   }, []);
 
+  // A pasted pairing link (`https://host/#pair=CODE`) fills both fields.
+  const editServerUrl = (value: string) => {
+    const link = splitPairingLink(value);
+    setServerUrl(link ? link.serverUrl : value);
+    if (link) setToken(link.code);
+  };
+
   const run = async (save: boolean) => {
     if (busy || form.current?.reportValidity() === false) return;
-    const connection = { serverUrl: normalizeServerUrl(serverUrl), token: token.trim() };
-    if (!connection.token) { setStatus({ text: L.onbTokenRequired, tone: 'error' }); return; }
+    const url = normalizeServerUrl(serverUrl);
+    const secret = token.trim();
+    if (!secret) { setStatus({ text: L.onbTokenRequired, tone: 'error' }); return; }
     setBusy(true);
     setStatus({ text: L.onbConnecting, tone: 'pending' });
     try {
-      const outcome = await probeServer(connection.serverUrl, connection.token);
-      if (outcome !== 'ok') { setStatus({ text: probeFailureText(outcome, L), tone: 'error' }); return; }
-      if (!save) { setStatus({ text: L.onbVerified, tone: 'ok' }); return; }
-      await invokeNative('connect', connection);
+      const deviceName = pairingDeviceName(globalThis.navigator?.userAgent ?? '', isMobileShell());
+      const check = await checkConnection(url, secret, save, L, { deviceName });
+      if (!check.ok || !save) { setStatus({ text: check.text, tone: check.ok ? 'ok' : 'error' }); return; }
+      await invokeNative('connect', { serverUrl: url, token: check.token });
       setStatus({ text: L.onbConnected, tone: 'ok' });
       leave(WORKBENCH_PAGE);
     } catch (error) {
@@ -90,9 +100,9 @@ export function RemoteConnectScreen({ onBack, leave = page => window.location.re
         <label className="onb-field" htmlFor="onb-server-url"><span className="onb-label">{L.onbServerAddress}</span>
           <input ref={urlInput} id="onb-server-url" className="setup-input onb-mono" type="url" required spellCheck={false}
             autoComplete="off" placeholder={L.onbServerPlaceholder} disabled={busy} value={serverUrl}
-            onChange={event => setServerUrl(event.target.value)} /></label>
+            onChange={event => editServerUrl(event.target.value)} /></label>
         <label className="onb-field" htmlFor="onb-token"><span className="onb-label">{L.onbClientToken}</span>
-          <input id="onb-token" className="setup-input onb-mono" type="password" required autoComplete="new-password"
+          <input id="onb-token" className="setup-input onb-mono" type="text" required autoComplete="off" spellCheck={false}
             placeholder={L.onbTokenPlaceholder} disabled={busy} value={token} onChange={event => setToken(event.target.value)} />
           <span className="setup-hint">{L.onbTokenHint}</span></label>
         {status ? <div className="onb-connection-status" role="status" aria-live="polite" data-tone={status.tone}>{status.text}</div> : null}

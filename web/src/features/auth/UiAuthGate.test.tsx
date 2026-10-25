@@ -93,6 +93,22 @@ describe('UiAuthGate', () => {
     expect(text(r)).not.toContain(CHILD);
   });
 
+  it('signs in with the code of a pairing link and clears it from the address', async () => {
+    const replaceState = vi.fn();
+    vi.stubGlobal('location', { hash: '#pair=ABCD-EFGH', pathname: '/', search: '' });
+    vi.stubGlobal('history', { replaceState });
+    probe.mockResolvedValueOnce({ authenticated: false, tokenLogin: true });
+    login.mockResolvedValue({ ok: true });
+    probe.mockResolvedValueOnce({ authenticated: true, tokenLogin: true });
+    const r = render();
+    await settle(r);
+    await settle(r);
+
+    expect(replaceState).toHaveBeenCalledWith(null, '', '/');
+    expect(login).toHaveBeenCalledWith('ABCD-EFGH');
+    expect(text(r)).toContain(CHILD);
+  });
+
   it('explains instead of offering a useless form when token login is off', async () => {
     probe.mockResolvedValue({ authenticated: false, tokenLogin: false });
     const r = render();

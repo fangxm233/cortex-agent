@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import '@/design/content-surfaces.css';
 import { Button, Card } from '@/design';
 import { useVocab } from '@/i18n';
@@ -11,26 +11,40 @@ const INPUT_CLASS =
 export interface UiTokenLoginProps {
   /** Resolves true when the token was accepted. Rejects only on a transport failure. */
   onSubmit: (token: string) => Promise<boolean>;
+  /** A pairing code from an opened pairing link: filled in and submitted once on mount. */
+  initialToken?: string | null;
 }
 
-export function UiTokenLogin({ onSubmit }: UiTokenLoginProps) {
+export function UiTokenLogin({ onSubmit, initialToken }: UiTokenLoginProps) {
   const L = useVocab();
-  const [token, setToken] = useState('');
+  const [token, setToken] = useState(initialToken ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const autoSubmitted = useRef(false);
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (busy || !token.trim()) return;
+  async function attempt(value: string) {
     setBusy(true);
     setError(null);
     try {
-      if (!(await onSubmit(token.trim()))) setError(L.uiLoginRejected);
+      if (!(await onSubmit(value))) setError(L.uiLoginRejected);
     } catch {
       setError(L.uiLoginUnreachable);
     } finally {
       setBusy(false);
     }
+  }
+
+  useEffect(() => {
+    if (!initialToken || autoSubmitted.current) return;
+    autoSubmitted.current = true;
+    void attempt(initialToken);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, for the link that opened the page
+  }, [initialToken]);
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (busy || !token.trim()) return;
+    void attempt(token.trim());
   }
 
   return (
@@ -41,9 +55,10 @@ export function UiTokenLogin({ onSubmit }: UiTokenLoginProps) {
           <p className="text-ui text-[var(--proto-muted)]">{L.uiLoginHint}</p>
           <input
             data-ui-login-token
-            type="password"
+            type="text"
             autoFocus
-            autoComplete="current-password"
+            autoComplete="off"
+            spellCheck={false}
             aria-label={L.uiLoginTokenLabel}
             placeholder={L.uiLoginTokenLabel}
             className={INPUT_CLASS}

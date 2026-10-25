@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { isNativeShell, readDesktopConfig } from '@/lib/desktop-config';
+import { takePairingCodeFromHash } from '@/lib/pairing';
 import { probeUiSession, uiLogin, type UiSessionState } from '@/lib/ui-session';
 import { useVocab } from '@/i18n';
 import { UiTokenLogin } from './UiTokenLogin';
@@ -10,6 +11,14 @@ type GateState =
   | { kind: 'form' }
   | { kind: 'no-login' } // server has token login switched off and we are not authenticated
   | { kind: 'unreachable' };
+
+/** The code of a pairing link this page was opened with; the hash is cleared so it is used once. */
+function takeLinkCode(): string | null {
+  const location = globalThis.location;
+  const code = location ? takePairingCodeFromHash(location.hash) : null;
+  if (code) globalThis.history?.replaceState(null, '', `${location.pathname}${location.search}`);
+  return code;
+}
 
 function stateFor(session: UiSessionState): GateState {
   if (session.authenticated) return { kind: 'in' };
@@ -27,6 +36,7 @@ export function UiAuthGate({ children }: { children: ReactNode }) {
   // is enough and keeps them from paying for a probe that does not apply to them.
   const skip = useMemo(() => isNativeShell() || !!readDesktopConfig(), []);
   const [state, setState] = useState<GateState>(() => (skip ? { kind: 'in' } : { kind: 'probing' }));
+  const [linkCode] = useState(() => (skip ? null : takeLinkCode()));
 
   const probe = useCallback(async () => {
     try {
@@ -52,7 +62,7 @@ export function UiAuthGate({ children }: { children: ReactNode }) {
 
   if (state.kind === 'in') return <>{children}</>;
   if (state.kind === 'probing') return null; // one round trip; a spinner would only flash
-  if (state.kind === 'form') return <UiTokenLogin onSubmit={submit} />;
+  if (state.kind === 'form') return <UiTokenLogin onSubmit={submit} initialToken={linkCode} />;
   return <GateNotice kind={state.kind} onRetry={probe} />;
 }
 

@@ -5,7 +5,9 @@ import { parseClientKind } from '@domain/telemetry/client-kind.js';
 import { CLIENT_KIND_HEADER } from '@domain/telemetry/schema.js';
 import { createAppRouter } from '@domain/ui-service/app-router.js';
 import { createUiHttpServer, createAuthorizer } from '@platform/ui-http/ui-http-server.js';
-import type { UiHttpServer } from '@platform/ui-http/ui-http-server.js';
+import type {
+  Authorizer, CustomRouteHandler, DeviceTokenMatcher, UiHttpServer,
+} from '@platform/ui-http/ui-http-server.js';
 import { createUiSessionStore, DEFAULT_SESSION_TTL_MS } from '@platform/ui-http/ui-session.js';
 import {
   createUiAuthRoutes,
@@ -13,6 +15,9 @@ import {
   UI_LOGIN_PATH,
   UI_SESSION_PATH,
 } from '@platform/ui-http/ui-auth-routes.js';
+import { createUiDeviceRoutes, UI_PAIR_PATH } from '@platform/ui-http/ui-device-routes.js';
+import { createUiDeviceStore } from '@platform/ui-http/ui-devices.js';
+import { createPairingStore, PAIRING_FILE_NAME } from '@platform/ui-http/ui-pairing.js';
 import { createOtaRoutes } from '@platform/ui-http/ui-ota.js';
 import { createAppUpdateRoutes } from '@platform/ui-http/app-update.js';
 import { isUpdateDevMode } from '@domain/system/server-update-check.js';
@@ -25,7 +30,7 @@ import {
 } from '@domain/browser/broker.js';
 import { getOnlineDevices, sendCommand } from '@domain/remote/client-manager.js';
 import { openDevicePort, closeDevicePort, listDevicePorts } from '@domain/remote/device-port.js';
-import { accessVerifierFromEnv } from '@platform/ui-http/access-jwt.js';
+import { accessVerifierFromEnv, type AccessJwtVerifier } from '@platform/ui-http/access-jwt.js';
 import type { UiService } from '@domain/ui-service/types.js';
 import { getClientToken } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
@@ -42,10 +47,12 @@ const DEFAULT_UI_PORT = 3004;
 
 /** Where browser sessions survive a daemon restart. Written 0600 by the store. */
 const SESSIONS_FILE = path.join(STORE_DIR, 'ui-sessions.json');
+/** Paired apps (token hashes). Written 0600 by the store. */
+const DEVICES_FILE = path.join(STORE_DIR, 'ui-devices.json');
 
 /**
  * Token login is ON unless explicitly switched off — a browser reaching this server can log in by
- * pasting the clientToken once. Opting out (`CORTEX_UI_TOKEN_LOGIN=0`) removes the login routes and
+ * pasting the clientToken or a one-time pairing code, and an app can pair with a code. Opting out (`CORTEX_UI_TOKEN_LOGIN=0`) removes the login routes and
  * the cookie leg entirely, leaving the token header and (if configured) Cloudflare Access.
  *
  * Being on by default means every CORTEX_UI_HTTP deployment exposes a public POST /api/ui/login.
@@ -103,6 +110,44 @@ export interface StartUiHttpOptions {
   corsOrigins?: string[];
 }
 
+interface UiAuth {
+  authorize: Authorizer;
+  matchDeviceToken: DeviceTokenMatcher;
+  tokenLogin: boolean;
+  /** Reachable without a credential: login, app pairing and the boolean probe. */
+  publicRoutes: string[];
+  routes: Record<string, CustomRouteHandler>;
+}
+
+/**
+ * Token login, pairing and paired apps behind one authorizer. The authorizer is handed to BOTH the
+ * gate and the public /api/ui/session probe, so "am I authenticated?" is answered by the same
+ * predicate that decides the next request — two copies would eventually disagree. With token login
+ * off, only the probe and the paired-app list remain — so the SPA can say "token login is off here"
+ * instead of showing a form that could never work.
+ */
+function createUiAuth(
+  env: NodeJS.ProcessEnv, getToken: () => string, verifyAccessJwt: AccessJwtVerifier | undefined,
+): UiAuth {
+  const tokenLogin = isTokenLoginEnabled(env);
+  const devices = createUiDeviceStore({ file: DEVICES_FILE });
+  const matchDeviceToken = (token: string | undefined) => devices.match(token) !== undefined;
+  const sessionStore = tokenLogin ? createUiSessionStore({ file: SESSIONS_FILE, ttlMs: sessionTtlMs(env) }) : undefined;
+  const pairing = tokenLogin ? createPairingStore({ file: path.join(STORE_DIR, PAIRING_FILE_NAME) }) : undefined;
+  const verifySession = sessionStore ? (sid: string | undefined) => sessionStore.verify(sid) : undefined;
+  const authorize = createAuthorizer({ getToken, matchDeviceToken, verifySession, verifyAccessJwt });
+  const loginRoutes = sessionStore && pairing
+    ? createUiAuthRoutes({
+      store: sessionStore, getToken, authorize, ttlMs: sessionTtlMs(env), redeemCode: (code) => pairing.redeem(code),
+    })
+    : createUiSessionProbeRoute(authorize);
+  return {
+    authorize, matchDeviceToken, tokenLogin,
+    publicRoutes: tokenLogin ? [UI_LOGIN_PATH, UI_SESSION_PATH, UI_PAIR_PATH] : [UI_SESSION_PATH],
+    routes: { ...loginRoutes, ...createUiDeviceRoutes({ devices, pairing }) },
+  };
+}
+
 /**
  * Build the AppRouter from the injected UiService and start the Web UI HTTP+SSE transport-host
  * on CORTEX_UI_PORT (default 3004), bound 127.0.0.1, behind the x-cortex-token gate, serving the
@@ -126,15 +171,8 @@ export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null
   const verifyAccessJwt = accessVerifierFromEnv(env);
   const getToken = opts.getToken ?? getClientToken;
 
-  // Token login: one session store, one authorizer. The authorizer is handed to BOTH the gate and
-  // the public /api/ui/session probe, so "am I authenticated?" is answered by the same predicate
-  // that decides the next request — two copies would eventually disagree.
-  const tokenLogin = isTokenLoginEnabled(env);
-  const sessionStore = tokenLogin
-    ? createUiSessionStore({ file: SESSIONS_FILE, ttlMs: sessionTtlMs(env) })
-    : undefined;
-  const verifySession = sessionStore ? (sid: string | undefined) => sessionStore.verify(sid) : undefined;
-  const authorize = createAuthorizer({ getToken, verifySession, verifyAccessJwt });
+  const auth = createUiAuth(env, getToken, verifyAccessJwt);
+  const { authorize, tokenLogin } = auth;
 
   // The agent's browser, live in the app: session list, takeover, typed text, and the stream itself.
   const browserStream = createBrowserStream({
@@ -151,21 +189,16 @@ export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null
   return createUiHttpServer({
     router,
     getToken,
+    matchDeviceToken: auth.matchDeviceToken,
     port,
     host: '127.0.0.1',
     spaDir,
     corsOrigins,
     authorize,
     createContext: (req) => ({ client: parseClientKind(req.headers[CLIENT_KIND_HEADER]) }),
-    // Reachable without a credential: the login endpoint and the boolean probe. Everything else,
-    // including logout, goes through the gate.
-    publicRoutes: tokenLogin ? [UI_LOGIN_PATH, UI_SESSION_PATH] : [UI_SESSION_PATH],
+    publicRoutes: auth.publicRoutes,
     customRoutes: {
-      // Browser token login. When disabled, only the probe remains — so the SPA can say "token
-      // login is off here" instead of showing a form that could never work.
-      ...(sessionStore
-        ? createUiAuthRoutes({ store: sessionStore, getToken, authorize, ttlMs: sessionTtlMs(env) })
-        : createUiSessionProbeRoute(authorize)),
+      ...auth.routes,
       // Composer uploads, workspace downloads and board assets.
       ...createFileRoutes({
         attachmentsDir: path.join(WORKSPACE_DIR, 'attachments'),

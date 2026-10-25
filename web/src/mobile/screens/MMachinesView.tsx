@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { MButton, MDot, MC } from '@/mobile/ui/kit';
 import { MSET_INSET, MSettingsFrame, MSettingsGroup, MSettingsHeader as MDrillHeader,
   MSettingsBody as MScrollBody } from './MSettingsControls';
@@ -199,6 +199,7 @@ export function MMachinesView({
   panel,
   onAdd,
   addDisabled,
+  pairedApps,
 }: {
   vm: MMachinesVm;
   onBack: () => void;
@@ -209,6 +210,8 @@ export function MMachinesView({
   panel: MMachineDetailPanel | null;
   onAdd: () => void;
   addDisabled: boolean;
+  /** Paired apps, below the machines. */
+  pairedApps?: ReactNode;
 }) {
   const L = useVocab();
   return (
@@ -233,6 +236,7 @@ export function MMachinesView({
         </MSettingsGroup>}
         <MButton data-machine-add onClick={onAdd} disabled={addDisabled}>{L.machAdd}</MButton>
         {vm.cards.length > 0 && <RegistryFooter L={L} />}
+        {pairedApps}
       </MScrollBody>
     </MSettingsFrame>
   );

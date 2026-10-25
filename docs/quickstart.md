@@ -534,10 +534,14 @@ cortex daemon restart   # only if the daemon is already running
 
 `cortex ui enable` generates the client token if needed, sets
 `CORTEX_UI_HTTP=1` and `CORTEX_UI_PORT=3004` in `$CORTEX_HOME/config/.env`,
-allows the native apps' origins, and prints the local address. Open
-`http://127.0.0.1:3004` in a browser on the server and sign in with the value of
-`CORTEX_CLIENT_TOKEN` from `.env`, or enter the same address and token in the
-[desktop app](./desktop-app.md#first-connection). To reach the workbench from
+allows the native apps' origins, and prints the local address. Then run
+`cortex ui pair` to get a one-time pairing code (valid 10 minutes). Open
+`http://127.0.0.1:3004` in a browser on the server and sign in with that code,
+or enter the address and the code in the
+[desktop app](./desktop-app.md#first-connection). The value of
+`CORTEX_CLIENT_TOKEN` from `.env` works in either place too. Once one device is
+signed in, it creates codes for the next under **Settings → Machines →
+Connected apps**. To reach the workbench from
 another computer, see [Browser Access](./browser-access.md).
 
 ## Step 4 — Send your first messages

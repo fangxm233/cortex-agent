@@ -18,6 +18,7 @@ import { interactionEn, interactionZh } from './interaction-vocab';
 import { railEn, railZh } from './rail-vocab';
 import { daemonEn, daemonZh } from './daemon-vocab';
 import { machinesEn, machinesZh } from './machines-vocab';
+import { pairingEn, pairingZh } from './pairing-vocab';
 import { usageEn, usageZh } from './usage-vocab';
 import { settingsSystemEn, settingsSystemZh } from './settings-system-vocab';
 import { projectEn, projectZh } from './project-vocab';
@@ -56,6 +57,7 @@ export const en = {
   ...attachmentsEn,
   ...daemonEn,
   ...machinesEn,
+  ...pairingEn,
   ...usageEn,
   ...settingsSystemEn,
   ...projectEn,
@@ -93,6 +95,7 @@ export const zh: Record<keyof Vocab, string> = {
   ...attachmentsZh,
   ...daemonZh,
   ...machinesZh,
+  ...pairingZh,
   ...usageZh,
   ...settingsSystemZh,
   ...projectZh,

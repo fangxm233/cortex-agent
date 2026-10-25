@@ -52,7 +52,7 @@ cortex <command> [options]
 
 **`cortex ui enable [--port <n>] [--home <path>] [--json]`**
 
-让本安装可被 Cortex 桌面应用连接。缺失时生成客户端 token，设置 `CORTEX_UI_HTTP=1` 与 `CORTEX_UI_PORT`，并把应用的 origin 加入 `uiCorsOrigins`。该命令幂等——第二次运行不会改变任何内容。`ui` 没有其他子命令。
+让本安装可被 Cortex 桌面应用连接。缺失时生成客户端 token，设置 `CORTEX_UI_HTTP=1` 与 `CORTEX_UI_PORT`，并把应用的 origin 加入 `uiCorsOrigins`。该命令幂等——第二次运行不会改变任何内容。其输出末尾会提示 `cortex ui pair`。
 
 当它提示配置已改变时需重启 daemon：`.env` 只在进程启动时读取一次。
 
@@ -60,6 +60,14 @@ cortex <command> [options]
 - `--port <n>` — 监听端口。不传时保留 `.env` 中已有的 `CORTEX_UI_PORT`，没有则使用 `3004`；端口无效时退出码为 1
 - `--home <path>` — 设置 `CORTEX_HOME`（默认：`$CORTEX_HOME` 或 `~/.cortex`）
 - `--json` — 打印 `{ ok, home, url, token, port, changed }`
+
+**`cortex ui pair [--home <path>] [--json]`**
+
+为新的应用或浏览器打印一次性配对码（`XXXX-XXXX`）。配对码 10 分钟内有效、只能用一次；在桌面或 Android 应用中连同服务器地址一起填入，或在浏览器登录页输入。配对码写入 `$CORTEX_HOME/data/ui-pairing.json`，运行中的服务器会读取它，无需重启。已登录的设备也可在**设置 → 机器 →「已连接的 App」**中生成同样的配对码（见[浏览器访问](browser-access.md#pairing-codes-and-connected-apps)）。
+
+选项：
+- `--home <path>` — 设置 `CORTEX_HOME`（默认：`$CORTEX_HOME` 或 `~/.cortex`）
+- `--json` — 打印 `{ ok, code, expiresAt }`
 
 **`cortex client remove --device <name> [--keep-remote] [--dry-run] [--home <path>]`**
 
