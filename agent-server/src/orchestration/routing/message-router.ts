@@ -1,6 +1,7 @@
 import type { PlatformAdapter, IncomingMessage, MessageEditContext } from '@platform/index.js';
 import { createLogger } from '@core/log.js';
 import { extractForwardedContent } from '../status-helpers.js';
+import { countMessage, platformChannel } from '@domain/telemetry/usage.js';
 
 const log = createLogger('app');
 import { orchestrator } from '../orchestrator.js';
@@ -33,6 +34,7 @@ async function routeIncomingMessage(
   if (!userMessage && !hasFiles && !forwardedContent) return;
 
   const channel = message.ref.conduit;
+  countMessage(platformChannel(channel));
   const threadAnchorId = message.ref.threadId || null;
   const commandMessage = normalizeCommandMentions(userMessage?.trim());
   if (dispatchCommand(commandMessage, channel, adapter, threadAnchorId)) return;

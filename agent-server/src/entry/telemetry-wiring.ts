@@ -11,6 +11,11 @@ import { startTelemetry, stopTelemetry } from '@domain/telemetry/service.js';
 import { captureChildExitFromEnv } from '@domain/telemetry/child-exit.js';
 import { installDailyUpload } from '@domain/telemetry/daily-upload.js';
 import { recordErrorLog } from '@domain/telemetry/error-digest.js';
+import { subscribeTelemetryToBus } from '@domain/telemetry/bus-collector.js';
+import { recordFunnelStep } from '@domain/telemetry/funnel.js';
+import { installWebReportSink, recordEventLoopLag } from '@domain/telemetry/usage.js';
+import { onLoginSuccess } from '@domain/auth/login-flow.js';
+import type { EventBus } from '@events/event-bus.js';
 import { confirmUpgradeAtBoot } from '@domain/telemetry/upgrade.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 
@@ -41,6 +46,16 @@ export function installEarlyTelemetry(): void {
   captureChildExitFromEnv();
   confirmUpgradeAtBoot();
 }
+
+/** Feature and web signals; called once the event bus exists. */
+export function installTelemetryCollectors(bus: EventBus): void {
+  subscribeTelemetryToBus(bus);
+  installWebReportSink();
+  onLoginSuccess((event) => recordFunnelStep('provider_authed', event.backend));
+}
+
+/** The event-loop monitor's window observer. */
+export const telemetryEventLoopObserver = (reading: { p99Ms: number }): void => recordEventLoopLag(reading.p99Ms);
 
 export function startTelemetryService(): void {
   const sources = heartbeatSources();

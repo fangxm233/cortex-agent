@@ -6,6 +6,7 @@
 //         - spool ingestion: a file dropped in the spool dir is equivalent to a POST, which is how
 //           a machine with no curl (or no route to the daemon) still reports.
 
+import { countFeature } from '@domain/telemetry/usage.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createLogger } from '@core/log.js';
@@ -107,6 +108,7 @@ export async function ingestSignal(
   if (outcome.kind === 'accepted' && outcome.fired) {
     scheduleWaitpointDelivery(outcome.waitpoint, deps.notifier);
   }
+  if (outcome.kind === 'accepted') countFeature('waitpoint_signaled');
   return outcome;
 }
 

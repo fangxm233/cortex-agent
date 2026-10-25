@@ -29,6 +29,8 @@ export interface EventLoopMonitorOptions {
   intervalMs?: number;
   /** Test seam: supplies the histogram instead of `monitorEventLoopDelay`. */
   createHistogram?: () => EventLoopDelayHistogram;
+  /** Observer of each closed window (telemetry). */
+  onReading?: (reading: EventLoopLagReading) => void;
 }
 
 let _histogram: EventLoopDelayHistogram | null = null;
@@ -71,7 +73,10 @@ export function startEventLoopMonitor(options: EventLoopMonitorOptions = {}): vo
   _intervalMs = options.intervalMs ?? DEFAULT_SAMPLE_INTERVAL_MS;
   _histogram = (options.createHistogram ?? (() => monitorEventLoopDelay({ resolution: RESOLUTION_MS })))();
   _histogram.enable();
-  _timer = setInterval(() => { sampleEventLoopLagOnce(); }, _intervalMs);
+  _timer = setInterval(() => {
+    const reading = sampleEventLoopLagOnce();
+    if (reading) options.onReading?.(reading);
+  }, _intervalMs);
   // The daemon's lifetime is owned by its servers, never by this metric timer.
   if (typeof _timer.unref === 'function') _timer.unref();
   log.info(`Initialized (resolution=${RESOLUTION_MS}ms, interval=${Math.round(_intervalMs / 1000)}s)`);

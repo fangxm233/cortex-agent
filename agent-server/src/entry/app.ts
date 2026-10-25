@@ -27,7 +27,10 @@ import { startClaudeWindowWarmup } from '../orchestration/claude-window-warmup.j
 import { projectStore } from '@domain/projects/index.js';
 import { sendStartupDmIfConfigured } from './startup-notify.js';
 import { installSigtermShutdown, type ShutdownHandles } from './shutdown.js';
-import { installEarlyTelemetry, startTelemetryService } from './telemetry-wiring.js';
+import {
+  installEarlyTelemetry, installTelemetryCollectors, startTelemetryService, telemetryEventLoopObserver,
+} from './telemetry-wiring.js';
+import { markBootPhase, recordStartup } from '@domain/telemetry/usage.js';
 import { captureProcessCrash } from '@domain/telemetry/crash.js';
 import { recordMigrationFailure } from '@domain/telemetry/upgrade.js';
 import { buildUiService } from './ui-service-wiring.js';
@@ -261,6 +264,7 @@ installEarlyTelemetry();
 // Cross-file migrations must finish before adapters, ports, and background services
 // become externally visible. Provider-state extraction runs before schedule cleanup.
 await runMigrations({ onMigrationFailure: recordMigrationFailure });
+markBootPhase('migrations');
 reloadAgentState();
 await migrateBuiltinJobSchedules();
 // Before any Claude spawn: a fresh Cortex Claude config dir takes its model/effort/context
@@ -299,6 +303,7 @@ process.on('uncaughtException', (err) => {
 // --- EventBus + logger ---
 const bus = new EventBus();
 createEventLogger(bus);
+installTelemetryCollectors(bus);
 initAuthEvents(bus);
 // A login only becomes useful once the models it unlocks are routable, and that mapping is derived
 // by scanning local backend state. Re-derive it whenever a login lands, so a user who authenticates
@@ -395,7 +400,7 @@ scheduler.setAdminNotifier(notifyAdmin);
 // awaited sequence (initRateLimitRecovery).
 initDiskMonitor(adapter);
 // Agent sessions run in this process, so a stalled loop degrades all of them at once.
-startEventLoopMonitor();
+startEventLoopMonitor({ onReading: telemetryEventLoopObserver });
 
 const commandRouter = new CommandActionRouter();
 
@@ -458,6 +463,7 @@ installSigtermShutdown(shutdownHandles);
   // An in-process execution dies with the server, so stale it immediately — otherwise a
   // 'running' dispatch record poisons a dispatch concurrency slot until the reconciler's next tick.
   await executionRegistry.markMissingRunningExecutionsStale();
+  markBootPhase('executions');
 
   // A server restart closes every in-process injection window. Commit any durable orphan before
   // the UI transport starts so the first transcript snapshot cannot expose a forever-pending row.
@@ -490,11 +496,13 @@ installSigtermShutdown(shutdownHandles);
   } catch (e) {
     log.warn(`CORTEX_UI_HTTP is set but the Web UI transport failed to load: ${(e as Error).message}`);
   }
+  markBootPhase('uiHttp');
 
   // Binds the TUI gateway; Slack/Feishu connect in the background with bounded retries, and a
   // platform that fails or stalls ends in a system notice rather than a stalled boot. Nothing below
   // needs their sockets: every outbound post, including the notices, goes through their HTTP APIs.
   shutdownHandles.platformConnections = await startPlatformAdapters(adapter);
+  markBootPhase('platforms');
 
   // Let the supervisor reach the operator through us — it has no platform adapter of its own.
   subscribeDaemonNotices(adapter);
@@ -575,6 +583,7 @@ installSigtermShutdown(shutdownHandles);
 
   // M1: Initialize project registry (scaffolds general/, scans PROJECTS_DIR, starts fs.watch watcher)
   await projectStore.initialize();
+  markBootPhase('projects');
 
   startGateway();
   prewarmPiBackend();
@@ -600,6 +609,7 @@ installSigtermShutdown(shutdownHandles);
   dailyUpdateCheck.unref?.();
 
   await scheduler.start();
+  markBootPhase('scheduler');
 
   // Daily store archival: move week-old terminal execution records to data/archive/*.jsonl.
   // Keeps the hot stores small — their full-map sync stringify on every persist is the main
@@ -651,5 +661,6 @@ installSigtermShutdown(shutdownHandles);
     `Cortex agent is running (${adapter.name}) — ${selectionSummary}`
     + ` · boot ${Math.round(performance.now())}ms (imports ${importsMs}ms)`,
   );
+  recordStartup(importsMs);
   syncTerminalCommand();
 })();

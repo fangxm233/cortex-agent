@@ -1,4 +1,5 @@
 import { createLogger } from '@core/log.js';
+import { recordWebhookCall } from '@domain/telemetry/usage.js';
 import { getSettings } from '@core/settings.js';
 import { AUTH_HEADER, getWebhookToken, timingSafeEqualStr } from '@core/auth.js';
 import * as http from 'http';
@@ -96,6 +97,7 @@ function sendJson(res: Res, status: number, payload: unknown): void {
 function jsonRoute(handler: JsonHandler): RequestHandler {
   return (req, res) => readJsonBody(req, async (error, _body, data) => {
     if (error) { res.writeHead(400); res.end('Bad JSON'); return; }
+    recordWebhookCall(req.url, data);
     try {
       await handler(data, res);
     } catch (e) {

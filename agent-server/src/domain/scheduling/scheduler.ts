@@ -1,4 +1,5 @@
 import { watch, FSWatcher } from 'fs';
+import { countFeature, recordScheduleCreated } from '../telemetry/usage.js';
 import { runShell } from '@core/exec-async.js';
 import { t } from '@core/i18n.js';
 import { Icons } from '../../core/icons.js';
@@ -160,6 +161,8 @@ class Scheduler {
       this._scheduleTask(task);
     }
     this._reportReload(added, removed.length, updated);
+    // Tasks another process (the CLI) wrote; ones this scheduler added are already armed.
+    recordScheduleCreated(added);
   }
 
   _reportReload(added: number, removed: number, updated: number): void {
@@ -171,6 +174,7 @@ class Scheduler {
   async add(spec: ScheduleSpec): Promise<ScheduleTask> {
     const { task } = await addSchedule(this._repo, spec);
     this._scheduleTask(task);
+    recordScheduleCreated();
     return task;
   }
 
@@ -331,6 +335,7 @@ class Scheduler {
 }
 
 function emitScheduleFired(task: ScheduleTask): void {
+  countFeature('schedule_fired');
   void emitCortexEvent('cortex:schedule.fired', {
     scheduleId: task.id,
     name: task.id,

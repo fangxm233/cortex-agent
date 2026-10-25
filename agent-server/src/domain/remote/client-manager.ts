@@ -6,6 +6,7 @@ import { AUTH_HEADER, getClientToken, timingSafeEqualStr } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
 import { claimStream, parseStreamId, cancelStreamsFor } from './reverse-stream.js';
 import { emitCortexEvent } from '@core/hook-bus.js';
+import { recordRemoteClientConnected, recordRemoteClientDisconnected } from '../telemetry/usage.js';
 import type { ClientAction, ClientFrame, HelloFrame, ResultFrame, ServerFrame, UpdateResultFrame } from './client-protocol.js';
 
 const log = createLogger('client-manager');
@@ -68,11 +69,13 @@ let wss: WebSocketServer | null = null;
 let heartbeatCheckInterval: ReturnType<typeof setInterval> | null = null;
 let clientManagerPort: number | null = null;
 
+const SHUTDOWN_REASON = 'Server shutting down';
 const HEARTBEAT_TIMEOUT_MS = 15_000; // 3 missed 5s heartbeats
 const DEFAULT_COMMAND_TIMEOUT_MS = 120_000; // 2 min for bash
 const FILE_COMMAND_TIMEOUT_MS = 30_000; // 30s for file operations
 
 function emitDisconnected(device: string, reason?: string): void {
+  if (reason !== SHUTDOWN_REASON) recordRemoteClientDisconnected();
   const payload = reason ? { device, reason } : { device };
   void emitCortexEvent('cortex:client.disconnected', payload).catch(() => {});
 }
@@ -149,6 +152,7 @@ function registerHelloDevice(ws: WebSocket, msg: HelloFrame, remoteAddress: stri
     connectedAt: new Date(), lastHeartbeat: new Date(), bundleHash, ws,
   });
   log.info(`Device connected: ${device} (${platform})`);
+  recordRemoteClientConnected();
   void emitCortexEvent('cortex:client.connected', { device }).catch(() => {});
   applyReportedGpuCount(device, typeof msg.gpuCount === 'number' ? msg.gpuCount : null);
   try { updateHooks?.onHello(device, bundleHash); } catch (e) {
@@ -296,7 +300,7 @@ async function stopClientManager(): Promise<void> {
   }
   for (const [, info] of devices) {
     try { info.ws.close(1001, 'Server shutting down'); } catch {}
-    emitDisconnected(info.device, 'Server shutting down');
+    emitDisconnected(info.device, SHUTDOWN_REASON);
   }
   devices.clear();
 

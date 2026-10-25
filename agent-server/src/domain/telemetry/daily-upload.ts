@@ -4,10 +4,10 @@ import { dropRollupDay, finishedRollups, persistRollup, utcDay, wipeRollups } fr
 import { recordTelemetryEvent, registerTelemetryHooks } from './service.js';
 
 /** Queue every finished day as a `daily` event, then forget it locally. */
-export async function queueFinishedDays(now: number): Promise<void> {
+export async function queueFinishedDays(now: number, loadCatalog = loadNameCatalog): Promise<void> {
   const days = finishedRollups(now);
   if (days.length === 0) return;
-  const catalog = await loadNameCatalog(utcDay(now));
+  const catalog = await loadCatalog(utcDay(now));
   for (const rollup of days) {
     const event = toDailyEvent(rollup, catalog);
     if (!event || recordTelemetryEvent(event)) dropRollupDay(rollup.day);
@@ -16,5 +16,5 @@ export async function queueFinishedDays(now: number): Promise<void> {
 
 /** Hook the rollup store into the service's persist / finalize / wipe moments. */
 export function installDailyUpload(): void {
-  registerTelemetryHooks({ persist: persistRollup, finalize: queueFinishedDays, wipe: wipeRollups });
+  registerTelemetryHooks({ persist: persistRollup, finalize: (now) => queueFinishedDays(now), wipe: wipeRollups });
 }
