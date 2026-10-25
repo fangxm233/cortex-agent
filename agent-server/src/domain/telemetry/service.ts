@@ -41,6 +41,7 @@ let backoff = new UploadBackoff();
 let running: Running | null = null;
 let flushing: Promise<void> | null = null;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
+let flushDueAt = 0;
 
 export function registerTelemetryHooks(next: TelemetryLifecycleHooks): void {
   hooks.push(next);
@@ -70,8 +71,12 @@ export function recordTelemetryEvent(event: TelemetryEvent, opts: { urgent?: boo
   return appended;
 }
 
+/** Arm the flush timer; an earlier deadline (a crash during the startup delay) replaces a later one. */
 function scheduleFlush(delayMs: number): void {
-  if (!running || flushTimer) return;
+  const dueAt = now() + delayMs;
+  if (!running || (flushTimer && flushDueAt <= dueAt)) return;
+  if (flushTimer) clearTimeout(flushTimer);
+  flushDueAt = dueAt;
   flushTimer = setTimeout(() => {
     flushTimer = null;
     void flushTelemetry();

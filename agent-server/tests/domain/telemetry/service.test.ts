@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync } from 'node:fs';
-import { afterEach, test } from 'vitest';
+import { afterEach, test, vi } from 'vitest';
 import {
   flushTelemetry, recordTelemetryEvent, startTelemetry, stopTelemetry, telemetryTick,
   registerTelemetryHooks, wipeLocalTelemetry,
@@ -50,6 +50,20 @@ test('a failed upload keeps the events and backs off', async () => {
   await flushTelemetry();
   await flushTelemetry();
   assert.equal(fetch.requests.length, 1, 'second flush waits out the backoff');
+});
+
+test('an urgent event uploads within seconds even during the startup delay', async () => {
+  restore = enableTelemetryForTest();
+  vi.useFakeTimers();
+  try {
+    const fetch = fakeFetch();
+    startTelemetry({ collectHeartbeat: async () => null, fetchImpl: fetch.impl });
+    recordTelemetryEvent(crashEvent(), { urgent: true });
+    await vi.advanceTimersByTimeAsync(2_500);
+    assert.equal(fetch.requests.length, 1);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test('the tick sends a heartbeat once per day after the boot delay', async () => {
