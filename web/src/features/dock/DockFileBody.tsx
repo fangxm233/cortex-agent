@@ -64,7 +64,9 @@ export function DockFileBody({ item }: { item: FileItem }): JSX.Element {
   );
 }
 
-/** Full-size image / video inside the docked pane (wheel + pinch zoom, like the lightbox). */
+/** Full-size image / video inside the docked pane (wheel + pinch zoom, like the lightbox). The stage is a
+ * size container so the image fits it at 1x: a percentage max-height on the image would resolve against
+ * its auto-height zoom wrapper and let a tall image overflow the pane, unpannable until zoomed. */
 function DockMediaBody({ item }: { item: MediaItem }): JSX.Element {
   const { src, failed } = useMediaSrc(item);
   const L = useVocabOptional();
@@ -76,17 +78,17 @@ function DockMediaBody({ item }: { item: MediaItem }): JSX.Element {
   return (
     <div
       ref={containerRef}
-      style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 12, boxSizing: 'border-box' }}
+      style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 12, boxSizing: 'border-box', containerType: 'size' }}
     >
       {item.kind === 'video' ? (
         <video src={src} controls playsInline style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 'var(--r-chip)', background: 'var(--media-stage-bg)' }} />
       ) : (
-        <div ref={contentRef} style={{ ...zoomStyle, display: 'inline-block', maxWidth: '100%', maxHeight: '100%' }}>
+        <div ref={contentRef} style={{ ...zoomStyle, display: 'inline-block' }}>
           <img
             src={src}
             alt={item.name}
             draggable={false}
-            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }}
+            style={{ maxWidth: '100cqw', maxHeight: '100cqh', objectFit: 'contain', display: 'block' }}
           />
         </div>
       )}
