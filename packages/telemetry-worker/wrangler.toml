@@ -1,0 +1,35 @@
+name = "cortex-telemetry"
+main = "src/index.ts"
+compatibility_date = "2026-07-22"
+workers_dev = true
+preview_urls = false
+
+# The custom domain and the real D1 database id live in an untracked wrangler.local.toml (a copy
+# of this file plus a [[routes]] block), so the deployed hostname stays out of the repository.
+# Without it, `wrangler deploy` publishes to workers.dev only.
+#
+# Deploy (needs a Cloudflare API token with Workers, D1 and Access permissions):
+#   1. wrangler d1 create cortex-telemetry
+#   2. cp wrangler.toml wrangler.local.toml; in it, set database_id to the id printed by step 1,
+#      add  [[routes]] pattern = "telemetry.example.com" custom_domain = true  and, under [vars],
+#      ACCESS_TEAM_DOMAIN = "<team>.cloudflareaccess.com"
+#   3. wrangler d1 migrations apply cortex-telemetry --remote -c wrangler.local.toml
+#   4. wrangler secret put ACCESS_AUD -c wrangler.local.toml   (the Access application's AUD tag)
+#   5. wrangler deploy -c wrangler.local.toml
+#   6. Zero Trust > Access > Applications: add a self-hosted application for
+#      telemetry.example.com/dashboard* with an allow policy for the maintainers only. /v1/batch
+#      stays public; the dashboard answers 404 until both ACCESS_* values are set.
+#
+# Local run: wrangler d1 migrations apply cortex-telemetry --local, then wrangler dev --local.
+# A .dev.vars file with DASHBOARD_LOCAL_BYPASS=1 opens /dashboard on localhost without Access;
+# never set that variable here or as a deployed secret.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cortex-telemetry"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+# Daily retention sweep (UTC).
+[triggers]
+crons = ["17 3 * * *"]

@@ -114,8 +114,9 @@ benchmark/campaigns/terminal-bench-2.1-tmpdir-gate.yaml
 benchmark/campaigns/terminal-bench-2.1-verifier-environment-smoke.yaml
 benchmark/campaigns/zero-paid-external-corpus.yaml
 
-# Deploy config carrying the worker's real custom domain, and wrangler local state
-packages/deepseek-relay-worker/wrangler.local.toml
+# Deploy configs carrying a worker's real custom domain and ids, local dev secrets, wrangler state
+packages/*/wrangler.local.toml
+packages/*/.dev.vars
 packages/*/.wrangler/
 
 # Node module compile cache written by the test runner
