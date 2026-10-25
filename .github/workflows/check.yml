@@ -107,6 +107,33 @@ jobs:
         # Includes the native command contract test, which reads desktop/ sources directly.
         run: pnpm -C web exec vitest run
 
+  telemetry-worker:
+    name: Telemetry worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck and tests
+        # The tests run the Worker against node:sqlite with the real D1 migrations applied.
+        run: |
+          pnpm -C packages/telemetry-worker typecheck
+          pnpm -C packages/telemetry-worker test
+
   benchmark-tests:
     name: Benchmark harness tests
     runs-on: ubuntu-latest
