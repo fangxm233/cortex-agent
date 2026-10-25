@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useLang, useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import { IconButton } from '@/design/IconButton';
-import { deriveActiveProjectId } from '@/features/projects/current-project';
+import { useCurrentProject } from '@/features/projects/CurrentProjectProvider';
 import { deriveMemoryTreeFacts } from './memory-tree';
 import { activeOutlineId, deriveMemoryDoc } from './memory-doc';
 import {
@@ -148,7 +148,13 @@ const CENTER: CSSProperties = {
 
 const STATE_NOTE: CSSProperties = { fontSize: 13, color: 'var(--proto-muted)' };
 
+/** Shows the current project's memory; a project switch starts the viewer fresh (selection, folds). */
 export function MemoryView(): JSX.Element {
+  const { currentProjectId } = useCurrentProject();
+  return <ProjectMemoryView key={currentProjectId ?? ''} activeProjectId={currentProjectId} />;
+}
+
+function ProjectMemoryView({ activeProjectId }: { activeProjectId: string | null }): JSX.Element {
   const navigate = useNavigate();
   const trpc = useTRPC();
   const L = useVocab();
@@ -166,11 +172,6 @@ export function MemoryView(): JSX.Element {
   const pinnedRef = useRef<string | null>(null);
   const [bleed, setBleed] = useState<MarkdownBleed>({ left: 0, right: 0 });
 
-  const projectsQuery = useQuery(trpc.projects.list.queryOptions({}));
-  const sessionsQuery = useQuery(trpc.sessions.list.queryOptions({}));
-  const projects = projectsQuery.data ?? [];
-  const sessions = sessionsQuery.data ?? [];
-  const activeProjectId = useMemo(() => deriveActiveProjectId(sessions, projects), [sessions, projects]);
   const projName = activeProjectId ?? '—';
 
   const treeQuery = useQuery({
