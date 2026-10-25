@@ -236,9 +236,9 @@ The collector deletes crash reports, error samples, upgrade reports and migratio
 months. An install's record is deleted 13 months after the install was last seen. The data is
 readable only by the project's maintainers.
 
-To have your data deleted, open an issue at
-[github.com/fangxm233/cortex-agent/issues](https://github.com/fangxm233/cortex-agent/issues) that
-includes your install ID. You can copy the ID from **Settings → Privacy**.
+To have your data deleted, email [privacy@fangxm.me](mailto:privacy@fangxm.me) with your install
+ID. You can copy the ID from **Settings → Privacy**. The ID is random and tied to nothing else, so
+the email is the only thing that links it to you, and it is not kept after the deletion.
 
 ## Claude Code's own telemetry
 

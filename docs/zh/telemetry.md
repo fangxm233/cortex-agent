@@ -165,7 +165,7 @@ Web UI 操作名、日志模块名、迁移名和设置名都来自 Cortex 自�
 
 收集端在 90 天后删除崩溃报告、错误样本、升级报告和迁移失败记录。每日汇总、心跳、上手步骤和按天的活跃记录保留 13 个月。一个安装最后一次出现 13 个月后，它的安装记录也会被删除。这些数据只有项目维护者可以查看。
 
-如需删除你的数据，请在 [github.com/fangxm233/cortex-agent/issues](https://github.com/fangxm233/cortex-agent/issues) 提交一个 issue，附上你的安装 ID。安装 ID 可以在 **设置 → 隐私** 中复制。
+如需删除你的数据，请发邮件到 [privacy@fangxm.me](mailto:privacy@fangxm.me)，附上你的安装 ID。安装 ID 可以在 **设置 → 隐私** 中复制。这个 ID 是随机生成的，不关联任何其他信息，只有这封邮件会把它和你联系起来，删除完成后邮件不会保留。
 
 ## Claude Code 自身的遥测 {#claude-codes-own-telemetry}
 
