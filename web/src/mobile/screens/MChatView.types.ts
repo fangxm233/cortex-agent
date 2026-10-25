@@ -5,6 +5,7 @@ import type { SessionWaitpoints } from '@/features/session/live/useSessionWaitpo
 import type { ContextCompactAction } from '@/features/session/composer/ContextUsageControl';
 import type { AskAnswerState, AskCardModel, PlanCardModel } from '@/features/session/interaction/interaction-vm';
 import type { ChatRow } from '@/features/session/transcript/transcript-vm';
+import type { ReadMark } from '@/features/session/transcript/unseen';
 import type { SessionStatsRow } from '@/features/session/list/session-stats';
 import type { ChatHeaderStatus, PendingAttachmentVM, SelectionSheetRow } from './m-chat-vm';
 import type { MChatSelection } from './m-chat-selection';
@@ -69,6 +70,10 @@ export interface MChatViewProps {
   backgroundRunning?: boolean;
   /** The session's history is still loading — the transcript window follows the tail until it lands. */
   loading?: boolean;
+  /** The transcript has been fetched since the session was opened (a cached one shows first). */
+  fetched?: boolean;
+  /** The reader's last view of the session, from the session list (see useUnseenJump). */
+  readMark?: ReadMark;
   transcriptError?: boolean;
   onRetryTranscript?: () => void;
   onBack: () => void;

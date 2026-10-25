@@ -1,12 +1,11 @@
 import { ChatMediaProvider } from '@/features/media/ChatMediaProvider';
-import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import type { SessionInfo, WaitpointInfo } from '@cortex-agent/ui-contract';
 import { ChatMarkdown } from '@/design/ChatMarkdown';
 import { ContextUsageRing } from '@/features/session/composer/ContextUsageControl';
 import { TranscriptLoadError } from '@/features/session/transcript/TranscriptLoadError';
 import { useRevealedText } from '@/features/session/transcript/useRevealedText';
-import { useTranscriptWindow } from '@/features/session/transcript/useTranscriptWindow';
-import { useStickToBottom } from '@/features/session/transcript/useStickToBottom';
+import { UnseenJumpPill } from '@/features/session/transcript/UnseenJumpPill';
 import { ChatNotice } from '@/features/session/transcript/ChatNotice';
 import { SubagentTranscriptDetail } from '@/features/session/transcript/SubagentTranscriptDetail';
 import { SubagentBlock } from '@/features/session/transcript/SubagentBlock';
@@ -31,6 +30,7 @@ import { selectionView, type MChatSelectionView } from './m-chat-selection';
 import { useChatOverlay, type ChatOverlay } from './useChatOverlay';
 import type { ChatHeaderStatus } from './m-chat-vm';
 import { useComposerClearance } from './useComposerClearance';
+import { useMTranscriptScroll } from './useMTranscriptScroll';
 import { HEADER_BOTTOM_VAR, useHeaderClearance } from './useHeaderClearance';
 import { useNowTick } from '@/lib/useNowTick';
 import { BoardActionChatRow } from '@/features/board/BoardChatRows';
@@ -308,9 +308,6 @@ function MSystemHintRow({ row }: { row: Extract<ChatRow, { kind: 'user' }> }): J
 
 const DIM: CSSProperties = { opacity: 0.35, pointerEvents: 'none' };
 
-/** How long a tap inside the stream holds auto-scroll, so what it expanded stays in view. */
-const TAP_FREEZE_MS = 800;
-
 interface StreamContext {
   interactions?: MChatInteractions;
   streamKey?: string;
@@ -443,7 +440,7 @@ function UserRow(props: RowProps<'user'>): JSX.Element {
 function AssistantRow({ row, index, dimmed, copyText, ctx, inWork }: RowProps<'assistant'>): JSX.Element {
   const L = useVocabOptional();
   return (
-    <div data-narration={inWork ? 'true' : undefined} style={{
+    <div data-chat-row={index} data-narration={inWork ? 'true' : undefined} style={{
       fontSize: inWork ? 14 : 15, lineHeight: 1.6, color: inWork ? MC.sub : MC.body, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word',
       ...(inWork ? { margin: '2px 0' } : {}), ...(dimmed ? DIM : {}),
     }}>
@@ -630,23 +627,6 @@ export function SystemLine({ text }: { text: string }): JSX.Element {
   );
 }
 
-/** Only the tail of a long transcript is mounted; scrolling toward the top mounts more. The view
- *  opens at the latest message and stays pinned while it streams (the desktop MessageStream's
- *  rule), except just after a tap inside the stream, which may have expanded a row. */
-function useTranscriptScroll(props: MChatViewProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const win = useTranscriptWindow({ total: props.rows.length, streamKey: props.sessionId, settled: !props.loading, scrollRef });
-  const stick = useStickToBottom(scrollRef, contentRef, {
-    streamKey: props.sessionId, changes: [props.rows, props.systemLines], freezeMs: TAP_FREEZE_MS,
-  });
-  const onScroll = (): void => {
-    stick.onScroll();
-    win.onScroll();
-  };
-  return { scrollRef, contentRef, win, onScroll, onContentClick: stick.freeze };
-}
-
 const HEADER_BOTTOM = `var(${HEADER_BOTTOM_VAR})`;
 /** Rows start (and sticky subagent headers pin) 12px under the floating header stack. */
 const TRANSCRIPT_TOP = `calc(${HEADER_BOTTOM} + 12px)`;
@@ -658,7 +638,8 @@ function MChatTranscript({ props, shellHeight, tailHeight, onShowOriginal, onOpe
   onShowOriginal: (text: string) => void;
   onOpenBoard: (boardId: string) => void;
 }): JSX.Element {
-  const { scrollRef, contentRef, win, onScroll, onContentClick } = useTranscriptScroll(props);
+  // The composer floats over the scroller: a reply under it is not on screen yet.
+  const { scrollRef, contentRef, win, unseen, onScroll, onContentClick } = useMTranscriptScroll(props, shellHeight + 20);
   // The transcript dissolves over the 48px above the floating shell instead of sliding under it
   // legibly, so the composer's blur samples the ground rather than smeared text. The fade ends at the
   // shell top (its 20px offset + measured height), and the tail clearance keeps the last row 52px
@@ -668,22 +649,25 @@ function MChatTranscript({ props, shellHeight, tailHeight, onShowOriginal, onOpe
   // Only the transcript is masked, leaving the floating title and its glass unchanged.
   const transcriptFade = `linear-gradient(to bottom, transparent ${HEADER_BOTTOM}, #000 ${TRANSCRIPT_TOP}, #000 calc(${fadeEdge} - 48px), transparent ${fadeEdge})`;
   return (
-    // Plain-block scroll container (like the desktop MessageStream) with an inner flex-column content
-    // wrapper — keeps programmatic scrollTop stick-to-bottom reliable in mobile webviews. Isolate
-    // sticky headers so their z-index cannot escape over the composer or overlays.
-    <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} data-transcript-scroller style={{ flex: 1, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable', isolation: 'isolate', maskImage: transcriptFade, WebkitMaskImage: transcriptFade, '--transcript-sticky-top': TRANSCRIPT_TOP } as CSSProperties}>
-      <div ref={contentRef} style={{ padding: 'var(--transcript-sticky-top) 16px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {props.transcriptError && props.rows.length === 0 && props.onRetryTranscript && <TranscriptLoadError onRetry={props.onRetryTranscript} />}
-        <MChatStream rows={props.rows} start={win.start} interactions={props.interactions} editing={props.editing}
-          onLongPress={props.onLongPress} onShowOriginal={(edited) => onShowOriginal(edited.originalText)} onOpenBoard={onOpenBoard}
-          streamKey={props.sessionId} group live={props.live} />
-        <LeadWaitingLine touch />
-        <SessionStateLine running={!!props.live} touch />
-        {props.systemLines?.map((t, i) => <SystemLine key={i} text={t} />)}
-        {/* Tail clearance for the floating composer, which no longer takes flow height. */}
-        <div data-composer-clearance style={{ height: `calc(${tailHeight}px + env(safe-area-inset-bottom))`, flex: 'none' }} />
+    <>
+      {/* Plain-block scroll container (like the desktop MessageStream) with an inner flex-column
+          content wrapper — keeps programmatic scrollTop stick-to-bottom reliable in mobile webviews.
+          Isolate sticky headers so their z-index cannot escape over the composer or overlays. */}
+      <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} data-transcript-scroller style={{ flex: 1, minHeight: 0, overflow: 'auto', scrollbarGutter: 'stable', isolation: 'isolate', maskImage: transcriptFade, WebkitMaskImage: transcriptFade, '--transcript-sticky-top': TRANSCRIPT_TOP } as CSSProperties}>
+        <div ref={contentRef} style={{ padding: 'var(--transcript-sticky-top) 16px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {props.transcriptError && props.rows.length === 0 && props.onRetryTranscript && <TranscriptLoadError onRetry={props.onRetryTranscript} />}
+          <MChatStream rows={props.rows} start={win.start} interactions={props.interactions} editing={props.editing}
+            onLongPress={props.onLongPress} onShowOriginal={(edited) => onShowOriginal(edited.originalText)} onOpenBoard={onOpenBoard}
+            streamKey={props.sessionId} group live={props.live} />
+          <LeadWaitingLine touch />
+          <SessionStateLine running={!!props.live} touch />
+          {props.systemLines?.map((t, i) => <SystemLine key={i} text={t} />)}
+          {/* Tail clearance for the floating composer, which no longer takes flow height. */}
+          <div data-composer-clearance style={{ height: `calc(${tailHeight}px + env(safe-area-inset-bottom))`, flex: 'none' }} />
+        </div>
       </div>
-    </div>
+      <UnseenJumpPill target={unseen.target} onJump={unseen.jump} touch bottom={`calc(${shellHeight + 30}px + env(safe-area-inset-bottom))`} />
+    </>
   );
 }
 

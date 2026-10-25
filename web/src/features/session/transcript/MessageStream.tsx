@@ -1,5 +1,5 @@
 import { ChatMediaProvider } from '@/features/media/ChatMediaProvider';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { fmt, useVocab } from '@/i18n';
 import type { ChatRow } from './transcript-vm';
 import { SystemHintRow, ThinkingRow } from './HintRow';
@@ -26,6 +26,9 @@ import { MessageActions, EditBox, RewindNote, RewindTail, EditedBadge, RegenNote
 import { ChatNotice } from './ChatNotice';
 import { useTranscriptWindow } from './useTranscriptWindow';
 import { useStickToBottom } from './useStickToBottom';
+import { useUnseenJump } from './useUnseenJump';
+import { UnseenJumpPill } from './UnseenJumpPill';
+import type { ReadMark } from './unseen';
 import { useTeamRowSlot } from './team-row-slot';
 import { useBoardRowSlot } from './board-row-slot';
 import { EventIcon, EventRow } from './EventRow';
@@ -205,8 +208,10 @@ function TurnCopyAction({ text }: { text?: string }): JSX.Element | null {
   );
 }
 
-function AssistantBlock({ text, attachments, decisions, copyText, regen, preview, streamKey, ts, narration = false }: {
+function AssistantBlock({ text, attachments, decisions, copyText, regen, preview, streamKey, ts, anchor, narration = false }: {
   text: string;
+  /** Row index published to the DOM, where the jump to an unseen reply lands (see useUnseenJump). */
+  anchor?: number;
   /** A working note inside a turn's open work log: a step quieter than the answer. */
   narration?: boolean;
   attachments?: Attachment[];
@@ -231,6 +236,7 @@ function AssistantBlock({ text, attachments, decisions, copyText, regen, preview
     <div
       ref={ref}
       className="group"
+      data-chat-row={anchor}
       data-narration={narration ? 'true' : undefined}
       style={{
         position: 'relative', animation: entry,
@@ -382,7 +388,8 @@ function Row({ row, interactionActions, actions = false, assistantCopyText, onSt
   regen?: boolean;
   /** Identity of the live stream these rows belong to — see AssistantBlock. */
   streamKey?: string;
-  /** Nav-rail anchor for a user row — see UserBubble. */
+  /** Row index published to the DOM: a prompt's nav-rail anchor (see UserBubble), a reply's jump
+   *  target (see AssistantBlock). */
   anchor?: number;
 }): JSX.Element | null {
   const L = useVocab();
@@ -442,7 +449,7 @@ function Row({ row, interactionActions, actions = false, assistantCopyText, onSt
         </div>
       );
     case 'assistant':
-      return <AssistantBlock text={row.text} attachments={row.attachments} decisions={row.decisions} copyText={assistantCopyText} regen={regen} preview={row.preview} streamKey={streamKey} ts={row.ts} narration={inWork} />;
+      return <AssistantBlock text={row.text} attachments={row.attachments} decisions={row.decisions} copyText={assistantCopyText} regen={regen} preview={row.preview} streamKey={streamKey} ts={row.ts} anchor={anchor} narration={inWork} />;
     case 'waitpoint':
       return (
         <div className="group" data-row={row.kind}>
@@ -520,8 +527,9 @@ function itemGap(item: TurnItem, prev: TurnItem | undefined, rows: ChatRow[]): n
  *  「将被回退」badge, and submit fires the rewind. */
 export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy = true, anchors = false, start = 0, group = false, live = false }: { rows: ChatRow[]; interactionActions?: InteractionActions; edit?: MessageEditCtx; streamKey?: string; turnCopy?: boolean;
   /** True → user rows publish their index as a `data-chat-anchor`, which is what the nav rail
-   *  scrolls to. Only the top-level workbench transcript sets it: a nested subagent transcript
-   *  renders through this same component and its rows are not session-level destinations. */
+   *  scrolls to, and replies theirs as a `data-chat-row`, where the jump to an unseen reply lands.
+   *  Only the top-level workbench transcript sets it: a nested subagent transcript renders through
+   *  this same component and its rows are not session-level destinations. */
   anchors?: boolean;
   /** First row to mount (see useTranscriptWindow). Rows keep their index into `rows` either way. */
   start?: number;
@@ -553,8 +561,10 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
     return i;
   };
 
-  // Anchors mirror the nav rail's marks, which skip system-authored rows — see buildNavMarks.
-  const anchorOf = (row: ChatRow, i: number): number | undefined => (anchors && row.kind === 'user' && !row.systemOrigin ? i : undefined);
+  // Prompts mirror the nav rail's marks, which skip system-authored rows (see buildNavMarks); every
+  // reply carries its index for the jump to an unseen one.
+  const anchored = (row: ChatRow): boolean => row.kind === 'assistant' || (row.kind === 'user' && !row.systemOrigin);
+  const anchorOf = (row: ChatRow, i: number): number | undefined => (anchors && anchored(row) ? i : undefined);
   const rowEl = (i: number, withActions: boolean, opts: { copyText?: string; inWork?: boolean; background?: boolean } = {}): JSX.Element => {
     const row = rows[i];
     return (
@@ -658,78 +668,51 @@ function scrollToAnchor(el: HTMLElement | null, row: number): void {
   else el.scrollTop = top;
 }
 
-export function MessageStream({ rows, loading, interactionActions, edit, streamKey, live = false }: { rows: ChatRow[]; loading: boolean; interactionActions?: InteractionActions; edit?: MessageEditCtx; streamKey?: string;
-  /** The foreground turn is running (not merely held open by background work). */
-  live?: boolean }): JSX.Element {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  // The session's own table of contents — one mark per prompt (see ChatNavRail).
+/** The session's own table of contents — one mark per prompt (see ChatNavRail) — and which turns
+ *  the viewport is showing. Measured from live rects rather than stored offsets: the transcript's
+ *  rows change height constantly (streamed text, images, expanding tool rows), so any cached
+ *  geometry would be wrong by the next frame. Coalesced to one read per frame. */
+function useNavRail(scrollRef: RefObject<HTMLDivElement>, rows: ChatRow[], loading: boolean) {
   const marks = useMemo(() => buildNavMarks(rows), [rows]);
   const [activeRows, setActiveRows] = useState<number[]>([]);
   const syncRaf = useRef(0);
-
-  // Which turns the viewport is showing. Measured from live rects rather than stored offsets: the
-  // transcript's rows change height constantly (streamed text, images, expanding tool rows), so any
-  // cached geometry would be wrong by the next frame. Coalesced to one read per frame.
   const syncActive = useCallback((): void => {
     const el = scrollRef.current;
     if (!el) return;
-    const base = el.getBoundingClientRect().top;
-    const tops = Array.from(el.querySelectorAll<HTMLElement>('[data-chat-anchor]')).map((node) => ({
-      row: Number(node.dataset.chatAnchor),
-      top: node.getBoundingClientRect().top - base,
-    }));
-    const next = visibleNavRows(tops, el.clientHeight);
+    const next = visibleNavRows(anchorTops(el), el.clientHeight);
     setActiveRows((prev) => (sameNavRows(prev, next) ? prev : next));
-  }, []);
-
+  }, [scrollRef]);
   const scheduleSync = useCallback((): void => {
-    if (typeof requestAnimationFrame === 'undefined') {
-      syncActive();
-      return;
-    }
+    if (typeof requestAnimationFrame === 'undefined') return syncActive();
     if (syncRaf.current) return;
     syncRaf.current = requestAnimationFrame(() => {
       syncRaf.current = 0;
       syncActive();
     });
   }, [syncActive]);
-
-  // Only the tail of a long transcript is mounted; scrolling toward the top mounts more.
-  const win = useTranscriptWindow({ total: rows.length, streamKey, settled: !loading, scrollRef });
-  // Pinned to the latest message while it streams; a scroll-up releases it, scrolling back re-pins.
-  // The stream outlives a session switch (same pane, new rows), so another session re-pins too.
-  const stick = useStickToBottom(scrollRef, contentRef, { streamKey, changes: [rows, loading] });
-  const team = useTeamRowSlot();
-
-  const onScroll = (): void => {
-    stick.onScroll();
-    scheduleSync();
-    win.onScroll();
-  };
-
-  // Jump to a prompt: put it just under the top edge, where the eye expects the thing it asked for.
-  // Releasing the pin first matters — without it the next streamed frame would yank the view back
-  // to the bottom mid-scroll. A prompt above the mounted window is mounted first.
-  const jumpTo = (row: number): void => {
-    stick.release();
-    win.reveal(row, () => scrollToAnchor(scrollRef.current, row));
-  };
-
   // New rows move every mark below them, so the active one is re-read after each change too.
   useEffect(() => {
     scheduleSync();
   }, [rows, loading, scheduleSync]);
-
   useEffect(() => () => {
     if (syncRaf.current && typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(syncRaf.current);
   }, []);
+  return { marks, activeRows, scheduleSync };
+}
 
-  // Publish the pane's usable width so a block that should not obey the prose column can break out
-  // of it (today: tables — see ChatMarkdown's TableBlock). The column is centred, so a block that
-  // takes this width and pulls back half the difference lands centred on the pane. Written straight
-  // to the node rather than through state: a pane resize must not re-render the whole transcript.
+function anchorTops(el: HTMLElement): { row: number; top: number }[] {
+  const base = el.getBoundingClientRect().top;
+  return Array.from(el.querySelectorAll<HTMLElement>('[data-chat-anchor]')).map((node) => ({
+    row: Number(node.dataset.chatAnchor),
+    top: node.getBoundingClientRect().top - base,
+  }));
+}
+
+/** Publish the pane's usable width so a block that should not obey the prose column can break out
+ *  of it (today: tables — see ChatMarkdown's TableBlock). The column is centred, so a block that
+ *  takes this width and pulls back half the difference lands centred on the pane. Written straight
+ *  to the node rather than through state: a pane resize must not re-render the whole transcript. */
+function usePublishBleedWidth(scrollRef: RefObject<HTMLDivElement>): void {
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -746,7 +729,42 @@ export function MessageStream({ rows, loading, interactionActions, edit, streamK
     const ro = new ResizeObserver(publish);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [scrollRef]);
+}
+
+export function MessageStream({ rows, loading, fetched = !loading, readMark, interactionActions, edit, streamKey, live = false }: { rows: ChatRow[]; loading: boolean; interactionActions?: InteractionActions; edit?: MessageEditCtx; streamKey?: string;
+  /** The transcript has been fetched since the session was opened (a cached one shows first). */
+  fetched?: boolean;
+  /** The reader's last view of the session, from the session list (see useUnseenJump). */
+  readMark?: ReadMark;
+  /** The foreground turn is running (not merely held open by background work). */
+  live?: boolean }): JSX.Element {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const nav = useNavRail(scrollRef, rows, loading);
+  // Only the tail of a long transcript is mounted; scrolling toward the top mounts more.
+  const win = useTranscriptWindow({ total: rows.length, streamKey, settled: !loading, scrollRef });
+  // Pinned to the latest message while it streams; a scroll-up releases it, scrolling back re-pins.
+  // The stream outlives a session switch (same pane, new rows), so another session re-pins too.
+  const stick = useStickToBottom(scrollRef, contentRef, { streamKey, changes: [rows, loading] });
+  const unseen = useUnseenJump({ rows, live, fetched, streamKey, mark: readMark, scrollRef, contentRef, stick, win });
+  const team = useTeamRowSlot();
+  usePublishBleedWidth(scrollRef);
+
+  const onScroll = (): void => {
+    stick.onScroll();
+    nav.scheduleSync();
+    win.onScroll();
+    unseen.onScroll();
+  };
+
+  // Jump to a prompt: put it just under the top edge, where the eye expects the thing it asked for.
+  // Releasing the pin first matters — without it the next streamed frame would yank the view back
+  // to the bottom mid-scroll. A prompt above the mounted window is mounted first.
+  const jumpTo = (row: number): void => {
+    stick.release();
+    win.reveal(row, () => scrollToAnchor(scrollRef.current, row));
+  };
 
   // The rail is a sibling of the scroll box, not a child: it marks the transcript's whole length, so
   // it must not travel with the part of it that happens to be on screen.
@@ -759,7 +777,8 @@ export function MessageStream({ rows, loading, interactionActions, edit, streamK
           <SessionStateLine running={live} offset={14} />
         </div>
       </div>
-      <ChatNavRail marks={marks} activeRows={activeRows} onJump={jumpTo} />
+      <ChatNavRail marks={nav.marks} activeRows={nav.activeRows} onJump={jumpTo} />
+      <UnseenJumpPill target={unseen.target} onJump={unseen.jump} bottom={12} />
     </div>
   );
 }
