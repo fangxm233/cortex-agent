@@ -294,7 +294,7 @@ pub fn run() {
                 uninstall::open_window(app, desktop_title_bar_mode())?;
                 return Ok(());
             }
-            // Load credentials (platform store → env fallback) and seed AppState.
+            // Load credentials (credential file → env fallback) and seed AppState.
             shell_log!("[cortex-desktop] {}", creds::diagnostics(&app.handle()));
             let initial_config = connection::load_initial_config(&app.handle());
 

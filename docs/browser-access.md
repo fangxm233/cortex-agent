@@ -11,7 +11,7 @@ There are three independent ways to reach the workbench, and they authenticate d
 |---|---|---|---|
 | **Browser + Access** | Anyone with a browser | Cloudflare Access edge login (email / IdP), verified as a JWT by the server | **No** — the browser never sees the token |
 | **Browser + token login** | Anyone who knows the token | The token is pasted once and exchanged for an HttpOnly session cookie | **No** — only the server sees it, and only once |
-| **Desktop (Tauri)** | The installed desktop app | Bearer `x-cortex-token` (the `clientToken`) stored in the OS keychain | Yes |
+| **Desktop (Tauri)** | The installed desktop app | Bearer `x-cortex-token` (the `clientToken`) stored in the app's data directory | Yes |
 
 This page is the browser + deployment reference. For installing the native desktop app, see
 [Desktop App](desktop-app.md).
@@ -297,7 +297,7 @@ All three reach the same `/trpc` API and the same workbench, but they differ in 
 | Login | Cloudflare Access edge login (email / IdP) | Paste the `clientToken` once | Enter `serverUrl` + `clientToken` once |
 | Credential on requests | `Cf-Access-Jwt-Assertion` (issued by the edge) | `cortex_ui` session cookie | `x-cortex-token` header |
 | Where auth is checked | JWT verified by the server | Session verified by the server | Token verified by the server |
-| `clientToken` exposure | **Never touches the browser** | Typed once, never stored in the page | Stored in the OS keychain |
+| `clientToken` exposure | **Never touches the browser** | Typed once, never stored in the page | Stored in the app's data directory |
 | Opens `/forward` | No | No | Yes |
 | SPA origin | Same-origin (SPA + `/trpc` on one host) | Same-origin | Direct connection to `/trpc` (CORS-enabled) |
 

@@ -131,7 +131,7 @@ Current builds serve the shell through the `cortexui` custom protocol, which app
 
 Choose **Connect an existing server** on the first screen, then enter the server URL, including `https://` or `http://`, together with `CORTEX_CLIENT_TOKEN`. The connection test distinguishes an unreachable endpoint from an unauthorized token. A successful connection opens the workbench and stores the credentials for later launches. A server installed by the wizard skips this screen — it connects with credentials it generated itself.
 
-Linux, macOS, and Windows store the connection JSON in the operating-system keychain: Secret Service, Keychain, or Windows Credential Manager. Android stores it in the app's private data directory because the desktop keychain library has no Android backend. Disconnecting clears the platform store and returns to the connection screen.
+The app stores the connection as `connection.json` in its own data directory: `~/Library/Application Support/dev.cortex.desktop` on macOS, `~/.local/share/dev.cortex.desktop` on Linux, `%APPDATA%\dev.cortex.desktop` on Windows, and the app's private storage on Android. On macOS and Linux the file is readable by your user only. Disconnecting deletes it and returns to the connection screen.
 
 ## Desktop workbench
 
@@ -242,7 +242,7 @@ Sessions run on the server, so restarting or reinstalling a client does not stop
 The window offers two choices:
 
 - **What to remove** appears when the app installed a server on this computer. **App and local server**, the default, turns off start at login, stops the daemon and the local client it launched, takes the `cortex` terminal command off `PATH`, and deletes `~/.cortex/runtime`. **App only** leaves the server running and reachable from a browser or other devices. An app that connects to a remote server shows no such choice and never touches that server.
-- **Also delete data** is off by default. Together with the server it deletes the whole Cortex home (`~/.cortex`, or `CORTEX_HOME`): configuration and tokens, conversations, project context, plugins and logs. It also deletes the app's own data directories, named `dev.cortex.desktop`, and the connection saved in the system keychain. With **App only** it deletes just the app's own data and saved connection. The window lists every path before you confirm; deletion cannot be undone.
+- **Also delete data** is off by default. Together with the server it deletes the whole Cortex home (`~/.cortex`, or `CORTEX_HOME`): configuration and tokens, conversations, project context, plugins and logs. It also deletes the app's own data directories, named `dev.cortex.desktop`, which hold the saved connection. With **App only** it deletes just the app's own data and saved connection. The window lists every path before you confirm; deletion cannot be undone.
 
 With the data kept, installing Cortex again picks up where it left off: setup unpacks the runtime, reinstalls the server package, and connects to the existing configuration and sessions.
 
@@ -304,12 +304,9 @@ If you set `CORTEX_HOME`, substitute that directory for `~/.cortex` or
 
 The app also starts a local server at launch, so reopening it retries.
 
-### Credentials do not persist on Linux
+### Credentials do not persist
 
-A headless Linux environment may not provide a Secret Service daemon. Fresh local
-setup cannot finish until it can save credentials; ordinary connections fall back
-to credentials that last only for the current process. Enable the system keyring,
-or launch the app with an explicit connection to the running server:
+The app saves the connection in its data directory (see [First connection](#first-connection)). When that directory is not writable, fresh local setup cannot finish, and ordinary connections last only for the current process. Make the directory writable, or launch the app with an explicit connection to the running server:
 
 
 ```bash

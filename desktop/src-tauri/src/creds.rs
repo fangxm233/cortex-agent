@@ -1,144 +1,211 @@
-// Credential store — platform-branched persistence for the connection config
-// (serverUrl + token) that the SPA needs to reach the remote Cortex server.
+// Credential store — the connection config (serverUrl + token) the SPA needs to reach the Cortex
+// server, kept as JSON in the app's private data directory (`app_data_dir()/connection.json`) on
+// every platform. On Unix the file is created owner-only (0600).
 //
-// Desktop (Linux / macOS / Windows): the OS keychain via the `keyring` crate v3
-//   (SecretService / Keychain / Credential Manager). Hardware/OS-protected.
-//
-// Android: the `keyring` crate has NO Android backend, so we persist a JSON file in
-//   the app's PRIVATE data directory (`app_data_dir()`), which is sandboxed per-app
-//   internal storage — not world-readable by other apps. This is comparable to how
-//   many apps store session tokens. (A future hardening pass could move this to the
-//   Android Keystore via a dedicated plugin; tracked as a follow-up.)
-//
-// All three operations take the `AppHandle` so the Android backend can resolve the
-// per-app data dir; the desktop backend ignores it.
+// Desktop builds used to keep this in the OS keychain. An ad-hoc signed macOS app loses access to
+// its own keychain item on every update, so macOS asked for the login password after each upgrade.
+// The keychain is now only read once, to import a connection saved by an older build (`legacy`).
 
 use crate::connection::ConnectionConfig;
-use tauri::AppHandle;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use tauri::{AppHandle, Manager};
 
+const FILE_NAME: &str = "connection.json";
+
+fn creds_path(app: &AppHandle) -> Option<PathBuf> {
+    app.path().app_data_dir().ok().map(|d| d.join(FILE_NAME))
+}
+
+/// Load credentials. None when no usable connection is stored.
+pub fn load(app: &AppHandle) -> Option<ConnectionConfig> {
+    let path = creds_path(app)?;
+    if path.exists() {
+        return read_file(&path);
+    }
+    import_legacy(&path, legacy::read, legacy::forget)
+}
+
+/// Persist credentials, creating the data directory if needed.
+pub fn save(app: &AppHandle, config: &ConnectionConfig) -> Result<(), String> {
+    let path = creds_path(app).ok_or_else(|| "no app_data_dir".to_string())?;
+    write_file(&path, config)
+}
+
+/// Delete the stored credentials (best-effort; errors ignored).
+pub fn clear(app: &AppHandle) {
+    if let Some(path) = creds_path(app) {
+        let _ = std::fs::remove_file(path);
+    }
+    legacy::forget();
+}
+
+/// One-line diagnostic of the credential file state (logged at startup), so "never saved" and
+/// "present but unusable" can be told apart when a launch lands on the connect screen.
+pub fn diagnostics(app: &AppHandle) -> String {
+    match creds_path(app) {
+        None => "creds backend=file path=unavailable(no app_data_dir)".to_string(),
+        Some(path) => describe(&path),
+    }
+}
+
+fn describe(path: &Path) -> String {
+    let len = std::fs::metadata(path).map(|m| m.len()).ok();
+    format!(
+        "creds backend=file path={} exists={} len={} usable={}",
+        path.display(),
+        len.is_some(),
+        len.unwrap_or(0),
+        read_file(path).is_some()
+    )
+}
+
+fn usable(config: ConnectionConfig) -> Option<ConnectionConfig> {
+    (config.server_url.is_some() && config.token.is_some()).then_some(config)
+}
+
+fn read_file(path: &Path) -> Option<ConnectionConfig> {
+    let data = std::fs::read_to_string(path).ok()?;
+    usable(serde_json::from_str(&data).ok()?)
+}
+
+fn write_file(path: &Path, config: &ConnectionConfig) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
+    }
+    let data = serde_json::to_string(config).map_err(|e| format!("serialize: {e}"))?;
+    let mut file = owner_only().open(path).map_err(|e| format!("open: {e}"))?;
+    file.write_all(data.as_bytes()).map_err(|e| format!("write: {e}"))
+}
+
+fn owner_only() -> std::fs::OpenOptions {
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    options
+}
+
+/// Move a connection saved by an older build into the file. The old entry is removed only once the
+/// file holds it, so a failed write leaves it to be imported on the next launch.
+fn import_legacy(
+    path: &Path,
+    read: impl FnOnce() -> Option<ConnectionConfig>,
+    forget: impl FnOnce(),
+) -> Option<ConnectionConfig> {
+    let config = usable(read()?)?;
+    if write_file(path, &config).is_ok() {
+        forget();
+    }
+    Some(config)
+}
+
+/// The keychain entry desktop builds wrote before the file store existed.
 #[cfg(not(target_os = "android"))]
-mod backend {
-    use super::*;
+mod legacy {
+    use crate::connection::ConnectionConfig;
 
-    const KEYCHAIN_SERVICE: &str = "dev.cortex.desktop";
-    const KEYCHAIN_ACCOUNT: &str = "connection";
+    const SERVICE: &str = "dev.cortex.desktop";
+    const ACCOUNT: &str = "connection";
 
-    /// Load credentials from the OS keychain. None if unavailable or absent.
-    pub fn load(_app: &AppHandle) -> Option<ConnectionConfig> {
-        keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
-            .ok()
-            .and_then(|e| e.get_password().ok())
-            .and_then(|s| serde_json::from_str::<ConnectionConfig>(&s).ok())
-            .filter(|c| c.server_url.is_some() && c.token.is_some())
+    fn entry() -> Option<keyring::Entry> {
+        keyring::Entry::new(SERVICE, ACCOUNT).ok()
     }
 
-    /// Persist credentials to the OS keychain. Err if the keychain is unavailable.
-    pub fn save(_app: &AppHandle, config: &ConnectionConfig) -> Result<(), String> {
-        let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
-            .map_err(|e| format!("keychain open: {e}"))?;
-        let data = serde_json::to_string(config).map_err(|e| format!("serialize: {e}"))?;
-        entry
-            .set_password(&data)
-            .map_err(|e| format!("keychain write: {e}"))
+    pub fn read() -> Option<ConnectionConfig> {
+        serde_json::from_str(&entry()?.get_password().ok()?).ok()
     }
 
-    /// Delete credentials from the OS keychain (best-effort; errors ignored).
-    pub fn clear(_app: &AppHandle) {
-        if let Ok(entry) = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT) {
+    pub fn forget() {
+        if let Some(entry) = entry() {
             let _ = entry.delete_credential();
         }
     }
-
-    /// One-line diagnostic of the credential store state (logged at startup). Actually probes the
-    /// keychain (open + round-trip a value) so a misconfigured backend — e.g. keyring compiled with
-    /// no platform feature, silently falling back to the in-process mock store that never persists —
-    /// is visible in the log instead of being masked by a hard-coded "os-keychain".
-    pub fn diagnostics(_app: &AppHandle) -> String {
-        const PROBE_ACCOUNT: &str = "diagnostics-probe";
-        match keyring::Entry::new(KEYCHAIN_SERVICE, PROBE_ACCOUNT) {
-            Err(e) => format!("creds backend=os-keychain probe=open-failed({e})"),
-            Ok(entry) => {
-                // A mock store persists within the process, so this round-trip alone can't prove a real
-                // OS backend; but an open/read/write error here is a strong signal the backend is broken
-                // (e.g. headless Linux with no secret-service daemon).
-                let probe = match entry.set_password("probe") {
-                    Err(e) => format!("write-failed({e})"),
-                    Ok(()) => {
-                        let r = match entry.get_password() {
-                            Ok(v) if v == "probe" => "ok".to_string(),
-                            Ok(_) => "read-mismatch".to_string(),
-                            Err(e) => format!("read-failed({e})"),
-                        };
-                        let _ = entry.delete_credential();
-                        r
-                    }
-                };
-                format!("creds backend=os-keychain probe={probe}")
-            }
-        }
-    }
 }
 
+/// Android always stored the file.
 #[cfg(target_os = "android")]
-mod backend {
-    use super::*;
-    use std::path::PathBuf;
-    use tauri::Manager;
+mod legacy {
+    use crate::connection::ConnectionConfig;
 
-    /// JSON credential file inside the app's private data dir.
-    fn creds_path(app: &AppHandle) -> Option<PathBuf> {
-        app.path().app_data_dir().ok().map(|d| d.join("connection.json"))
+    pub fn read() -> Option<ConnectionConfig> {
+        None
     }
 
-    /// Load credentials from the app-private JSON file. None if missing/unreadable.
-    pub fn load(app: &AppHandle) -> Option<ConnectionConfig> {
-        let path = creds_path(app)?;
-        std::fs::read_to_string(path)
-            .ok()
-            .and_then(|s| serde_json::from_str::<ConnectionConfig>(&s).ok())
-            .filter(|c| c.server_url.is_some() && c.token.is_some())
-    }
-
-    /// Persist credentials to the app-private JSON file (creating the dir if needed).
-    pub fn save(app: &AppHandle, config: &ConnectionConfig) -> Result<(), String> {
-        let path = creds_path(app).ok_or_else(|| "no app_data_dir".to_string())?;
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
-        }
-        let data = serde_json::to_string(config).map_err(|e| format!("serialize: {e}"))?;
-        std::fs::write(&path, data).map_err(|e| format!("write: {e}"))
-    }
-
-    /// Delete the app-private credential file (best-effort; errors ignored).
-    pub fn clear(app: &AppHandle) {
-        if let Some(path) = creds_path(app) {
-            let _ = std::fs::remove_file(path);
-        }
-    }
-
-    /// One-line diagnostic of the credential file state (logged at startup) — used to tell apart
-    /// "creds never saved / file missing" from "file present but unreadable/unparseable" when the
-    /// OTA thread reports `no credentials`.
-    pub fn diagnostics(app: &AppHandle) -> String {
-        match creds_path(app) {
-            None => "creds backend=android path=unavailable(no app_data_dir)".to_string(),
-            Some(p) => {
-                let exists = p.exists();
-                let len = std::fs::metadata(&p).map(|m| m.len()).unwrap_or(0);
-                let parses = std::fs::read_to_string(&p)
-                    .ok()
-                    .and_then(|s| serde_json::from_str::<ConnectionConfig>(&s).ok())
-                    .is_some();
-                format!(
-                    "creds backend=android path={} exists={} len={} parses={}",
-                    p.display(),
-                    exists,
-                    len,
-                    parses
-                )
-            }
-        }
-    }
+    pub fn forget() {}
 }
 
-pub use backend::{clear, diagnostics, load, save};
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::Cell;
+
+    fn remote(token: &str) -> ConnectionConfig {
+        ConnectionConfig {
+            server_url: Some("https://cortex.example.com".into()),
+            token: Some(token.into()),
+            ..ConnectionConfig::default()
+        }
+    }
+
+    #[test]
+    fn saved_credentials_load_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("nested").join(FILE_NAME);
+        write_file(&path, &remote("t1")).unwrap();
+        write_file(&path, &remote("t2")).unwrap();
+        assert_eq!(read_file(&path).unwrap().token.as_deref(), Some("t2"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_file_is_readable_by_its_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        write_file(&path, &remote("t")).unwrap();
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600);
+    }
+
+    #[test]
+    fn incomplete_or_corrupt_files_are_not_credentials() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        std::fs::write(&path, r#"{"serverUrl":"https://cortex.example.com"}"#).unwrap();
+        assert!(read_file(&path).is_none());
+        std::fs::write(&path, "{").unwrap();
+        assert!(read_file(&path).is_none());
+    }
+
+    #[test]
+    fn a_legacy_entry_moves_into_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        let forgotten = Cell::new(false);
+        let loaded = import_legacy(&path, || Some(remote("old")), || forgotten.set(true));
+        assert_eq!(loaded.unwrap().token.as_deref(), Some("old"));
+        assert_eq!(read_file(&path).unwrap().token.as_deref(), Some("old"));
+        assert!(forgotten.get());
+    }
+
+    #[test]
+    fn a_legacy_entry_is_kept_when_the_file_cannot_be_written() {
+        let dir = tempfile::tempdir().unwrap();
+        let blocker = dir.path().join("not-a-dir");
+        std::fs::write(&blocker, "").unwrap();
+        let forgotten = Cell::new(false);
+        let loaded = import_legacy(&blocker.join(FILE_NAME), || Some(remote("old")), || forgotten.set(true));
+        assert!(loaded.is_some(), "this launch still connects");
+        assert!(!forgotten.get());
+    }
+
+    #[test]
+    fn an_unusable_legacy_entry_is_ignored() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        let blank = ConnectionConfig::default();
+        assert!(import_legacy(&path, || Some(blank), || panic!("nothing to forget")).is_none());
+        assert!(!path.exists());
+    }
+}
