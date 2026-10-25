@@ -102,7 +102,7 @@ export type CortexEvent =
 
     // ── Meta-events (EventBus / EventLogger infrastructure) ───────────────────
   // Audit
-  | { type: 'ui.mutate-invoked';        ts: string; op: string; args: unknown; result: { ok: boolean; code?: string } | null }
+  | { type: 'ui.mutate-invoked';        ts: string; op: string; args: unknown; result: { ok: boolean; code?: string } | null; client?: 'desktop' | 'android' | 'browser' | null }
 
     // ── Meta-events (EventBus / EventLogger infrastructure) ───────────────────
   | { type: 'event-bus.handler-failed'; ts: string; handlerType: string; error: string }

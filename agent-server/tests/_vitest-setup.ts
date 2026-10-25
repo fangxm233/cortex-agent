@@ -39,6 +39,8 @@ process.env.CORTEX_HOME = home;
 // keeps a CLAUDE_CONFIG_DIR exported by a dev shell or a Cortex session out of anything a test
 // spawns outside buildClaudeEnv. Always overwritten, never inherited.
 process.env.CLAUDE_CONFIG_DIR = path.join(home, '.claude');
+// Product telemetry stays off in every test unless a test opts in itself.
+process.env.CORTEX_TELEMETRY = '0';
 // Keep the temp dirs the test files allocate themselves inside the run-scoped root too.
 redirectTmpdir();
 // atomicWrite tripwire keys off NODE_TEST_CONTEXT; node:test set it implicitly,

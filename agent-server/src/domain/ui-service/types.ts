@@ -106,6 +106,10 @@ export type {
 } from '@domain/pi-providers/index.js';
 import type { UsageSharingSettings } from '@domain/costs/aistatus-config.js';
 export type { UsageSharingSettings } from '@domain/costs/aistatus-config.js';
+import type { TelemetryInfo } from '@domain/telemetry/info.js';
+export type { TelemetryInfo } from '@domain/telemetry/info.js';
+import type { ClientKind } from '@domain/telemetry/client-kind.js';
+export type { ClientKind } from '@domain/telemetry/client-kind.js';
 export type {
   ProviderRateLimitPolicyOverride,
   ProviderRateLimitWindowPolicyOverride,
@@ -1618,6 +1622,7 @@ export interface QueryReturnMap {
   'auth.flowState': LoginFlowState | null;
   'auth.customProviders': CustomProviderView[];
   'usageSharing.get': UsageSharingSettings;
+  'telemetry.info': TelemetryInfo;
   'models.catalog': ModelCatalogSnapshot;
   'hooks.list': HooksOverview;
   'machines.list': MachineInfo[];
@@ -1686,6 +1691,7 @@ export interface MutateReturnMap {
   'auth.upsertCustomProvider': CustomProviderView;
   'auth.removeCustomProvider': AuthRemoveCustomProviderReturn;
   'usageSharing.set': UsageSharingSettings;
+  'telemetry.report': { ok: true };
   'hooks.create': HooksCreateReturn;
   'hooks.update': HooksUpdateReturn;
   'hooks.setEnabled': HooksSetEnabledReturn;
@@ -1725,9 +1731,17 @@ export type MutateReturn<O extends MutateOp> = MutateReturnMap[O];
 
 // ── UiService interface ───────────────────────────────────────────
 
+/** Per-request facts the transport knows and handlers may use; never part of the op's args. */
+export interface UiCallContext {
+  /** Which app sent the request (`x-cortex-client`), null for unknown callers. */
+  client: ClientKind | null;
+}
+
 export interface UiService {
   query<S extends QueryScope>(scope: S, params: QueryParams<S>): Promise<Result<QueryReturn<S>>>;
-  mutate<O extends MutateOp>(op: O, args: MutateArgs<O>): Promise<Result<MutateReturn<O>>>;
+  mutate<O extends MutateOp>(
+    op: O, args: MutateArgs<O>, ctx?: UiCallContext,
+  ): Promise<Result<MutateReturn<O>>>;
   subscribe(filter: SubscribeFilter): AsyncIterable<UiEvent> & { close(): void };
 }
 

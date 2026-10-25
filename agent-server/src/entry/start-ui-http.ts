@@ -1,6 +1,8 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { parseClientKind } from '@domain/telemetry/client-kind.js';
+import { CLIENT_KIND_HEADER } from '@domain/telemetry/schema.js';
 import { createAppRouter } from '@domain/ui-service/app-router.js';
 import { createUiHttpServer, createAuthorizer } from '@platform/ui-http/ui-http-server.js';
 import type { UiHttpServer } from '@platform/ui-http/ui-http-server.js';
@@ -154,6 +156,7 @@ export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null
     spaDir,
     corsOrigins,
     authorize,
+    createContext: (req) => ({ client: parseClientKind(req.headers[CLIENT_KIND_HEADER]) }),
     // Reachable without a credential: the login endpoint and the boolean probe. Everything else,
     // including logout, goes through the gate.
     publicRoutes: tokenLogin ? [UI_LOGIN_PATH, UI_SESSION_PATH] : [UI_SESSION_PATH],

@@ -235,6 +235,9 @@ describe('transport-host: server, token gate, SPA static, CORS', () => {
     const allowedHeaders = (headers['access-control-allow-headers'] ?? '').toLowerCase();
     assert.ok(allowedHeaders.includes('x-cortex-token'),
       `access-control-allow-headers must include x-cortex-token; got: ${allowedHeaders}`);
+    // The native shells name themselves on every call; a missing allowance blocks all of them.
+    assert.ok(allowedHeaders.includes('x-cortex-client'),
+      `access-control-allow-headers must include x-cortex-client; got: ${allowedHeaders}`);
   });
 
   test('cors: 401 response for bad token still carries ACAO (browser can read error body)', async () => {

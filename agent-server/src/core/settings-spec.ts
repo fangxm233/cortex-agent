@@ -30,6 +30,7 @@ export interface Settings {
   serverAutoUpdate: boolean;
   clientHotReloadEnabled: boolean;
   teamEnabled: boolean;
+  telemetryEnabled: boolean;
   feishuSkillsInWeb: boolean;
   waitpointSweepMs: number;
   waitpointTtlMs: number;
@@ -241,6 +242,14 @@ export const SETTINGS_SPEC = {
     type: 'boolean',
     default: true,
     legacyParse: (raw: string) => raw === '1',
+  },
+  // Anonymous product telemetry (domain/telemetry). CORTEX_TELEMETRY=0 also forces it off even
+  // when settings.json turns it on; the gate reads the variable directly for that.
+  telemetryEnabled: {
+    envVar: 'CORTEX_TELEMETRY',
+    type: 'boolean',
+    default: true,
+    legacyParse: (raw: string) => raw.trim() !== '0',
   },
   waitpointSweepMs: {
     envVar: 'CORTEX_WAITPOINT_SWEEP_MS',

@@ -1,5 +1,11 @@
 import * as i18n from '@core/i18n.js';
 import { initTRPC } from '@trpc/server';
+import type { ClientKind } from '@domain/telemetry/client-kind.js';
+
+/** Built per request by the HTTP host; callers without a request (tests, TUI) pass `{}`. */
+export interface UiRequestContext {
+  client?: ClientKind | null;
+}
 
 /**
  * Keepalive for the SSE subscription that carries the whole UI's live state.
@@ -31,7 +37,7 @@ export const UI_SSE_KEEPALIVE = {
   client: { reconnectAfterInactivityMs: 45_000 },
 } as const;
 
-const t = initTRPC.create({
+const t = initTRPC.context<UiRequestContext>().create({
   sse: UI_SSE_KEEPALIVE,
   errorFormatter({ shape, path }) {
     if (path !== 'config.setPlatform') return shape;

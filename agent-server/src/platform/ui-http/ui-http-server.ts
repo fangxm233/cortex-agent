@@ -25,7 +25,8 @@ const CORS_ALLOW_METHODS = 'GET, POST, OPTIONS';
 // `x-session-id` / `x-file-name` are the custom headers the file-upload route reads; the app's
 // upload is cross-origin (webview `cortexui://localhost` → server), so its CORS preflight fails
 // unless these are allow-listed alongside the auth token and content-type.
-const CORS_ALLOW_HEADERS = `${AUTH_HEADER}, content-type, x-session-id, x-file-name`;
+// `x-cortex-client` names the app (desktop / android / browser) on every tRPC call.
+const CORS_ALLOW_HEADERS = `${AUTH_HEADER}, content-type, x-session-id, x-file-name, x-cortex-client`;
 const CORS_MAX_AGE = '86400'; // 24 h preflight cache
 
 /**
@@ -75,6 +76,8 @@ export interface UiHttpServerOptions {
    * predicate the gate uses, instead of a second copy that could drift.
    */
   authorize: Authorizer;
+  /** Per-request tRPC context built from the incoming request; defaults to `{}`. */
+  createContext?: (req: http.IncomingMessage) => object;
   /**
    * Mount the TCP-over-WebSocket port forward on `/forward` (desktop shell → a loopback service on
    * this host). Defaults to on; `CORTEX_PORT_FORWARD=0` at the call site turns it off.
@@ -268,7 +271,7 @@ export function createUiHttpServer(opts: UiHttpServerOptions): UiHttpServer {
   const server = createHTTPServer({
     router: opts.router,
     basePath: TRPC_BASE_PATH,
-    createContext: () => ({}),
+    createContext: ({ req }) => opts.createContext?.(req) ?? {},
     maxBodySize: TRPC_MAX_BODY_BYTES,
     // Runs BEFORE the tRPC handler. tRPC paths are auth-gated here; everything else is the SPA stub.
     middleware: async (req, res, next) => {

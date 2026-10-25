@@ -7,6 +7,7 @@ import { RESET_PROVIDERS } from '@domain/costs/reset-account.js';
 import { sessionsSetStarredInput, sessionsRenameInput } from './session-metadata-schemas.js';
 export { sessionsSetStarredInput, sessionsRenameInput } from './session-metadata-schemas.js';
 import { t } from '@core/i18n.js';
+import { WebTelemetryReportSchema } from '@domain/telemetry/schema.js';
 import { SETTINGS_SPEC } from '@core/settings-spec.js';
 import {
   CUSTOM_PROVIDER_APIS,
@@ -81,6 +82,11 @@ export const usageSharingSetInput = z.object({
   org: z.string().trim().optional(),
   email: z.string().trim().optional(),
 });
+
+// telemetry.info / telemetry.report — anonymous product telemetry. The report payload is the
+// shared wire schema; the server redacts and folds it in.
+export const telemetryInfoInput = z.object({});
+export const telemetryReportInput = WebTelemetryReportSchema;
 
 // models.catalog — discover selectable models and gateway routes.
 export const modelsCatalogInput = z.object({});
@@ -777,6 +783,7 @@ export const queryInputSchemas = {
   'auth.flowState': authFlowStateInput,
   'auth.customProviders': authCustomProvidersInput,
   'usageSharing.get': usageSharingGetInput,
+  'telemetry.info': telemetryInfoInput,
   'models.catalog': modelsCatalogInput,
   'hooks.list': hooksListInput,
   'machines.list': machinesListInput,
@@ -842,6 +849,7 @@ export const mutateInputSchemas = {
   'auth.upsertCustomProvider': authUpsertCustomProviderInput,
   'auth.removeCustomProvider': authRemoveCustomProviderInput,
   'usageSharing.set': usageSharingSetInput,
+  'telemetry.report': telemetryReportInput,
   'hooks.create': hooksCreateInput,
   'hooks.update': hooksUpdateInput,
   'hooks.setEnabled': hooksSetEnabledInput,

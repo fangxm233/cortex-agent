@@ -70,6 +70,8 @@ import {
   authRemoveCustomProviderInput,
   usageSharingGetInput,
   usageSharingSetInput,
+  telemetryInfoInput,
+  telemetryReportInput,
   hooksListInput,
   hooksCreateInput,
   hooksUpdateInput,
@@ -192,7 +194,9 @@ function makeMutation<O extends MutateOp, Sch extends (typeof mutateInputSchemas
 ) {
   return publicProcedure
     .input(schema)
-    .mutation(async ({ input }) => unwrap(await uiService.mutate(op, input as unknown as MutateArgs<O>)));
+    .mutation(async ({ input, ctx }) => unwrap(await uiService.mutate(
+      op, input as unknown as MutateArgs<O>, { client: ctx.client ?? null },
+    )));
 }
 
 // ── AppRouter ─────────────────────────────────────────────────────────────────────
@@ -350,6 +354,13 @@ function usageSharingRouter(service: UiService) {
   });
 }
 
+function telemetryRouter(service: UiService) {
+  return router({
+    info: makeQuery(service, 'telemetry.info', telemetryInfoInput),
+    report: makeMutation(service, 'telemetry.report', telemetryReportInput),
+  });
+}
+
 function systemRouter(service: UiService) {
   return router({
     daemonStatus: makeQuery(service, 'system.daemonStatus', systemDaemonStatusInput),
@@ -456,6 +467,7 @@ export function createAppRouter(service: UiService) {
     models: modelsRouter(service),
     auth: authRouter(service),
     usageSharing: usageSharingRouter(service),
+    telemetry: telemetryRouter(service),
     hooks: hooksRouter(service),
     machines: machinesRouter(service),
     skills: skillsRouter(service),

@@ -1,5 +1,6 @@
 import type {
   UiServiceDeps, UiService, QueryScope, MutateOp, Result, QueryParams, QueryReturn, MutateArgs, MutateReturn,
+  UiCallContext, Err,
 } from './types.js';
 import { handleProjectsList } from './query/projects.js';
 import { handleSetStarred, handleRenameSession } from './mutate/session-metadata.js';
@@ -29,6 +30,8 @@ import { handleConfigGet } from './query/config.js';
 import { handleAuthFlowState, handleAuthStatus } from './query/auth.js';
 import { handleCustomProvidersList } from './query/custom-providers.js';
 import { handleUsageSharingGet } from './query/usage-sharing.js';
+import { handleTelemetryInfo } from './query/telemetry.js';
+import { handleTelemetryReport } from './mutate/telemetry.js';
 import { handleModelsCatalog } from './query/models.js';
 import { handleHooksList } from './query/hooks.js';
 import { handleMachinesList } from './query/machines.js';
@@ -130,7 +133,9 @@ export type QueryHandlerMap = {
 };
 /** One handler per mutate op; a missing or mistyped handler fails compilation. */
 export type MutateHandlerMap = {
-  [O in MutateOp]: (deps: UiServiceDeps, args: MutateArgs<O>) => Promise<Result<MutateReturn<O>>>;
+  [O in MutateOp]: (
+    deps: UiServiceDeps, args: MutateArgs<O>, ctx: UiCallContext,
+  ) => Promise<Result<MutateReturn<O>>>;
 };
 
 export const queryHandlers = {
@@ -159,6 +164,7 @@ export const queryHandlers = {
   'auth.flowState': (deps, params) => handleAuthFlowState(params, deps.authLogin?.getState),
   'auth.customProviders': (deps, params) => handleCustomProvidersList(deps, params),
   'usageSharing.get': (deps, params) => handleUsageSharingGet(deps, params),
+  'telemetry.info': (deps, params) => handleTelemetryInfo(deps, params),
   'models.catalog': (deps, params) => handleModelsCatalog(deps, params),
   'hooks.list': (deps, params) => handleHooksList(deps, params),
   'machines.list': (deps, params) => handleMachinesList(deps, params),
@@ -224,6 +230,7 @@ export const mutateHandlers = {
   'auth.upsertCustomProvider': (deps, args) => handleCustomProviderUpsert(deps, args),
   'auth.removeCustomProvider': (deps, args) => handleCustomProviderRemove(deps, args),
   'usageSharing.set': (deps, args) => handleUsageSharingSet(deps, args),
+  'telemetry.report': (deps, args, ctx) => handleTelemetryReport(deps, args, ctx),
   'hooks.create': (deps, args) => handleHooksCreate(deps, args),
   'hooks.update': (deps, args) => handleHooksUpdate(deps, args),
   'hooks.setEnabled': (deps, args) => handleHooksSetEnabled(deps, args),
@@ -263,6 +270,7 @@ const AUDIT_REDACTORS: Partial<Record<MutateOp, (args: AuditArgs) => unknown>> =
   'auth.respondPrompt': ({ flowId }) => ({ flowId }),
   'auth.upsertCustomProvider': ({ apiKey: _upstreamKey, ...safe }) => safe,
   'usageSharing.set': ({ enabled }) => ({ enabled }),
+  'telemetry.report': ({ kind }) => ({ kind }),
 };
 
 function dropNoteText({ text: _privateText, ...safe }: AuditArgs): AuditArgs {
@@ -275,6 +283,8 @@ export function redactMutationAuditArgs(op: MutateOp, args: unknown): unknown {
   const redact = AUDIT_REDACTORS[op] ?? (op.startsWith('notes.') ? dropNoteText : undefined);
   return redact ? redact(args as AuditArgs) : args;
 }
+
+const NO_CALL_CONTEXT: UiCallContext = { client: null };
 
 export function createUiService(deps: UiServiceDeps): UiService {
   const assistantSnapshots = new AssistantSnapshots(deps.bus);
@@ -293,31 +303,26 @@ export function createUiService(deps: UiServiceDeps): UiService {
       }
     },
 
-    async mutate(op, args) {
+    async mutate(op, args, ctx = NO_CALL_CONTEXT) {
       const handler: MutateHandlerMap[typeof op] | undefined = (mutateHandlers as MutateHandlerMap)[op];
       if (!handler) {
         return { ok: false, code: 'invalid-args', message: `Unknown mutate op: ${op}` };
       }
+      let result: Result<any>;
       try {
-        const result = await handler(deps, args);
-        // Publish audit event before returning
-        deps.bus.publish({
-          type: 'ui.mutate-invoked',
-          op,
-          args: redactMutationAuditArgs(op, args),
-          result: result.ok ? { ok: true } : { ok: false, code: (result as any).code },
-        });
-        return result;
+        result = await handler(deps, args, ctx);
       } catch (err: any) {
-        const errResult: Result<any> = { ok: false, code: 'internal', message: err?.message || String(err) };
-        deps.bus.publish({
-          type: 'ui.mutate-invoked',
-          op,
-          args: redactMutationAuditArgs(op, args),
-          result: { ok: false, code: 'internal' },
-        });
-        return errResult;
+        result = { ok: false, code: 'internal', message: err?.message || String(err) };
       }
+      // Publish audit event before returning
+      deps.bus.publish({
+        type: 'ui.mutate-invoked',
+        op,
+        args: redactMutationAuditArgs(op, args),
+        result: result.ok ? { ok: true } : { ok: false, code: (result as Err).code },
+        client: ctx.client,
+      });
+      return result;
     },
 
     subscribe(filter) {
