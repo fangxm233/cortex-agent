@@ -10,7 +10,7 @@ Cortex 提供一个浏览器工作台——与[桌面应用](desktop-app.md)所�
 |---|---|---|---|
 | **浏览器 + Access** | 任何有浏览器的人 | Cloudflare Access 边缘登录（邮箱 / IdP），由服务器以 JWT 校验 | **否**——浏览器从不接触令牌 |
 | **浏览器 + token 登录** | 知道 token 的人 | 粘贴一次 token，换成 HttpOnly 会话 cookie | **否**——只有服务器看到，且只看到一次 |
-| **桌面（Tauri）** | 已安装的桌面应用 | 存于操作系统密钥链的 Bearer `x-cortex-token`（即 `clientToken`） | 是 |
+| **桌面（Tauri）** | 已安装的桌面应用 | 存于应用数据目录的 Bearer `x-cortex-token`（即 `clientToken`） | 是 |
 
 本页是浏览器访问 + 部署参考。安装原生桌面应用请见 [桌面应用](desktop-app.md)。
 
@@ -274,7 +274,7 @@ Cloudflare Access 能放行请求。SPA 会在登录页如实说明这一点，�
 | 登录 | Cloudflare Access 边缘登录（邮箱 / IdP） | 粘贴一次 `clientToken` | 一次性输入 `serverUrl` + `clientToken` |
 | 请求上的凭据 | `Cf-Access-Jwt-Assertion`（由边缘签发） | `cortex_ui` 会话 cookie | `x-cortex-token` 头 |
 | 何处校验认证 | 服务器校验 JWT | 服务器校验会话 | 服务器校验令牌 |
-| `clientToken` 暴露 | **从不接触浏览器** | 输入一次，不在页面中留存 | 存于操作系统密钥链 |
+| `clientToken` 暴露 | **从不接触浏览器** | 输入一次，不在页面中留存 | 存于应用数据目录 |
 | 能否打开 `/forward` | 否 | 否 | 是 |
 | SPA origin | 同源（SPA + `/trpc` 同一主机） | 同源 | 直连 `/trpc`（启用 CORS） |
 

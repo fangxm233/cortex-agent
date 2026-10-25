@@ -79,14 +79,12 @@ pub struct LocalInstall {
     pub provider_setup_pending: bool,
 }
 
-/// Persist credentials to the platform credential store and update AppState.
+/// Persist credentials to the app-private credential file and update AppState.
 ///
 /// Called by the connect screen after the user's test-connection probe
 /// succeeds. Pending local onboarding must persist before publishing the connection.
-/// Legacy/nonpending and remote connections keep session-only fallback if the store
-/// is unavailable (e.g. headless Linux without a secret-service daemon).
-/// Backend is platform-branched (OS keychain on desktop, app-private file on
-/// Android) — see `creds.rs`.
+/// Legacy/nonpending and remote connections keep session-only fallback if the file
+/// cannot be written — see `creds.rs`.
 #[tauri::command]
 pub async fn connect(
     app: tauri::AppHandle,
@@ -199,7 +197,7 @@ fn finish_with_saver(
     Ok(())
 }
 
-/// Clear credentials from the platform store and AppState.
+/// Clear credentials from the credential file and AppState.
 ///
 /// Called by the SPA daemon interface's Disconnect action (web/src/lib/shell-connection.ts).
 /// After this returns the SPA navigates to connect.html.
@@ -239,9 +237,9 @@ pub fn initial_route(
     ("index.html", "")
 }
 
-/// Load initial credentials: platform credential store first, then env-var fallback
+/// Load initial credentials: the credential file first, then env-var fallback
 /// (`CORTEX_SERVER_URL` / `CORTEX_TOKEN`, dev convenience). Loaded inside `setup` because the
-/// Android store backend needs the `AppHandle` to resolve the app-private data dir.
+/// store needs the `AppHandle` to resolve the app-private data dir.
 pub fn load_initial_config(app: &tauri::AppHandle) -> ConnectionConfig {
     creds::load(app).unwrap_or_else(|| ConnectionConfig {
         server_url: std::env::var("CORTEX_SERVER_URL").ok(),
@@ -634,7 +632,7 @@ mod tests {
 
     #[test]
     fn a_credential_entry_written_before_local_mode_existed_loads_as_remote() {
-        // Existing keychain entries have no `mode` key; they must keep working, as remote.
+        // Entries saved before local mode existed have no `mode` key; they must keep working, as remote.
         let config: ConnectionConfig =
             serde_json::from_str(r#"{"serverUrl":"https://cortex.example.com","token":"t"}"#)
                 .expect("legacy entry must still parse");

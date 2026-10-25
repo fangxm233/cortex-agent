@@ -131,7 +131,7 @@ grep CORTEX_CLIENT_TOKEN "${CORTEX_HOME:-$HOME/.cortex}/config/.env"
 
 在首屏选择**连接已有服务器**，然后输入包含 `https://` 或 `http://` 的服务器 URL，以及 `CORTEX_CLIENT_TOKEN`。连接测试会区分端点不可访问和 token 未授权。连接成功后，应用打开工作台并保存凭据，供后续启动使用。由向导安装的服务端会跳过此界面——它使用自己生成的凭据直接连接。
 
-Linux、macOS 与 Windows 将连接 JSON 保存到操作系统密钥链，即 Secret Service、钥匙串或 Windows 凭据管理器。Android 将其保存到应用私有数据目录，因为桌面 keychain 库没有 Android backend。执行 Disconnect 会清除相应平台存储并返回连接界面。
+应用把连接保存为自身数据目录中的 `connection.json`：macOS 为 `~/Library/Application Support/dev.cortex.desktop`，Linux 为 `~/.local/share/dev.cortex.desktop`，Windows 为 `%APPDATA%\dev.cortex.desktop`，Android 为应用私有存储。macOS 和 Linux 上该文件仅当前用户可读。执行 Disconnect 会删除该文件并返回连接界面。
 
 ## 桌面工作台 {#desktop-workbench}
 
@@ -242,7 +242,7 @@ Server release 也可以在 GitHub Release 中携带原生安装包。服务器�
 窗口提供两项选择：
 
 - **移除范围**在应用曾于本机安装服务器时出现。默认的**应用和本机服务器**会取消开机自启，停止 daemon 及其启动的本机 client，把 `cortex` 终端命令从 `PATH` 中移除，并删除 `~/.cortex/runtime`。**仅应用**保留服务器继续运行，仍可从浏览器或其他设备访问。连接远程服务器的应用不显示这一项，也不会触碰那台服务器。
-- **同时删除数据**默认关闭。与服务器一起选择时，它删除整个 Cortex home（`~/.cortex` 或 `CORTEX_HOME`）：配置与 token、对话、项目上下文、插件和日志；同时删除应用自身名为 `dev.cortex.desktop` 的数据目录，以及保存在系统钥匙串里的连接。选择**仅应用**时，只删除应用自身的数据和保存的连接。确认前窗口会列出所有将删除的路径；删除无法恢复。
+- **同时删除数据**默认关闭。与服务器一起选择时，它删除整个 Cortex home（`~/.cortex` 或 `CORTEX_HOME`）：配置与 token、对话、项目上下文、插件和日志；同时删除应用自身名为 `dev.cortex.desktop` 的数据目录，其中包括保存的连接。选择**仅应用**时，只删除应用自身的数据和保存的连接。确认前窗口会列出所有将删除的路径；删除无法恢复。
 
 保留数据时，重新安装 Cortex 即可接着使用：安装流程会重新解压运行时、重新安装服务器包，并连接到原有的配置和会话。
 
@@ -303,9 +303,9 @@ $runtime = Get-Content "$env:USERPROFILE\.cortex\runtime\selection.json" -Raw | 
 
 应用在每次启动时也会拉起本机服务端，重新打开应用即可重试。
 
-### Linux 上凭据无法持久化 {#credentials-do-not-persist-on-linux}
+### 凭据无法持久化 {#credentials-do-not-persist}
 
-无头 Linux 环境可能没有 Secret Service daemon。首次本地安装必须能保存凭据才能完成；普通连接则回退为仅在当前进程内保留凭据。请启用系统密钥环，或启动应用时显式指定已运行的服务端连接：
+应用把连接保存在自身数据目录中（见[首次连接](#first-connection)）。该目录不可写时，首次本地安装无法完成，普通连接只在当前进程内有效。请让该目录可写，或启动应用时显式指定已运行的服务端连接：
 
 ```bash
 CORTEX_SERVER_URL=http://localhost:3004 CORTEX_TOKEN='<client-token>' ./Cortex.AppImage
