@@ -91,6 +91,8 @@ import {
 import { planFastInstall, applyFastInstall } from './fast-install.js';
 import { tryAcquireSingletonLock, releaseSingletonLock as releaseLock } from '@core/singleton-lock.js';
 import { ensureOwnBinsOnPath } from '@domain/system/own-bin-path.js';
+import { captureProcessCrash } from '@domain/telemetry/crash.js';
+import { CHILD_EXIT_ENV, encodeChildExit } from '@domain/telemetry/child-exit.js';
 import {
   finishRebuildStep,
   planRebuildProgress,
@@ -150,6 +152,7 @@ let pendingRebuild: string | null = null; // reason string if rebuild is deferre
 let restarting = false;         // true while restart() stop→start cycle is in progress
 let rebuilding = false;         // true while runRebuildPipeline() is running
 let nextRestartReason: string | null = null; // forwarded to next child via CORTEX_RESTART_REASON
+let nextChildExit: string | null = null;      // forwarded via CORTEX_CHILD_EXIT (telemetry crash report)
 let watchMonitors: WatchMonitor[] = [];
 let rebuildProgress: RebuildProgress | null = null; // published pipeline state (file + child IPC)
 
@@ -168,14 +171,13 @@ function cancelPendingTimers() {
   if (rebuildTimer) { clearTimeout(rebuildTimer); rebuildTimer = null; }
 }
 
-export function buildChildProcessConfig(restartReason: string | null = null) {
+export function buildChildProcessConfig(restartReason: string | null = null, childExit: string | null = null) {
   const stdio: ('pipe' | 'ignore' | 'ipc')[] = ['pipe', 'ignore', 'ignore', 'ipc'];
   const env = { ...process.env };
-  if (restartReason) {
-    env.CORTEX_RESTART_REASON = restartReason;
-  } else {
-    delete env.CORTEX_RESTART_REASON;
-  }
+  delete env.CORTEX_RESTART_REASON;
+  delete env[CHILD_EXIT_ENV];
+  if (restartReason) env.CORTEX_RESTART_REASON = restartReason;
+  if (childExit) env[CHILD_EXIT_ENV] = childExit;
   return {
     cwd: DATA_DIR,
     windowsHide: true,
@@ -194,13 +196,15 @@ function startChild() {
   }
 
   const reasonForChild = nextRestartReason;
+  const childExit = nextChildExit;
   nextRestartReason = null;
+  nextChildExit = null;
   log.info(reasonForChild ? `Starting app.ts (reason: ${reasonForChild})...` : 'Starting app.ts...');
   childStartedAt = Date.now();
   childBusy = false;
   pendingRestart = null;
 
-  child = fork(APP_ENTRY, [], buildChildProcessConfig(reasonForChild));
+  child = fork(APP_ENTRY, [], buildChildProcessConfig(reasonForChild, childExit));
 
   // Daemon only logs its own messages; app.ts handles its own output independently.
 
@@ -210,68 +214,76 @@ function startChild() {
   try { writeFileSync(DAEMON_CHILD_PID_FILE, String(child.pid), 'utf8'); } catch {}
 
   // IPC: app.ts tells us when it's busy/idle
-  child.on('message', (msg) => {
-    if (msg?.type === 'busy') {
-      log.info(`IPC ← app.ts: busy`);
-      childBusy = true;
-    } else if (msg?.type === 'idle') {
-      childBusy = false;
-      const note = pendingRestart
-        ? ` (pending restart: ${pendingRestart})`
-        : pendingRebuild
-          ? ` (pending rebuild: ${pendingRebuild})`
-          : '';
-      log.info(`IPC ← app.ts: idle${note}`);
-      if (pendingRestart) {
-        const reason = pendingRestart;
-        pendingRestart = null;
-        restart(reason);
-      } else if (pendingRebuild) {
-        const reason = pendingRebuild;
-        pendingRebuild = null;
-        runRebuildPipeline(reason);
-      }
-    }
-  });
+  child.on('message', onChildMessage);
+  child.on('exit', onChildExit);
+}
 
-  child.on('exit', (code, signal) => {
-    child = null;
-    childBusy = false;
+function onChildIdle(): void {
+  childBusy = false;
+  const note = pendingRestart
+    ? ` (pending restart: ${pendingRestart})`
+    : pendingRebuild
+      ? ` (pending rebuild: ${pendingRebuild})`
+      : '';
+  log.info(`IPC ← app.ts: idle${note}`);
+  if (pendingRestart) {
+    const reason = pendingRestart;
+    pendingRestart = null;
+    restart(reason);
+  } else if (pendingRebuild) {
+    const reason = pendingRebuild;
+    pendingRebuild = null;
+    runRebuildPipeline(reason);
+  }
+}
 
-    // Clean up child PID file
-    try { if (existsSync(DAEMON_CHILD_PID_FILE)) unlinkSync(DAEMON_CHILD_PID_FILE); } catch {}
+function onChildMessage(msg): void {
+  if (msg?.type === 'busy') {
+    log.info(`IPC ← app.ts: busy`);
+    childBusy = true;
+  } else if (msg?.type === 'idle') {
+    onChildIdle();
+  }
+}
 
-    if (shuttingDown) {
-      log.info('app.ts exited (shutdown).');
-      return;
-    }
+function onChildExit(code, signal): void {
+  child = null;
+  childBusy = false;
 
-    // If restart() is driving the stop→start cycle, let it handle startChild()
-    if (restarting) {
-      if (signal) log.info(`app.ts stopped (signal ${signal}).`);
-      return;
-    }
+  // Clean up child PID file
+  try { if (existsSync(DAEMON_CHILD_PID_FILE)) unlinkSync(DAEMON_CHILD_PID_FILE); } catch {}
 
-    // Unexpected crash — schedule recovery with backoff
-    const alive = Date.now() - childStartedAt;
-    if (alive > HEALTHY_THRESHOLD) backoff = BACKOFF_INITIAL;
+  if (shuttingDown) {
+    log.info('app.ts exited (shutdown).');
+    return;
+  }
 
-    const crashReason = signal ? `crash (signal ${signal})` : `crash (exit code ${code})`;
-    if (signal) {
-      log.info(`app.ts killed by signal ${signal}.`);
-    } else {
-      log.info(`app.ts exited with code ${code}.`);
-    }
+  // If restart() is driving the stop→start cycle, let it handle startChild()
+  if (restarting) {
+    if (signal) log.info(`app.ts stopped (signal ${signal}).`);
+    return;
+  }
+  scheduleCrashRecovery(code, signal);
+}
 
-    log.info(`Restarting in ${backoff}ms...`);
-    cancelPendingTimers();
-    crashRecoveryTimer = setTimeout(() => {
-      crashRecoveryTimer = null;
-      nextRestartReason = crashReason;
-      startChild();
-    }, backoff);
-    backoff = Math.min(backoff * 2, BACKOFF_MAX);
-  });
+/** Unexpected crash — schedule recovery with backoff. */
+function scheduleCrashRecovery(code, signal): void {
+  const alive = Date.now() - childStartedAt;
+  if (alive > HEALTHY_THRESHOLD) backoff = BACKOFF_INITIAL;
+
+  const crashReason = signal ? `crash (signal ${signal})` : `crash (exit code ${code})`;
+  const crashFacts = encodeChildExit({ code, signal, uptimeMs: alive, backoffMs: backoff });
+  log.info(signal ? `app.ts killed by signal ${signal}.` : `app.ts exited with code ${code}.`);
+
+  log.info(`Restarting in ${backoff}ms...`);
+  cancelPendingTimers();
+  crashRecoveryTimer = setTimeout(() => {
+    crashRecoveryTimer = null;
+    nextRestartReason = crashReason;
+    nextChildExit = crashFacts;
+    startChild();
+  }, backoff);
+  backoff = Math.min(backoff * 2, BACKOFF_MAX);
 }
 
 function stopChild() {
@@ -933,9 +945,13 @@ function setupProcessErrorHandlers(): void {
       handlingError = false;
     }
   };
-  process.on('uncaughtException', error => report('uncaughtException', error?.stack ?? error));
+  process.on('uncaughtException', error => {
+    report('uncaughtException', error?.stack ?? error);
+    captureProcessCrash('daemon', 'uncaughtException', error);
+  });
   process.on('unhandledRejection', reason => {
     report('unhandledRejection', reason instanceof Error ? reason.stack : reason);
+    captureProcessCrash('daemon', 'unhandledRejection', reason);
   });
 }
 

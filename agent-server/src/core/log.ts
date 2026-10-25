@@ -130,6 +130,24 @@ function formatArg(a: unknown): string {
   return String(a);
 }
 
+// ── Error sink ──────────────────────────────────────────
+/** Observer of every `log.error` call (the telemetry error digest). Set once by the app. */
+export type ErrorLogSink = (module: string, args: unknown[]) => void;
+let errorSink: ErrorLogSink | null = null;
+let inErrorSink = false;
+
+export function setErrorLogSink(sink: ErrorLogSink | null): void {
+  errorSink = sink;
+}
+
+function notifyErrorSink(mod: string, args: unknown[]): void {
+  if (!errorSink || inErrorSink) return;
+  inErrorSink = true;
+  try { errorSink(mod, args); } catch { /* an observer never breaks logging */ } finally {
+    inErrorSink = false;
+  }
+}
+
 // ── Core write ──────────────────────────────────────────
 function writeConsole(level: Level, prefix: string, args: unknown[]): void {
   if (processLogPolicy.consoleToStderr) return console.error(prefix, ...args);
@@ -156,7 +174,7 @@ export function createLogger(mod: string): Logger {
   return {
     info:  (...args) => write('INFO', mod, args),
     warn:  (...args) => write('WARN', mod, args),
-    error: (...args) => write('ERROR', mod, args),
+    error: (...args) => { write('ERROR', mod, args); notifyErrorSink(mod, args); },
     debug: (...args) => { if (isDebugMode()) write('DEBUG', mod, args); },
   };
 }

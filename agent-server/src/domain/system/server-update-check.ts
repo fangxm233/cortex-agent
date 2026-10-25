@@ -7,6 +7,7 @@ import { npmInvocation, withServerNpmPrefix } from '@core/utils.js';
 import type { UpdateChoice, UpdatePrompt } from './update-prompt.js';
 import { loadUpdateState, saveUpdateState, type UpdateState } from './update-state.js';
 import { ALWAYS_IDLE, createIdleInstaller, type IdleSignal } from './server-update-install.js';
+import { trackInstall } from '@domain/telemetry/upgrade.js';
 
 // ── Dev mode detection ──────────────────────────────────────────
 // In dev mode (CORTEX_REPO set), server auto-update is skipped entirely
@@ -111,7 +112,7 @@ export function createServerUpdateCoordinator(deps: CheckServerUpdateDeps): Serv
   return new ServerUpdateCoordinator({
     prompt: deps.prompt,
     getLatest: deps.getLatest ?? defaultGetLatest,
-    installWhenIdle: deps.installWhenIdle ?? createIdleInstaller(deps.idle ?? ALWAYS_IDLE, runNpmInstall),
+    installWhenIdle: deps.installWhenIdle ?? createIdleInstaller(deps.idle ?? ALWAYS_IDLE, trackInstall(runNpmInstall)),
     loadState: deps.loadState ?? loadUpdateState,
     saveState: deps.saveState ?? saveUpdateState,
     now: deps.now ?? defaultNow,

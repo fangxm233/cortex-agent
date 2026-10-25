@@ -1,8 +1,7 @@
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { INSTALL_ROOT } from '@core/paths.js';
 import { getSettings } from '@core/settings.js';
-import { isUpdateDevMode } from '@domain/system/server-update-check.js';
 import { resolveTelemetryEndpoint } from './endpoint.js';
 
 export const TELEMETRY_INACTIVE_REASONS = [
@@ -56,9 +55,19 @@ export function evaluateTelemetryGate(input: TelemetryGateInput): TelemetryGate 
 
 let cachedDevCheckout: boolean | undefined;
 
+/** `CORTEX_REPO` names an existing directory: the same test as the update checker's dev mode. */
+function repoCheckoutConfigured(): boolean {
+  const repo = process.env.CORTEX_REPO;
+  try {
+    return !!repo && statSync(repo).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 /** Fixed for the life of the process; checked once (the gate runs on hot paths). */
 function isDevCheckout(): boolean {
-  cachedDevCheckout ??= existsSync(path.join(INSTALL_ROOT, 'src', 'entry')) || isUpdateDevMode();
+  cachedDevCheckout ??= existsSync(path.join(INSTALL_ROOT, 'src', 'entry')) || repoCheckoutConfigured();
   return cachedDevCheckout;
 }
 

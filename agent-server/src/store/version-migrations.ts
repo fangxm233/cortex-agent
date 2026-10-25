@@ -997,15 +997,119 @@ export interface MigrationOptions {
    *  real `stepMigrations`. Lets tests drive the step-runner contract (bump / skip / throw / order)
    *  with probe steps instead of the real S1 import. */
   stepMigrations?: StepMigration[];
+  /** Observer of each migration that throws (telemetry); never affects the run. */
+  onMigrationFailure?: (failure: { migration: string; error: unknown }) => void;
 }
 
 // ── Runner ─────────────────────────────────────────────────────
 
-export async function runMigrations(opts: MigrationOptions = {}): Promise<void> {
-  const dataDir = opts.dataDir ?? DATA_DIR;
-  const defaultsDir = opts.defaultsDir ?? DEFAULTS_DIR;
-  const storeDir = opts.storeDir ?? path.join(dataDir, 'data');
+type FailureReporter = NonNullable<MigrationOptions['onMigrationFailure']>;
 
+function pendingFor(list: Migration[], trackedVersion: string): Migration[] {
+  return list
+    .filter(m => compareCalVer(trackedVersion, m.version) < 0 && compareCalVer(CORTEX_VERSION, m.version) >= 0)
+    .sort((a, b) => compareCalVer(a.version, b.version));
+}
+
+function groupByFile(list: Migration[]): Map<string, Migration[]> {
+  const byFilePath = new Map<string, Migration[]>();
+  for (const m of list) {
+    const group = byFilePath.get(m.filePath) ?? [];
+    group.push(m);
+    byFilePath.set(m.filePath, group);
+  }
+  return byFilePath;
+}
+
+/** The file's current contents, or `undefined` when it is absent or corrupt (skip its migrations). */
+async function readMigrationTarget(absPath: string, filePath: string, format: 'json' | 'text'): Promise<unknown> {
+  try {
+    const raw = await fs.readFile(absPath, 'utf8');
+    return format === 'text' ? raw : JSON.parse(raw);
+  } catch (err: unknown) {
+    const e = err as NodeJS.ErrnoException;
+    if (e.code === 'ENOENT') {
+      log.info(`Skipping migrations for ${filePath}: file does not exist yet`);
+      return undefined;
+    }
+    if (err instanceof SyntaxError) {
+      log.warn(`Skipping migrations for ${filePath}: corrupt JSON (${e.message})`);
+      return undefined;
+    }
+    throw err;
+  }
+}
+
+/** Apply pending migrations in order; stops at the first failure. */
+function applyPending(
+  pending: Migration[], start: unknown, filePath: string, serialize: (d: unknown) => string, report: FailureReporter,
+): { data: unknown; changed: boolean; failed: boolean } {
+  let data = start;
+  let changed = false;
+  for (const m of pending) {
+    const before = serialize(data);
+    try {
+      data = m.migrate(data);
+    } catch (err: unknown) {
+      log.error(`Migration ${m.version} for ${filePath} failed: ${(err as Error).message}; skipping remaining migrations for this file`);
+      report({ migration: `${m.version}:${filePath}`, error: err });
+      return { data, changed: false, failed: true };
+    }
+    if (serialize(data) !== before) {
+      log.info(`Migration ${m.version} applied to ${filePath}`);
+      changed = true;
+    }
+  }
+  return { data, changed, failed: false };
+}
+
+async function migrateFile(
+  dataDir: string, filePath: string, pending: Migration[], versions: Record<string, string>, report: FailureReporter,
+): Promise<void> {
+  // A file is either JSON or text — take the format from the pending migrations.
+  const format: 'json' | 'text' = pending.find(m => m.format === 'text') ? 'text' : 'json';
+  const serialize = (d: unknown): string => (format === 'text' ? String(d) : JSON.stringify(d));
+  const absPath = path.join(dataDir, filePath);
+  const data = await readMigrationTarget(absPath, filePath, format);
+  if (data === undefined) return;
+  const result = applyPending(pending, data, filePath, serialize, report);
+  if (result.changed) {
+    const out = format === 'text' ? String(result.data) : JSON.stringify(result.data, null, 2) + '\n';
+    await atomicWrite(absPath, out);
+  }
+  // Only bump the tracked version if ALL pending migrations succeeded.
+  // If any failed: we did not write the file (changed=false), so the data on
+  // disk is unchanged. Leave version at the old value → all pending migrations
+  // retry next boot. Idempotent migrations guarantee this is safe.
+  if (!result.failed) versions[filePath] = pending[pending.length - 1].version;
+}
+
+// Step migrations run AFTER the file loop (so a step sees the file rewrites above) with the same
+// pending rule and the same versions.json, keyed by `key`. A throwing step logs and is skipped
+// WITHOUT bumping — it retries next boot. S10 is required before runtime state writes. Only a step that
+// completes (rather than returning false to defer) bumps its key.
+async function runStepMigrations(
+  steps: StepMigration[], ctx: { dataDir: string; storeDir: string; defaultsDir: string },
+  versions: Record<string, string>, report: FailureReporter,
+): Promise<void> {
+  for (const step of steps) {
+    const tracked = versions[step.key] || '0.0.0';
+    const pending = compareCalVer(tracked, step.version) < 0 && compareCalVer(CORTEX_VERSION, step.version) >= 0;
+    if (!pending) continue;
+    try {
+      if (await step.run(ctx) === false) continue;
+      versions[step.key] = step.version;
+      log.info(`Step migration ${step.version} applied for ${step.key}`);
+    } catch (err) {
+      log.error(`Step migration ${step.version} for ${step.key} failed: ${(err as Error).message}; not bumping`);
+      report({ migration: `${step.version}:${step.key}`, error: err });
+      // Runtime state writes must not discard the legacy inputs needed to retry this conversion.
+      if (step.key === 'sentinel:retire-profiles') throw err;
+    }
+  }
+}
+
+async function runLegacyRelocations(dataDir: string): Promise<void> {
   await migrateProviderStateFromSchedules(dataDir).catch((error) => {
     log.warn(`Could not migrate legacy provider state: ${(error as Error).message}`);
   });
@@ -1013,102 +1117,23 @@ export async function runMigrations(opts: MigrationOptions = {}): Promise<void> 
   await removeRetiredDefaultHooks(dataDir).catch((error) => {
     log.warn(`Could not remove retired default hooks: ${(error as Error).message}`);
   });
+}
+
+export async function runMigrations(opts: MigrationOptions = {}): Promise<void> {
+  const dataDir = opts.dataDir ?? DATA_DIR;
+  const defaultsDir = opts.defaultsDir ?? DEFAULTS_DIR;
+  const storeDir = opts.storeDir ?? path.join(dataDir, 'data');
+  const report: FailureReporter = (failure) => {
+    try { opts.onMigrationFailure?.(failure); } catch { /* an observer never stops migrations */ }
+  };
+  await runLegacyRelocations(dataDir);
   const versionsFile = path.join(storeDir, 'versions.json');
   const versions = await loadVersionsFrom(versionsFile);
-
-  // Group migrations by filePath
-  const byFilePath = new Map<string, Migration[]>();
-  for (const m of migrations) {
-    const list = byFilePath.get(m.filePath) ?? [];
-    list.push(m);
-    byFilePath.set(m.filePath, list);
+  for (const [filePath, fileMigrations] of groupByFile(migrations)) {
+    const pending = pendingFor(fileMigrations, versions[filePath] || '0.0.0');
+    if (pending.length > 0) await migrateFile(dataDir, filePath, pending, versions, report);
   }
-
-  for (const [filePath, fileMigrations] of byFilePath) {
-    const trackedVersion = versions[filePath] || '0.0.0';
-
-    // Pending: migrations whose version > trackedVersion and <= CORTEX_VERSION
-    const pending = fileMigrations
-      .filter(m => compareCalVer(trackedVersion, m.version) < 0 && compareCalVer(CORTEX_VERSION, m.version) >= 0)
-      .sort((a, b) => compareCalVer(a.version, b.version));
-
-    if (pending.length === 0) continue;
-
-    // A file is either JSON or text — take the format from the pending migrations.
-    const format: 'json' | 'text' = pending.find(m => m.format === 'text') ? 'text' : 'json';
-    const serialize = (d: unknown): string => (format === 'text' ? String(d) : JSON.stringify(d));
-
-    // Read target file
-    const absPath = path.join(dataDir, filePath);
-    let data: unknown;
-    try {
-      const raw = await fs.readFile(absPath, 'utf8');
-      data = format === 'text' ? raw : JSON.parse(raw);
-    } catch (err: unknown) {
-      const e = err as NodeJS.ErrnoException;
-      if (e.code === 'ENOENT') {
-        log.info(`Skipping migrations for ${filePath}: file does not exist yet`);
-        continue;
-      }
-      if (err instanceof SyntaxError) {
-        log.warn(`Skipping migrations for ${filePath}: corrupt JSON (${e.message})`);
-        continue;
-      }
-      throw err;
-    }
-
-    // Apply all pending migrations in version order
-    let changed = false;
-    let anyFailed = false;
-    for (const m of pending) {
-      const before = serialize(data);
-      try {
-        data = m.migrate(data);
-      } catch (err: unknown) {
-        log.error(`Migration ${m.version} for ${filePath} failed: ${(err as Error).message}; skipping remaining migrations for this file`);
-        changed = false;
-        anyFailed = true;
-        break;
-      }
-      if (serialize(data) !== before) {
-        log.info(`Migration ${m.version} applied to ${filePath}`);
-        changed = true;
-      }
-    }
-
-    if (changed) {
-      const out = format === 'text' ? String(data) : JSON.stringify(data, null, 2) + '\n';
-      await atomicWrite(absPath, out);
-    }
-
-    // Only bump the tracked version if ALL pending migrations succeeded.
-    // If any failed: we did not write the file (changed=false), so the data on
-    // disk is unchanged. Leave version at the old value → all pending migrations
-    // retry next boot. Idempotent migrations guarantee this is safe.
-    if (!anyFailed) {
-      versions[filePath] = pending[pending.length - 1].version;
-    }
-  }
-
-  // Step migrations run AFTER the file loop (so a step sees the file rewrites above) with the same
-  // pending rule and the same versions.json, keyed by `key`. A throwing step logs and is skipped
-  // WITHOUT bumping — it retries next boot. S10 is required before runtime state writes. Only a step that
-  // completes (rather than returning false to defer) bumps its key.
-  for (const step of opts.stepMigrations ?? stepMigrations) {
-    const tracked = versions[step.key] || '0.0.0';
-    const pending = compareCalVer(tracked, step.version) < 0 && compareCalVer(CORTEX_VERSION, step.version) >= 0;
-    if (!pending) continue;
-    try {
-      if (await step.run({ dataDir, storeDir, defaultsDir }) === false) continue;
-      versions[step.key] = step.version;
-      log.info(`Step migration ${step.version} applied for ${step.key}`);
-    } catch (err) {
-      log.error(`Step migration ${step.version} for ${step.key} failed: ${(err as Error).message}; not bumping`);
-      // Runtime state writes must not discard the legacy inputs needed to retry this conversion.
-      if (step.key === 'sentinel:retire-profiles') throw err;
-    }
-  }
-
+  await runStepMigrations(opts.stepMigrations ?? stepMigrations, { dataDir, storeDir, defaultsDir }, versions, report);
   await saveVersionsTo(versionsFile, versions);
 }
 

@@ -26,11 +26,12 @@ test('the envelope validates and carries no host details', () => {
 
 test('postBatch maps HTTP outcomes and never throws', async () => {
   const envelope = buildEnvelope('release');
-  const ok = fakeFetch([200, 400, 503, 429]);
+  const ok = fakeFetch([204, 400, 503, 429, 413]);
   assert.equal(await postBatch(TEST_ENDPOINT, envelope, [crashEvent()], ok.impl), 'sent');
   assert.equal(await postBatch(TEST_ENDPOINT, envelope, [crashEvent()], ok.impl), 'rejected');
   assert.equal(await postBatch(TEST_ENDPOINT, envelope, [crashEvent()], ok.impl), 'retry');
-  assert.equal(await postBatch(TEST_ENDPOINT, envelope, [crashEvent()], ok.impl), 'retry');
+  assert.equal(await postBatch(TEST_ENDPOINT, envelope, [crashEvent()], ok.impl), 'rejected', '429: cap hit, never resent');
+  assert.equal(await postBatch(TEST_ENDPOINT, envelope, [crashEvent()], ok.impl), 'rejected');
   const failing = async () => { throw new Error('offline'); };
   assert.equal(await postBatch(TEST_ENDPOINT, envelope, [crashEvent()], failing), 'retry');
   assert.equal(ok.requests[0].url, TEST_ENDPOINT);

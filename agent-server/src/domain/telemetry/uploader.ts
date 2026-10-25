@@ -34,10 +34,14 @@ export function chunkEvents(events: TelemetryEvent[]): TelemetryEvent[][] {
   return batches;
 }
 
+/**
+ * The Worker's contract: 2xx stored; 400 invalid and 413 too large are never accepted; 429 means
+ * the install's daily cap is used up and the excess is dropped for good. Only 5xx (and network
+ * errors) are worth sending again.
+ */
 function outcomeOf(status: number, ok: boolean): PostOutcome {
   if (ok) return 'sent';
-  // A 4xx other than throttling means the Worker will never take this batch.
-  return status >= 400 && status < 500 && status !== 429 ? 'rejected' : 'retry';
+  return status >= 400 && status < 500 ? 'rejected' : 'retry';
 }
 
 /** POST one batch. Never throws; failures are debug-logged only. */
@@ -56,6 +60,7 @@ export async function postBatch(
       body: JSON.stringify(batch.data),
       signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
     });
+    void (response as { body?: { cancel?: () => Promise<void> } }).body?.cancel?.().catch(() => undefined);
     const outcome = outcomeOf(response.status, response.ok);
     if (outcome !== 'sent') log.debug(`telemetry upload ${outcome}: HTTP ${response.status}`);
     return outcome;

@@ -27,7 +27,9 @@ import { startClaudeWindowWarmup } from '../orchestration/claude-window-warmup.j
 import { projectStore } from '@domain/projects/index.js';
 import { sendStartupDmIfConfigured } from './startup-notify.js';
 import { installSigtermShutdown, type ShutdownHandles } from './shutdown.js';
-import { startTelemetryService } from './telemetry-wiring.js';
+import { installEarlyTelemetry, startTelemetryService } from './telemetry-wiring.js';
+import { captureProcessCrash } from '@domain/telemetry/crash.js';
+import { recordMigrationFailure } from '@domain/telemetry/upgrade.js';
 import { buildUiService } from './ui-service-wiring.js';
 import { startPlatformAdapters } from './platform-connect.js';
 import { subscribeDaemonNotices } from './daemon-notice.js';
@@ -252,9 +254,13 @@ if (appLock.acquired) {
 }
 process.on('exit', () => releaseSingletonLock(APP_PID_FILE));
 
+// Error digest, the crash the daemon just recovered from, and upgrade confirmation: before the
+// migrations, so their failures are counted too.
+installEarlyTelemetry();
+
 // Cross-file migrations must finish before adapters, ports, and background services
 // become externally visible. Provider-state extraction runs before schedule cleanup.
-await runMigrations();
+await runMigrations({ onMigrationFailure: recordMigrationFailure });
 reloadAgentState();
 await migrateBuiltinJobSchedules();
 // Before any Claude spawn: a fresh Cortex Claude config dir takes its model/effort/context
@@ -274,6 +280,7 @@ process.on('unhandledRejection', (reason) => {
   _inExceptionHandler = true;
   try {
     log.error(`unhandledRejection: ${reason instanceof Error ? reason.stack : String(reason)}`);
+    captureProcessCrash('server', 'unhandledRejection', reason);
   } catch { /* swallow secondary failure */ } finally {
     _inExceptionHandler = false;
   }
@@ -283,6 +290,7 @@ process.on('uncaughtException', (err) => {
   _inExceptionHandler = true;
   try {
     log.error(`uncaughtException: ${err?.stack ?? err}`);
+    captureProcessCrash('server', 'uncaughtException', err);
   } catch { /* swallow secondary failure */ } finally {
     _inExceptionHandler = false;
   }

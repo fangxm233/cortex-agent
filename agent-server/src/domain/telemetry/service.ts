@@ -31,7 +31,7 @@ export interface TelemetryLifecycleHooks {
   /** Persist in-memory aggregates (periodic tick and shutdown). */
   persist?: () => void;
   /** Turn completed days into outbox events. */
-  finalize?: (now: number) => void;
+  finalize?: (now: number) => void | Promise<void>;
   /** Delete every local file the hook's module owns. */
   wipe?: () => void;
 }
@@ -114,13 +114,18 @@ async function queueHeartbeatIfDue(): Promise<void> {
   updateTelemetryState((state) => ({ ...state, lastHeartbeatAt: new Date(now()).toISOString() }));
 }
 
+async function finalizeAll(at: number): Promise<void> {
+  for (const hook of hooks) {
+    try { await hook.finalize?.(at); } catch { /* the next tick retries */ }
+  }
+}
+
 /** The periodic job: persist aggregates, then (after the boot delay) queue and upload. */
 export async function telemetryTick(): Promise<void> {
   if (!isTelemetryActive()) return wipeLocalTelemetry();
   runHooks((hook) => hook.persist);
   if (!running || now() - running.bootAt < firstDelayMs(running.options)) return;
-  const at = now();
-  runHooks((hook) => hook.finalize && (() => hook.finalize!(at)));
+  await finalizeAll(now());
   await queueHeartbeatIfDue();
   await flushTelemetry();
 }

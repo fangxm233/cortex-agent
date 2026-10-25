@@ -743,7 +743,12 @@ test('a throwing step does not bump its key and does not block file migrations',
     key: 'data/after-boom.json', version: CURRENT_VERSION, run: async () => { laterRan += 1; },
   };
 
-  await runMigrations({ dataDir, storeDir, defaultsDir, stepMigrations: [throwing, later] });
+  const failures: string[] = [];
+  await runMigrations({
+    dataDir, storeDir, defaultsDir, stepMigrations: [throwing, later],
+    onMigrationFailure: ({ migration }) => { failures.push(migration); throw new Error('observer bug'); },
+  });
+  assert.deepEqual(failures, [`${CURRENT_VERSION}:data/boom.json`], 'the observer hears each failure; its own error is ignored');
 
   // File migration applied (step throw did not abort the run — steps run after the file loop anyway).
   const migrated = await readJson(path.join(configDir, 'profiles.json')) as any;
