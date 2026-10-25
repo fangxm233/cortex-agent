@@ -76,7 +76,9 @@ test('a run folds into its turn row, tools, tokens and session turn count', () =
 });
 
 test('failures are classified; user cancels and supersedes are counted; worker and subagent outcomes kept', () => {
-  createRunTelemetry(request()).finish({ status: 'failed', durationS: 1, error: new Error('401 invalid x-api-key') });
+  const failed = createRunTelemetry(request());
+  failed.observer.onEvent({ type: 'assistant_text', text: 'Connection error.', phase: 'foreground' } as never);
+  failed.finish({ status: 'failed', durationS: 1, error: new Error('401 invalid x-api-key') });
   createRunTelemetry(request()).finish({ status: 'failed', durationS: 1, error: new Error('fetch failed ECONNRESET') });
   createRunTelemetry(request()).finish({ status: 'cancelled', durationS: 1, error: new Error('Run cancelled (user)') });
   createRunTelemetry(request()).finish({ status: 'cancelled', durationS: 1, error: new Error('Run cancelled (supersede)') });
@@ -86,6 +88,7 @@ test('failures are classified; user cancels and supersedes are counted; worker a
   const data = rollup();
   const row = data.turns['claude||claude-opus-4-7|plan'];
   assert.deepEqual(row.failures, { auth: 1, network: 1 });
+  assert.equal(row.ttftMs.reduce((a: number, b: number) => a + b, 0), 0, 'only completed turns time the first output');
   assert.equal(row.outcomes.cancelled, 2);
   assert.equal(row.outcomes.completed, 1, 'cache refresh is not a turn; the worker turn is');
   assert.equal(data.agent.userInterrupts, 1);

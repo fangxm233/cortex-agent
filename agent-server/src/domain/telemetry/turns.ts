@@ -142,7 +142,10 @@ function foldTurn(row: RawTurnRow, stats: RunStats, facts: RunTerminalFacts): vo
   addOutcome(row, facts);
   row.retries += stats.retries;
   row.fallbacks += stats.fallbacks;
-  if (stats.firstOutputAt !== null) row.ttftMs[bucketIndex('ttftMs', stats.firstOutputAt - stats.startedAt)] += 1;
+  // A failed run's first "output" is often the error text itself, so only completed turns time it.
+  if (facts.status === 'completed' && stats.firstOutputAt !== null) {
+    row.ttftMs[bucketIndex('ttftMs', stats.firstOutputAt - stats.startedAt)] += 1;
+  }
   row.durationS[bucketIndex('turnDurationS', facts.durationS)] += 1;
   if (stats.contextPct !== null) row.contextPctAtEnd[bucketIndex('contextPct', stats.contextPct)] += 1;
   row.compactions.auto += stats.compactions.auto;
