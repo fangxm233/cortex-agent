@@ -1,6 +1,7 @@
 import { isTelemetryActive } from './gate.js';
 import { admitCrash, wipeCrashLimits } from './crash-limits.js';
 import type { ClientKind } from './client-kind.js';
+import { panicGroupKey } from './panic-group.js';
 import { groupKeyOf, redactMessage, redactStack } from './redact.js';
 import type { CrashEvent } from './schema.js';
 import { recordTelemetryEvent, registerTelemetryHooks } from './service.js';
@@ -46,7 +47,7 @@ export function buildCrashEvent(input: CrashInput, suppressed = 0): CrashEvent {
     errorName,
     message: redactMessage(input.message),
     stack,
-    groupKey: input.kind === 'childExit' ? childExitGroup(input.exit) : groupKeyOf(errorName, stack),
+    groupKey: groupKeyFor(input, errorName, stack),
     uptimeS: input.uptimeS ?? null,
     route: input.route?.slice(0, 80) ?? null,
     buildStamp: input.buildStamp?.slice(0, 60) ?? null,
@@ -58,6 +59,14 @@ export function buildCrashEvent(input: CrashInput, suppressed = 0): CrashEvent {
 
 function childExitGroup(exit: CrashEvent['exit']): string {
   return exit?.signal ? `ChildExit@${exit.signal}` : `ChildExit@code:${exit?.code ?? 'unknown'}`;
+}
+
+/** Child exits group by signal or code, native panics by their location (read from the unredacted
+ *  report, then reduced to a source-relative file), everything else by its first own stack frame. */
+function groupKeyFor(input: CrashInput, errorName: string, redactedStack: string): string {
+  if (input.kind === 'childExit') return childExitGroup(input.exit);
+  if (input.kind === 'panic') return panicGroupKey(input.message, input.stack);
+  return groupKeyOf(errorName, redactedStack);
 }
 
 /**

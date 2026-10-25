@@ -71,3 +71,34 @@ test('the daemon-provided child exit is reported once at boot', () => {
   assert.deepEqual(crash.exit, { code: null, signal: 'SIGKILL', backoffMs: 2_000 });
   assert.equal(crash.uptimeS, 95);
 });
+
+function panicKey(message: string, stack = ''): string {
+  return buildCrashEvent({ component: 'desktop', kind: 'panic', errorName: 'panic', message, stack }).groupKey;
+}
+
+test('native panics group by their source location, never by a local path', () => {
+  assert.equal(panicKey('called `Option::unwrap()` on a `None` value at src/setup.rs:123:9'), 'panic@src/setup.rs:123');
+  assert.equal(panicKey('boom at src\\setup.rs:7:1'), 'panic@src/setup.rs:7');
+  assert.equal(
+    panicKey('index out of bounds at ~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-2.1.0/src/app.rs:88:5'),
+    'panic@tauri-2.1.0/src/app.rs:88',
+  );
+  assert.equal(
+    panicKey('boom at C:\\Users\\alice\\.cargo\\registry\\src\\index.crates.io-x\\wry-0.47.2\\src\\lib.rs:5:3'),
+    'panic@wry-0.47.2/src/lib.rs:5',
+  );
+  assert.equal(panicKey('boom at /rustc/0123abcd/library/core/src/option.rs:2011:5'), 'panic@core/src/option.rs:2011');
+  assert.equal(panicKey('boom at /home/alice/orchard/src-tauri/src/setup.rs:4:2'), 'panic@src/setup.rs:4');
+  assert.equal(panicKey('boom at /home/alice/orchard/build.rs:4:2'), 'panic@unknown');
+});
+
+test('a panic without a message location falls back to the first own backtrace frame', () => {
+  const stack = [
+    '   0: std::panicking::begin_panic',
+    '             at /rustc/0123abcd/library/std/src/panicking.rs:770:5',
+    '   1: cortex_desktop::setup::run',
+    '             at ./src/setup.rs:42:13',
+  ].join('\n');
+  assert.equal(panicKey('panic', stack), 'panic@src/setup.rs:42');
+  assert.equal(panicKey('panic', '   0: <unknown>'), 'panic@unknown');
+});
