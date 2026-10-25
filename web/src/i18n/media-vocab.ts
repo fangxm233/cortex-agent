@@ -13,6 +13,8 @@ export const mediaEn = {
   mediaNextPage: 'Next page',
   mediaZoomReset: 'Reset zoom',
   mediaPin: 'Pin preview beside the chat',
+  mediaPrevItem: 'Previous',
+  mediaNextItem: 'Next',
   mediaViewLoading: 'Loading view…',
   mediaViewTooLarge: 'View too large to render — download to open it.',
 };
@@ -30,6 +32,8 @@ export const mediaZh: Record<keyof typeof mediaEn, string> = {
   mediaNextPage: '下一页',
   mediaZoomReset: '重置缩放',
   mediaPin: '停靠到聊天旁预览',
+  mediaPrevItem: '上一个',
+  mediaNextItem: '下一个',
   mediaViewLoading: '正在加载视图…',
   mediaViewTooLarge: '视图太大，无法渲染 —— 请下载后打开。',
 };

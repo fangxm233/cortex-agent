@@ -54,6 +54,42 @@ describe('usePreviewHost', () => {
     expect(dock.openFile).toHaveBeenCalledWith(DOC);
     expect(host().item).toBeNull();
   });
+
+  it('steps through the group the item was opened from and stops at its ends', () => {
+    const group: DocItem[] = [DOC, { ...DOC, name: 'b.md' }, { ...DOC, name: 'c.md' }];
+    const { host } = renderHost();
+
+    act(() => host().open(group[1], group));
+    expect(host()).toMatchObject({ item: group[1], index: 1, count: 3 });
+    act(() => host().step(1));
+    expect(host().item).toBe(group[2]);
+    act(() => host().step(1));
+    expect(host().item).toBe(group[2]);
+    act(() => host().step(-1));
+    act(() => host().step(-1));
+    act(() => host().step(-1));
+    expect(host()).toMatchObject({ item: group[0], index: 0 });
+  });
+
+  it('opens the item alone when it is not in the given group', () => {
+    const { host } = renderHost();
+
+    act(() => host().open(DOC, [{ ...DOC, name: 'other.md' }]));
+
+    expect(host()).toMatchObject({ item: DOC, index: 0, count: 1 });
+  });
+
+  it('pins the item currently shown, not the one first opened', () => {
+    const dock = dockValue({ canDock: true });
+    const group: DocItem[] = [DOC, { ...DOC, name: 'b.md' }];
+    const { host } = renderHost(dock);
+    act(() => host().open(group[0], group));
+    act(() => host().step(1));
+
+    act(() => host().pin?.());
+
+    expect(dock.openFile).toHaveBeenCalledWith(group[1]);
+  });
 });
 
 describe('usePreviewModalChrome', () => {

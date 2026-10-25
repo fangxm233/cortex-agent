@@ -17,11 +17,21 @@ vi.mock('./useWorkspaceObjectUrl', () => ({
 }));
 
 let renderer: ReactTestRenderer;
-function Message({ src, ts = '2026-10-15T12:00:00Z' }: { src: string; ts?: string }): JSX.Element {
-  return <ChatMediaProvider sessionId="s1" ts={ts || undefined}><ChatMarkdown text={`before ![plot](${src}) after`} /></ChatMediaProvider>;
+function Message({ src, ts = '2026-10-15T12:00:00Z', text }: { src: string; ts?: string; text?: string }): JSX.Element {
+  return <ChatMediaProvider sessionId="s1" ts={ts || undefined}><ChatMarkdown text={text ?? `before ![plot](${src}) after`} /></ChatMediaProvider>;
 }
-async function render(src: string, ts?: string): Promise<void> {
-  await act(async () => { renderer = create(<Message src={src} ts={ts} />); });
+/** Ref'd host nodes, positioned in the document in the order they are created. */
+function documentNodes(): { createNodeMock: () => unknown } {
+  let made = 0;
+  return {
+    createNodeMock: () => {
+      const order = made++;
+      return { order, compareDocumentPosition: (other: { order: number }) => (other.order > order ? 4 : 2) };
+    },
+  };
+}
+async function render(src: string, ts?: string, text?: string): Promise<void> {
+  await act(async () => { renderer = create(<Message src={src} ts={ts} text={text} />, documentNodes()); });
 }
 beforeEach(() => {
   mocks.near = true;
@@ -44,7 +54,8 @@ describe('assistant inline media', () => {
     expect(mocks.resolve).toHaveBeenCalledWith({ sessionId: 's1', ts: '2026-10-15T12:00:00Z', src: '/tmp/a.png' });
     expect(renderer.root.findByType('img').props.src).toBe('blob:preview');
     act(() => renderer.root.findByProps({ role: 'button' }).props.onClick());
-    expect(mocks.open).toHaveBeenCalledWith({ path: 'workspace/outputs/s1/inline/a.png', name: 'plot', kind: 'image' });
+    const item = { path: 'workspace/outputs/s1/inline/a.png', name: 'plot', kind: 'image' };
+    expect(mocks.open).toHaveBeenCalledWith(item, [item]);
   });
 
   it.each(['/tmp/a.png', 'gpu-box:/home/x/a.png', 'win-pc:C:/Users/x/a.mp4'])('keeps streaming %s as a placeholder', async (src) => {
@@ -59,7 +70,21 @@ describe('assistant inline media', () => {
     expect(renderer.root.findByType('img').props).toMatchObject({ src: 'https://example.org/a.png', referrerPolicy: 'no-referrer' });
     expect(mocks.resolve).not.toHaveBeenCalled();
     act(() => renderer.root.findByProps({ role: 'button' }).props.onClick());
-    expect(mocks.open).toHaveBeenCalledWith({ url: 'https://example.org/a.png', kind: 'image', name: 'plot' });
+    const item = { url: 'https://example.org/a.png', kind: 'image', name: 'plot' };
+    expect(mocks.open).toHaveBeenCalledWith(item, [item]);
+  });
+
+  it('opens one message\'s loaded media as a group in reading order, leaving out failures', async () => {
+    const text = '![one](https://example.org/1.png)\n\n![two](/tmp/a.png)\n\n![bad](https://example.org/3.png)\n\n![four](https://example.org/4.mp4)';
+    await render('', undefined, text);
+    act(() => renderer.root.findAllByType('img')[2].props.onError());
+
+    act(() => renderer.root.findAllByProps({ role: 'button' })[1].props.onClick());
+
+    const [opened, group] = mocks.open.mock.calls[0];
+    expect(opened).toMatchObject({ name: 'two', path: 'workspace/outputs/s1/inline/a.png' });
+    expect(group.map((item: { name: string }) => item.name)).toEqual(['one', 'two', 'four']);
+    expect(group[1]).toBe(opened);
   });
 
   it('uses metadata-only video without autoplay or poster prefetch for external URLs', async () => {
