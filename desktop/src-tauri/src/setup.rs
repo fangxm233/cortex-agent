@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use tauri::AppHandle;
 
 mod answers;
-pub use answers::{answers_json, SetupAnswers};
+pub use answers::{answers_document, SetupAnswers};
 pub mod claude;
 mod package;
 mod process;
@@ -16,6 +16,7 @@ mod service;
 // The uninstaller's server half: autostart, daemon, terminal command, runtime, data.
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 pub mod teardown;
+pub mod telemetry;
 
 use package::{server_package, validate_server_version};
 use process::{npm_bin, probe_output, probe_server_version, resolve_cortex_bin, run_streaming};
@@ -266,7 +267,8 @@ pub struct SetupProbe {
 
 /// Inspect the machine: toolchain versions, any existing install, and whether it is new enough.
 #[tauri::command]
-pub async fn setup_probe() -> Result<SetupProbe, String> {
+pub async fn setup_probe(app: AppHandle) -> Result<SetupProbe, String> {
+    telemetry::report(&app, telemetry::Step::SetupStarted, None);
     tauri::async_runtime::spawn_blocking(probe_machine)
         .await
         .map_err(|e| format!("SETUP_TASK_FAILED: probe: {e}"))?
@@ -316,9 +318,14 @@ pub struct InstallResult {
 /// The override still goes through a real global npm install; it never reuses a source checkout.
 #[tauri::command]
 pub async fn setup_install_server(app: AppHandle, run: String) -> Result<InstallResult, String> {
-    tauri::async_runtime::spawn_blocking(move || install_server(&app, &run))
+    let handle = app.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || install_server(&app, &run))
         .await
-        .map_err(|e| format!("SETUP_TASK_FAILED: install: {e}"))?
+        .map_err(|e| format!("SETUP_TASK_FAILED: install: {e}"))
+        .and_then(|r| r);
+    use telemetry::Step::{ServerInstallFailed, ServerInstalled};
+    telemetry::report_outcome(&handle, &result, ServerInstalled, ServerInstallFailed);
+    result
 }
 
 #[tauri::command]
@@ -403,9 +410,26 @@ pub async fn setup_run_init(
     bin: String,
     answers: SetupAnswers,
 ) -> Result<InitResult, String> {
-    tauri::async_runtime::spawn_blocking(move || run_init(&app, &run, &bin, &answers))
+    let handle = app.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || run_init(&app, &run, &bin, &answers))
         .await
-        .map_err(|e| format!("SETUP_TASK_FAILED: init: {e}"))?
+        .map_err(|e| format!("SETUP_TASK_FAILED: init: {e}"))
+        .and_then(|r| r);
+    use telemetry::Step::{InitCompleted, InitFailed};
+    telemetry::report_outcome(&handle, &result, InitCompleted, InitFailed);
+    result
+}
+
+/// The answers document, with the setup telemetry opt-in and the shell's install id when given.
+fn init_document(app: &AppHandle, answers: &SetupAnswers) -> serde_json::Value {
+    let mut doc = answers_document(answers);
+    if let Some(choice) = &answers.telemetry {
+        if let Some(dir) = crate::telemetry::telemetry_dir(app) {
+            telemetry::set_consent(&dir, choice.enabled, Some(answers.lang.clone()));
+        }
+        doc["telemetry"] = telemetry::init_answer(app, choice.enabled);
+    }
+    doc
 }
 
 fn run_init(
@@ -415,7 +439,7 @@ fn run_init(
     answers: &SetupAnswers,
 ) -> Result<InitResult, String> {
     let file = std::env::temp_dir().join(format!("cortex-init-{}.json", std::process::id()));
-    std::fs::write(&file, answers_json(answers))
+    std::fs::write(&file, init_document(app, answers).to_string())
         .map_err(|e| format!("ANSWERS_FILE_FAILED: {e}"))?;
     let path = file.to_string_lossy().to_string();
     let outcome = run_streaming(app, run, bin, &["init", "--answers", &path, "--json"]);
@@ -586,9 +610,16 @@ pub async fn setup_start_daemon(
     restart: Option<bool>,
 ) -> Result<bool, String> {
     let restart = restart.unwrap_or(false);
-    tauri::async_runtime::spawn_blocking(move || start_local_daemon(&app, &run, &bin, &url, &token, restart))
+    let handle = app.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || start_local_daemon(&app, &run, &bin, &url, &token, restart))
         .await
-        .map_err(|e| format!("SETUP_TASK_FAILED: daemon: {e}"))?
+        .map_err(|e| format!("SETUP_TASK_FAILED: daemon: {e}"))
+        .and_then(|r| r);
+    // Not answering within the budget is the timeout failure the wizard shows.
+    let outcome = result.clone().and_then(|up| if up { Ok(()) } else { Err("DAEMON_TIMEOUT".into()) });
+    use telemetry::Step::{DaemonStartFailed, DaemonStarted};
+    telemetry::report_outcome(&handle, &outcome, DaemonStarted, DaemonStartFailed);
+    result
 }
 
 #[cfg(test)]
@@ -716,8 +747,9 @@ mod tests {
             backends: vec!["pi".into()],
             install_service: true,
             port: 3004,
+            telemetry: None,
         };
-        let doc: serde_json::Value = serde_json::from_str(&answers_json(&answers)).unwrap();
+        let doc = answers_document(&answers);
         assert_eq!(doc["machineName"], "workbench");
         assert_eq!(doc["lang"], "zh");
         assert_eq!(doc["backends"], serde_json::json!(["pi"]));

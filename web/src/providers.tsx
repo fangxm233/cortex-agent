@@ -7,6 +7,7 @@ import { LangProvider, LangServerSync } from '@/i18n';
 import { ThemeProvider } from '@/theme';
 import { LoginFlowProvider } from '@/features/auth/LoginFlowProvider';
 import { UiAuthGate } from '@/features/auth/UiAuthGate';
+import { TelemetryBridge } from '@/features/telemetry/telemetry-bridge';
 
 // How long the native shell will wait for its injected credentials before giving up and falling
 // back to browser mode. The Tauri shell BAKES the credentials into the initialization_script for the
@@ -91,6 +92,8 @@ export function Providers({ children }: { children: ReactNode }) {
                 {/* Makes the server's one language knob the source of truth for this SPA's
                     vocabulary; must sit inside both LangProvider and the tRPC/query providers. */}
                 <LangServerSync />
+                {/* Sends this page's crash and load reports while the server's telemetry is on. */}
+                <TelemetryBridge />
                 <LoginFlowProvider>{children}</LoginFlowProvider>
               </UiAuthGate>
             </LangProvider>

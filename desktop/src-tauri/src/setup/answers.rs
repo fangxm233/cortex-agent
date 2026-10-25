@@ -1,5 +1,11 @@
 use serde::Deserialize;
 
+/// The setup telemetry opt-in. The shell adds its install id before init sees it.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SetupTelemetry {
+    pub enabled: bool,
+}
+
 /// Choices for a new local App installation; existing connections bypass init.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -9,11 +15,19 @@ pub struct SetupAnswers {
     pub backends: Vec<String>,
     pub install_service: bool,
     pub port: u16,
+    #[serde(default)]
+    pub telemetry: Option<SetupTelemetry>,
 }
 
-/// Build the machine-driven init document for the native host platform.
+/// The machine-driven init document for the native host platform.
+pub fn answers_document(answers: &SetupAnswers) -> serde_json::Value {
+    answers_for_platform(answers, std::env::consts::OS)
+}
+
+/// The same document, serialized.
+#[cfg(test)]
 pub fn answers_json(answers: &SetupAnswers) -> String {
-    answers_for_platform(answers, std::env::consts::OS).to_string()
+    answers_document(answers).to_string()
 }
 
 fn answers_for_platform(answers: &SetupAnswers, platform: &str) -> serde_json::Value {
@@ -43,6 +57,7 @@ mod tests {
             backends: vec!["pi".into()],
             install_service: true,
             port: 3004,
+            telemetry: None,
         }
     }
 

@@ -99,6 +99,16 @@ export interface NativeSetupAnswers {
   port: number;
   /** Internal setup intent: reuse the configured UI port when enabling an existing endpoint. */
   preserveEndpoint?: boolean;
+  /** The setup telemetry opt-in; the shell adds its install id before handing it to init. */
+  telemetry?: { enabled: boolean };
+}
+
+/** A shell panic recorded on an earlier run (`telemetry_take_native_crash`). */
+export interface NativeCrashRecord {
+  at: string;
+  message: string;
+  stack: string;
+  appVersion: string;
 }
 
 export interface DesktopNotificationAction {
@@ -151,6 +161,10 @@ interface NativeCommandMap {
   };
   // Cancels only the active download / initial installation, never an existing daemon.
   setup_cancel_install: { args: undefined; result: unknown };
+  // The setup telemetry opt-in: whether the shell may report setup progress.
+  setup_telemetry_consent: { args: { enabled: boolean }; result: unknown };
+  // A panic recorded on an earlier run, removed as it is taken; null when there is none.
+  telemetry_take_native_crash: { args: undefined; result: NativeCrashRecord | null };
   setup_run_init: {
     args: { run: string; bin: string; answers: NativeSetupAnswers };
     result: { version: string | null; clientToken: string | null; uiUrl: string | null };

@@ -1,0 +1,58 @@
+{
+  "batches": [
+    {
+      "envelope": {
+        "arch": "x64",
+        "channel": "release",
+        "installForm": "desktop",
+        "installId": "0f8b5c1e-3a7d-4e2b-9c41-6d2a8e5f7b90",
+        "nodeMajor": null,
+        "os": "linux",
+        "osRelease": "6",
+        "schema": 1,
+        "sentAt": "2026-10-24T12:00:00.000Z",
+        "uiLang": "zh",
+        "version": "2026.10.24"
+      },
+      "events": [
+        {
+          "at": "2026-10-24T12:00:00.000Z",
+          "detail": "permission",
+          "source": "desktop-setup",
+          "step": "init_failed",
+          "type": "funnel"
+        }
+      ]
+    },
+    {
+      "envelope": {
+        "arch": "x64",
+        "channel": "release",
+        "installForm": "desktop",
+        "installId": "0f8b5c1e-3a7d-4e2b-9c41-6d2a8e5f7b90",
+        "nodeMajor": null,
+        "os": "linux",
+        "osRelease": "6",
+        "schema": 1,
+        "sentAt": "2026-10-24T12:00:00.000Z",
+        "uiLang": "other",
+        "version": "2026.10.24"
+      },
+      "events": [
+        {
+          "at": "2026-10-24T12:00:00.000Z",
+          "detail": null,
+          "source": "desktop-setup",
+          "step": "setup_started",
+          "type": "funnel"
+        }
+      ]
+    }
+  ],
+  "nativeCrash": {
+    "appVersion": "2026.10.24",
+    "at": "2026-10-24T12:00:00.000Z",
+    "message": "boom at src/lib.rs:1:1",
+    "stack": "0: frame"
+  }
+}

@@ -51,6 +51,8 @@ rustls = { version = "0.23", default-features = false, features = ["ring"] }
 # verifier is never touched. Direct dep (was transitive via reqwest); the version matches the lock.
 webpki-roots = "1"
 sha2 = "0.10"
+# The telemetry install id (src/telemetry.rs). Already in the lock with `v4` through tauri.
+uuid = { version = "1", features = ["v4"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 
 # ── Desktop-only dependencies ──

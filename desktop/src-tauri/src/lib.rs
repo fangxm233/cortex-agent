@@ -50,6 +50,8 @@ mod app_update;
 // app_update for asset selection and by update_checks for the silent-apply decision.
 mod install_site;
 mod setup;
+// Anonymous telemetry: the install id and the panic hook (the setup funnel is in `setup`).
+mod telemetry;
 // `cortex-desktop --uninstall`: the uninstaller window every uninstall entry point launches.
 // Android uninstalls through the system; its shell gets refusing stubs so the command list stays
 // identical on every platform.
@@ -228,6 +230,8 @@ pub fn run() {
             setup::setup_start_daemon,
             setup::setup_enable_autostart,
             setup::setup_terminal_cli,
+            setup::telemetry::setup_telemetry_consent,
+            telemetry::telemetry_take_native_crash,
             forward::forward_start,
             forward::forward_stop,
             forward::forward_list,
@@ -281,6 +285,10 @@ pub fn run() {
 
     builder
         .setup(move |app| {
+            // First, so a panic anywhere after this is on disk for the next launch to report.
+            if let Some(dir) = telemetry::telemetry_dir(app.handle()) {
+                telemetry::install_panic_hook(dir, app.package_info().version.to_string());
+            }
             #[cfg(not(target_os = "android"))]
             if uninstall::launch().is_some() {
                 uninstall::open_window(app, desktop_title_bar_mode())?;
