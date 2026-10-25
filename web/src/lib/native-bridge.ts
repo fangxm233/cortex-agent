@@ -64,6 +64,9 @@ export interface NativeSetupProbe {
 }
 
 /** `uninstall_info`: what the uninstaller can remove here (desktop/src-tauri/src/uninstall.rs). */
+/** `external`: registered from the terminal (`cortex init`), so the app leaves it alone. */
+export type NativeAutostartState = 'on' | 'off' | 'external';
+
 export interface NativeUninstallInfo {
   /** A server this app installed lives on this machine. */
   localServer: boolean;
@@ -172,6 +175,9 @@ interface NativeCommandMap {
   setup_enable_ui: { args: { run: string; bin: string; port?: number }; result: { url: string; token: string } };
   setup_start_daemon: { args: { run: string; bin: string; url: string; token: string; restart?: boolean }; result: boolean };
   setup_enable_autostart: { args: { run: string }; result: boolean };
+  // Start at login for a local install; both reject on a remote connection and on Android.
+  autostart_status: { args: undefined; result: NativeAutostartState };
+  autostart_set: { args: { enabled: boolean }; result: NativeAutostartState };
   setup_terminal_cli: { args: { run: string; bin: string; enabled: boolean }; result: null };
   // Uninstaller (desktop only). `uninstall_open` hands over to it from the workbench and quits;
   // the rest run in the uninstaller's own window (`cortex-desktop --uninstall`).

@@ -6,7 +6,10 @@ use tauri::AppHandle;
 
 mod answers;
 pub use answers::{answers_document, SetupAnswers};
+pub mod autostart;
 pub mod claude;
+#[cfg(any(target_os = "windows", test))]
+mod login_entry;
 mod package;
 mod process;
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
@@ -257,8 +260,7 @@ pub struct SetupProbe {
     pub home_exists: bool,
     /// This machine's name, offered as the default for the machine-name field.
     pub hostname: Option<String>,
-    /// Which platform the wizard is running on, so the page does not have to sniff the user agent
-    /// (autostart is offered only where the server can register a service).
+    /// Which platform the wizard is running on, so the page does not have to sniff the user agent.
     pub os: &'static str,
     /// The PATH used for every spawn — the first thing to look at when node "is installed" but the
     /// probe cannot see it.
@@ -560,45 +562,6 @@ pub fn ensure_local_daemon(app: &AppHandle, bin: &str, url: &str, token: &str) -
     }
 }
 
-/// Register native-owned user autostart. Ok(false) = this platform has none.
-///
-/// A failure here is reported but never fatal: the install itself is complete and usable, and the
-/// user can still start Cortex by opening the app.
-#[tauri::command]
-pub async fn setup_enable_autostart(app: AppHandle, run: String) -> Result<bool, String> {
-    tauri::async_runtime::spawn_blocking(move || enable_autostart(&app, &run))
-        .await
-        .map_err(|e| format!("SETUP_TASK_FAILED: autostart: {e}"))?
-}
-
-#[cfg(any(target_os = "macos", target_os = "linux"))]
-fn enable_autostart(app: &AppHandle, run: &str) -> Result<bool, String> {
-    let selected =
-        process::selected_runtime()?.ok_or("RUNTIME_MISSING: installation record unavailable")?;
-    let server = selected.server.as_ref().ok_or("CLI_NOT_ON_PATH")?;
-    let launch = service::ServiceLaunch {
-        program: selected.node.clone(),
-        args: vec![daemon_service_entry(&server.bin)?.into_os_string()],
-        home: cortex_home().ok_or("RUNTIME_MISSING: home unavailable")?,
-        path: selected.path(&process::inherited_path())?,
-        npm_prefix: Some(selected.prefix.clone()),
-    };
-    service::enable_user_service(app, run, &launch)
-}
-
-#[cfg(any(target_os = "macos", target_os = "linux"))]
-fn daemon_service_entry(bin: &std::path::Path) -> Result<std::path::PathBuf, String> {
-    let cli = bin.canonicalize().map_err(|_| "AUTOSTART_FAILED: server entry is missing")?;
-    let daemon = cli.parent().ok_or("AUTOSTART_FAILED: server directory is missing")?.join("daemon.js");
-    if !daemon.is_file() { return Err("AUTOSTART_FAILED: foreground daemon entry is missing".into()); }
-    Ok(daemon)
-}
-
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
-fn enable_autostart(_app: &AppHandle, _run: &str) -> Result<bool, String> {
-    Ok(false)
-}
-
 /// Start the local daemon and wait for it to answer. False = it never came up in the budget.
 #[tauri::command]
 pub async fn setup_start_daemon(
@@ -771,21 +734,6 @@ mod tests {
     fn automatic_connection_omits_the_port_but_explicit_repair_passes_it() {
         assert_eq!(ui_enable_args(None), vec!["ui", "enable", "--json"]);
         assert_eq!(ui_enable_args(Some(14321)), vec!["ui", "enable", "--json", "--port", "14321"]);
-    }
-
-    #[test]
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
-    fn service_uses_the_foreground_entry_not_the_detaching_cli() {
-        let dir = tempfile::tempdir().unwrap();
-        let cli = dir.path().join("cortex-cli.js");
-        let daemon = dir.path().join("daemon.js");
-        std::fs::write(&cli, "fixture").unwrap();
-        assert!(daemon_service_entry(&cli).is_err());
-        std::fs::write(&daemon, "fixture").unwrap();
-        assert_eq!(daemon_service_entry(&cli).unwrap(), daemon);
-        let link = dir.path().join("cortex");
-        std::os::unix::fs::symlink(&cli, &link).unwrap();
-        assert_eq!(daemon_service_entry(&link).unwrap(), daemon);
     }
 
     #[test]

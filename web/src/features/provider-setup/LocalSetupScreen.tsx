@@ -94,7 +94,6 @@ function useMachineSettings(state: LocalSetupState, start: StartLocal) {
   const [port, setPort] = useState(String(state.answers?.port ?? 3004));
   const machineInput = useRef<HTMLInputElement>(null);
   const form = useRef<HTMLFormElement>(null);
-  const autostartOffered = state.probe?.os !== 'windows';
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (state.needsInit && !machine.trim()) {
@@ -102,10 +101,10 @@ function useMachineSettings(state: LocalSetupState, start: StartLocal) {
       form.current?.reportValidity();
       return;
     }
-    start(machine.trim(), autostart && autostartOffered && state.needsInit, terminal, Number(port));
+    start(machine.trim(), autostart && state.needsInit, terminal, Number(port));
   };
   return {
-    machine, setMachine, autostart, setAutostart, terminal, setTerminal, port, setPort, machineInput, form, autostartOffered, submit,
+    machine, setMachine, autostart, setAutostart, terminal, setTerminal, port, setPort, machineInput, form, submit,
   };
 }
 
@@ -136,10 +135,10 @@ function MachineFields({ needsInit, settings: s }: { needsInit: boolean; setting
         <input ref={s.machineInput} id="onb-machine" className="setup-input" required maxLength={80} autoComplete="off"
           spellCheck={false} value={s.machine} onChange={event => s.setMachine(event.target.value)} />
         <span className="setup-hint">{L.onbMachineHint}</span></label>
-      {s.autostartOffered ? <label className="onb-toggle-row">
+      <label className="onb-toggle-row">
         <div><strong>{L.onbStartAtLogin}</strong><p className="setup-hint">{L.onbStartAtLoginHint}</p></div>
         <input className="onb-toggle" type="checkbox" checked={s.autostart} onChange={event => s.setAutostart(event.target.checked)} />
-      </label> : null}
+      </label>
     </fieldset>
     <label className="onb-toggle-row">
       <div><strong>{L.onbTerminalCommand}</strong><p className="setup-hint">{L.onbTerminalCommandHint}</p></div>

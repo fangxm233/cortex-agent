@@ -22,6 +22,8 @@ import type { UsageSharingController } from '@/features/settings/vm/usage-sharin
 import { useUsageSharingController } from '@/features/settings/controllers/useUsageSharingController';
 import { usePrivacyController, type PrivacyController } from '@/features/settings/controllers/usePrivacyController';
 import { SetupTelemetryCard } from './SetupTelemetryCard';
+import { SetupAutostartCard } from './SetupAutostartCard';
+import { useAutostartController, type AutostartController } from '@/features/settings/controllers/useAutostartController';
 import './provider-setup.css';
 
 function SetupButton({ primary, className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { primary?: boolean }) {
@@ -163,8 +165,9 @@ function SetupFeedback({ controller }: { controller: ProviderSetupController }) 
     {s.error ? <p role="alert" className="setup-error">{L.setupSyncFailed}: {setupErrorText(s.error, L)}</p> : null}
   </>;
 }
-export function ProviderSetupView({ controller, usageSharing, privacy, ...exit }: {
+export function ProviderSetupView({ controller, usageSharing, privacy, autostart, ...exit }: {
   controller: ProviderSetupController; usageSharing?: UsageSharingController; privacy?: PrivacyController;
+  autostart?: AutostartController;
 } & SetupExit) {
   useSyncExternalStore(controller.subscribe, controller.snapshot);
   const L = useVocab();
@@ -178,6 +181,7 @@ export function ProviderSetupView({ controller, usageSharing, privacy, ...exit }
     <SetupFeedback controller={controller} />
     <ModelSection controller={controller} />
     {usageSharing ? <UsageSharingCard controller={usageSharing} variant="setup" /> : null}
+    {autostart ? <SetupAutostartCard controller={autostart} /> : null}
     {privacy ? <SetupTelemetryCard controller={privacy} /> : null}
     <SetupFooter controller={controller} {...exit} />
   </main><LoginFlowModal open={!!target} target={target} onClose={() => setTarget(null)} onDone={loginDone} /></>;
@@ -221,8 +225,10 @@ export function ProviderSetupPage() {
   useEffect(() => { void controller.load(); }, [controller]);
   const usageSharing = useUsageSharingController();
   const privacy = usePrivacyController();
+  const autostart = useAutostartController();
   return <div className="provider-setup">
     <SetupHeader />
-    <div className="setup-scroll"><ProviderSetupView controller={controller} usageSharing={usageSharing} privacy={privacy} {...exit} /></div>
+    <div className="setup-scroll"><ProviderSetupView controller={controller} usageSharing={usageSharing} privacy={privacy}
+      autostart={autostart} {...exit} /></div>
   </div>;
 }

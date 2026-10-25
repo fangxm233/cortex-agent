@@ -16,6 +16,9 @@ vi.mock('./setup-native', () => ({ canSetupClaude: () => false, setupClaude: vi.
 vi.mock('@/features/settings/controllers/usePrivacyController', () => ({
   usePrivacyController: () => ({ info: { data: undefined }, pending: false, setEnabled: vi.fn() }),
 }));
+vi.mock('@/features/settings/controllers/useAutostartController', () => ({
+  useAutostartController: () => ({ state: null, pending: false, failed: false, set: vi.fn() }),
+}));
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 const initialConnection = { serverUrl: 'http://127.0.0.1:3004', token: 'fixture-original', providerSetupPending: true };

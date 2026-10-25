@@ -21,6 +21,15 @@ mod process {
     }
 }
 
+mod autostart {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum AutostartState {
+        On,
+        Off,
+        External,
+    }
+}
+
 mod service {
     include!("../src/setup/service.rs");
 
@@ -484,6 +493,123 @@ mod service {
             fs::write(&unit, "[Service]\nExecStart=/usr/bin/cortex daemon\n").unwrap();
             assert!(run_disable("linux", &home, vec![]).unwrap_err().contains("preserved"));
             assert!(unit.is_file());
+        }
+
+        fn replay<T>(steps: Vec<Step>, call: impl FnOnce(&mut Runner<'_>) -> T) -> T {
+            let mut steps = VecDeque::from(steps);
+            let result = call(&mut |program, args, _| {
+                let expected = steps.pop_front().expect("unexpected service-manager call");
+                let actual: Vec<OsString> = std::iter::once(OsString::from(program))
+                    .chain(args.iter().cloned())
+                    .collect();
+                assert_eq!(actual, expected.command);
+                expected.output
+            });
+            assert!(steps.is_empty(), "missing service-manager calls");
+            result
+        }
+
+        fn owned_unit(home: &Path) -> PathBuf {
+            let unit = home.join(".config/systemd/user/cortex.service");
+            ensure_file(&unit, &render_systemd(&launch()).unwrap()).unwrap();
+            unit
+        }
+
+        fn owned_plist(home: &Path) -> PathBuf {
+            let plist = home.join("Library/LaunchAgents").join(format!("{LABEL}.plist"));
+            ensure_file(&plist, &render_launchd(&launch()).unwrap()).unwrap();
+            plist
+        }
+
+        fn is_enabled(answer: &str) -> Step {
+            let mut step = step("/usr/bin/systemctl", &["--user", "is-enabled", UNIT], true, answer);
+            step.output = Ok(Output { ok: answer.trim() == "enabled", stdout: answer.into() });
+            step
+        }
+
+        fn print_disabled(listing: &str) -> Vec<Step> {
+            vec![
+                step("/usr/bin/id", &["-u"], true, "501\n"),
+                step("/bin/launchctl", &["print-disabled", "gui/501"], true, listing),
+            ]
+        }
+
+        #[test]
+        fn state_without_a_registration_is_off_and_asks_nothing() {
+            let home = scratch();
+            assert_eq!(replay(vec![], |r| state_for("linux", &home, r)), AutostartState::Off);
+            assert_eq!(replay(vec![], |r| state_for("macos", &home, r)), AutostartState::Off);
+        }
+
+        #[test]
+        fn a_foreign_registration_is_external() {
+            let home = scratch();
+            let unit = home.join(".config/systemd/user/cortex.service");
+            fs::create_dir_all(unit.parent().unwrap()).unwrap();
+            fs::write(&unit, "[Service]\nExecStart=/usr/bin/cortex daemon\n").unwrap();
+            assert_eq!(replay(vec![], |r| state_for("linux", &home, r)), AutostartState::External);
+        }
+
+        #[test]
+        fn linux_state_follows_is_enabled() {
+            let home = scratch();
+            owned_unit(&home);
+            let on = replay(vec![is_enabled("enabled\n")], |r| state_for("linux", &home, r));
+            assert_eq!(on, AutostartState::On);
+            let off = replay(vec![is_enabled("disabled\n")], |r| state_for("linux", &home, r));
+            assert_eq!(off, AutostartState::Off);
+        }
+
+        #[test]
+        fn mac_state_follows_the_launchd_override() {
+            let home = scratch();
+            owned_plist(&home);
+            let listing = format!("disabled services = {{\n\t\"{LABEL}\" => disabled\n}}\n");
+            let off = replay(print_disabled(&listing), |r| state_for("macos", &home, r));
+            assert_eq!(off, AutostartState::Off);
+            let enabled = format!("disabled services = {{\n\t\"{LABEL}\" => enabled\n}}\n");
+            let on = replay(print_disabled(&enabled), |r| state_for("macos", &home, r));
+            assert_eq!(on, AutostartState::On);
+            let absent = replay(print_disabled("disabled services = {\n}\n"), |r| state_for("macos", &home, r));
+            assert_eq!(absent, AutostartState::On);
+        }
+
+        #[test]
+        fn older_launchd_overrides_read_true_as_disabled() {
+            assert!(launchd_disabled(&format!("\t\"{LABEL}\" => true\n")));
+            assert!(!launchd_disabled(&format!("\t\"{LABEL}\" => false\n")));
+            assert!(!launchd_disabled("\t\"com.example.other\" => disabled\n"));
+        }
+
+        #[test]
+        fn withdrawing_on_linux_disables_without_stopping_or_deleting() {
+            let home = scratch();
+            let unit = owned_unit(&home);
+            let steps = vec![step("/usr/bin/systemctl", &["--user", "disable", UNIT], false, "")];
+            assert_eq!(replay(steps, |r| withdraw_for("linux", &home, r)), Ok(()));
+            assert!(unit.is_file());
+        }
+
+        #[test]
+        fn withdrawing_on_mac_disables_without_booting_out() {
+            let home = scratch();
+            let plist = owned_plist(&home);
+            let steps = vec![
+                step("/usr/bin/id", &["-u"], true, "501\n"),
+                step("/bin/launchctl", &["disable", &format!("gui/501/{LABEL}")], false, ""),
+            ];
+            assert_eq!(replay(steps, |r| withdraw_for("macos", &home, r)), Ok(()));
+            assert!(plist.is_file());
+        }
+
+        #[test]
+        fn withdrawing_leaves_absent_and_foreign_registrations_alone() {
+            let home = scratch();
+            assert_eq!(replay(vec![], |r| withdraw_for("linux", &home, r)), Ok(()));
+            let plist = home.join("Library/LaunchAgents").join(format!("{LABEL}.plist"));
+            fs::create_dir_all(plist.parent().unwrap()).unwrap();
+            fs::write(&plist, "<plist/>").unwrap();
+            assert!(replay(vec![], |r| withdraw_for("macos", &home, r)).is_err());
         }
 
         #[cfg(unix)]

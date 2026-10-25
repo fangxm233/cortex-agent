@@ -70,6 +70,9 @@ export const settingsSystemEn = {
   setupNativeNpmEacces: 'Claude Code installation failed: npm cannot write to its global directory. Configure a user-owned npm prefix and retry.',
   setupNativeInstallFailed: 'Claude Code installation failed',
   setupNativeProgramFailed: 'Could not start the installer',
+  autostartDesc: 'Start the local server when you log in, so scheduled tasks run even while the app is closed.',
+  autostartExternal: 'Set up from the terminal. Change it there.',
+  autostartFailed: "Couldn't change start at login.",
 };
 export const settingsSystemZh: Record<keyof typeof settingsSystemEn, string> = {
   setEditOnDesktop: '桌面编辑',
@@ -141,4 +144,7 @@ export const settingsSystemZh: Record<keyof typeof settingsSystemEn, string> = {
   setupNativeNpmEacces: 'Claude Code 安装失败：npm 无法写入全局目录。请将 npm prefix 设置为当前用户可写的目录后重试。',
   setupNativeInstallFailed: 'Claude Code 安装失败',
   setupNativeProgramFailed: '无法启动安装程序',
+  autostartDesc: '登录系统时启动本机服务器，应用关闭时定时任务也会照常运行。',
+  autostartExternal: '已在命令行中设置，请在命令行中修改。',
+  autostartFailed: '无法更改登录时自动启动。',
 };
