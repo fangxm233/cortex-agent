@@ -9,7 +9,7 @@ export const MAX_PI_COMPACT_RESERVE_TOKENS = 131_072;
 export const MIN_MAX_CONTEXT_TOKENS = 100_000;
 export const MAX_MAX_CONTEXT_TOKENS = 1_000_000;
 
-// Pure helpers for the redacted .env view (Platform / Notifications / Advanced panels).
+// Pure helpers for the redacted .env view and runtime settings (Notifications / Advanced panels).
 // SECURITY: config.get NEVER returns a .env value — only { key, present, masked }.
 // Framework-free; no JSX, no hex.
 
@@ -84,42 +84,6 @@ export const NOTIFY_SETTINGS: SettingToggleDescriptor[] = [
   { setting: 'notifyCompaction', titleKey: 'stNotifyCompactionTitle' },
 ];
 
-export type AdvancedFlag =
-  | { kind: 'env'; env: 'DEBUG'; titleKey: keyof Vocab }
-  | ({ kind: 'setting' } & SettingToggleDescriptor);
-
-export const ADVANCED_FLAGS: AdvancedFlag[] = [
-  { kind: 'env', env: 'DEBUG', titleKey: 'stAdvDebugTitle' },
-  { kind: 'setting', setting: 'eventLog', titleKey: 'stAdvEventLogTitle' },
-  {
-    kind: 'setting',
-    setting: 'diskMonitor',
-    titleKey: 'stAdvDiskMonitorTitle',
-    descKey: 'stAdvDiskMonitorDesc',
-  },
-  { kind: 'setting', setting: 'showToolCalls', titleKey: 'stAdvToolCallsTitle' },
-  { kind: 'setting', setting: 'disableUserContext', titleKey: 'stAdvDisableUserTitle' },
-  { kind: 'setting', setting: 'serverUpdateDisable', titleKey: 'stAdvDisableUpdateTitle' },
-  {
-    kind: 'setting',
-    setting: 'serverAutoUpdate',
-    titleKey: 'stAdvAutoUpdateTitle',
-    descKey: 'stAdvAutoUpdateDesc',
-  },
-  {
-    kind: 'setting',
-    setting: 'teamEnabled',
-    titleKey: 'stAdvTeamTitle',
-    descKey: 'stAdvTeamDesc',
-  },
-  {
-    kind: 'setting',
-    setting: 'claudeWindowWarmupEnabled',
-    titleKey: 'stAdvClaudeWarmupTitle',
-    descKey: 'stAdvClaudeWarmupDesc',
-  },
-];
-
 export interface NumberSettingDescriptor {
   setting: WritableNumberSettingKey;
   titleKey: keyof Vocab;
@@ -132,33 +96,6 @@ export interface NumberSettingDescriptor {
   /** An empty draft saves null; the placeholder names what null means. */
   nullable?: { placeholderKey: keyof Vocab };
 }
-
-export const ADVANCED_NUMBER_SETTINGS: NumberSettingDescriptor[] = [
-  {
-    setting: 'sessionRetentionDays',
-    titleKey: 'stAdvRetentionTitle',
-    invalidKey: 'stAdvRetentionInvalid',
-    min: 1,
-    max: MAX_SESSION_RETENTION_DAYS,
-  },
-  {
-    setting: 'maxContextTokens',
-    titleKey: 'stAdvMaxContextTitle',
-    descKey: 'stAdvMaxContextDesc',
-    invalidKey: 'stAdvMaxContextInvalid',
-    min: MIN_MAX_CONTEXT_TOKENS,
-    max: MAX_MAX_CONTEXT_TOKENS,
-    nullable: { placeholderKey: 'stAdvMaxContextPlaceholder' },
-  },
-  {
-    setting: 'piCompactReserveTokens',
-    titleKey: 'stAdvPiReserveTitle',
-    descKey: 'stAdvPiReserveDesc',
-    invalidKey: 'stAdvPiReserveInvalid',
-    min: MIN_PI_COMPACT_RESERVE_TOKENS,
-    max: MAX_PI_COMPACT_RESERVE_TOKENS,
-  },
-];
 
 /** A draft this descriptor accepts: inside the range. */
 export function numberSettingValid(
@@ -222,10 +159,3 @@ export interface BuiltinJobSettingDescriptor {
   interval: WritableIntervalSettingKey;
   titleKey: keyof Vocab;
 }
-
-export const BUILTIN_JOB_SETTINGS: BuiltinJobSettingDescriptor[] = [
-  {
-    enabled: 'memoryIndexRegenEnabled', interval: 'memoryIndexRegenIntervalMs',
-    titleKey: 'stBuiltinMemoryRegenTitle',
-  },
-];

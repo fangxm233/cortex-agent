@@ -23,6 +23,7 @@ export const platformEn = {
   psSaveRoute: 'Save destination',
   psSkills: 'Feishu skills in Web / apps',
   psSkillsHint: "Requires plugin assignment and lark-cli authorization. Applies to new Web and app sessions.",
+  psToolCalls: 'Show tool calls in Slack / Feishu messages',
   psRuntimeSaved: 'Setting saved', psUnsaved: 'Discard unsaved platform changes?',
   psDiscard: 'Discard', psKeepEditing: 'Keep editing',
 };
@@ -51,6 +52,7 @@ export const platformZh: Record<keyof typeof platformEn, string> = {
   psSaveRoute: '保存通知目标',
   psSkills: '在网页 / App 会话加载飞书技能',
   psSkillsHint: "需分配插件并完成 lark-cli 授权；新建网页或 App 会话后生效。",
+  psToolCalls: '在 Slack / 飞书消息中显示工具调用',
   psRuntimeSaved: '设置已保存', psUnsaved: '放弃尚未保存的平台设置？',
   psDiscard: '放弃', psKeepEditing: '继续编辑',
 };

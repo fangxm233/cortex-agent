@@ -2,7 +2,7 @@ import { useVocab, type Vocab } from '@/i18n';
 import { useEffect, useState, type CSSProperties } from 'react';
 import { isNativeShell } from '@/lib/desktop-config';
 import { safeInvoke } from '@/lib/native-bridge';
-import { SButton, SRow, SRowGroup, Toggle } from '@/features/settings/ui/settings-ui';
+import { SButton, SRow, Toggle } from '@/features/settings/ui/settings-ui';
 
 const FOOTNOTE_STYLE: CSSProperties = {
   fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted-2)', marginTop: 4, overflowWrap: 'anywhere',
@@ -64,8 +64,15 @@ export function updatePrefsFootnote(prefs: ShellUpdatePrefs, L: Vocab): string {
   return parts.join(' · ');
 }
 
-export function AppUpdateCard() {
-  const L = useVocab();
+export interface AppUpdateController {
+  /** Null off the native shell, until the shell answers, and on shells without the commands. */
+  prefs: ShellUpdatePrefs | null;
+  pending: boolean;
+  failed: boolean;
+  write: (silent: boolean) => void;
+}
+
+export function useAppUpdateController(): AppUpdateController {
   const [prefs, setPrefs] = useState<ShellUpdatePrefs | null>(null);
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -75,13 +82,11 @@ export function AppUpdateCard() {
     if (!native) return;
     let alive = true;
     void safeInvoke('get_update_prefs').then((result) => {
-      // A shell that predates silent updating has no such command; the card just stays hidden.
+      // A shell that predates silent updating has no such command; the row just stays hidden.
       if (alive && result.ok) setPrefs(parseShellUpdatePrefs(result.value));
     });
     return () => { alive = false; };
   }, [native]);
-
-  if (!native || !prefs) return null;
 
   // The shell answers with the stored prefs, so the switch follows what was persisted rather than
   // what was clicked — that is also how turning silent back on clears the failure counter.
@@ -94,33 +99,44 @@ export function AppUpdateCard() {
     else setFailed(true);
     setPending(false);
   };
+  return { prefs: native ? prefs : null, pending, failed, write: (silent) => void write(silent) };
+}
 
-  const fallenBack = hasFallenBackToAsking(prefs);
+function AppUpdateControl({ controller, prefs }: { controller: AppUpdateController; prefs: ShellUpdatePrefs }) {
+  const L = useVocab();
+  const { pending, write } = controller;
   return (
-    <SRowGroup data-app-update-silent="">
-      <SRow
-        title={L.updateAutomatic}
-        desc={
-          <span style={{ color: fallenBack ? 'var(--proto-danger)' : undefined }}>
-            {updateModeDescription(prefs, L)}
-          </span>
-        }
-        control={
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-            {fallenBack ? (
-              <SButton tone="neutral" disabled={pending} data-app-update-retry=""
-                onClick={() => void write(true)}>{L.updateRetryAutomatic}</SButton>
-            ) : null}
-            <Toggle on={prefs.silent} inert={pending} ariaLabel={L.updateAutomatic}
-              onClick={pending ? undefined : () => void write(!prefs.silent)} />
-          </div>
-        }
-      >
-        {failed ? (
-          <div role="alert" style={ALERT_STYLE}>{L.updatePrefsFailed}</div>
-        ) : null}
-        <div style={FOOTNOTE_STYLE}>{updatePrefsFootnote(prefs, L)}</div>
-      </SRow>
-    </SRowGroup>
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+      {hasFallenBackToAsking(prefs) ? (
+        <SButton tone="neutral" disabled={pending} data-app-update-retry=""
+          onClick={() => write(true)}>{L.updateRetryAutomatic}</SButton>
+      ) : null}
+      <Toggle on={prefs.silent} inert={pending} ariaLabel={L.updateAutomatic}
+        onClick={pending ? undefined : () => write(!prefs.silent)} />
+    </div>
+  );
+}
+
+/** This copy of the app's own update switch; hidden wherever the controller has no prefs. */
+export function AppUpdateRow({ controller }: { controller: AppUpdateController }) {
+  const L = useVocab();
+  const { prefs } = controller;
+  if (!prefs) return null;
+  return (
+    <SRow
+      data-app-update-silent=""
+      title={L.updateAutomatic}
+      desc={
+        <span style={{ color: hasFallenBackToAsking(prefs) ? 'var(--proto-danger)' : undefined }}>
+          {updateModeDescription(prefs, L)}
+        </span>
+      }
+      control={<AppUpdateControl controller={controller} prefs={prefs} />}
+    >
+      {controller.failed ? (
+        <div role="alert" style={ALERT_STYLE}>{L.updatePrefsFailed}</div>
+      ) : null}
+      <div style={FOOTNOTE_STYLE}>{updatePrefsFootnote(prefs, L)}</div>
+    </SRow>
   );
 }

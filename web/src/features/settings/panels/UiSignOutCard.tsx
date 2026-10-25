@@ -1,20 +1,17 @@
 import { useVocab } from '@/i18n';
-import { useUiSignOut } from '@/features/settings/controllers/useUiSignOut';
-import { SLinkAction, SRow, SRowGroup } from '@/features/settings/ui/settings-ui';
+import type { UiSignOut } from '@/features/settings/controllers/useUiSignOut';
+import { SLinkAction, SRow } from '@/features/settings/ui/settings-ui';
 
-export function UiSignOutCard() {
+/** Sign-out for a browser signed in with the UI token; hidden everywhere else. */
+export function UiSignOutRow({ controller }: { controller: UiSignOut }) {
   const L = useVocab();
-  const { offered, signOut } = useUiSignOut();
-  if (!offered) return null;
-
+  if (!controller.offered) return null;
   // The action is the whole row: there is no second line of copy for it to sit beside.
   return (
-    <SRowGroup>
-      <SRow title={
-        <SLinkAction tone="danger" data-ui-sign-out onClick={() => void signOut()}>
-          {L.uiLogoutAction}
-        </SLinkAction>
-      } />
-    </SRowGroup>
+    <SRow title={
+      <SLinkAction tone="danger" data-ui-sign-out onClick={() => void controller.signOut()}>
+        {L.uiLogoutAction}
+      </SLinkAction>
+    } />
   );
 }

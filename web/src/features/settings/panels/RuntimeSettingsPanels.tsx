@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { LocalNotificationsCard } from './LocalNotificationsCard';
 import type { ConfigSnapshot, ConfigSettingEntry, SystemNoticeEntry } from '@cortex-agent/ui-contract';
 import { Select, relativeAge } from '@/design';
@@ -18,14 +18,23 @@ import {
   S_CONTROL_STYLE,
   Toggle,
 } from '@/features/settings/ui/settings-ui';
-import { AppUpdateCard } from './AppUpdateCard';
-import { AutostartCard } from './AutostartCard';
-import { UninstallCard } from './UninstallCard';
-import { UiSignOutCard } from './UiSignOutCard';
+import { AppUpdateRow, useAppUpdateController } from './AppUpdateCard';
+import { AutostartRow } from './AutostartCard';
+import { UninstallRow, useUninstallController } from './UninstallCard';
+import { UiSignOutRow } from './UiSignOutCard';
+import { useAutostartController } from '@/features/settings/controllers/useAutostartController';
+import { useUiSignOut } from '@/features/settings/controllers/useUiSignOut';
 import {
-  ADVANCED_FLAGS,
-  ADVANCED_NUMBER_SETTINGS,
-  BUILTIN_JOB_SETTINGS,
+  ADVANCED_SECTIONS,
+  advancedToggleState,
+  envFlagOn,
+  visibleAdvancedRows,
+  type AdvancedEnvRow,
+  type AdvancedRow,
+  type AdvancedSection,
+  type AdvancedToggleRow,
+} from '@/features/settings/vm/advanced-sections';
+import {
   NOTIFY_SETTINGS,
   durationDraftFromMs,
   durationDraftToMs,
@@ -38,6 +47,7 @@ import {
   parseNumberSettingDraft,
   type BuiltinJobSettingDescriptor,
   type DurationDraft,
+  type EnvIndex,
   type NumberSettingDescriptor,
   type SettingsIndex,
   type WritableBooleanSettingKey,
@@ -244,44 +254,41 @@ export function NotificationsPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
   return <NotificationsPanelView snapshot={snapshot} pending={write.pending} onToggle={write.onToggle} />;
 }
 
-/** DEBUG is configured through the environment, not an editable runtime setting. */
-function ReadOnlyEnvRow({ snapshot, title }: {
-  snapshot: ConfigSnapshot;
-  title: string;
-}) {
+/** A flag set in the server's environment: its state is shown, it is changed outside Cortex. */
+function EnvFlagRow({ row, env }: { row: AdvancedEnvRow; env: EnvIndex }) {
   const L = useVocab();
-  const debug = indexEnv(snapshot.env).DEBUG;
-  const present = debug?.enabled ?? debug?.present === true;
+  const on = envFlagOn(env[row.env]);
   return (
     <SRow
-      data-env-key="DEBUG"
-      data-env-present={String(present)}
+      data-env-key={row.env}
+      data-env-present={String(on)}
       data-writable="false"
-      title={title}
-      control={<SMeta>{present ? L.stSet : '—'}</SMeta>}
+      title={L[row.titleKey]}
+      control={<SMeta>{on ? L.stSet : '—'}</SMeta>}
     />
   );
 }
 
-function advancedFlagRows(args: {
-  snapshot: ConfigSnapshot;
+function AdvancedToggle({ row, settings, pending, onToggle }: {
+  row: AdvancedToggleRow;
   settings: SettingsIndex;
   pending: boolean;
   onToggle: RuntimeSettingToggleRowProps['onToggle'];
-  L: Vocab;
-}): ReactNode[] {
-  return ADVANCED_FLAGS.map((flag) => {
-    if (flag.kind === 'env') {
-      return <ReadOnlyEnvRow key={flag.env} snapshot={args.snapshot}
-        title={args.L[flag.titleKey]} />;
-    }
-    const entry = args.settings[flag.setting];
-    return <RuntimeSettingToggleRow key={flag.setting} settingKey={flag.setting}
-      value={typeof entry?.value === 'boolean' ? entry.value : false}
-      source={typeof entry?.value === 'boolean' ? entry.source : null}
-      title={args.L[flag.titleKey]} desc={flag.descKey && args.L[flag.descKey]}
-      pending={args.pending} onToggle={args.onToggle} />;
-  });
+}) {
+  const L = useVocab();
+  const entry = settings[row.setting];
+  const state = advancedToggleState(row, settings);
+  const onClick = state.editable && !pending ? () => onToggle(row.setting, state.next) : undefined;
+  return (
+    <SRow
+      data-setting-key={row.setting}
+      data-setting-value={entry ? String(entry.value) : 'missing'}
+      data-setting-source={entry?.source ?? 'missing'}
+      title={L[row.titleKey]}
+      desc={row.descKey && L[row.descKey]}
+      control={<Toggle on={state.on} onClick={onClick} inert={!onClick} ariaLabel={L[row.titleKey]} />}
+    />
+  );
 }
 
 function NumberControl(props: {
@@ -423,33 +430,65 @@ function BuiltinJobRow(props: {
   );
 }
 
-function BuiltinJobsSection(props: {
+interface AdvancedRowContext {
   settings: SettingsIndex;
+  env: EnvIndex;
   pending: boolean;
   onToggle: RuntimeSettingToggleRowProps['onToggle'];
   onSet: RuntimeSettingWriter['onSet'];
+}
+
+type AdvancedRowView<K extends AdvancedRow['kind']> = (
+  row: Extract<AdvancedRow, { kind: K }>, ctx: AdvancedRowContext,
+) => ReactNode;
+
+const ADVANCED_ROW_VIEWS: { [K in AdvancedRow['kind']]: AdvancedRowView<K> } = {
+  toggle: (row, ctx) => <AdvancedToggle key={row.setting} row={row} settings={ctx.settings}
+    pending={ctx.pending} onToggle={ctx.onToggle} />,
+  env: (row, ctx) => <EnvFlagRow key={row.env} row={row} env={ctx.env} />,
+  number: (row, ctx) => <NumberSettingRow key={row.descriptor.setting} descriptor={row.descriptor}
+    settings={ctx.settings} pending={ctx.pending} onSet={ctx.onSet} />,
+  job: (row, ctx) => <BuiltinJobRow key={row.descriptor.enabled} descriptor={row.descriptor}
+    settings={ctx.settings} pending={ctx.pending} onToggle={ctx.onToggle} onSet={ctx.onSet} />,
+};
+
+function renderAdvancedRow(row: AdvancedRow, ctx: AdvancedRowContext): ReactNode {
+  return (ADVANCED_ROW_VIEWS[row.kind] as AdvancedRowView<AdvancedRow['kind']>)(row, ctx);
+}
+
+function AdvancedSectionView({ section, ctx, extra }: {
+  section: AdvancedSection;
+  ctx: AdvancedRowContext;
+  /** A row this section lists on some clients only, already known to be shown. */
+  extra?: ReactNode;
 }) {
   const L = useVocab();
   return (
-    <SSection label={L.stBuiltinJobsTitle}>
+    <SSection label={L[section.titleKey]} data-advanced-section={section.key}>
       <SRowGroup>
-        {BUILTIN_JOB_SETTINGS.map((descriptor) => (
-          <BuiltinJobRow key={descriptor.enabled} descriptor={descriptor} settings={props.settings}
-            pending={props.pending} onToggle={props.onToggle} onSet={props.onSet} />
-        ))}
+        {visibleAdvancedRows(section, ctx.env).map((row) => renderAdvancedRow(row, ctx))}
+        {extra}
       </SRowGroup>
     </SSection>
   );
 }
 
-function GpuMockRow({ snapshot }: { snapshot: ConfigSnapshot }) {
+/** Actions that belong to this app or browser rather than the server; the section hides when none apply. */
+function DeviceSection() {
   const L = useVocab();
-  const present = indexEnv(snapshot.env).CORTEX_GPU_MONITOR_MOCK?.present === true;
+  const autostart = useAutostartController();
+  const signOut = useUiSignOut();
+  const uninstall = useUninstallController();
+  const rows = [
+    { key: 'autostart', shown: autostart.state !== null, node: <AutostartRow controller={autostart} /> },
+    { key: 'sign-out', shown: signOut.offered, node: <UiSignOutRow controller={signOut} /> },
+    { key: 'uninstall', shown: uninstall.offered, node: <UninstallRow controller={uninstall} /> },
+  ].filter((row) => row.shown);
+  if (rows.length === 0) return null;
   return (
-    <SRow
-      title={L.stGpuMock}
-      control={<SMeta>{present ? L.stSet : '—'}</SMeta>}
-    />
+    <SSection label={L.stAdvSecDevice} data-advanced-section="device">
+      <SRowGroup>{rows.map((row) => <Fragment key={row.key}>{row.node}</Fragment>)}</SRowGroup>
+    </SSection>
   );
 }
 
@@ -461,25 +500,18 @@ interface AdvancedPanelViewProps {
 }
 
 export function AdvancedPanelView({ snapshot, pending, onToggle, onSet }: AdvancedPanelViewProps) {
-  const L = useVocab();
-  const settings = indexSettings(snapshot.settings);
+  const appUpdate = useAppUpdateController();
+  const ctx: AdvancedRowContext = {
+    settings: indexSettings(snapshot.settings), env: indexEnv(snapshot.env), pending, onToggle, onSet,
+  };
+  const appUpdateRow = appUpdate.prefs ? <AppUpdateRow controller={appUpdate} /> : null;
   return (
     <>
-      <SRowGroup>
-        {advancedFlagRows({ snapshot, settings, pending, onToggle, L })}
-      </SRowGroup>
-      <SRowGroup>
-        {ADVANCED_NUMBER_SETTINGS.map((descriptor) => (
-          <NumberSettingRow key={descriptor.setting} descriptor={descriptor} settings={settings}
-            pending={pending} onSet={onSet} />
-        ))}
-        <GpuMockRow snapshot={snapshot} />
-      </SRowGroup>
-      <BuiltinJobsSection settings={settings} pending={pending} onToggle={onToggle} onSet={onSet} />
-      <AutostartCard />
-      <AppUpdateCard />
-      <UiSignOutCard />
-      <UninstallCard />
+      {ADVANCED_SECTIONS.map((section) => (
+        <AdvancedSectionView key={section.key} section={section} ctx={ctx}
+          extra={section.key === 'updates' ? appUpdateRow : null} />
+      ))}
+      <DeviceSection />
     </>
   );
 }
