@@ -53,6 +53,19 @@ describe('ReportQueue', () => {
     expect(sink).not.toHaveBeenCalled();
   });
 
+  it('keeps nothing reported while off for when it is turned back on', () => {
+    const queue = new ReportQueue();
+    const sink = vi.fn(async (_report: WebTelemetryReport) => undefined);
+    queue.attach(sink);
+    queue.detach();
+    queue.enqueue(crash('while off'));
+    queue.enqueue(load);
+    queue.attach(sink);
+    expect(sink).not.toHaveBeenCalled();
+    queue.enqueue(crash('while off'));
+    expect(sink).toHaveBeenCalledTimes(1);
+  });
+
   it('bounds what it holds before the server answers', () => {
     const queue = new ReportQueue();
     for (let i = 0; i < 40; i += 1) queue.enqueue({ kind: 'sse_reconnect', count: 1 });

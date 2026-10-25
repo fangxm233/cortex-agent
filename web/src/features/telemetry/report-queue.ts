@@ -31,30 +31,35 @@ function crashKey(report: WebTelemetryReport): string | null {
 
 /**
  * Holds reports until the server says whether telemetry is active: `attach` flushes them to the
- * sink, `detach` drops them, `disable` (no server at all) drops everything from then on.
+ * sink; `detach` (off) drops them and everything reported until the next `attach`; `disable` (no
+ * server at all) drops everything from then on.
  */
 export class ReportQueue {
   private sink: ReportSink | null = null;
   private disabled = false;
+  /** Known to be off: nothing is held for a later `attach`. */
+  private off = false;
   private pending: WebTelemetryReport[] = [];
   private readonly crashes = new Set<string>();
 
   enqueue(report: WebTelemetryReport): void {
-    if (this.disabled || !this.admitCrash(report)) return;
+    if (this.disabled || this.off || !this.admitCrash(report)) return;
     if (this.sink) this.send(this.sink, report);
     else if (this.pending.length < MAX_PENDING) this.pending.push(report);
   }
 
   attach(sink: ReportSink): void {
     if (this.disabled) return;
+    this.off = false;
     this.sink = sink;
     const held = this.pending;
     this.pending = [];
     held.forEach((report) => this.send(sink, report));
   }
 
-  /** Telemetry is off for this server: drop what is held and stop sending. */
+  /** Telemetry is off for this server: drop what is held and what comes until it is back on. */
   detach(): void {
+    this.off = true;
     this.sink = null;
     this.pending = [];
   }
