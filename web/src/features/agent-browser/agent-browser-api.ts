@@ -1,4 +1,5 @@
 import { apiBase, authHeaders } from '@/lib/desktop-config';
+import { randomUUID } from '@/lib/random-id';
 
 // The agent's browser over the ui-http routes (agent-server platform/ui-http/browser-stream.ts):
 // which sessions hold one, the live stream, and the person's takeover of it.
@@ -38,7 +39,7 @@ const CLIENT_KEY = 'cortex.agentBrowser.client';
 let memoryClient: string | null = null;
 
 function newClientId(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  return randomUUID();
 }
 
 /**

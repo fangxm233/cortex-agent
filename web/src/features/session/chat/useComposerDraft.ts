@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { randomUUID } from '@/lib/random-id';
 import { completedAttachmentMetas } from '@/features/attachments/types';
 import { useAttachmentUploads, type AttachmentUploadController } from '@/features/attachments/useAttachmentUploads';
 import {
@@ -49,7 +50,7 @@ export function useComposerDraft(scope: ComposerDraftScope): ComposerDraftState 
   const uploadIdentity = useRef<string | null>(null);
   if (uploadIdentity.current !== identity) {
     uploadIdentity.current = identity;
-    draftUploadId.current = isDraft ? (loadDraft(draftKey)?.draftUploadId ?? crypto.randomUUID()) : null;
+    draftUploadId.current = isDraft ? (loadDraft(draftKey)?.draftUploadId ?? randomUUID()) : null;
   }
   const uploads = useAttachmentUploads({ scope: identity, bucket: isDraft ? (draftUploadId.current ?? '') : sessionId });
   const latest = useRef({ text, items: uploads.items, identity });

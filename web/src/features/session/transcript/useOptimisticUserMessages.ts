@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SessionTranscript } from '@cortex-agent/ui-contract';
+import { randomUUID } from '@/lib/random-id';
 import {
   acceptOptimisticUserMessage,
   createOptimisticUserMessage,
@@ -95,7 +96,7 @@ export function useOptimisticUserMessages(input: OptimisticUserMessagesInput): O
       ? { kind: 'draft' as const, projectId }
       : { kind: 'session' as const, sessionId };
     return createOptimisticUserMessage({
-      clientId: crypto.randomUUID(), target, text, attachments, ts: new Date().toISOString(),
+      clientId: randomUUID(), target, text, attachments, ts: new Date().toISOString(),
     }, currentAuthority());
   }, [isDraft, projectId, sessionId, currentAuthority]);
 
