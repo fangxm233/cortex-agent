@@ -25,11 +25,11 @@
 
 | 平台 | 安装包 |
 |---|---|
-| macOS · Apple 芯片 | [Cortex-2026.10.21-macOS-aarch64.dmg](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.21/Cortex-2026.10.21-macOS-aarch64.dmg) |
-| macOS · Intel | [Cortex-2026.10.21-macOS-x86_64.dmg](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.21/Cortex-2026.10.21-macOS-x86_64.dmg) |
-| Windows · x64 | [Cortex-2026.10.21-Windows-x86_64-setup.exe](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.21/Cortex-2026.10.21-Windows-x86_64-setup.exe) |
-| Linux · x86_64 | [AppImage](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.21/Cortex-2026.10.21-Linux-x86_64.AppImage) · [deb](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.21/Cortex-2026.10.21-Linux-amd64.deb) · [rpm](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.21/Cortex-2026.10.21-Linux-x86_64.rpm) |
-| Android · arm64 | [Cortex-2026.10.21-Android-arm64.apk](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.21/Cortex-2026.10.21-Android-arm64.apk) |
+| macOS · Apple 芯片 | [Cortex-2026.10.25-macOS-aarch64.dmg](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.25/Cortex-2026.10.25-macOS-aarch64.dmg) |
+| macOS · Intel | [Cortex-2026.10.25-macOS-x86_64.dmg](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.25/Cortex-2026.10.25-macOS-x86_64.dmg) |
+| Windows · x64 | [Cortex-2026.10.25-Windows-x86_64-setup.exe](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.25/Cortex-2026.10.25-Windows-x86_64-setup.exe) |
+| Linux · x86_64 | [AppImage](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.25/Cortex-2026.10.25-Linux-x86_64.AppImage) · [deb](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.25/Cortex-2026.10.25-Linux-amd64.deb) · [rpm](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.25/Cortex-2026.10.25-Linux-x86_64.rpm) |
+| Android · arm64 | [Cortex-2026.10.25-Android-arm64.apk](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.25/Cortex-2026.10.25-Android-arm64.apk) |
 
 桌面应用可以一键在本机安装并启动 Cortex 服务端，不需要终端，也不需要自己装 Node.js；也可以连接一台已经在运行的服务器。Android 应用连接服务器使用。没有图形界面的机器用 npm 安装服务端（见[上手](#上手)）。其他版本在 [Releases 页面](https://github.com/fangxm233/cortex-agent/releases)。
 
