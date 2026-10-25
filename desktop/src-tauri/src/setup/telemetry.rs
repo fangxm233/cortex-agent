@@ -3,8 +3,9 @@
 //! (`CORTEX_TELEMETRY_ENDPOINT` at compile time; none compiled in → nothing is ever sent).
 //!
 //! Each step goes once per install, carries a failure class and never error text, and stops the
-//! moment the user turns the setup opt-in off. Sending is fire-and-forget on its own thread with a
-//! short timeout; it can neither block nor fail setup.
+//! moment the user turns the setup opt-in off. `CORTEX_TELEMETRY=0` or `DO_NOT_TRACK` in the
+//! shell's environment silences it as they do the server. Sending is fire-and-forget on its own
+//! thread with a short timeout; it can neither block nor fail setup.
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -213,8 +214,25 @@ fn host(app: &AppHandle) -> Host {
     .clone()
 }
 
+/// `DO_NOT_TRACK` set to anything but empty, `0`, `false`, `no` or `off` (the server's reading).
+fn truthy_flag(raw: Option<String>) -> bool {
+    let Some(raw) = raw else { return false };
+    let value = raw.trim().to_ascii_lowercase();
+    !matches!(value.as_str(), "" | "0" | "false" | "no" | "off")
+}
+
+/// The environment's hard switches, which win over the setup opt-in as they win over the
+/// server's setting.
+pub fn env_opts_out(var: impl Fn(&str) -> Option<String>) -> bool {
+    let telemetry_off = var("CORTEX_TELEMETRY").is_some_and(|v| v.trim() == "0");
+    telemetry_off || truthy_flag(var("DO_NOT_TRACK"))
+}
+
 fn funnel_dir(app: &AppHandle) -> Option<PathBuf> {
     ENDPOINT.filter(|e| !e.trim().is_empty())?;
+    if env_opts_out(|name| std::env::var(name).ok()) {
+        return None;
+    }
     crate::telemetry::telemetry_dir(app)
 }
 

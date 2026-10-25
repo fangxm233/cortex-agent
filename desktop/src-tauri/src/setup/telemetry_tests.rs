@@ -87,3 +87,22 @@ fn the_ui_language_is_named_by_family() {
     assert_eq!(ui_lang(Some("fr")), "other");
     assert_eq!(ui_lang(None), "other");
 }
+
+fn opts_out(vars: &[(&str, &str)]) -> bool {
+    env_opts_out(|name| vars.iter().find(|(key, _)| *key == name).map(|(_, value)| value.to_string()))
+}
+
+#[test]
+fn the_environment_silences_setup_steps_as_it_does_the_server() {
+    assert!(!opts_out(&[]));
+    assert!(opts_out(&[("CORTEX_TELEMETRY", "0")]));
+    assert!(opts_out(&[("CORTEX_TELEMETRY", " 0 ")]));
+    assert!(!opts_out(&[("CORTEX_TELEMETRY", "1")]));
+    assert!(opts_out(&[("DO_NOT_TRACK", "1")]));
+    assert!(opts_out(&[("DO_NOT_TRACK", "TRUE")]));
+    for off in ["", " ", "0", "false", "No", "OFF"] {
+        assert!(!opts_out(&[("DO_NOT_TRACK", off)]), "DO_NOT_TRACK={off:?}");
+    }
+    // A hard switch wins even when the other variable asks for telemetry.
+    assert!(opts_out(&[("CORTEX_TELEMETRY", "1"), ("DO_NOT_TRACK", "1")]));
+}

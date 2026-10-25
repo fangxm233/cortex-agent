@@ -191,8 +191,8 @@ The server records and sends nothing when any of these holds:
 
 While any of these holds, the server also deletes its queued events and daily counts. The
 **Settings → Privacy** page tells you when one of these conditions, rather than the switch,
-keeps telemetry off. The desktop app's setup steps depend only on the setup checkbox described
-below.
+keeps telemetry off. The desktop app's setup steps follow the setup checkbox described below,
+and `CORTEX_TELEMETRY=0` or `DO_NOT_TRACK` in the desktop app's environment stops them too.
 
 ## Inspecting what is queued
 
