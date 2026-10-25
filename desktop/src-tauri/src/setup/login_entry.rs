@@ -120,6 +120,25 @@ mod registry {
         let (key, name) = (wide(key), wide(name));
         unsafe { RegDeleteKeyValueW(HKEY_CURRENT_USER, key.as_ptr(), name.as_ptr()) };
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use windows_sys::Win32::System::Registry::RegDeleteKeyW;
+
+        const SCRATCH: &str = r"Software\CortexLoginEntryTest";
+
+        #[test]
+        fn a_non_ascii_command_line_round_trips() {
+            let value = "\"C:\\Users\\方欣\\AppData\\Local\\Cortex\\cortex-desktop.exe\" --start-server";
+            assert!(set_string(SCRATCH, "Cortex", value));
+            assert_eq!(get_string(SCRATCH, "Cortex").as_deref(), Some(value));
+            assert!(get_binary(SCRATCH, "Cortex").is_none(), "a string is not read as binary");
+            delete(SCRATCH, "Cortex");
+            assert!(get_string(SCRATCH, "Cortex").is_none());
+            unsafe { RegDeleteKeyW(HKEY_CURRENT_USER, wide(SCRATCH).as_ptr()) };
+        }
+    }
 }
 
 #[cfg(test)]

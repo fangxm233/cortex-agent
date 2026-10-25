@@ -13,6 +13,7 @@ pub enum AutostartState {
     On,
     Off,
     /// Registered by the server's own `cortex init`, not by this app: left for the user to manage.
+    #[cfg_attr(not(any(target_os = "macos", target_os = "linux")), allow(dead_code))]
     External,
 }
 
