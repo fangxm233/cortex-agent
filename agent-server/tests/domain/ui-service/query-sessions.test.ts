@@ -581,6 +581,8 @@ test('sessions.list unread: activity after lastReadAt → unread; read/never-tra
   assert.equal(byId['s1'], false, 'read after activity');
   assert.equal(byId['s2'], true, 'activity after read');
   assert.equal(byId['s3'], false, 'no lastReadAt → grandfathered read');
+  const readAt = Object.fromEntries(result.map(s => [s.sessionId, s.lastReadAt]));
+  assert.deepEqual(readAt, { s1: '2026-05-02T00:00:00Z', s2: '2026-03-01T00:00:00Z', s3: null });
 });
 
 test.each(['0', '1'])('sessions.list excludes workers from unread with team mode %s', async (enabled) => {

@@ -197,6 +197,7 @@ export async function handleSessionsList(
       unread: !s.teamLeadId && (s.origin === 'scheduled'
         ? (!s.lastReadAt || s.lastUsedAt > s.lastReadAt)
         : (!!s.lastReadAt && s.lastUsedAt > s.lastReadAt)),
+      lastReadAt: s.lastReadAt ?? null,
     };
   });
 
