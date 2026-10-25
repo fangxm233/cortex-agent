@@ -5,7 +5,7 @@ import { loadDashboard } from '../src/dashboard/handler.js';
 import { histogramCounts, percentileSlot, slotLabel } from '../src/dashboard/stats.js';
 import type { Env } from '../src/env.js';
 import { handleRequest } from '../src/index.js';
-import { REPORT_NAMES, reportFilter } from '../src/reports.js';
+import { D1_MAX_COMPOUND_TERMS, REPORT_NAMES, REPORTS, reportFilter } from '../src/reports.js';
 import { NOW, crashEvent, envelope, everyEventType, sampleBatch } from './fixtures.js';
 import { sqliteD1 } from './helpers/sqlite-d1.js';
 
@@ -46,7 +46,7 @@ test('every report runs and the release filter excludes dev installs', async () 
 
 test('histogram percentiles resolve to bucket bounds', async () => {
   const data = await loadDashboard((await seeded()).DB, reportFilter(NOW, 30, false));
-  const counts = histogramCounts(data.histograms, 'ttftMs', 8);
+  const counts = histogramCounts(data.turnHistograms, 'ttftMs', 8);
   assert.deepEqual(counts, [2, 2, 4, 2, 2, 0, 0, 0]);
   const bounds = [500, 1_000, 2_000, 5_000, 10_000, 30_000, 60_000];
   assert.equal(slotLabel(percentileSlot(counts, 0.5), bounds, String), '≤ 2000');
@@ -68,4 +68,12 @@ test('the page renders every section and escapes reported text', async () => {
   assert.ok(!html.includes('<img src=x>'));
   assert.ok(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
   assert.match(response.headers.get('content-security-policy') ?? '', /default-src 'none'/);
+});
+
+test('no report exceeds the D1 compound SELECT limit', () => {
+  for (const name of REPORT_NAMES) {
+    const { sql } = REPORTS[name].build(reportFilter(NOW, 30, false));
+    const terms = sql.split(/\bUNION\b/i).length;
+    assert.ok(terms <= D1_MAX_COMPOUND_TERMS, `${name}: ${terms} terms`);
+  }
 });

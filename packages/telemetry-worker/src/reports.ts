@@ -97,11 +97,15 @@ function histogramSelect(entry: (typeof HISTOGRAM_METRICS)[number]): string {
 FROM ${source} WHERE ${ROLLUPS_IN_WINDOW} GROUP BY h.key`;
 }
 
-function histograms(f: ReportFilter): Query {
-  return {
-    sql: HISTOGRAM_METRICS.map(histogramSelect).join('\nUNION ALL\n'),
-    params: HISTOGRAM_METRICS.flatMap(() => [f.since, ...f.channels]),
-  };
+/** D1 rejects compound SELECTs of more than 5 terms, hence one query per histogram family. */
+export const D1_MAX_COMPOUND_TERMS = 5;
+
+function histograms(perTurn: boolean) {
+  const metrics = HISTOGRAM_METRICS.filter(entry => entry.perTurn === perTurn);
+  return (f: ReportFilter): Query => ({
+    sql: metrics.map(histogramSelect).join('\nUNION ALL\n'),
+    params: metrics.flatMap(() => [f.since, ...f.channels]),
+  });
 }
 
 function jsonCounters(path: string, label: string) {
@@ -240,7 +244,8 @@ FROM daily d WHERE ${ROLLUPS_IN_WINDOW}`, f),
 FROM daily d, json_each(d.payload, '$.tools') t WHERE ${ROLLUPS_IN_WINDOW}
 GROUP BY tool ORDER BY calls DESC LIMIT 15`, f),
   },
-  histograms: { description: 'Summed histogram slots per metric', build: histograms },
+  turnHistograms: { description: 'Summed histogram slots of the per-turn metrics', build: histograms(true) },
+  rollupHistograms: { description: 'Summed histogram slots of the session and web metrics', build: histograms(false) },
   startupPhases: {
     description: 'Server startup phase durations',
     build: f => rollupQuery(`SELECT p.key AS phase, COUNT(*) AS boots, AVG(p.value) AS avg_ms,

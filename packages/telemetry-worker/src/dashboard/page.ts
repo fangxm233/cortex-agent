@@ -276,7 +276,7 @@ function perfSection(data: DashboardData): string {
     { label: 'p50', numeric: true, cell: row => esc(row.p50) },
     { label: 'p90', numeric: true, cell: row => esc(row.p90) },
     { label: 'p99', numeric: true, cell: row => esc(row.p99) },
-  ], percentileRows(data.histograms));
+  ], percentileRows([...data.turnHistograms, ...data.rollupHistograms]));
   const startup = table([
     { label: 'Startup phase', cell: row => esc(row.phase) },
     { label: 'Boots', numeric: true, cell: row => fmtInt(row.boots) },
