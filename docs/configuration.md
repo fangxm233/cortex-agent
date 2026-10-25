@@ -240,6 +240,13 @@ Access in depth.
 
 `<STORE_DIR>` is `$CORTEX_HOME/data` and `<CONFIG_DIR>` is `$CORTEX_HOME/config`.
 
+### Telemetry
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `CORTEX_TELEMETRY` | — | `0` turns anonymous telemetry off whatever `telemetryEnabled` says. `1` lets a source checkout send it, marked `dev`. See [Telemetry](./telemetry.md) |
+| `DO_NOT_TRACK` | — | Any value other than empty, `0`, `false`, `no` or `off` turns telemetry off, like `CORTEX_TELEMETRY=0` |
+
 ### Tuning and debugging
 
 | Variable | Default | Purpose |
@@ -557,6 +564,7 @@ Unknown keys are ignored.
 | `serverUpdateDisable` | boolean | `false` | Set to `true` to disable the server auto-update check (enabled by default) | `CORTEX_SERVER_UPDATE_DISABLE` |
 | `serverAutoUpdate` | boolean | `true` | When the update check finds a newer server release, install it without asking. Installation starts only once no turn is running, and the server restarts right after. `false` asks for confirmation first; an agreed update waits for idle the same way. A skipped version stays skipped | — |
 | `clientHotReloadEnabled` | boolean | `true` | Push the server's client bundle to connecting remote clients that run a different one, so they update themselves. Read at startup | — |
+| `telemetryEnabled` | boolean | `true` | Send anonymous crash reports and usage statistics (see [Telemetry](./telemetry.md)). Turning it off deletes what is queued. `CORTEX_TELEMETRY=0` and `DO_NOT_TRACK` override it | — |
 | `feishuSkillsInWeb` | boolean | `false` | Let `web:` sessions, including desktop and mobile app sessions, load an assigned `cortex-feishu` skill plugin (see [Platform settings in the Web UI](#platform-settings-in-the-web-ui)) | — |
 | `teamEnabled` | boolean | `true` | Experimental team mode: any web session can start and manage persistent worker sessions with the `worker_*` tools. Turning it off removes those tools from the next turn and leaves existing workers as ordinary sessions. See [team.md](./team.md) | `CORTEX_TEAM_ENABLED` |
 | `waitpointSweepMs` | number | `30000` | Interval, in milliseconds, of the waitpoint sweep: it drains spooled signals (locally and from connected devices), expires overdue waitpoints, and retries deliveries that failed. See [waitpoints.md](./waitpoints.md) | `CORTEX_WAITPOINT_SWEEP_MS` |
@@ -586,7 +594,8 @@ The Web workbench writes a subset of these from **Settings → Notifications**
 `serverUpdateDisable`, `serverAutoUpdate`, `teamEnabled`, `sessionRetentionDays`,
 `maxContextTokens`, `piCompactReserveTokens`, `memoryIndexRegenEnabled` and
 `memoryIndexRegenIntervalMs`), **Settings → Platform** (`adminChannel`,
-`feishuAdminChannel`, `feishuSkillsInWeb`), and the desktop/mobile **Usage**
+`feishuAdminChannel`, `feishuSkillsInWeb`), **Settings → Privacy** (`telemetryEnabled`),
+and the desktop/mobile **Usage**
 screens (`providerRateLimits`). Every other key is edited by hand in the file.
 
 `providerRateLimits` is a `settings.json` object keyed by provider id. Each

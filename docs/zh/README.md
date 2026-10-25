@@ -116,6 +116,8 @@ cortex daemon      # 在后台启动服务端
 
 在服务器上打开 `http://127.0.0.1:3004`，或者用服务器地址和 client token 连接桌面或 Android 应用。[快速入门 →](https://fangxm233.github.io/cortex-agent/zh/quickstart/)
 
+Cortex 会发送匿名的崩溃报告和使用统计，从不包含对话、文件或名称。`cortex init` 和桌面应用的安装向导会让你选择，**设置 → 隐私** 可以随时关闭。[遥测 →](https://fangxm233.github.io/cortex-agent/zh/telemetry/)
+
 ### 其他入口
 
 所有入口访问的是同一组项目、会话、定时任务和记忆：

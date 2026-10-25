@@ -174,6 +174,13 @@ Web UI 宿主服务浏览器工作台、桌面 App 和手机 App。[浏览器访
 
 `<STORE_DIR>` 是 `$CORTEX_HOME/data`，`<CONFIG_DIR>` 是 `$CORTEX_HOME/config`。
 
+### 遥测 {#telemetry}
+
+| 变量 | 默认值 | 用途 |
+|---|---|---|
+| `CORTEX_TELEMETRY` | — | `0` 关闭匿名遥测，无论 `telemetryEnabled` 如何设置。`1` 允许从源码目录运行的服务端发送遥测，并标记为 `dev`。见[遥测](./telemetry.md) |
+| `DO_NOT_TRACK` | — | 设为空值、`0`、`false`、`no`、`off` 以外的任何值时关闭遥测，效果同 `CORTEX_TELEMETRY=0` |
+
 ### 调优与调试 {#tuning-and-debugging}
 
 | 变量 | 默认值 | 用途 |
@@ -375,6 +382,7 @@ Cortex 随包提供两个：
 | `serverUpdateDisable` | boolean | `false` | 设为 `true` 可禁用服务器自动更新检查（默认开启） | `CORTEX_SERVER_UPDATE_DISABLE` |
 | `serverAutoUpdate` | boolean | `true` | 更新检查发现更新的服务器版本时直接安装，无需询问。安装在没有回合运行时才开始，装完立即重启。`false` 则先请求确认；确认后的更新同样等空闲再安装。已跳过的版本保持跳过 | — |
 | `clientHotReloadEnabled` | boolean | `true` | 向运行着不同 bundle 的远程客户端推送服务器的客户端 bundle，让它们自行更新。启动时读取 | — |
+| `telemetryEnabled` | boolean | `true` | 发送匿名的崩溃报告和使用统计（见[遥测](./telemetry.md)）。关闭时删除已排队的内容。`CORTEX_TELEMETRY=0` 和 `DO_NOT_TRACK` 优先于它 | — |
 | `feishuSkillsInWeb` | boolean | `false` | 允许 `web:` 会话（包括桌面和手机 App 会话）加载已分配的 `cortex-feishu` 技能插件（见 [Web UI 中的平台设置](#platform-settings-in-the-web-ui)） | — |
 | `teamEnabled` | boolean | `true` | 实验性的团队模式：任何网页会话都能用 `worker_*` 工具创建并管理持久的 worker 会话。关闭后，下一轮起移除这些工具，已有的 worker 成为普通会话。见 [team.md](./team.md) | `CORTEX_TEAM_ENABLED` |
 | `waitpointSweepMs` | number | `30000` | waitpoint 扫描的间隔（毫秒）：收取落盘的信号（本机以及已连接设备上的）、让逾期的 waitpoint 过期、重试失败的投递。参见 [waitpoints.md](./waitpoints.md) | `CORTEX_WAITPOINT_SWEEP_MS` |
@@ -398,7 +406,7 @@ Cortex 随包提供两个：
 | `adminChannel` | string \| null | `null` | 发送系统通知（启动、限流、磁盘告警）的 Slack 频道。第一次给机器人发私信时会被自动探测并持久化到这里 | `SLACK_ADMIN_CHANNEL`，然后 `CORTEX_ADMIN_CHANNEL` |
 | `feishuAdminChannel` | string \| null | `null` | 同类通知的飞书 admin `chat_id`（`oc_...`）。与 `adminChannel` 相互独立——Slack 的频道 id 在飞书上不可用 | `FEISHU_ADMIN_CHANNEL` |
 
-Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）、**设置 → 高级**（`eventLog`、`diskMonitor`、`showToolCalls`、`disableUserContext`、`serverUpdateDisable`、`serverAutoUpdate`、`teamEnabled`、`sessionRetentionDays`、`maxContextTokens`、`piCompactReserveTokens`、`memoryIndexRegenEnabled` 和 `memoryIndexRegenIntervalMs`）、**设置 → 平台**（`adminChannel`、`feishuAdminChannel`、`feishuSkillsInWeb`），以及桌面端/移动端的 **用量** 页面（`providerRateLimits`）。其余键都靠手工编辑该文件。
+Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）、**设置 → 高级**（`eventLog`、`diskMonitor`、`showToolCalls`、`disableUserContext`、`serverUpdateDisable`、`serverAutoUpdate`、`teamEnabled`、`sessionRetentionDays`、`maxContextTokens`、`piCompactReserveTokens`、`memoryIndexRegenEnabled` 和 `memoryIndexRegenIntervalMs`）、**设置 → 平台**（`adminChannel`、`feishuAdminChannel`、`feishuSkillsInWeb`）、**设置 → 隐私**（`telemetryEnabled`），以及桌面端/移动端的 **用量** 页面（`providerRateLimits`）。其余键都靠手工编辑该文件。
 
 `providerRateLimits` 是 `settings.json` 中以 provider id 为键的对象。每个 provider 条目可包含 `windows` 数组，数组元素为 `{ type, label?, enabled, threshold? }`。普通额度行以 provider 上报的 `type` 为身份；模型级额度行同时使用 `type` 和 provider 上报的精确 `label`。精确的窗口条目优先于旧的 provider 级 `enabled`/`threshold` 字段。这些根字段保留为向后兼容的回退，非默认时会出现在用量页面中，并附带清除它们的操作。
 

@@ -176,6 +176,10 @@ cortex daemon      # start the server in the background
 Open `http://127.0.0.1:3004` on the server, or connect the desktop or Android app with the
 server's address and client token. [Quickstart →](https://fangxm233.github.io/cortex-agent/quickstart/)
 
+Cortex sends anonymous crash reports and usage statistics, never conversations, files or names.
+`cortex init` and the desktop setup offer the choice, and **Settings → Privacy** turns it off.
+[Telemetry →](https://fangxm233.github.io/cortex-agent/telemetry/)
+
 ### Other ways in
 
 Every interface reaches the same projects, sessions, schedules, and memory:
