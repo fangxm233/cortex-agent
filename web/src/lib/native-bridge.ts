@@ -162,7 +162,7 @@ interface NativeCommandMap {
   // Cancels only the active download / initial installation, never an existing daemon.
   setup_cancel_install: { args: undefined; result: unknown };
   // The setup telemetry opt-in: whether the shell may report setup progress.
-  setup_telemetry_consent: { args: { enabled: boolean }; result: unknown };
+  setup_telemetry_consent: { args: { enabled: boolean; lang?: string }; result: unknown };
   // A panic recorded on an earlier run, removed as it is taken; null when there is none.
   telemetry_take_native_crash: { args: undefined; result: NativeCrashRecord | null };
   setup_run_init: {

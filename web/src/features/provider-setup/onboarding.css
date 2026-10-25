@@ -44,6 +44,9 @@
   border-top: 1px solid var(--proto-line-2); cursor: pointer;
 }
 .provider-setup .onb-toggle-row strong { font-size: 12px; font-weight: 600; }
+.provider-setup .onb-choice-telemetry { margin-top: 16px; padding-top: 16px; margin-bottom: 18px; }
+.provider-setup .onb-inline-link { color: var(--proto-accent); white-space: nowrap; }
+.provider-setup .onb-inline-link:hover { text-decoration: underline; }
 .provider-setup .onb-toggle {
   appearance: none; margin-left: auto; width: 32px; height: 19px; border-radius: 20px; flex: none;
   background: var(--proto-line); cursor: pointer; position: relative;

@@ -81,7 +81,7 @@ it.each(['linux', 'windows'])('retries installation from the real %s screen and 
   failing = false;
   await act(async () => view.root.findByProps({ 'data-action': 'onb-retry' }).props.onClick());
   expect(invoke).toHaveBeenCalledWith('setup_run_init', { run: 'start', bin: '/bin/cortex',
-    answers: { lang: 'en', machineName: 'host', backends: ['pi'], port: 3004, installService: false } });
+    answers: { lang: 'en', machineName: 'host', backends: ['pi'], port: 3004, installService: false, telemetry: { enabled: true } } });
   expect(invoke).toHaveBeenCalledWith('connect', expect.anything());
   expect(view.root.findAllByType('form')).toHaveLength(0);
   act(() => view.unmount());

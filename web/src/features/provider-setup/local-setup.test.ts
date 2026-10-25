@@ -56,7 +56,7 @@ describe('local setup flow', () => {
     flow.subscribe(() => stages.push(flow.state.stage));
     await flow.prepare('zh');
     expect(runInit).toHaveBeenCalledWith('/isolated/bin/cortex', {
-      lang: 'zh', machineName: 'host', port: 3004, installService: false, backends: ['pi'],
+      lang: 'zh', machineName: 'host', port: 3004, installService: false, backends: ['pi'], telemetry: { enabled: true },
     });
     expect(calls).toEqual(['probe', 'installServer', 'runInit', 'startDaemon', 'connect']);
     expect(stages).not.toContain('configure');

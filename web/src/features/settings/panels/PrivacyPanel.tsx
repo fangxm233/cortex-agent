@@ -3,6 +3,7 @@ import type { TelemetryInfo } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';
 import { SButton, SRow, SRowGroup, Toggle } from '@/features/settings/ui/settings-ui';
 import { buildPrivacyView } from '@/features/settings/vm/privacy-vm';
+import { TelemetryDocsLink } from '@/features/telemetry/TelemetryDocsLink';
 import {
   useCopyFeedback, usePrivacyController, type PrivacyController,
 } from '@/features/settings/controllers/usePrivacyController';
@@ -18,8 +19,7 @@ const REASON: CSSProperties = { marginTop: 4, fontSize: 12, color: 'var(--proto-
 /** The description and docs link under the switch; read by both chromes. */
 export function TelemetryShareDesc() {
   const L = useVocab();
-  return <>{L.tmShareDesc}{' '}
-    <a href={L.tmDocsUrl} target="_blank" rel="noreferrer" style={LINK}>{L.tmLearnMore}</a></>;
+  return <>{L.tmShareDesc}{' '}<TelemetryDocsLink style={LINK} /></>;
 }
 
 function ShareRow({ info, controller }: { info: TelemetryInfo; controller: PrivacyController }) {
