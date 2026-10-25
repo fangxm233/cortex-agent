@@ -1,30 +1,12 @@
 import { safeInvoke } from '@/lib/native-bridge';
 
-// The setup opt-in, shared by the choose screen and the repair form of one onboarding page. The
-// shell keeps its own copy (it reports setup steps before any server exists), so every change and
-// the start of an install tell it; init then receives the choice through the answers.
+// The shell reports setup steps itself, before any server exists; only the environment silences
+// them. The user's choice comes after install, on the first setup page, as the server's setting.
 
-let enabled = true;
-const listeners = new Set<() => void>();
+/** The `telemetry` field of the init answers: the new server adopts the shell's install id. */
+export const NEW_SERVER_TELEMETRY = { enabled: true } as const;
 
-export const setupTelemetry = {
-  enabled: (): boolean => enabled,
-  subscribe(listener: () => void): () => void {
-    listeners.add(listener);
-    return () => { listeners.delete(listener); };
-  },
-  set(next: boolean, lang: string): void {
-    enabled = next;
-    listeners.forEach((listener) => listener());
-    setupTelemetry.sync(lang);
-  },
-  /** Hand the shell the current choice and the setup screen's language. */
-  sync(lang: string): void {
-    void safeInvoke('setup_telemetry_consent', { enabled, lang });
-  },
-};
-
-/** The `telemetry` field of the init answers. */
-export function telemetryAnswer(): { enabled: boolean } {
-  return { enabled };
+/** Tell the shell the setup screen's language, so the steps of the install carry it. */
+export function recordSetupLang(lang: string): void {
+  void safeInvoke('setup_telemetry_lang', { lang });
 }

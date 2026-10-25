@@ -86,3 +86,6 @@
   .provider-setup h1 { font-size: 24px; }
   .provider-setup .setup-install-row { flex-wrap: wrap; gap: 10px; }
 }
+.provider-setup .setup-inline-link { color: var(--proto-accent); white-space: nowrap; }
+.provider-setup .setup-inline-link:hover { text-decoration: underline; }
+.provider-setup .setup-telemetry-locked { margin-top: 4px; color: var(--proto-amber); }

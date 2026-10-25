@@ -52,14 +52,21 @@ fn each_step_is_claimed_once_per_install() {
 }
 
 #[test]
-fn turning_the_opt_in_off_stops_every_later_step() {
-    let dir = tmp("consent");
-    assert!(load_state(&dir).consent, "steps before the opt-in is shown are sent");
-    set_consent(&dir, false, Some("en".into()));
-    assert!(claim_step(&dir, Step::InitCompleted).is_none());
-    set_consent(&dir, true, None);
-    let state = claim_step(&dir, Step::InitCompleted).unwrap();
-    assert_eq!(state.lang.as_deref(), Some("en"), "a consent without a language keeps the known one");
+fn steps_carry_the_setup_language_once_it_is_known() {
+    let dir = tmp("lang");
+    assert_eq!(claim_step(&dir, Step::SetupStarted).unwrap().lang, None);
+    set_lang(&dir, "zh".into());
+    assert_eq!(claim_step(&dir, Step::ServerInstalled).unwrap().lang.as_deref(), Some("zh"));
+    assert_eq!(load_state(&dir).sent, ["setup_started", "server_installed"], "the language keeps the steps sent");
+}
+
+#[test]
+fn a_state_file_from_the_old_setup_checkbox_still_loads() {
+    let dir = tmp("legacy");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join(STATE_FILE), r#"{"consent":false,"lang":"en","sent":["setup_started"]}"#).unwrap();
+    let state = claim_step(&dir, Step::InitCompleted).expect("the old opt-out no longer silences steps");
+    assert_eq!(state.sent, ["setup_started", "init_completed"]);
 }
 
 #[test]

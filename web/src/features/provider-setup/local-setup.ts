@@ -1,7 +1,7 @@
 import type { Vocab } from '@/i18n';
 import type { NativePageConfig, NativeSetupAnswers, NativeSetupProbe } from '@/lib/native-bridge';
 import { parseNativeError } from '@/lib/native-error';
-import { telemetryAnswer } from './setup-telemetry';
+import { NEW_SERVER_TELEMETRY } from './setup-telemetry';
 
 // Setup automatically prepares tools, initializes, starts and connects on every desktop platform.
 // Failed starts offer repair settings. Commands and tool selection are owned by the native shell.
@@ -107,7 +107,7 @@ export class LocalSetupFlow {
   });
 
   private defaultAnswers(lang: string): NativeSetupAnswers {
-    const kept = this.state.needsInit ? { telemetry: telemetryAnswer() } : { preserveEndpoint: true };
+    const kept = this.state.needsInit ? { telemetry: NEW_SERVER_TELEMETRY } : { preserveEndpoint: true };
     return { lang, machineName: this.state.probe?.hostname ?? '', backends: ['pi'], port: 3004, installService: false, ...kept };
   }
 

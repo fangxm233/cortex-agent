@@ -2,10 +2,11 @@
 //! the shell posts these few steps itself, straight to the endpoint the release build was given
 //! (`CORTEX_TELEMETRY_ENDPOINT` at compile time; none compiled in → nothing is ever sent).
 //!
-//! Each step goes once per install, carries a failure class and never error text, and stops the
-//! moment the user turns the setup opt-in off. `CORTEX_TELEMETRY=0` or `DO_NOT_TRACK` in the
-//! shell's environment silences it as they do the server. Sending is fire-and-forget on its own
-//! thread with a short timeout; it can neither block nor fail setup.
+//! Each step goes once per install and carries a failure class, never error text. The steps are
+//! sent unless `CORTEX_TELEMETRY=0` or `DO_NOT_TRACK` in the shell's environment silences them, as
+//! they do the server; the user's choice is offered after install, by the server it sets up.
+//! Sending is fire-and-forget on its own thread with a short timeout; it can neither block nor fail
+//! setup.
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -45,22 +46,12 @@ impl Step {
     }
 }
 
-/// What the shell remembers between launches: the opt-in, the UI language and the steps sent.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+/// What the shell remembers between launches: the UI language and the steps sent.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 pub struct FunnelState {
-    pub consent: bool,
-    #[serde(default)]
     pub lang: Option<String>,
-    #[serde(default)]
     pub sent: Vec<String>,
-}
-
-impl Default for FunnelState {
-    /// Steps before the user sees the opt-in (the server install) are sent by default.
-    fn default() -> Self {
-        Self { consent: true, lang: None, sent: Vec::new() }
-    }
 }
 
 pub fn load_state(dir: &Path) -> FunnelState {
@@ -75,11 +66,11 @@ fn save_state(dir: &Path, state: &FunnelState) {
     let _ = std::fs::create_dir_all(dir).and_then(|_| std::fs::write(dir.join(STATE_FILE), json));
 }
 
-/// Mark `step` sent and say whether it should go out now (opted in, not sent before).
+/// Mark `step` sent and say whether it should go out now (not sent before).
 pub fn claim_step(dir: &Path, step: Step) -> Option<FunnelState> {
     let _guard = STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let mut state = load_state(dir);
-    if !state.consent || state.sent.iter().any(|s| s == step.name()) {
+    if state.sent.iter().any(|s| s == step.name()) {
         return None;
     }
     state.sent.push(step.name().to_string());
@@ -87,13 +78,11 @@ pub fn claim_step(dir: &Path, step: Step) -> Option<FunnelState> {
     Some(state)
 }
 
-pub fn set_consent(dir: &Path, enabled: bool, lang: Option<String>) {
+/// Remember the setup screen's language for the steps still to come.
+pub fn set_lang(dir: &Path, lang: String) {
     let _guard = STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let mut state = load_state(dir);
-    state.consent = enabled;
-    if lang.is_some() {
-        state.lang = lang;
-    }
+    state.lang = Some(lang);
     save_state(dir, &state);
 }
 
@@ -257,15 +246,15 @@ pub fn report_outcome<T>(app: &AppHandle, result: &Result<T, String>, ok: Step, 
     }
 }
 
-/// The setup opt-in. Off stops every later step; `lang` is the setup screen's language.
+/// The setup screen's language, told when the install starts so that its steps carry it.
 #[tauri::command]
-pub fn setup_telemetry_consent(app: AppHandle, enabled: bool, lang: Option<String>) {
+pub fn setup_telemetry_lang(app: AppHandle, lang: String) {
     if let Some(dir) = crate::telemetry::telemetry_dir(&app) {
-        set_consent(&dir, enabled, lang);
+        set_lang(&dir, lang);
     }
 }
 
-/// The `telemetry` field `cortex init` takes: the opt-in plus the shell's install id, so the
+/// The `telemetry` field `cortex init` takes: the setting plus the shell's install id, so the
 /// server it creates reports under the same id as these setup steps.
 pub fn init_answer(app: &AppHandle, enabled: bool) -> serde_json::Value {
     let id = crate::telemetry::telemetry_dir(app).map(|dir| crate::telemetry::install_id(&dir));

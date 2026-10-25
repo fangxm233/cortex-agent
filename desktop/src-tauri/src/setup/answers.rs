@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-/// The setup telemetry opt-in. The shell adds its install id before init sees it.
+/// The new server's telemetry setting. The shell adds its install id before init sees it.
 #[derive(Debug, Clone, Deserialize)]
 pub struct SetupTelemetry {
     pub enabled: bool,

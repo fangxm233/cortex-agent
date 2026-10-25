@@ -420,13 +420,13 @@ pub async fn setup_run_init(
     result
 }
 
-/// The answers document, with the setup telemetry opt-in and the shell's install id when given.
+/// The answers document, with the telemetry setting and the shell's install id when given.
 fn init_document(app: &AppHandle, answers: &SetupAnswers) -> serde_json::Value {
     let mut doc = answers_document(answers);
+    if let Some(dir) = crate::telemetry::telemetry_dir(app) {
+        telemetry::set_lang(&dir, answers.lang.clone());
+    }
     if let Some(choice) = &answers.telemetry {
-        if let Some(dir) = crate::telemetry::telemetry_dir(app) {
-            telemetry::set_consent(&dir, choice.enabled, Some(answers.lang.clone()));
-        }
         doc["telemetry"] = telemetry::init_answer(app, choice.enabled);
     }
     doc

@@ -5,14 +5,13 @@ import { nativeErrorMessage } from '@/lib/native-error';
 import { normalizeServerUrl, probeFailureText, probeServer } from './remote-connect';
 import { BackIcon, ChevronIcon, DownloadIcon, MonitorIcon, ServerIcon } from './onboarding-icons';
 import { WORKBENCH_PAGE } from './local-setup';
-import { SetupTelemetryRow } from './SetupTelemetryRow';
-import { setupTelemetry } from './setup-telemetry';
+import { recordSetupLang } from './setup-telemetry';
 
 export function ChooseScreen({ onLocal, onRemote }: { onLocal: () => void; onRemote: () => void }) {
   const L = useVocab();
   const lang = useLang();
-  // The shell reports setup steps from here on, so it needs the opt-in before the install starts.
-  const install = () => { setupTelemetry.sync(lang); onLocal(); };
+  // The shell reports setup steps from here on, in the language chosen for setup.
+  const install = () => { recordSetupLang(lang); onLocal(); };
   return <section>
     <div className="setup-eyebrow">{L.onbChooseEyebrow}</div>
     <h1>{L.onbChooseTitle}</h1>
@@ -25,7 +24,6 @@ export function ChooseScreen({ onLocal, onRemote }: { onLocal: () => void; onRem
       </div>
       <p className="setup-hint">{L.onbLocalHint}</p>
       <div className="onb-facts"><span>{L.onbFactLocal}</span><span>{L.onbFactBackground}</span><span>{L.onbFactNode}</span></div>
-      <SetupTelemetryRow className="onb-choice-telemetry" />
       <button type="button" className="setup-button setup-primary onb-wide" data-action="onb-local" onClick={install}>
         {L.onbInstall}<DownloadIcon />
       </button>

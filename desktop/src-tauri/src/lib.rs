@@ -230,7 +230,7 @@ pub fn run() {
             setup::setup_start_daemon,
             setup::setup_enable_autostart,
             setup::setup_terminal_cli,
-            setup::telemetry::setup_telemetry_consent,
+            setup::telemetry::setup_telemetry_lang,
             telemetry::telemetry_take_native_crash,
             forward::forward_start,
             forward::forward_stop,

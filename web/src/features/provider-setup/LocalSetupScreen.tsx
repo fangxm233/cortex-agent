@@ -6,8 +6,7 @@ import {
   type LocalSetupPorts, type LocalSetupState, type LocalSetupStep, type LocalSetupWarning, type LocalStepStatus,
 } from './local-setup';
 import { ChevronIcon, MonitorIcon } from './onboarding-icons';
-import { SetupTelemetryRow } from './SetupTelemetryRow';
-import { telemetryAnswer } from './setup-telemetry';
+import { NEW_SERVER_TELEMETRY } from './setup-telemetry';
 
 const nativePorts: LocalSetupPorts = {
   probe: () => invokeNative('setup_probe'),
@@ -141,8 +140,6 @@ function MachineFields({ needsInit, settings: s }: { needsInit: boolean; setting
         <div><strong>{L.onbStartAtLogin}</strong><p className="setup-hint">{L.onbStartAtLoginHint}</p></div>
         <input className="onb-toggle" type="checkbox" checked={s.autostart} onChange={event => s.setAutostart(event.target.checked)} />
       </label> : null}
-      {/* Only init records the choice; a kept server already has its own setting. */}
-      <SetupTelemetryRow />
     </fieldset>
     <label className="onb-toggle-row">
       <div><strong>{L.onbTerminalCommand}</strong><p className="setup-hint">{L.onbTerminalCommandHint}</p></div>
@@ -180,7 +177,7 @@ export function LocalSetupView({ flow, log, otherOptions, clearLog }: {
   const start = (machineName: string, installService: boolean, installCli: boolean, port: number) => {
     clearLog();
     void flow.start({
-      lang, machineName, backends: ['pi'], installService, installCli, port, restartDaemon: true, telemetry: telemetryAnswer(),
+      lang, machineName, backends: ['pi'], installService, installCli, port, restartDaemon: true, telemetry: NEW_SERVER_TELEMETRY,
     });
   };
   const retry = () => {
