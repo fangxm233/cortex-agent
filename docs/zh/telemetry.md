@@ -1,6 +1,6 @@
 # 遥测 {#telemetry}
 
-Cortex 会发送匿名的崩溃报告和使用统计，用来修复崩溃，并把精力投到真正有用的地方。遥测从不包含你的对话、提示词、文件、项目名或机器名，每个安装只用一个随机的安装 ID 标识。遥测默认开启。`cortex init` 和桌面应用的安装向导都会询问，你也可以随时在 **设置 → 隐私** 中关闭。
+Cortex 会发送匿名的崩溃报告和使用统计，用来修复崩溃，并把精力投到真正有用的地方。遥测从不包含你的对话、提示词、文件、项目名或机器名，每个安装只用一个随机的安装 ID 标识。遥测默认开启。`cortex init` 会询问，桌面应用会在安装完成后的第一个页面上提供这个选项，你也可以随时在 **设置 → 隐私** 中关闭。
 
 本页列出发送的全部内容、不发送的内容，以及如何查看、停止或删除这些数据。上报格式只由一个文件定义：[`agent-server/src/domain/telemetry/schema.ts`](https://github.com/fangxm233/cortex-agent/blob/main/agent-server/src/domain/telemetry/schema.ts)。服务端、收集端和本页都以它为准。
 
@@ -136,7 +136,7 @@ Web UI 操作名、日志模块名、迁移名和设置名都来自 Cortex 自�
 - Cortex 主目录为基准测试运行做了封存（`CORTEX_CONFIG_IMMUTABLE=1`）。
 - 构建中没有收集端地址。正式发布的构建都带有地址，`CORTEX_TELEMETRY_ENDPOINT` 可以覆盖它。你可以把它指向自己的 HTTP 端点，看清楚到底会发出什么。
 
-在以上任一条件成立期间，服务端还会删除已排队的事件和当天的计数。如果是这些条件而不是开关让遥测处于关闭状态，**设置 → 隐私** 页面会说明原因。桌面应用的安装步骤受下文所述安装向导中的勾选框控制，桌面应用的环境变量中设置了 `CORTEX_TELEMETRY=0` 或 `DO_NOT_TRACK` 时也不会发送。
+在以上任一条件成立期间，服务端还会删除已排队的事件和当天的计数。如果是这些条件而不是开关让遥测处于关闭状态，**设置 → 隐私** 页面会说明原因。桌面应用的安装步骤会照常发送，除非桌面应用的环境变量中设置了 `CORTEX_TELEMETRY=0` 或 `DO_NOT_TRACK`。
 
 ## 查看排队的内容 {#inspecting-what-is-queued}
 
@@ -151,13 +151,13 @@ Web UI 操作名、日志模块名、迁移名和设置名都来自 Cortex 自�
 | `state.json` | 上次心跳的时间、上次见到的版本、已发送的上手步骤，以及等待确认的升级 |
 | `crash-limits.json` | 崩溃频率限制的计数 |
 
-桌面应用把自己的文件放在其应用数据目录下的 `telemetry` 文件夹中：`install-id`、`setup.json`（安装向导勾选框的状态和已发送的安装步骤），以及 `native-crash.json`（等待转发的 panic）。
+桌面应用把自己的文件放在其应用数据目录下的 `telemetry` 文件夹中：`install-id`、`setup.json`（安装向导的语言和已发送的安装步骤），以及 `native-crash.json`（等待转发的 panic）。
 
 ## 关闭遥测 {#turning-it-off}
 
 - 桌面应用、Android 应用或浏览器工作台的 **设置 → 隐私** 中有 **帮助我们改进 Cortex** 开关。关闭后立即停止记录，并删除已排队的事件和当天的计数。安装 ID 会保留，以便你之后申请删除数据。
 - `cortex init` 会询问是否发送匿名统计（默认是）。脚本化安装通过 answers 文件的 `telemetry` 字段设置：`{"telemetry": {"enabled": false}}`。
-- 桌面应用的安装向导中有 **帮助我们改进 Cortex** 勾选框，默认勾选。从你开始安装起，它就控制安装步骤是否发送，并作为新服务端的遥测设置传过去。
+- 桌面应用安装完成后的第一个页面（Provider 设置页）上也有同一个 **帮助我们改进 Cortex** 开关，服务端一就绪你就可以做出选择。
 - `$CORTEX_HOME/config/settings.json` 中的 `"telemetryEnabled": false` 与该开关是同一个设置。
 - 在服务端的环境变量或 `$CORTEX_HOME/config/.env` 中设置 `CORTEX_TELEMETRY=0` 或 `DO_NOT_TRACK=1`，无论设置如何都会关闭遥测。
 

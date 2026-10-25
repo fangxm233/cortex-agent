@@ -3,8 +3,8 @@
 Cortex sends anonymous crash reports and usage statistics so that crashes get fixed and work goes
 where it helps. Telemetry never contains your conversations, prompts, files, project names or
 machine names. Each install is identified only by a random install ID. Telemetry is on by default.
-`cortex init` and the desktop app's setup ask about it, and you can turn it off at any time in
-**Settings → Privacy**.
+`cortex init` asks about it, the desktop app offers the choice on the first page after install,
+and you can turn it off at any time in **Settings → Privacy**.
 
 This page lists everything that is sent, what is left out, and how to inspect, stop or delete it.
 The wire format is defined in one file,
@@ -191,8 +191,8 @@ The server records and sends nothing when any of these holds:
 
 While any of these holds, the server also deletes its queued events and daily counts. The
 **Settings → Privacy** page tells you when one of these conditions, rather than the switch,
-keeps telemetry off. The desktop app's setup steps follow the setup checkbox described below,
-and `CORTEX_TELEMETRY=0` or `DO_NOT_TRACK` in the desktop app's environment stops them too.
+keeps telemetry off. The desktop app's setup steps are sent unless `CORTEX_TELEMETRY=0` or
+`DO_NOT_TRACK` is set in the desktop app's environment.
 
 ## Inspecting what is queued
 
@@ -209,7 +209,7 @@ by default):
 | `crash-limits.json` | Crash rate-limit counters |
 
 The desktop app keeps its own files in the `telemetry` folder of its app data directory:
-`install-id`, `setup.json` (the setup checkbox and the setup steps already sent), and
+`install-id`, `setup.json` (the setup language and the setup steps already sent), and
 `native-crash.json` (a panic waiting to be forwarded).
 
 ## Turning it off
@@ -221,9 +221,8 @@ The desktop app keeps its own files in the `telemetry` folder of its app data di
 - `cortex init` asks whether to send anonymous statistics (the default is yes). Scripted
   installs set it with the `telemetry` field of the answers file:
   `{"telemetry": {"enabled": false}}`.
-- The desktop app's setup screens have a **Help improve Cortex** checkbox, checked by default.
-  It controls the setup steps from the moment you start the install, and it is passed to the new
-  server as its telemetry setting.
+- In the desktop app, the first page after install (provider setup) has the same **Help improve
+  Cortex** switch, so you can choose as soon as the server is ready.
 - `"telemetryEnabled": false` in `$CORTEX_HOME/config/settings.json` is the same setting as the
   switch.
 - `CORTEX_TELEMETRY=0` or `DO_NOT_TRACK=1` in the server's environment or in
