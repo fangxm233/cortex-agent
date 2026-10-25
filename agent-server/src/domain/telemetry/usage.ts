@@ -116,8 +116,15 @@ export function recordStartup(importsMs: number, totalMs = performance.now()): v
 
 // ── Web reports (`telemetry.report`) ────────────────────
 
-function routeTemplate(route: string | null): string | null {
-  return route ? route.replace(/[^A-Za-z0-9/:._-]/g, '_').slice(0, 80) : null;
+/** A route pattern segment: `:param`, a splat, or a short lowercase static word. */
+const ROUTE_SEGMENT = /^(?::[A-Za-z][A-Za-z0-9_]{0,30}|\*|[a-z][a-z-]{0,23})$/;
+
+/** Crash routes must be router patterns (`/m/session/:sessionId`). Anything else is dropped rather
+ *  than repaired, because a concrete path can carry session ids, project names or file names. */
+export function routeTemplate(route: string | null): string | null {
+  if (!route || route.length > 80 || !route.startsWith('/')) return null;
+  const segments = route.split('/').filter((segment) => segment !== '');
+  return segments.every((segment) => ROUTE_SEGMENT.test(segment)) ? route : null;
 }
 
 function recordWebLoad(report: Extract<WebTelemetryReport, { kind: 'load' }>): void {

@@ -8,6 +8,7 @@ import { rollupFile } from '@domain/telemetry/paths.js';
 import { createRunTelemetry, classifyTurnFailure } from '@domain/telemetry/turns.js';
 import {
   markBootPhase, recordStartup, recordUiMutation, recordWebhookCall, installWebReportSink, platformChannel,
+  routeTemplate,
 } from '@domain/telemetry/usage.js';
 import { recordWebReport, setWebReportSink } from '@domain/telemetry/web-report.js';
 import { recordFunnelStep, resetFunnelCacheForTests } from '@domain/telemetry/funnel.js';
@@ -140,6 +141,18 @@ test('boot phases and web reports land in perf; web crashes become crash events'
   assert.equal(crash.route, '/session/:id');
   assert.equal(crash.groupKey, 'TypeError@/assets/index-Bx.js');
   assert.doesNotMatch(JSON.stringify(crash), /private\.example|\/home\//);
+});
+
+test('crash routes keep router patterns and drop concrete paths', () => {
+  assert.equal(routeTemplate('/m/session/:sessionId/plan/:requestId'), '/m/session/:sessionId/plan/:requestId');
+  assert.equal(routeTemplate('/'), '/');
+  assert.equal(routeTemplate('/*'), '/*');
+  assert.equal(routeTemplate('/setup/providers'), '/setup/providers');
+  assert.equal(routeTemplate('/m/session/8589a6cc'), null);
+  assert.equal(routeTemplate('/projects/orchard_2/sessions/:id'), null);
+  assert.equal(routeTemplate('/m/memory/notes.md'), null);
+  assert.equal(routeTemplate('m/session'), null);
+  assert.equal(routeTemplate(null), null);
 });
 
 test('funnel steps are sent once per install', () => {
