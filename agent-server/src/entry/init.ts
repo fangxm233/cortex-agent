@@ -21,7 +21,10 @@ import { readExistingModels, writeModelsJson, listChoices, recommendedChoice } f
 import { ENVIRONMENTS_DIRNAME, mergeDefaultEnvironments } from '@domain/agents/environments/index.js';
 import type { ModelChoice, WriteModelsOpts } from '@core/models-generator.js';
 import { createLogger } from '@core/log.js';
-import { INSTALL_ROOT, DEFAULTS_DIR } from '@core/paths.js';
+import { INSTALL_ROOT, DEFAULTS_DIR, DATA_DIR } from '@core/paths.js';
+import { applyInitTelemetry, parseInitTelemetryAnswer } from '@domain/telemetry/init-answer.js';
+import { recordFunnelStep } from '@domain/telemetry/funnel.js';
+import type { InitTelemetryAnswer } from '@domain/telemetry/schema.js';
 import { writeUsageSharing, type UsageSharingUpdate } from '@domain/costs/aistatus-config.js';
 import { t, setLocale, normalizeLocale, detectSystemLocale, type Locale } from '../core/i18n.js';
 import { CLIENT_TOKEN_ENV } from '@core/auth.js';
@@ -99,6 +102,8 @@ export interface InitAnswers {
   feishuConfig?: FeishuInitConfig;
   /** Omitted when a scripted caller did not make an upload choice. */
   gatewayUsage?: GatewayUsageConfig;
+  /** Anonymous product telemetry choice; omitted keeps the default (on) and creates a fresh id. */
+  telemetry?: InitTelemetryAnswer;
   installService: boolean;
   /** Default model; omitted uses the discovery recommendation. */
   defaultChoice?: ModelChoice;
@@ -191,6 +196,7 @@ export function parseInitAnswersJson(raw: string): InitAnswers {
     slackConfig: input.slackConfig as SlackInitConfig | undefined,
     feishuConfig: input.feishuConfig as FeishuInitConfig | undefined,
     gatewayUsage,
+    telemetry: parseInitTelemetryAnswer(input.telemetry),
     installService: input.installService === true,
     defaultChoice: parseChoiceValue(input.defaultChoice),
     favorites: Array.isArray(input.favorites)
@@ -999,6 +1005,8 @@ async function collectAnswersInteractive(paths: InitPaths): Promise<InitAnswers>
     gatewayUsage = { enabled: true, name: name as string, org: org as string, email: email as string };
   }
 
+  const telemetry = await askTelemetry();
+
   // Step 5: Service registration
   const wantService = await clack.confirm({
     message: t('init.serviceRegister.prompt'),
@@ -1015,8 +1023,15 @@ async function collectAnswersInteractive(paths: InitPaths): Promise<InitAnswers>
     slackConfig,
     feishuConfig,
     gatewayUsage,
+    telemetry,
     installService: wantService as boolean,
   };
+}
+
+async function askTelemetry(): Promise<InitTelemetryAnswer> {
+  const enabled = await clack.confirm({ message: t('init.telemetry.prompt'), initialValue: true });
+  handleCancel(enabled);
+  return { enabled: enabled as boolean };
 }
 
 // ─── Non-interactive prompts (piped stdin) ───────────────────────
@@ -1397,6 +1412,39 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
   }
 }
 
+function applySharingChoices(paths: InitPaths, answers: InitAnswers, options: InitOptions): void {
+  if (answers.gatewayUsage) writeUsageSharing(answers.gatewayUsage, options.gatewayConfigDir);
+  if (answers.telemetry) {
+    applyInitTelemetry(answers.telemetry, { configDir: paths.CONFIG_DIR, storeDir: paths.STORE_DIR });
+  }
+}
+
+async function detectAuthAndGateway(
+  paths: InitPaths, answers: InitAnswers, options: InitOptions, interactive: boolean, emitter: JsonEmitter | null,
+): Promise<void> {
+  const emit = (event: Record<string, unknown>): void => emitter?.emit(event);
+  const authBackends = await onboardInitAuth(interactive, event => {
+    emit(event);
+    if (!emitter && !interactive) process.stdout.write(`${JSON.stringify(event)}\n`);
+  });
+  if (interactive) {
+    const configured = authBackends.length > 0
+      && await runGatewaySetup(authBackends, paths, options.gatewayConfigDir, answers, true);
+    emit({ step: 'gateway', state: configured ? 'ok' : 'skip' });
+    return;
+  }
+  // Non-interactive: auto-detect silently, passing caller-supplied choices. A machine with no
+  // backend logged in yet yields no endpoints — expected on a fresh desktop install, where the
+  // user logs in from the workbench afterwards and the server syncs models from that login.
+  try {
+    const configured = await runGatewaySetup(answers.backends, paths, options.gatewayConfigDir, answers);
+    emit({ step: 'gateway', state: configured ? 'ok' : 'skip', reason: configured ? undefined : 'no-backend-login' });
+  } catch (e) {
+    log.warn(`Gateway setup failed (non-interactive): ${(e as Error).message}`);
+    emit({ step: 'gateway', state: 'skip', reason: (e as Error).message });
+  }
+}
+
 export function writeInitConfigs(paths: InitPaths, answers: InitAnswers, force: boolean): void {
   // Opt-in retries never replace credentials, registry, or user configuration (even with --force).
   const overwrite = answers.localClient?.enabled ? false : force;
@@ -1436,10 +1484,8 @@ async function runInitSteps(
   await withInitLocalClient(paths, answers, () => writeInitConfigs(paths, answers, force), emit);
   emit({ step: 'config', state: 'ok' });
 
-  // 5. Gateway usage — omitted scripted answers preserve the existing user choice.
-  if (answers.gatewayUsage) {
-    writeUsageSharing(answers.gatewayUsage, options.gatewayConfigDir);
-  }
+  // 5. Gateway usage and telemetry — omitted scripted answers preserve the existing choices.
+  applySharingChoices(paths, answers, options);
 
   // 5b. Local Web UI endpoint — opt-in, driven by the desktop setup wizard. Must run after the
   //     .env exists so the generated client token is the one the native app is handed back.
@@ -1457,29 +1503,14 @@ async function runInitSteps(
   }
 
   // 7. Detect credentials automatically. Login/install is only offered here.
-  const authBackends = await onboardInitAuth(!!interactive, event => {
-    emit(event);
-    if (!emitter && !interactive) process.stdout.write(`${JSON.stringify(event)}\n`);
-  });
-  if (interactive) {
-    const configured = authBackends.length > 0
-      && await runGatewaySetup(authBackends, paths, options.gatewayConfigDir, answers, true);
-    emit({ step: 'gateway', state: configured ? 'ok' : 'skip' });
-  } else {
-    // Non-interactive: auto-detect silently, passing caller-supplied choices. A machine with no
-    // backend logged in yet yields no endpoints — expected on a fresh desktop install, where the
-    // user logs in from the workbench afterwards and the server syncs models from that login.
-    try {
-      const configured = await runGatewaySetup(answers.backends, paths, options.gatewayConfigDir, answers);
-      emit({ step: 'gateway', state: configured ? 'ok' : 'skip', reason: configured ? undefined : 'no-backend-login' });
-    } catch (e) {
-      log.warn(`Gateway setup failed (non-interactive): ${(e as Error).message}`);
-      emit({ step: 'gateway', state: 'skip', reason: (e as Error).message });
-    }
-  }
+  await detectAuthAndGateway(paths, answers, options, !!interactive, emitter);
 
   // 8. Done
   clack.outro(t('init.outro', { dataDir: paths.DATA_DIR }));
+  // The funnel step goes to this process's own home only, and never against a fresh opt-out.
+  if (answers.telemetry?.enabled !== false && path.resolve(paths.DATA_DIR) === path.resolve(DATA_DIR)) {
+    recordFunnelStep('server_init_completed');
+  }
   emit({
     step: 'result',
     state: 'ok',

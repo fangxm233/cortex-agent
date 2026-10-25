@@ -190,6 +190,7 @@ export const initEn = {
 
   // ── Service registration prompt ──
   'init.serviceRegister.prompt': 'Register Cortex as a system service (auto-start on boot)?',
+  'init.telemetry.prompt': 'Send anonymous usage and crash statistics to help improve Cortex? (never your prompts, files or names; can be turned off in Settings)',
 
   // ── Gateway & model auto-setup ──
   'init.gatewaySetup.overwritePrompt': 'An existing default model was found. Replace it with a new selection?',
@@ -421,6 +422,7 @@ export const initZh: Record<keyof typeof initEn, string> = {
 
   // ── Service registration prompt ──
   'init.serviceRegister.prompt': '将 Cortex 注册为系统服务（开机自启）？',
+  'init.telemetry.prompt': '发送匿名使用与崩溃统计，帮助改进 Cortex？（不含对话、文件或名称；可随时在设置中关闭）',
 
   // ── Gateway & model auto-setup ──
   'init.gatewaySetup.overwritePrompt': '检测到已有默认模型，是否用新的选择替换？',
