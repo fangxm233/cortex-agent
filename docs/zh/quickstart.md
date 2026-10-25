@@ -388,7 +388,7 @@ cortex ui enable
 cortex daemon restart   # 仅当守护进程已在运行时需要
 ```
 
-`cortex ui enable` 会在需要时生成客户端 token，在 `$CORTEX_HOME/config/.env` 中设置 `CORTEX_UI_HTTP=1` 与 `CORTEX_UI_PORT=3004`，放行原生应用的 origin，并打印本地地址。在服务器上用浏览器打开 `http://127.0.0.1:3004`，用 `.env` 中 `CORTEX_CLIENT_TOKEN` 的值登录；或在[桌面应用](./desktop-app.md#first-connection)中填入同样的地址和 token。要从其他电脑访问工作台，见[浏览器访问](./browser-access.md)。
+`cortex ui enable` 会在需要时生成客户端 token，在 `$CORTEX_HOME/config/.env` 中设置 `CORTEX_UI_HTTP=1` 与 `CORTEX_UI_PORT=3004`，放行原生应用的 origin，并打印本地地址。然后运行 `cortex ui pair` 获取一次性配对码（10 分钟内有效）。在服务器上用浏览器打开 `http://127.0.0.1:3004`，用该配对码登录；或在[桌面应用](./desktop-app.md#first-connection)中填入地址和配对码。`.env` 中 `CORTEX_CLIENT_TOKEN` 的值在这两处同样可用。有一个设备登录后，就可以在它的**设置 → 机器 →「已连接的 App」**中为下一个设备生成配对码。要从其他电脑访问工作台，见[浏览器访问](./browser-access.md)。
 
 ## 第四步 — 发送你的第一条消息 {#step-4-send-your-first-messages}
 

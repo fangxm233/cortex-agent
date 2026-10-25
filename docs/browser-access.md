@@ -10,8 +10,8 @@ There are three independent ways to reach the workbench, and they authenticate d
 | Path | Who | Authentication | Holds `clientToken`? |
 |---|---|---|---|
 | **Browser + Access** | Anyone with a browser | Cloudflare Access edge login (email / IdP), verified as a JWT by the server | **No** — the browser never sees the token |
-| **Browser + token login** | Anyone who knows the token | The token is pasted once and exchanged for an HttpOnly session cookie | **No** — only the server sees it, and only once |
-| **Desktop (Tauri)** | The installed desktop app | Bearer `x-cortex-token` (the `clientToken`) stored in the app's data directory | Yes |
+| **Browser + token login** | Anyone with a pairing code or the token | A one-time pairing code or the token is entered once and exchanged for an HttpOnly session cookie | **No** — only the server sees it, and only once |
+| **Desktop (Tauri)** | The installed desktop app | Bearer `x-cortex-token` — the app's own device token from pairing, or the `clientToken` — stored in the app's data directory | Only when connected with the token itself; a paired app holds its own device token |
 
 This page is the browser + deployment reference. For installing the native desktop app, see
 [Desktop App](desktop-app.md).
@@ -108,8 +108,10 @@ CORTEX_UI_PORT=3004       # optional; defaults to 3004
 ```
 
 This alone is enough to open the workbench from a browser: token login is on by default, so the
-SPA will ask for the `clientToken` and exchange it for a session (see
-[Browser access with a token](#browser-access-with-a-token-no-cloudflare)).
+SPA will ask for a pairing code or the `clientToken` and exchange it for a session (see
+[Browser access with a token](#browser-access-with-a-token-no-cloudflare)). `cortex ui pair` prints
+a one-time code for the first browser or app (see
+[Pairing codes and connected apps](#pairing-codes-and-connected-apps)).
 
 `CORTEX_UI_HTTP` accepts `1`, `true`, `on`, or `yes`. With it unset, the endpoint — and the
 Web UI transport, along with `@trpc/server` / `jose` — never loads.
@@ -138,10 +140,11 @@ Exposing it to a browser is the next section.
 The `/trpc` auth gate accepts a request if **any** of three credentials is valid, and returns
 `401` before tRPC runs otherwise:
 
-1. **`x-cortex-token` header** equal to the server's `clientToken` — the desktop / machine
-   path. Checked first, with a constant-time comparison.
+1. **`x-cortex-token` header** equal to the server's `clientToken` or to a paired app's own
+   device token — the desktop / machine path. Checked first; the client token with a
+   constant-time comparison, device tokens by their SHA-256.
 2. **A live `cortex_ui` session cookie** — the token-login browser path. Minted by
-   `POST /api/ui/login` after the browser proves, once, that it knows the token.
+   `POST /api/ui/login` after the browser presents, once, the token or a pairing code.
 3. **A valid `Cf-Access-Jwt-Assertion` header** — the Cloudflare Access browser path. The edge
    injects this JWT after it authenticates the user; the server verifies it.
 
@@ -155,7 +158,8 @@ an unconfigured Access path never admits a request.
 
 !!! warning "The port forward is token-only, on purpose"
     `/forward` (the desktop shell's raw TCP tunnel to a loopback service on the server) accepts
-    **only** the `x-cortex-token` header. Neither browser credential opens it. A browser attaches
+    **only** the `x-cortex-token` header — the client token or a paired app's device token.
+    Neither browser credential opens it. A browser attaches
     cookies to a WebSocket handshake automatically, so admitting the session cookie there would
     hand every logged-in page a raw socket to every loopback service on the host.
 
@@ -221,21 +225,22 @@ tRPC data — no token, no local install.
 ## Browser access with a token (no Cloudflare)
 
 If you do not run Cloudflare Access — or you just want to open the workbench from a laptop on
-the LAN or through an SSH forward — a browser can authenticate itself by pasting the server's
-`clientToken` once.
+the LAN or through an SSH forward — a browser can authenticate itself by entering a one-time
+pairing code or the server's `clientToken` once.
 
 **This is on by default** on any server with `CORTEX_UI_HTTP=1`. Open the UI, and if the browser
 holds no session yet the SPA shows a sign-in screen instead of the workbench:
 
 ```
-browser  ──POST /api/ui/login {token}──▶  server   (constant-time compare vs clientToken)
+browser  ──POST /api/ui/login {token}──▶  server   (pairing code, or constant-time compare vs clientToken)
         ◀──Set-Cookie: cortex_ui=… ; HttpOnly; SameSite=Strict; Secure──
 browser  ──every later /trpc, /api request carries the cookie──▶  server
 ```
 
 What that buys, and what it costs:
 
-- **The token is submitted once.** It is exchanged for an opaque 32-byte session id. The cookie is
+- **The token or code is submitted once.** It is exchanged for an opaque 32-byte session id. A
+  pairing code is spent by the exchange, so a browser signed in with a code never sees the token. The cookie is
   `HttpOnly`, so page JavaScript — including an XSS payload — cannot read it back out.
 - **`SameSite=Strict`** keeps the session off requests from other sites. Every subdomain of a
   shared parent domain still counts as the same site, and a Cloudflare Access assertion is attached
@@ -257,10 +262,44 @@ What that buys, and what it costs:
 - **A session is strictly weaker than the token.** It carries exactly the authority of a
   Cloudflare Access login: tRPC and the `/api` routes, never `/forward`.
 - **The login endpoint is public.** It has to be — a browser with no credential must be able to
-  reach it. A wrong token costs the caller a fixed 250 ms and is logged; the token itself is 32
-  random bytes, so online guessing is not a realistic attack. There is deliberately no IP ban
-  (behind a tunnel every request appears to come from `127.0.0.1`) and no global lockout (which
-  would let anyone lock you out of your own server).
+  reach it. A wrong token or code costs the caller a fixed 250 ms and is logged; the token itself
+  is 32 random bytes, so online guessing is not a realistic attack. A pairing code is short, so it
+  lives 10 minutes, works once, and 20 wrong guesses void every outstanding code. There is
+  deliberately no IP ban (behind a tunnel every request appears to come from `127.0.0.1`) and no
+  global lockout of the token (which would let anyone lock you out of your own server).
+
+### Pairing codes and connected apps
+
+A pairing code connects a browser or an app without copying the `clientToken` anywhere. It is 8
+characters shown as `XXXX-XXXX` (Crockford base32: no I, L, O or U). Input is case-insensitive,
+spaces and hyphens are ignored, and O, I and L are read as 0, 1 and 1.
+
+Get a code in either of two places:
+
+- **A signed-in UI** (desktop app, mobile app or browser): **Settings → Machines → Connected apps
+  → Connect a device**. It shows the code with a countdown, the server address (omitted when the
+  UI is open on a loopback address such as `127.0.0.1` or `localhost`), **Copy code**, and **Copy
+  link**. The link has the form `https://<server>/#pair=<CODE>`.
+- **The server**: `cortex ui pair` (add `--json` for `{ok, code, expiresAt}`). The code goes into
+  `$CORTEX_HOME/data/ui-pairing.json`, which the running server reads, so no restart is needed.
+  This is the way in for the first device, when nothing is signed in yet; asking Cortex in chat to
+  run it works too.
+
+Use the code on the browser sign-in page, or in the desktop / Android app's **Connect an existing
+server** screen. Opening a pairing link in a browser signs it in and removes the code from the
+address bar.
+
+A browser trades the code for a session cookie, as above. An app trades it at `POST /api/ui/pair`
+for its **own device token** (32 random bytes), which it sends as `x-cortex-token`. A device token
+opens everything the client token opens — tRPC, the `/api` routes and `/forward` — except the
+`cortex-client` WebSocket, which keeps using the shared client token. The server stores only a
+SHA-256 of each device token, in `$CORTEX_HOME/data/ui-devices.json` (mode `0600`).
+
+**Connected apps** lists every paired app by the name its OS reports (for example Windows or
+Android), with when it was paired and last used. The app you are using is marked **This device**;
+the others have **Revoke**, which stops their token at once — the app needs a new code to connect
+again. Browser sessions are not listed (they have **Sign out of this browser** and their 30-day
+expiry), and neither are apps connected with the full client token.
 
 ### Tuning or turning it off
 
@@ -269,9 +308,11 @@ CORTEX_UI_TOKEN_LOGIN=0          # 0, false, off or no: remove the login routes 
 CORTEX_UI_SESSION_TTL_DAYS=30    # optional; session lifetime in days, default 30
 ```
 
-With token login off, the login and logout routes are not mounted and session cookies are not
-accepted, so only the header token and, if configured, Cloudflare Access admit requests. The SPA
-says so on the sign-in screen rather than offering a form that could not work.
+With token login off, the login, logout and pairing routes are not mounted, session cookies are
+not accepted, and no pairing codes are created or redeemed, so only the header token (the client
+token or an already-paired app's device token) and, if configured, Cloudflare Access admit
+requests. Paired apps can still be listed and revoked. The SPA says so on the sign-in screen
+rather than offering a form that could not work.
 
 ### Where to use which
 
@@ -294,17 +335,18 @@ All three reach the same `/trpc` API and the same workbench, but they differ in 
 | | Browser + Access | Browser + token login | Desktop (Tauri) |
 |---|---|---|---|
 | Hostname | Dedicated UI hostname **behind** Cloudflare Access | Any hostname that reaches the port | A hostname **not** behind Access |
-| Login | Cloudflare Access edge login (email / IdP) | Paste the `clientToken` once | Enter `serverUrl` + `clientToken` once |
-| Credential on requests | `Cf-Access-Jwt-Assertion` (issued by the edge) | `cortex_ui` session cookie | `x-cortex-token` header |
+| Login | Cloudflare Access edge login (email / IdP) | Enter a pairing code or the `clientToken` once | Enter `serverUrl` + a pairing code (or the `clientToken`) once |
+| Credential on requests | `Cf-Access-Jwt-Assertion` (issued by the edge) | `cortex_ui` session cookie | `x-cortex-token` header (device token or `clientToken`) |
 | Where auth is checked | JWT verified by the server | Session verified by the server | Token verified by the server |
-| `clientToken` exposure | **Never touches the browser** | Typed once, never stored in the page | Stored in the app's data directory |
+| `clientToken` exposure | **Never touches the browser** | None with a pairing code; typed once and never stored in the page with the token | None when paired; stored in the app's data directory when connected with the token |
+| Revocable per device | Through the Access policy | **Sign out of this browser** | **Revoke** under Connected apps (paired apps) |
 | Opens `/forward` | No | No | Yes |
 | SPA origin | Same-origin (SPA + `/trpc` on one host) | Same-origin | Direct connection to `/trpc` (CORS-enabled) |
 
 Because the desktop app sends `x-cortex-token`, it must connect through a hostname that is
 **not** behind Cloudflare Access (Access would block the bearer request at the edge). Choose the
-desktop app when you want a native window, the port forward, and are comfortable storing the
-token locally; Access when other people need in and should never see the token; token login when
+desktop app when you want a native window and the port forward — pair it with a code so it holds
+its own revocable token; Access when other people need in and should never see the token; token login when
 it is your own browser and the path to the server is already private or encrypted.
 
 ## Troubleshooting
@@ -325,6 +367,12 @@ unset, the browser path is disabled and every browser request is `401`.
 
 `CORTEX_UI_TOKEN_LOGIN` is set to `0` on the server. Either remove it (token login is on by
 default) and restart, or reach the UI through Cloudflare Access / the desktop app instead.
+
+**The pairing code is not accepted**
+
+Codes last 10 minutes and work once; 20 wrong guesses void every outstanding code. Create a new
+one under **Settings → Machines → Connected apps** or with `cortex ui pair`. With
+`CORTEX_UI_TOKEN_LOGIN=0` no codes are accepted at all.
 
 **The token is correct but signing in does nothing / it asks again on every page load**
 

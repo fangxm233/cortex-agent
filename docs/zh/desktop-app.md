@@ -2,7 +2,7 @@
 
 Cortex 提供面向 Linux、macOS、Windows 与 Android 的 Tauri v2 原生壳。桌面端使用三栏工作台，Android 使用针对手机设计、以会话列表和侧滑项目面板为主的界面。两者都通过 Web UI HTTP 传输直连 Cortex 服务器，并与浏览器工作台共享项目、会话、审批、文件和记忆。
 
-原生应用需要可访问的 Web UI 端点和服务器的 `CORTEX_CLIENT_TOKEN`。浏览器访问采用独立的 Cloudflare Access 路径，详见[浏览器访问](browser-access.md)。
+原生应用需要可访问的 Web UI 端点和一次性配对码（或服务器的 `CORTEX_CLIENT_TOKEN`）。浏览器访问采用独立的 Cloudflare Access 路径，详见[浏览器访问](browser-access.md)。
 
 桌面应用既可以在自己运行的这台电脑上安装 Cortex 服务端，也可以连接到已有的服务端。首屏会询问选择哪一种，本机安装无需终端：安装软件包、写入配置、启动 daemon 并完成连接。Android 只支持远程连接，因为它没有运行 Node 进程的位置。
 
@@ -60,7 +60,7 @@ Android APK 面向 arm64 设备，并通过 Play Store 之外的方式分发。�
 cortex ui enable
 ```
 
-它会在需要时生成客户端 token，设置 `CORTEX_UI_HTTP` 与 `CORTEX_UI_PORT`，并把应用的 origin 合并进 `uiCorsOrigins`。当它提示配置已改变时，重启 daemon 生效。[服务器配置](#server-configuration)一节说明如何手工完成同样的设置。
+它会在需要时生成客户端 token，设置 `CORTEX_UI_HTTP` 与 `CORTEX_UI_PORT`，并把应用的 origin 合并进 `uiCorsOrigins`。当它提示配置已改变时，重启 daemon 生效。随后 `cortex ui pair` 会为第一个应用打印一次性配对码（见[首次连接](#first-connection)）。[服务器配置](#server-configuration)一节说明如何手工完成同样的设置。
 
 ### 在终端中使用 cortex {#using-cortex-in-a-terminal}
 
@@ -117,7 +117,7 @@ CORTEX_UI_PORT=3004
 
 `.env` 中逗号分隔的旧变量 `CORTEX_UI_CORS_ORIGINS` 仍作为已弃用的回退被读取。
 
-`cortex init` 会在 `.env` 中生成 `CORTEX_CLIENT_TOKEN`。原生应用使用这个值；`CORTEX_TOKEN` 不是服务器端客户端 token 的配置名。可用以下命令读取已配置的 token：
+`cortex init` 会在 `.env` 中生成 `CORTEX_CLIENT_TOKEN`。不用配对码、直接用客户端 token 连接的应用使用这个值；`CORTEX_TOKEN` 不是服务器端客户端 token 的配置名。可用以下命令读取已配置的 token：
 
 ```bash
 grep CORTEX_CLIENT_TOKEN "${CORTEX_HOME:-$HOME/.cortex}/config/.env"
@@ -129,7 +129,9 @@ grep CORTEX_CLIENT_TOKEN "${CORTEX_HOME:-$HOME/.cortex}/config/.env"
 
 ## 首次连接 {#first-connection}
 
-在首屏选择**连接已有服务器**，然后输入包含 `https://` 或 `http://` 的服务器 URL，以及 `CORTEX_CLIENT_TOKEN`。连接测试会区分端点不可访问和 token 未授权。连接成功后，应用打开工作台并保存凭据，供后续启动使用。由向导安装的服务端会跳过此界面——它使用自己生成的凭据直接连接。
+在首屏选择**连接已有服务器**，然后输入包含 `https://` 或 `http://` 的服务器 URL，并在**配对码或客户端令牌**中填入配对码。配对码可在任一已登录设备的**设置 → 机器 →「已连接的 App」→「连接新设备」**中获取，或在服务器上运行 `cortex ui pair`（也可以在聊天里让 Cortex 运行）——第一个设备通常这样接入。配对码 10 分钟内有效、只能用一次；把配对链接（`https://<server>/#pair=<CODE>`）粘贴到地址栏会同时填好两个字段。连接时，应用用配对码换取自己的设备 token 并保存。同一字段也接受完整的 `CORTEX_CLIENT_TOKEN`。用配对码点**测试连接**只检查服务器是否可达，不会用掉配对码；用客户端 token 时，测试会区分端点不可访问和 token 未授权。连接成功后，应用打开工作台并保存凭据，供后续启动使用。
+
+用配对码连接的应用会出现在每个已登录设备的**设置 → 机器 →「已连接的 App」**中，并显示配对时间和最近使用时间。**撤销**会让应用立即断开，它需要新的配对码才能重新连接。详见[配对码与已连接的 App](browser-access.md#pairing-codes-and-connected-apps)。由向导安装的服务端会跳过此界面——它使用自己生成的凭据直接连接。
 
 应用把连接保存为自身数据目录中的 `connection.json`：macOS 为 `~/Library/Application Support/dev.cortex.desktop`，Linux 为 `~/.local/share/dev.cortex.desktop`，Windows 为 `%APPDATA%\dev.cortex.desktop`，Android 为应用私有存储。macOS 和 Linux 上该文件仅当前用户可读。执行 Disconnect 会删除该文件并返回连接界面。
 
@@ -269,7 +271,7 @@ rm -rf ~/.cortex/runtime
 
 ### Unauthorized
 
-确认应用中填写的是 `CORTEX_CLIENT_TOKEN`，而不是 webhook token 或旧变量。如果服务器 token 已改变，先使用 Disconnect，再重新输入。
+用配对码连接的应用，在「设置 → 机器 → 已连接的 App」中被撤销设备 token 后会断开；使用 Disconnect，再用新的配对码重新连接。用客户端 token 连接的应用，应填写 `CORTEX_CLIENT_TOKEN`，而不是 webhook token 或旧变量；如果服务器 token 已改变，先使用 Disconnect，再重新输入。配对码被拒绝表示它错误或已过期——生成一个新的即可。
 
 ### Network error
 

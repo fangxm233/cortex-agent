@@ -99,7 +99,7 @@ $CORTEX_HOME/
 | `CORTEX_LANG` | `config/preferences.json`，否则 `en` | 系统生成消息的语言（`en` 或 `zh`）。优先于 `!lang` 写入的偏好 |
 | `CORTEX_CLIENT_PORT` | `3002` | cortex-client 管理器的 WebSocket 端口 |
 | `CORTEX_CLIENT_HOST` | 未指定（所有接口） | 仅控制 cortex-client WebSocket 监听地址；服务器启动时读取 |
-| `CORTEX_CLIENT_TOKEN` | 自动生成 | 远程客户端、桌面 App 和 Web UI 出示的共享密钥。由 `cortex init` 和服务器首次启动生成 |
+| `CORTEX_CLIENT_TOKEN` | 自动生成 | 远程客户端出示的共享密钥；桌面 App 和 Web UI 也接受它，作为配对码之外的另一种方式。由 `cortex init` 和服务器首次启动生成 |
 | `CORTEX_WEBHOOK_TOKEN` | 自动生成 | 回环 webhook（钩子回调、`cortex-hook ask`）的 Bearer token。生成方式相同 |
 
 全新 Windows 本机 App 安装会在 `config/.env` 中写入 `CORTEX_CLIENT_HOST=127.0.0.1`。已有安装、普通 CLI 初始化和其他平台保留各自的默认值与配置。需要有意启用局域网直连客户端时，须显式将此变量设为合适的绑定地址（例如 `0.0.0.0` 表示所有 IPv4 接口），并重启服务器。Cortex 不自动配置防火墙策略。此设置不影响 Web UI、TUI 或其他服务器监听端口。
@@ -134,14 +134,14 @@ $CORTEX_HOME/
 
 ### Web UI 与 TUI {#web-ui-and-tui}
 
-Web UI 宿主服务浏览器工作台、桌面 App 和手机 App。[浏览器访问](./browser-access.md)详细介绍 token 登录与 Cloudflare Access。
+Web UI 宿主服务浏览器工作台、桌面 App 和手机 App。[浏览器访问](./browser-access.md)详细介绍 token 登录、配对码与 Cloudflare Access。
 
 | 变量 | 默认值 | 用途 |
 |---|---|---|
 | `CORTEX_UI_HTTP` | 关 | `1`、`true`、`on` 或 `yes` 启动 Web UI 宿主。`cortex ui enable` 会设置它 |
 | `CORTEX_UI_PORT` | `3004` | Web UI 宿主的端口，绑定到 `127.0.0.1` |
 | `CORTEX_UI_SPA_DIR` | 打包的 `web/dist` | 宿主所服务的 web app 目录 |
-| `CORTEX_UI_TOKEN_LOGIN` | 开 | 通过粘贴客户端 token 进行浏览器登录。`0`、`false`、`off` 或 `no` 会移除登录路由 |
+| `CORTEX_UI_TOKEN_LOGIN` | 开 | 用客户端 token 或配对码进行浏览器登录，以及用一次性配对码配对应用。`0`、`false`、`off` 或 `no` 会移除登录与配对路由；已配对的应用继续可用 |
 | `CORTEX_UI_SESSION_TTL_DAYS` | `30` | 浏览器登录会话的有效期（天） |
 | `CORTEX_ACCESS_TEAM_DOMAIN`, `CORTEX_ACCESS_AUD`, `CORTEX_ACCESS_CERTS_URL` | — | 面向浏览器的 Cloudflare Access JWT 校验；需要前两个都设置才启用 |
 | `CORTEX_PORT_FORWARD` | 开 | `0` 禁用 Web UI 到远程机器的端口转发 |

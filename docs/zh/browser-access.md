@@ -9,8 +9,8 @@ Cortex 提供一个浏览器工作台——与[桌面应用](desktop-app.md)所�
 | 路径 | 使用者 | 认证方式 | 是否持有 `clientToken`？ |
 |---|---|---|---|
 | **浏览器 + Access** | 任何有浏览器的人 | Cloudflare Access 边缘登录（邮箱 / IdP），由服务器以 JWT 校验 | **否**——浏览器从不接触令牌 |
-| **浏览器 + token 登录** | 知道 token 的人 | 粘贴一次 token，换成 HttpOnly 会话 cookie | **否**——只有服务器看到，且只看到一次 |
-| **桌面（Tauri）** | 已安装的桌面应用 | 存于应用数据目录的 Bearer `x-cortex-token`（即 `clientToken`） | 是 |
+| **浏览器 + token 登录** | 持有配对码或知道 token 的人 | 输入一次一次性配对码或 token，换成 HttpOnly 会话 cookie | **否**——只有服务器看到，且只看到一次 |
+| **桌面（Tauri）** | 已安装的桌面应用 | 存于应用数据目录的 Bearer `x-cortex-token`——配对得到的应用专属设备 token，或 `clientToken` | 仅在直接用 token 连接时持有；配对的应用持有自己的设备 token |
 
 本页是浏览器访问 + 部署参考。安装原生桌面应用请见 [桌面应用](desktop-app.md)。
 
@@ -100,8 +100,9 @@ CORTEX_UI_HTTP=1          # 主动开启：启动 tRPC HTTP + SSE 端点（必�
 CORTEX_UI_PORT=3004       # 可选，默认为 3004
 ```
 
-仅这一项就足以让浏览器打开工作台：token 登录默认开启，SPA 会询问 `clientToken` 并把它换成
-一个会话（见[用 token 登录的浏览器访问](#browser-access-with-a-token-no-cloudflare)）。
+仅这一项就足以让浏览器打开工作台：token 登录默认开启，SPA 会询问配对码或 `clientToken` 并把它
+换成一个会话（见[用 token 登录的浏览器访问](#browser-access-with-a-token-no-cloudflare)）。
+`cortex ui pair` 会为第一个浏览器或应用打印一次性配对码（见[配对码与已连接的 App](#pairing-codes-and-connected-apps)）。
 
 `CORTEX_UI_HTTP` 接受 `1`、`true`、`on` 或 `yes`。未设置时，该端点——以及 Web UI 传输层
 连同 `@trpc/server` / `jose`——都不会加载。
@@ -128,10 +129,10 @@ cortex daemon restart
 
 `/trpc` 认证门在三种凭据中**任一**有效时放行请求，否则在 tRPC 运行前返回 `401`：
 
-1. **`x-cortex-token` 头** 等于服务器的 `clientToken`——桌面 / 机器路径。优先检查，
-   使用常量时间比较。
+1. **`x-cortex-token` 头** 等于服务器的 `clientToken` 或某个已配对应用自己的设备 token——
+   桌面 / 机器路径。优先检查；client token 用常量时间比较，设备 token 按其 SHA-256 比对。
 2. **有效的 `cortex_ui` 会话 cookie**——token 登录的浏览器路径。浏览器通过
-   `POST /api/ui/login` 证明自己知道 token（仅一次）后由服务器签发。
+   `POST /api/ui/login` 出示一次 token 或配对码后由服务器签发。
 3. **有效的 `Cf-Access-Jwt-Assertion` 头**——Cloudflare Access 的浏览器路径。边缘在认证
    用户后注入该 JWT，由服务器校验。
 
@@ -143,8 +144,8 @@ RS256 / ES256）、受众（AUD）标签、签发者与过期时间。如果服�
 JWT 路径被禁用，认证门安全降级——未配置的 Access 路径绝不放行任何请求。
 
 !!! warning "端口转发是有意只认 token 的"
-    `/forward`（桌面外壳到服务器 loopback 服务的裸 TCP 隧道）**只**接受 `x-cortex-token` 头，
-    两种浏览器凭据都打不开它。浏览器会自动把 cookie 附加到 WebSocket 握手上，所以一旦在这里
+    `/forward`（桌面外壳到服务器 loopback 服务的裸 TCP 隧道）**只**接受 `x-cortex-token` 头
+    （client token 或已配对应用的设备 token），两种浏览器凭据都打不开它。浏览器会自动把 cookie 附加到 WebSocket 握手上，所以一旦在这里
     接受会话 cookie，等于把本机每个 loopback 服务的裸 socket 交给每一个已登录页面。
 
 ## 经 Cloudflare Access 的浏览器访问 {#browser-access-via-cloudflare-access}
@@ -205,20 +206,21 @@ CORTEX_ACCESS_AUD=<你的-Access-应用-AUD>  # Access 应用的 AUD 标签
 ## 用 token 登录的浏览器访问（不需要 Cloudflare） {#browser-access-with-a-token-no-cloudflare}
 
 如果你没有部署 Cloudflare Access——或者只是想从局域网里的笔记本、或经由 SSH 转发打开工作台
-——浏览器可以通过粘贴一次服务器的 `clientToken` 来完成认证。
+——浏览器可以通过输入一次一次性配对码或服务器的 `clientToken` 来完成认证。
 
 只要服务器开了 `CORTEX_UI_HTTP=1`，**此功能默认开启**。打开 UI 时，如果该浏览器还没有会话，
 SPA 会先显示登录页而不是工作台：
 
 ```
-浏览器  ──POST /api/ui/login {token}──▶  服务器   （与 clientToken 做常量时间比较）
+浏览器  ──POST /api/ui/login {token}──▶  服务器   （配对码，或与 clientToken 做常量时间比较）
        ◀──Set-Cookie: cortex_ui=… ; HttpOnly; SameSite=Strict; Secure──
 浏览器  ──之后每个 /trpc、/api 请求都自动携带该 cookie──▶  服务器
 ```
 
 它带来什么，代价是什么：
 
-- **token 只提交一次**，随即被换成一个不透明的 32 字节会话 id。cookie 是 `HttpOnly` 的，
+- **token 或配对码只提交一次**，随即被换成一个不透明的 32 字节会话 id。配对码在兑换时即被用掉，
+  因此用配对码登录的浏览器从不接触 token。cookie 是 `HttpOnly` 的，
   页面 JavaScript——包括 XSS 注入的脚本——读不回去。
 - **`SameSite=Strict`** 让其他站点发起的请求不带该会话。但同一父域名下的各个子域名仍算同站，
   Cloudflare Access 的凭据也会照常附带，所以服务器还会检查 `Origin`：发往 `/trpc` 或 `/api` 路由
@@ -236,10 +238,39 @@ SPA 会先显示登录页而不是工作台：
   手机布局都有，会在服务端吊销该会话。
 - **会话的权限严格弱于 token**：它与 Cloudflare Access 登录的权限完全相同——tRPC 与 `/api`
   路由，永远不含 `/forward`。
-- **登录端点是公开的**。它必须如此：没有任何凭据的浏览器得够得着它。token 错误会让调用方固定
-  等待 250 毫秒并被记入日志；而 token 本身是 32 字节随机数，在线爆破并不现实。这里有意不做
-  IP 封禁（在隧道后面所有请求看起来都来自 `127.0.0.1`）也不做全局锁定（那会让任何人把你自己
-  锁在门外）。
+- **登录端点是公开的**。它必须如此：没有任何凭据的浏览器得够得着它。token 或配对码错误会让调用方
+  固定等待 250 毫秒并被记入日志；而 token 本身是 32 字节随机数，在线爆破并不现实。配对码较短，
+  因此只有 10 分钟有效、只能用一次，累计 20 次错误猜测会作废所有未使用的配对码。这里有意不做
+  IP 封禁（在隧道后面所有请求看起来都来自 `127.0.0.1`）也不对 token 做全局锁定（那会让任何人把
+  你自己锁在门外）。
+
+### 配对码与已连接的 App {#pairing-codes-and-connected-apps}
+
+配对码让浏览器或应用无需复制 `clientToken` 就能连接。它有 8 个字符，显示为 `XXXX-XXXX`
+（Crockford base32：不含 I、L、O、U）。输入不区分大小写，忽略空格和连字符，O、I、L 分别按
+0、1、1 读取。
+
+配对码有两个来源：
+
+- **任何已登录的 UI**（桌面应用、手机应用或浏览器）：**设置 → 机器 →「已连接的 App」→「连接新设备」**。
+  它显示配对码与倒计时、服务器地址（通过 `127.0.0.1`、`localhost` 等 loopback 地址打开 UI 时省略）、
+  **复制配对码**和**复制链接**按钮。链接形如 `https://<server>/#pair=<CODE>`。
+- **服务器**：`cortex ui pair`（加 `--json` 输出 `{ok, code, expiresAt}`）。配对码写入
+  `$CORTEX_HOME/data/ui-pairing.json`，运行中的服务器会读取它，无需重启。还没有任何设备登录时，
+  第一个设备就靠它接入；也可以直接在聊天里让 Cortex 运行它。
+
+在浏览器登录页，或桌面 / Android 应用的**连接已有服务器**界面中使用配对码。在浏览器中打开配对链接
+会自动登录，并把配对码从地址栏移除。
+
+浏览器用配对码换取会话 cookie，如上所述。应用则在 `POST /api/ui/pair` 用它换取**自己的设备 token**
+（32 字节随机数），并以 `x-cortex-token` 发送。设备 token 能打开 client token 能打开的一切——tRPC、
+`/api` 路由和 `/forward`——唯独 `cortex-client` WebSocket 除外，设备仍使用共享的 client token。
+服务器只保存每个设备 token 的 SHA-256，位于 `$CORTEX_HOME/data/ui-devices.json`（权限 `0600`）。
+
+**已连接的 App** 列出每个已配对的应用，名称取自其操作系统（例如 Windows 或 Android），并显示配对时间
+和最近使用时间。当前使用的应用标为**本机**；其他应用带有**撤销**按钮，撤销后其 token 立即失效，
+该应用需要新的配对码才能重新连接。浏览器会话不在此列出（它们有**退出此浏览器的登录**和 30 天
+有效期），用完整 client token 连接的应用也不列出。
 
 ### 调整或关闭 {#tuning-or-turning-it-off}
 
@@ -248,8 +279,9 @@ CORTEX_UI_TOKEN_LOGIN=0          # 0、false、off 或 no：移除登录路由�
 CORTEX_UI_SESSION_TTL_DAYS=30    # 可选；会话有效期（天），默认 30
 ```
 
-关闭之后，登录与登出路由不会挂载，会话 cookie 也不再被接受，只剩 header token 与（若已配置）
-Cloudflare Access 能放行请求。SPA 会在登录页如实说明这一点，而不是给出一个根本不可能成功的表单。
+关闭之后，登录、登出与配对路由不会挂载，也不接受会话 cookie，也不会生成或兑换配对码，只剩
+header token（client token 或已配对应用的设备 token）与（若已配置）Cloudflare Access 能放行请求。
+已配对的应用仍可查看和撤销。SPA 会在登录页如实说明这一点，而不是给出一个根本不可能成功的表单。
 
 ### 该用哪一条 {#where-to-use-which}
 
@@ -271,16 +303,17 @@ Cloudflare Access 能放行请求。SPA 会在登录页如实说明这一点，�
 | | 浏览器 + Access | 浏览器 + token 登录 | 桌面（Tauri） |
 |---|---|---|---|
 | Hostname | 专用 UI hostname，**位于** Cloudflare Access 之后 | 任何能到达该端口的 hostname | 一个**不在** Access 之后的 hostname |
-| 登录 | Cloudflare Access 边缘登录（邮箱 / IdP） | 粘贴一次 `clientToken` | 一次性输入 `serverUrl` + `clientToken` |
-| 请求上的凭据 | `Cf-Access-Jwt-Assertion`（由边缘签发） | `cortex_ui` 会话 cookie | `x-cortex-token` 头 |
+| 登录 | Cloudflare Access 边缘登录（邮箱 / IdP） | 输入一次配对码或 `clientToken` | 一次性输入 `serverUrl` + 配对码（或 `clientToken`） |
+| 请求上的凭据 | `Cf-Access-Jwt-Assertion`（由边缘签发） | `cortex_ui` 会话 cookie | `x-cortex-token` 头（设备 token 或 `clientToken`） |
 | 何处校验认证 | 服务器校验 JWT | 服务器校验会话 | 服务器校验令牌 |
-| `clientToken` 暴露 | **从不接触浏览器** | 输入一次，不在页面中留存 | 存于应用数据目录 |
+| `clientToken` 暴露 | **从不接触浏览器** | 用配对码时不暴露；用 token 时输入一次，不在页面中留存 | 配对时不暴露；用 token 连接时存于应用数据目录 |
+| 可按设备撤销 | 通过 Access 策略 | **退出此浏览器的登录** | 「已连接的 App」中的**撤销**（已配对的应用） |
 | 能否打开 `/forward` | 否 | 否 | 是 |
 | SPA origin | 同源（SPA + `/trpc` 同一主机） | 同源 | 直连 `/trpc`（启用 CORS） |
 
 由于桌面应用发送 `x-cortex-token`，它必须通过一个**不在** Cloudflare Access 之后的
-hostname 连接（Access 会在边缘挡住 bearer 请求）。想要原生窗口、需要端口转发、且愿意在本地
-存储令牌时，选桌面应用；需要让别人进来、而他们不该看到令牌时，选 Access；只是你自己的浏览器、
+hostname 连接（Access 会在边缘挡住 bearer 请求）。想要原生窗口、需要端口转发时，选桌面应用——用配对码连接，
+让它持有自己可撤销的 token；需要让别人进来、而他们不该看到令牌时，选 Access；只是你自己的浏览器、
 且到服务器的通路本就私密时，选 token 登录。
 
 ## 故障排查 {#troubleshooting}
@@ -300,6 +333,11 @@ team 匹配、`CORTEX_ACCESS_AUD` 与 Access 应用的 AUD 标签完全一致，
 
 服务器上设置了 `CORTEX_UI_TOKEN_LOGIN=0`。要么移除它（token 登录默认开启）并重启，要么改经
 Cloudflare Access 或桌面应用访问 UI。
+
+**配对码不被接受**
+
+配对码 10 分钟内有效、只能用一次；累计 20 次错误猜测会作废所有未使用的配对码。在**设置 → 机器 →
+「已连接的 App」**或用 `cortex ui pair` 生成新的配对码。设置了 `CORTEX_UI_TOKEN_LOGIN=0` 时完全不接受配对码。
 
 **token 正确，但登录没有反应 / 每次加载页面都要求重新登录**
 

@@ -146,7 +146,7 @@ start (see [Automatic migration out of .env](#automatic-migration-out-of-env)).
 | `CORTEX_LANG` | `config/preferences.json`, else `en` | Language of system-generated messages (`en` or `zh`). Outranks the preference that `!lang` writes |
 | `CORTEX_CLIENT_PORT` | `3002` | WebSocket port for cortex-client manager |
 | `CORTEX_CLIENT_HOST` | Unspecified (all interfaces) | Bind address for the cortex-client WebSocket listener only; read at server startup |
-| `CORTEX_CLIENT_TOKEN` | generated | Shared secret that remote clients, the desktop app and the Web UI present. `cortex init` and the first server start generate it |
+| `CORTEX_CLIENT_TOKEN` | generated | Shared secret that remote clients present; the desktop app and the Web UI accept it as an alternative to a pairing code. `cortex init` and the first server start generate it |
 | `CORTEX_WEBHOOK_TOKEN` | generated | Bearer token of the loopback webhook (hook callbacks, `cortex-hook ask`). Generated the same way |
 
 A new Windows local App installation writes `CORTEX_CLIENT_HOST=127.0.0.1` to
@@ -199,15 +199,15 @@ still read as a deprecated fallback.
 ### Web UI and TUI
 
 The Web UI host serves the browser workbench, the desktop app and the mobile
-app. [Browser access](./browser-access.md) covers token login and Cloudflare
-Access in depth.
+app. [Browser access](./browser-access.md) covers token login, pairing codes and
+Cloudflare Access in depth.
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `CORTEX_UI_HTTP` | off | `1`, `true`, `on` or `yes` starts the Web UI host. `cortex ui enable` sets it |
 | `CORTEX_UI_PORT` | `3004` | Port of the Web UI host, bound to `127.0.0.1` |
 | `CORTEX_UI_SPA_DIR` | the packaged `web/dist` | Directory of the web app the host serves |
-| `CORTEX_UI_TOKEN_LOGIN` | on | Browser login by pasting the client token. `0`, `false`, `off` or `no` removes the login routes |
+| `CORTEX_UI_TOKEN_LOGIN` | on | Browser login with the client token or a pairing code, and app pairing with one-time codes. `0`, `false`, `off` or `no` removes the login and pairing routes; already-paired apps keep working |
 | `CORTEX_UI_SESSION_TTL_DAYS` | `30` | Lifetime of a browser login session, in days |
 | `CORTEX_ACCESS_TEAM_DOMAIN`, `CORTEX_ACCESS_AUD`, `CORTEX_ACCESS_CERTS_URL` | — | Cloudflare Access JWT verification for browsers; both of the first two are needed to enable it |
 | `CORTEX_PORT_FORWARD` | on | `0` disables the Web UI's port forwarding to remote machines |

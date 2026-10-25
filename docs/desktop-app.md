@@ -2,7 +2,7 @@
 
 Cortex provides a Tauri v2 native shell for Linux, macOS, Windows, and Android. The desktop shell presents the three-pane workbench; Android presents a phone-specific interface built around the session list and a swipe-in Projects panel. Both connect directly to a Cortex server over the Web UI HTTP transport and use the same projects, sessions, approvals, files, and memory as the browser workbench.
 
-The native apps require a reachable Web UI endpoint and the server's `CORTEX_CLIENT_TOKEN`. Browser access uses a separate Cloudflare Access path described in [Browser Access](browser-access.md).
+The native apps require a reachable Web UI endpoint and a one-time pairing code (or the server's `CORTEX_CLIENT_TOKEN`). Browser access uses a separate Cloudflare Access path described in [Browser Access](browser-access.md).
 
 The desktop app can either install a Cortex server on the computer it runs on or connect to one that already exists. The first screen asks which, and the local path needs no terminal: it installs the package, writes the configuration, starts the daemon, and connects. Android is remote-only, since it has no place to run a Node process.
 
@@ -60,7 +60,7 @@ To enable the endpoint on an existing install without the wizard, run one comman
 cortex ui enable
 ```
 
-This generates the client token if needed, sets `CORTEX_UI_HTTP` and `CORTEX_UI_PORT`, and adds the app's origins to `uiCorsOrigins`. Restart the daemon afterwards when it reports that the configuration changed. [Server configuration](#server-configuration) describes the same settings by hand.
+This generates the client token if needed, sets `CORTEX_UI_HTTP` and `CORTEX_UI_PORT`, and adds the app's origins to `uiCorsOrigins`. Restart the daemon afterwards when it reports that the configuration changed. `cortex ui pair` then prints a one-time pairing code for the first app (see [First connection](#first-connection)). [Server configuration](#server-configuration) describes the same settings by hand.
 
 ### Using cortex in a terminal
 
@@ -117,7 +117,7 @@ The allowed CORS origins are a runtime setting. Add or confirm the `uiCorsOrigin
 
 The legacy comma-separated `CORTEX_UI_CORS_ORIGINS` variable in `.env` is still read as a deprecated fallback.
 
-`cortex init` generates `CORTEX_CLIENT_TOKEN` in `.env`. The native app uses that exact value; `CORTEX_TOKEN` is not the server-side client-token setting. Retrieve the configured token with:
+`cortex init` generates `CORTEX_CLIENT_TOKEN` in `.env`. An app that connects with the client token, not a pairing code, uses that exact value; `CORTEX_TOKEN` is not the server-side client-token setting. Retrieve the configured token with:
 
 ```bash
 grep CORTEX_CLIENT_TOKEN "${CORTEX_HOME:-$HOME/.cortex}/config/.env"
@@ -129,7 +129,9 @@ Current builds serve the shell through the `cortexui` custom protocol, which app
 
 ## First connection
 
-Choose **Connect an existing server** on the first screen, then enter the server URL, including `https://` or `http://`, together with `CORTEX_CLIENT_TOKEN`. The connection test distinguishes an unreachable endpoint from an unauthorized token. A successful connection opens the workbench and stores the credentials for later launches. A server installed by the wizard skips this screen — it connects with credentials it generated itself.
+Choose **Connect an existing server** on the first screen, then enter the server URL, including `https://` or `http://`, and a pairing code in **Pairing code or client token**. Get the code on any signed-in device under **Settings → Machines → Connected apps → Connect a device**, or run `cortex ui pair` on the server (or ask Cortex in chat to run it) — the usual way for the first device. A code is valid for 10 minutes and works once; pasting a pairing link (`https://<server>/#pair=<CODE>`) into the address field fills both fields. On connect the app trades the code for its own device token and stores that. The full `CORTEX_CLIENT_TOKEN` is accepted in the same field as an alternative. **Test connection** with a code only checks that the server is reachable and does not spend the code; with the client token it distinguishes an unreachable endpoint from an unauthorized token. A successful connection opens the workbench and stores the credentials for later launches.
+
+Apps paired with a code appear under **Settings → Machines → Connected apps** on every signed-in device, with when each was paired and last used. **Revoke** signs an app out at once; it needs a new code to connect again. [Pairing codes and connected apps](browser-access.md#pairing-codes-and-connected-apps) covers the details. A server installed by the wizard skips this screen — it connects with credentials it generated itself.
 
 The app stores the connection as `connection.json` in its own data directory: `~/Library/Application Support/dev.cortex.desktop` on macOS, `~/.local/share/dev.cortex.desktop` on Linux, `%APPDATA%\dev.cortex.desktop` on Windows, and the app's private storage on Android. On macOS and Linux the file is readable by your user only. Disconnecting deletes it and returns to the connection screen.
 
@@ -269,7 +271,7 @@ Deleting the rest of `~/.cortex` removes the data as well.
 
 ### Unauthorized
 
-Confirm that the app contains the value of `CORTEX_CLIENT_TOKEN`, not the webhook token or a legacy variable. Re-enter the token after using Disconnect if the server token changed.
+An app paired with a code is signed out when its device token is revoked under **Settings → Machines → Connected apps**; use Disconnect and connect again with a new pairing code. An app connected with the client token must contain the value of `CORTEX_CLIENT_TOKEN`, not the webhook token or a legacy variable; re-enter the token after using Disconnect if the server token changed. A rejected pairing code is wrong or has expired — create a new one.
 
 ### Network error
 
