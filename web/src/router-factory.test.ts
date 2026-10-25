@@ -24,7 +24,7 @@ describe('createShellRouter', () => {
     const router = createShellRouter(routes, true);
 
     expect(router).toEqual({ kind: 'hash' });
-    expect(mocks.hash).toHaveBeenCalledWith(routes);
+    expect(mocks.hash).toHaveBeenCalledWith([expect.objectContaining({ path: '/', errorElement: expect.anything() })]);
     expect(mocks.browser).not.toHaveBeenCalled();
   });
 
@@ -32,7 +32,7 @@ describe('createShellRouter', () => {
     const router = createShellRouter(routes, false);
 
     expect(router).toEqual({ kind: 'browser' });
-    expect(mocks.browser).toHaveBeenCalledWith(routes);
+    expect(mocks.browser).toHaveBeenCalledWith([expect.objectContaining({ path: '/', errorElement: expect.anything() })]);
     expect(mocks.hash).not.toHaveBeenCalled();
   });
 });
