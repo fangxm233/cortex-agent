@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SourceMapGenerator } from 'source-map';
+import { scriptArgs } from '../scripts/cli.js';
 import { inlineParams } from '../scripts/query.js';
 import { assetNames, symbolicate } from '../scripts/symbolicate.js';
 import { REPORT_NAMES, REPORTS, reportFilter } from '../src/reports.js';
@@ -47,4 +48,9 @@ test('symbolicate maps bundled frames in Chrome and Firefox formats and leaves o
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('scriptArgs drops the -- separator pnpm forwards to the script', () => {
+  assert.deepEqual(scriptArgs(['--', 'delete-install', '--install-id', 'x']), ['delete-install', '--install-id', 'x']);
+  assert.deepEqual(scriptArgs(['turnHealth', '--remote']), ['turnHealth', '--remote']);
 });
