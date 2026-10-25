@@ -29,10 +29,12 @@ export interface DockIntakeValue {
   openFile: (item: PreviewItem) => void;
   /** Open the dock on a web tab, reusing a blank one when there is one. */
   openWeb: () => void;
-  /** Open the dock on a board, focusing its tab when it is already open. */
-  openBoard: (boardId: string) => void;
+  /** Open the dock on a board, focusing its tab when it is already open. The dock keeps one strip
+   *  per session; `inSession` opens it in that session's strip, for a caller that is about to
+   *  select that session, rather than the strip of the session selected now. */
+  openBoard: (boardId: string, inSession?: string) => void;
   /** Open the dock on a session's agent browser, focusing its tab when it is already open. */
-  openAgentBrowser: (sessionId: string) => void;
+  openAgentBrowser: (sessionId: string, inSession?: string) => void;
 }
 
 // No dock in scope (mobile shell, isolated component tests) → inert: nothing can dock, so every

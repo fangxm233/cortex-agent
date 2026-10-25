@@ -85,7 +85,7 @@
   cursor: pointer;
   user-select: none;
 }
-.dock-tab-close {
+.dock-tab-close, .dock-tab-pin {
   width: 20px;
   height: 20px;
   margin-right: 5px;
@@ -94,11 +94,11 @@
 }
 /* An unselected tab is just its name: its ✕ floats over the label's end, out of sight until the tab
    is hovered or holds focus, so the strip keeps no empty slot for it (the label fades out beneath
-   it meanwhile). It stays in the tab order. */
-.dock-tab-item:not([data-selected='true']) .dock-tab-select { padding-right: 10px; }
+   it meanwhile). It stays in the tab order. A pinned tab always shows its pin in place of the ✕. */
+.dock-tab-item:not([data-selected='true']):not([data-pinned='true']) .dock-tab-select { padding-right: 10px; }
 .dock-tab-item:not([data-selected='true']) .dock-tab-close { position: absolute; right: 4px; top: 5px; margin: 0; }
 .dock-tab-item:not([data-selected='true']):not(:hover):not(:focus-within) .dock-tab-close { opacity: 0; pointer-events: none; }
-.dock-tab-item:not([data-selected='true']):is(:hover, :focus-within) .dock-tab-select {
+.dock-tab-item:not([data-selected='true']):not([data-pinned='true']):is(:hover, :focus-within) .dock-tab-select {
   -webkit-mask-image: linear-gradient(to left, transparent 26px, #000 44px);
   mask-image: linear-gradient(to left, transparent 26px, #000 44px);
 }

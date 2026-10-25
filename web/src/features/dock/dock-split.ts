@@ -2,9 +2,8 @@
 // one tab strip of file previews and live web pages (see `dock-tabs.ts`). This module is only its
 // geometry — how wide it is, and how a divider drag maps to that width.
 
-/** localStorage keys — `cortex.*` UI-pref convention. The names predate the dock rename and are
- *  kept verbatim so an existing user's docked/width preference survives the upgrade. */
-export const DOCK_OPEN_KEY = 'cortex.previewPinned';
+/** localStorage key — `cortex.*` UI-pref convention. The name predates the dock rename and is kept
+ *  verbatim so an existing user's width preference survives the upgrade. */
 export const DOCK_SPLIT_KEY = 'cortex.previewSplit';
 
 /** The dock's share of the center region (chat + dock). 0.5 = an even split. */
@@ -22,11 +21,6 @@ export function clampDockSplit(v: number): number {
 export function parseDockSplit(raw: string | null): number {
   if (raw === null || raw.trim() === '') return DOCK_SPLIT_DEFAULT;
   return clampDockSplit(Number(raw));
-}
-
-/** Stored dock flag → boolean. Only the explicit '1' restores the docked mode. */
-export function parseDockOpen(raw: string | null): boolean {
-  return raw === '1';
 }
 
 /** Pixel floors — a drag must leave BOTH panes usable. The ratio band alone is not enough: at 0.75

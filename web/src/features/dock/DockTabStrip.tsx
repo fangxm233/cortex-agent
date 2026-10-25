@@ -1,4 +1,4 @@
-import { forwardRef, type CSSProperties, type ReactNode } from 'react';
+import { forwardRef, useCallback, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { AnimatePresence, MotionConfig, Reorder, motion, useIsPresent, useReducedMotion } from 'motion/react';
 import { useMotionMode, type MotionMode } from '@/theme';
 import { PlusGlyph } from '@/design';
@@ -10,6 +10,7 @@ import { AgentBrowserTabTitle } from '@/features/agent-browser/AgentBrowserTabTi
 import {
   dockTabLabel, isAgentBrowserTab, isBoardTab, isFileTab, isWebTab, type DockState, type DockTab, type WebDockTab,
 } from './dock-tabs';
+import { DockTabMenu, PinGlyph, type TabMenuTarget } from './DockTabMenu';
 import './dock-chrome.css';
 
 // Keep the strip at the chat header's 50px height. Only chrome reorders; the pane's
@@ -18,13 +19,17 @@ import './dock-chrome.css';
 // A tab is plain muted text with a small glyph for its kind (the board's flag, a page for a file, a
 // globe for the web); the selected tab alone is raised — control material, a hairline and a soft
 // shadow. A web tab's port, or the device:port a forward came from, follows its label as quiet text.
+// A pinned tab's ✕ is a pin instead (pressing it unpins); right-click opens pin / unpin / close.
 
 interface StripProps {
   state: DockState | null;
+  pinnedIds: ReadonlySet<string>;
   onAdd: () => void;
   onSelect: (id: string) => void;
   onClose: (id: string) => void;
   onReorder: (orderedIds: string[]) => void;
+  onPin: (id: string) => void;
+  onUnpin: (id: string) => void;
   /** Right-aligned controls that belong to the dock, not to any one tab. */
   actions?: ReactNode;
 }
@@ -33,24 +38,32 @@ export function DockTabStrip(props: StripProps): JSX.Element {
   const motionMode = useMotionMode();
   const systemReduced = useReducedMotion();
   const reduceMotion = motionMode === 'reduced' || (motionMode === 'system' && systemReduced === true);
+  const [menu, setMenu] = useState<TabMenuTarget | null>(null);
+  const dismiss = useCallback(() => setMenu(null), []);
+  const menuOpen = menu !== null && (props.state?.tabs.some((tab) => tab.id === menu.id) ?? false);
   return (
     <MotionConfig reducedMotion={motionReduction(motionMode)}>
       <div className="dock-strip">
-        <TabScroller {...props} reduceMotion={reduceMotion} />
+        <TabScroller {...props} reduceMotion={reduceMotion} onMenu={setMenu} />
         {props.actions && <div className="dock-tab-actions">{props.actions}</div>}
       </div>
+      {menuOpen && <DockTabMenu target={menu} pinned={props.pinnedIds.has(menu.id)} onPin={props.onPin}
+        onUnpin={props.onUnpin} onClose={props.onClose} onDismiss={dismiss} />}
     </MotionConfig>
   );
 }
 
-function TabScroller({ state, onAdd, onSelect, onClose, onReorder, reduceMotion }: StripProps & { reduceMotion: boolean }): JSX.Element {
+type ScrollerProps = StripProps & { reduceMotion: boolean; onMenu: (target: TabMenuTarget) => void };
+
+function TabScroller({ state, pinnedIds, onAdd, onReorder, ...item }: ScrollerProps): JSX.Element {
   const tabs = state?.tabs ?? [];
   const L = useVocabOptional();
   return (
     <Reorder.Group as="div" axis="x" values={tabs.map((tab) => tab.id)} onReorder={onReorder} layoutScroll className="dock-tab-scroll">
       <AnimatePresence initial={false} mode="popLayout">
         {tabs.map((tab) => <DockTabItem key={tab.id} tab={tab} active={tab.id === state?.activeId}
-          draggable={tabs.length > 1} reduceMotion={reduceMotion} onSelect={onSelect} onClose={onClose} />)}
+          pinned={pinnedIds.has(tab.id)} draggable={tabs.length > 1} reduceMotion={item.reduceMotion}
+          onSelect={item.onSelect} onClose={item.onClose} onUnpin={item.onUnpin} onMenu={item.onMenu} />)}
       </AnimatePresence>
       <motion.button layout type="button" className="dock-control" data-add-tab="" title={L.brNewTab} aria-label={L.brNewTab} onClick={onAdd}>
         <PlusGlyph size={14} />
@@ -62,15 +75,22 @@ function TabScroller({ state, onAdd, onSelect, onClose, onReorder, reduceMotion 
 interface DockTabItemProps {
   tab: DockTab;
   active: boolean;
+  pinned: boolean;
   draggable: boolean;
   reduceMotion: boolean;
   onSelect: (id: string) => void;
   onClose: (id: string) => void;
+  onUnpin: (id: string) => void;
+  onMenu: (target: TabMenuTarget) => void;
 }
 
 const DockTabItem = forwardRef<HTMLDivElement, DockTabItemProps>(function DockTabItem(props, ref): JSX.Element {
-  const { tab, active, draggable, reduceMotion } = props;
+  const { tab, active, pinned, draggable, reduceMotion, onMenu } = props;
   const isPresent = useIsPresent();
+  const openMenu = (event: MouseEvent) => {
+    event.preventDefault();
+    onMenu({ id: tab.id, x: event.clientX, y: event.clientY });
+  };
   return (
     <Reorder.Item ref={ref} as="div" value={tab.id} dragListener={draggable && isPresent} dragElastic={0.08}
       initial={reduceMotion ? false : { opacity: 0, scale: 0.94 }}
@@ -78,15 +98,15 @@ const DockTabItem = forwardRef<HTMLDivElement, DockTabItemProps>(function DockTa
       exit={reduceMotion ? undefined : { opacity: 0, scale: 0.94, transition: { duration: 0.12, ease: 'easeIn' } }}
       transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 500, damping: 40, opacity: { duration: 0.12 }, scale: { duration: 0.14 } }}
       whileDrag={reduceMotion ? undefined : { scale: 1.03 }}
-      className="dock-tab-item" data-selected={active} style={{ pointerEvents: isPresent ? 'auto' : 'none' }}>
+      className="dock-tab-item" data-selected={active} data-pinned={pinned ? 'true' : undefined}
+      onContextMenu={openMenu} style={{ pointerEvents: isPresent ? 'auto' : 'none' }}>
       <TabButtons {...props} isPresent={isPresent} />
     </Reorder.Item>
   );
 });
 
-function TabButtons({ tab, active, onSelect, onClose, isPresent }: DockTabItemProps & { isPresent: boolean }): JSX.Element {
+function TabButtons({ tab, active, onSelect, isPresent, ...trailing }: DockTabItemProps & { isPresent: boolean }): JSX.Element {
   const L = useVocabOptional();
-  const closeTab = L.dockCloseTab;
   const plain = isFileTab(tab) || isWebTab(tab) ? tab : null;
   const label = plain ? dockTabLabel(plain, L.brNewTab) : null;
   const web = isWebTab(tab) ? tab : null;
@@ -104,11 +124,28 @@ function TabButtons({ tab, active, onSelect, onClose, isPresent }: DockTabItemPr
         </span>
         {web && where && <TabWhere tab={web} chip={where} source={source} copy={L} />}
       </button>
-      <button type="button" className="dock-control dock-tab-close" disabled={!isPresent} data-close-tab={tab.id}
-        title={closeTab} aria-label={closeTab} onPointerDown={(event) => event.stopPropagation()} onClick={() => onClose(tab.id)}>
-        <CloseGlyph size={10} />
-      </button>
+      <TabTrailing id={tab.id} pinned={trailing.pinned} disabled={!isPresent} onClose={trailing.onClose} onUnpin={trailing.onUnpin} />
     </>
+  );
+}
+
+/** The tab's trailing button: ✕ closes it, or for a pinned tab the pin, which unpins it. */
+function TabTrailing({ id, pinned, disabled, onClose, onUnpin }: {
+  id: string;
+  pinned: boolean;
+  disabled: boolean;
+  onClose: (id: string) => void;
+  onUnpin: (id: string) => void;
+}): JSX.Element {
+  const L = useVocabOptional();
+  const label = pinned ? L.dockUnpinTab : L.dockCloseTab;
+  const marker = pinned ? { 'data-unpin-tab': id } : { 'data-close-tab': id };
+  return (
+    <button type="button" className={pinned ? 'dock-control dock-tab-pin' : 'dock-control dock-tab-close'} disabled={disabled}
+      {...marker} title={label} aria-label={label} onPointerDown={(event) => event.stopPropagation()}
+      onClick={() => (pinned ? onUnpin(id) : onClose(id))}>
+      {pinned ? <PinGlyph size={11} /> : <CloseGlyph size={10} />}
+    </button>
   );
 }
 

@@ -200,7 +200,7 @@ function usePaletteTarget(onOpenChange: (open: boolean) => void) {
       navigate('/workbench');
       if (row.projectId) setCurrentProject(row.projectId);
       if (row.focusId) setSelectedSession(row.focusId);
-      return openAgentBrowser(row.browserSessionId);
+      return openAgentBrowser(row.browserSessionId, row.focusId);
     }
     if (row.boardId) {
       // The dock lives on the workbench; the board opens there whichever page the palette was on.

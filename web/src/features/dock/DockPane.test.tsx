@@ -22,6 +22,9 @@ function Harness(): JSX.Element {
       <button data-action="web" onClick={dock.openWeb} />
       <button data-action="hide" onClick={dock.closeDock} />
       <button data-action="file" onClick={() => dock.openFile(shot)} />
+      <button data-action="session-a" onClick={() => dock.setSession('a')} />
+      <button data-action="session-b" onClick={() => dock.setSession('b')} />
+      <button data-action="pin-first" onClick={() => dock.pin(dock.state!.tabs[0]!.id)} />
       <DockPane />
     </>
   );
@@ -78,7 +81,9 @@ describe('DockPane tab lifetime', () => {
     navigate(renderer, 'http://127.0.0.1:5173/');
     const body = activeBody(renderer);
     expect(renderer.root.findByProps({ 'data-pane': 'dock' }).props.style.background).toBe('transparent');
-    expect(body.parent!.parent!.props.style.background).toBeUndefined();
+    let container = body.parent!.parent!;
+    while (typeof container.type !== 'string') container = container.parent!;
+    expect(container.props.style.background).toBeUndefined();
     expect(body.props.style.background).toBe('transparent');
     expect(body.findByType('iframe').props.style.background).toBe('var(--proto-card)');
     expect(renderer.root.findByProps({ 'aria-label': 'New tab' }).props.className).toBe('dock-control');
@@ -160,5 +165,51 @@ describe('DockPane tab lifetime', () => {
     act(() => renderer.root.findByProps({ 'data-dock-tab': 'browser-tab-1' }).props.onClick());
     expect(input(renderer).props.value).toBe('draft-b');
     expect(viewport(renderer).props.value).toBe('desktop');
+  });
+});
+
+function paneDisplay(renderer: ReactTestRenderer): string {
+  return renderer.root.findByProps({ 'data-pane': 'dock' }).props.style.display;
+}
+
+describe('DockPane per session', () => {
+  it('shows each session its own strip while every session\'s bodies stay mounted', () => {
+    const renderer = mount();
+    action(renderer, 'session-a');
+    action(renderer, 'web');
+    navigate(renderer, 'http://127.0.0.1:5173/');
+    const frame = renderer.root.findByProps({ 'data-browser-frame': 'browser-tab-0' });
+
+    action(renderer, 'session-b');
+    expect(tabIds(renderer)).toEqual([]);
+    expect(paneDisplay(renderer)).toBe('none');
+    action(renderer, 'file');
+    expect(tabIds(renderer)).toEqual(['dock-file-1']);
+    expect(bodyDisplay(renderer, 'browser-tab-0')).toBe('none');
+
+    action(renderer, 'session-a');
+    expect(tabIds(renderer)).toEqual(['browser-tab-0']);
+    expect(paneDisplay(renderer)).toBe('flex');
+    expect(bodyDisplay(renderer, 'browser-tab-0')).toBe('flex');
+    expect(bodyDisplay(renderer, 'dock-file-1')).toBe('none');
+    expect(renderer.root.findByProps({ 'data-browser-frame': 'browser-tab-0' })).toBe(frame);
+  });
+
+  it('keeps a pinned tab in every session, with a pin in place of its close that unpins it', () => {
+    const renderer = mount();
+    action(renderer, 'session-a');
+    action(renderer, 'file');
+    action(renderer, 'pin-first');
+    expect(renderer.root.findAll((node) => node.props['data-close-tab'] !== undefined)).toHaveLength(0);
+
+    action(renderer, 'session-b');
+    expect(tabIds(renderer)).toEqual(['dock-file-0']);
+    expect(paneDisplay(renderer)).toBe('flex');
+    act(() => renderer.root.findByProps({ 'data-unpin-tab': 'dock-file-0' }).props.onClick());
+    expect(tabIds(renderer)).toEqual(['dock-file-0']);
+    expect(renderer.root.findAll((node) => node.props['data-close-tab'] === 'dock-file-0')).toHaveLength(1);
+
+    action(renderer, 'session-a');
+    expect(tabIds(renderer)).toEqual([]);
   });
 });

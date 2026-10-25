@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import { WebBody } from '@/features/browser/WebBody';
 import { BoardDockBody } from '@/features/board/BoardDockBody';
 import { AgentBrowserView } from '@/features/agent-browser/AgentBrowserView';
@@ -12,7 +12,6 @@ import {
   isBoardTab,
   isFileTab,
   syncBodyOrder,
-  type DockState,
   type DockTab,
   type WebDockTab,
 } from './dock-tabs';
@@ -20,7 +19,8 @@ import {
 // THE DOCK PANE — mounted by the workbench frame as a flex sibling after CenterChat, so opening it
 // splits the center region into chat (left) | dock (right) instead of covering the chat with a scrim. Its left edge is a drag divider (split ratio persisted).
 //
-// EVERY tab body stays mounted; only the active one is displayed. That is what makes a switch
+// EVERY tab body stays mounted — every session's, not just the selected one's — and only the
+// selected strip's active one is displayed. That is what makes a switch (of tab or of session)
 // non-destructive — a web tab keeps its live document, scroll position and HMR connection, and a
 // file tab keeps its PDF page and image zoom. Bodies are rendered in their own insertion order
 // (`syncBodyOrder`), never the strip's display order, so dragging a tab moves only its chrome:
@@ -30,59 +30,79 @@ import {
 // source toggle up there would belong to whatever happened to be active. Each body owns its own
 // row instead (`FileBar`, or a PDF's page pager); the strip keeps only the dock-wide close.
 
+type Dock = ReturnType<typeof useDock>;
+
 export function DockPane(): JSX.Element | null {
-  const { open, state, split, closeDock, select, close, reorder, openWeb, updateWeb, setSplit, registerHost } = useDock();
+  const dock = useDock();
+  const { open, allTabs, split, setSplit, registerHost } = dock;
   const paneRef = useRef<HTMLDivElement | null>(null);
-  const bodyOrder = useRef<string[]>([]);
   const L = useVocabOptional();
 
   useEffect(() => registerHost(), [registerHost]);
 
-  bodyOrder.current = syncBodyOrder(bodyOrder.current, state?.tabs ?? []);
-
   // Closing the dock hides it but keeps its tabs alive, so reopening resumes where it left off.
-  // The pane therefore stays mounted while it holds tabs, and only disappears once it holds none.
-  if (!open && state === null) return null;
+  // The pane therefore stays mounted while any session holds tabs, and only disappears once none do.
+  if (!open && allTabs.length === 0) return null;
 
   return (
     <div ref={paneRef} data-pane="dock" style={{ ...PANE_STYLE, flexGrow: split, display: open ? 'flex' : 'none' }}>
       <DockDivider split={split} label={L.dockResize} paneRef={paneRef} onCommit={(value) => setSplit(value, true)} />
-
-      <DockTabStrip
-        state={state}
-        onAdd={openWeb}
-        onSelect={select}
-        onClose={close}
-        onReorder={reorder}
-        actions={
-          <button type="button" className="dock-control" data-close-dock="" title={L.dockCloseDock} aria-label={L.dockCloseDock} onClick={closeDock}>
-            <CloseGlyph size={13} />
-          </button>
-        }
-      />
-
+      {/* Keyed by session: a switch swaps the whole strip at once instead of animating every tab
+          out and in, and drops a menu left open on the other session's tab. */}
+      <PaneStrip key={dock.sessionKey} dock={dock} />
       {/* Chrome lets the workspace sheet show through; documents own their opaque fill. */}
       <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
-        {state === null
-          ? <DockCentered>{L.dockEmptyHint}</DockCentered>
-          : bodyOrder.current.map((id) => (
-            <DockTabBody key={id} state={state} id={id} paneOpen={open} onUpdateWeb={updateWeb} />
-          ))}
+        <PaneBodies dock={dock} />
       </div>
     </div>
   );
 }
 
-function DockTabBody({ state, id, paneOpen, onUpdateWeb }: {
-  state: DockState;
-  id: string;
+function PaneStrip({ dock }: { dock: Dock }): JSX.Element {
+  const L = useVocabOptional();
+  return (
+    <DockTabStrip
+      state={dock.state}
+      pinnedIds={dock.pinnedIds}
+      onAdd={dock.openWeb}
+      onSelect={dock.select}
+      onClose={dock.close}
+      onReorder={dock.reorder}
+      onPin={dock.pin}
+      onUnpin={dock.unpin}
+      actions={
+        <button type="button" className="dock-control" data-close-dock="" title={L.dockCloseDock} aria-label={L.dockCloseDock} onClick={dock.closeDock}>
+          <CloseGlyph size={13} />
+        </button>
+      }
+    />
+  );
+}
+
+function PaneBodies({ dock }: { dock: Dock }): JSX.Element {
+  const { state, allTabs, open, updateWeb } = dock;
+  const bodyOrder = useRef<string[]>([]);
+  const tabsById = useMemo(() => new Map(allTabs.map((tab) => [tab.id, tab])), [allTabs]);
+  const L = useVocabOptional();
+  bodyOrder.current = syncBodyOrder(bodyOrder.current, allTabs);
+  return (
+    <>
+      {state === null && <DockCentered>{L.dockEmptyHint}</DockCentered>}
+      {bodyOrder.current.map((id) => {
+        const tab = tabsById.get(id);
+        return tab ? <DockTabBody key={id} tab={tab} active={id === state?.activeId} paneOpen={open} onUpdateWeb={updateWeb} /> : null;
+      })}
+    </>
+  );
+}
+
+function DockTabBody({ tab, active, paneOpen, onUpdateWeb }: {
+  tab: DockTab;
+  active: boolean;
   paneOpen: boolean;
   onUpdateWeb: (id: string, update: (tab: WebDockTab) => WebDockTab) => void;
-}): JSX.Element | null {
-  const tab: DockTab | undefined = state.tabs.find((candidate) => candidate.id === id);
-  const update = useCallback((next: (entry: WebDockTab) => WebDockTab) => onUpdateWeb(id, next), [id, onUpdateWeb]);
-  if (!tab) return null;
-  const active = tab.id === state.activeId;
+}): JSX.Element {
+  const update = useCallback((next: (entry: WebDockTab) => WebDockTab) => onUpdateWeb(tab.id, next), [tab.id, onUpdateWeb]);
   // `display` is applied LAST: a file body's own style carries one (media centers itself with
   // flex), and letting that win would leave every hidden media tab painted over the active one.
   const style: CSSProperties = {

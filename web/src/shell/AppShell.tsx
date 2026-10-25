@@ -1,10 +1,11 @@
+import { useLayoutEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { CommandPalette } from '@/features/command-palette/CommandPalette';
 import { useCommandPalette } from '@/features/command-palette/useCommandPalette';
-import { SelectedSessionProvider } from '@/features/session/state/SelectedSessionProvider';
+import { SelectedSessionProvider, useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
 import { NotificationMount } from '@/features/notifications/NotificationMount';
 import { UpdateMount } from '@/features/update-prompt/UpdateMount';
-import { DockProvider } from '@/features/dock/DockProvider';
+import { DockProvider, useDock } from '@/features/dock/DockProvider';
 import { NotesProvider } from '@/features/notes/NotesProvider';
 import { ShellProviders } from './ShellProviders';
 import { NavigationHistoryProvider } from './NavigationHistoryProvider';
@@ -25,12 +26,16 @@ import { ShellModalHost } from './ShellModals';
 //   ShellProviders   the set both chromes mount — live stream, connection, current project, the
 //                    modal registry and the two viewers.
 //   the rest         desktop-only state: selected session, navigation history, notes.
+//
+// The dock sits outside the selected session but shows that session's tabs, so DockFollowsSession
+// hands the selection in.
 export function AppShell() {
   const { open, setOpen } = useCommandPalette();
   return (
     <DockProvider>
       <ShellProviders>
         <SelectedSessionProvider><NavigationHistoryProvider><NotesProvider>
+          <DockFollowsSession />
           <Outlet />
           <CommandPalette open={open} onOpenChange={setOpen} />
           <NotificationMount />
@@ -40,4 +45,15 @@ export function AppShell() {
       </ShellProviders>
     </DockProvider>
   );
+}
+
+/** A layout effect, so the strip swaps in the same frame as the chat it belongs to. While the
+ *  selection is still loading the dock keeps the strip it shows. */
+function DockFollowsSession(): null {
+  const { selectedSessionId } = useSelectedSession();
+  const { setSession } = useDock();
+  useLayoutEffect(() => {
+    if (selectedSessionId !== null) setSession(selectedSessionId);
+  }, [selectedSessionId, setSession]);
+  return null;
 }

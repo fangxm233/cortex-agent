@@ -143,17 +143,20 @@ export function touchTab(state: DockState, id: string, now: number): DockState {
   return updateTab(state, id, (tab) => (isFileTab(tab) ? { ...tab, touchedAt: now } : tab));
 }
 
+const NO_IDS: ReadonlySet<string> = new Set();
+
 /**
  * Cap the tab count.
  *
  * Only FILE tabs are evicted: a web tab is something the user explicitly opened and its iframe holds
  * live page state that cannot be recreated, while a file tab re-fetches its bytes by path in one
- * click. The active tab is never a victim, and the coldest go first.
+ * click. The active tab is never a victim, nor is anything in `keep` (the pinned tabs), and the
+ * coldest go first.
  */
-export function evictOverflow(state: DockState): DockState {
+export function evictOverflow(state: DockState, keep: ReadonlySet<string> = NO_IDS): DockState {
   if (state.tabs.length <= MAX_DOCK_TABS) return state;
   const victims = state.tabs
-    .filter((tab): tab is FileDockTab => isFileTab(tab) && tab.id !== state.activeId)
+    .filter((tab): tab is FileDockTab => isFileTab(tab) && tab.id !== state.activeId && !keep.has(tab.id))
     .sort((a, b) => a.touchedAt - b.touchedAt);
   const drop = new Set<string>();
   for (const victim of victims) {
@@ -165,7 +168,9 @@ export function evictOverflow(state: DockState): DockState {
 }
 
 /** Preview a file in the dock: focus the tab already holding it, else append and activate a new one. */
-export function openFileTab(state: DockState | null, item: FileItem, id: string, now: number): DockState {
+export function openFileTab(
+  state: DockState | null, item: FileItem, id: string, now: number, keep: ReadonlySet<string> = NO_IDS,
+): DockState {
   const key = fileTabKey(item);
   if (state !== null && key !== null) {
     const existing = state.tabs.find((tab) => isFileTab(tab) && fileTabKey(tab.item) === key);
@@ -173,38 +178,42 @@ export function openFileTab(state: DockState | null, item: FileItem, id: string,
   }
   const tab: FileDockTab = { kind: 'file', id, item, touchedAt: now };
   if (state === null) return { tabs: [tab], activeId: id };
-  return evictOverflow(addTab(state, tab));
+  return evictOverflow(addTab(state, tab), keep);
 }
 
 /** Show a board: focus its tab when it is already open, else append and activate one. */
-export function openBoardTab(state: DockState | null, boardId: string, id: string): DockState {
+export function openBoardTab(state: DockState | null, boardId: string, id: string, keep: ReadonlySet<string> = NO_IDS): DockState {
   if (state !== null) {
     const existing = state.tabs.find((tab) => isBoardTab(tab) && tab.boardId === boardId);
     if (existing) return selectTab(state, existing.id);
   }
   const tab: BoardDockTab = { kind: 'board', id, boardId };
   if (state === null) return { tabs: [tab], activeId: id };
-  return evictOverflow(addTab(state, tab));
+  return evictOverflow(addTab(state, tab), keep);
 }
 
 /** Show a session's agent browser: focus its tab when it is already open, else append one. */
-export function openAgentBrowserTab(state: DockState | null, sessionId: string, id: string): DockState {
+export function openAgentBrowserTab(
+  state: DockState | null, sessionId: string, id: string, keep: ReadonlySet<string> = NO_IDS,
+): DockState {
   if (state !== null) {
     const existing = state.tabs.find((tab) => isAgentBrowserTab(tab) && tab.sessionId === sessionId);
     if (existing) return selectTab(state, existing.id);
   }
   const tab: AgentBrowserDockTab = { kind: 'agent-browser', id, sessionId };
   if (state === null) return { tabs: [tab], activeId: id };
-  return evictOverflow(addTab(state, tab));
+  return evictOverflow(addTab(state, tab), keep);
 }
 
 /** Open a web tab: reuse an existing blank one (the address bar is the empty state, so a second
  *  blank tab would be indistinguishable clutter), else append a fresh one. */
-export function openWebTab(state: DockState | null, tab: WebDockTab, isBlank: (tab: WebDockTab) => boolean): DockState {
+export function openWebTab(
+  state: DockState | null, tab: WebDockTab, isBlank: (tab: WebDockTab) => boolean, keep: ReadonlySet<string> = NO_IDS,
+): DockState {
   if (state === null) return { tabs: [tab], activeId: tab.id };
   const blank = state.tabs.find((candidate) => isWebTab(candidate) && isBlank(candidate));
   if (blank) return selectTab(state, blank.id);
-  return evictOverflow(addTab(state, tab));
+  return evictOverflow(addTab(state, tab), keep);
 }
 
 /**
