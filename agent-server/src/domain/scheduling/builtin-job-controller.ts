@@ -3,7 +3,9 @@ export type BuiltinJobMode = 'serial' | 'detached';
 export interface BuiltinJobDefinition {
   name: string;
   enabledKey: string;
-  intervalKey: string;
+  /** Setting that holds the interval; `fixedIntervalMs` instead for a job with no such setting. */
+  intervalKey?: string;
+  fixedIntervalMs?: number;
   mode: BuiltinJobMode;
   run: () => void | Promise<void>;
 }
@@ -25,6 +27,10 @@ export interface BuiltinJobControllerOptions {
 export interface BuiltinJobController {
   start: () => void;
   stop: () => Promise<void>;
+}
+
+function jobInterval(job: BuiltinJobDefinition, settings: Record<string, unknown>): number {
+  return job.fixedIntervalMs ?? (settings[job.intervalKey ?? ''] as number);
 }
 
 function clearJobTimer(state: BuiltinJobState): void {
@@ -67,7 +73,7 @@ class JobController implements BuiltinJobController {
       const state = this.states.get(job.name)!;
       const wasEnabled = state.enabled;
       const nextEnabled = settings[job.enabledKey] === true;
-      const nextInterval = settings[job.intervalKey] as number;
+      const nextInterval = jobInterval(job, settings);
       const intervalChanged = nextInterval !== state.intervalMs;
       state.enabled = nextEnabled;
       state.intervalMs = nextInterval;
@@ -90,7 +96,7 @@ class JobController implements BuiltinJobController {
     state.timer = null;
     const settings = this.options.getSettings();
     if (!this.started || settings[job.enabledKey] !== true) return;
-    state.intervalMs = settings[job.intervalKey] as number;
+    state.intervalMs = jobInterval(job, settings);
     if (job.mode === 'serial') this.runSerial(job);
     else this.runDetached(job);
   }

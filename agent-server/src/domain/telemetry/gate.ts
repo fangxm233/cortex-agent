@@ -54,13 +54,12 @@ export function evaluateTelemetryGate(input: TelemetryGateInput): TelemetryGate 
   return { active: true, reason: null, channel, endpoint: input.endpoint };
 }
 
-let cachedSourceTree: boolean | undefined;
+let cachedDevCheckout: boolean | undefined;
 
+/** Fixed for the life of the process; checked once (the gate runs on hot paths). */
 function isDevCheckout(): boolean {
-  if (cachedSourceTree === undefined) {
-    cachedSourceTree = existsSync(path.join(INSTALL_ROOT, 'src', 'entry'));
-  }
-  return cachedSourceTree || isUpdateDevMode();
+  cachedDevCheckout ??= existsSync(path.join(INSTALL_ROOT, 'src', 'entry')) || isUpdateDevMode();
+  return cachedDevCheckout;
 }
 
 export function telemetryGate(env: NodeJS.ProcessEnv = process.env): TelemetryGate {

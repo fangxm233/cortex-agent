@@ -3,6 +3,7 @@ import { getSettings, onSettingsChange } from '@core/settings.js';
 import { usageService } from '../costs/usage-service.js';
 import { createBuiltinJobController, type BuiltinJobDefinition } from './builtin-job-controller.js';
 import { regenAll } from '../memory/index-regen.js';
+import { telemetryTick } from '../telemetry/service.js';
 
 const log = createLogger('builtin-jobs');
 let controller: ReturnType<typeof createBuiltinJobController> | null = null;
@@ -18,6 +19,12 @@ function buildJobs(): BuiltinJobDefinition[] {
       name: 'memory-index-regen', enabledKey: 'memoryIndexRegenEnabled',
       intervalKey: 'memoryIndexRegenIntervalMs', mode: 'serial',
       run: async () => { regenAll(); },
+    },
+    {
+      // Persists the day's telemetry aggregates and uploads what is due (heartbeat, finished
+      // days, retries). The tick itself checks the full gate (env, sealed home, endpoint).
+      name: 'telemetry', enabledKey: 'telemetryEnabled', fixedIntervalMs: 5 * 60 * 1000, mode: 'serial',
+      run: telemetryTick,
     },
   ];
 }

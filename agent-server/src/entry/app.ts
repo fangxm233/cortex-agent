@@ -27,6 +27,7 @@ import { startClaudeWindowWarmup } from '../orchestration/claude-window-warmup.j
 import { projectStore } from '@domain/projects/index.js';
 import { sendStartupDmIfConfigured } from './startup-notify.js';
 import { installSigtermShutdown, type ShutdownHandles } from './shutdown.js';
+import { startTelemetryService } from './telemetry-wiring.js';
 import { buildUiService } from './ui-service-wiring.js';
 import { startPlatformAdapters } from './platform-connect.js';
 import { subscribeDaemonNotices } from './daemon-notice.js';
@@ -626,6 +627,7 @@ installSigtermShutdown(shutdownHandles);
   // Waitpoints: drains the signal spool, ages out expired waitpoints and retries any wake whose
   // delivery failed. Every in-memory fast path dies with the process; this does not.
   startWaitpointSweep();
+  startTelemetryService();
   startBuiltinJobs();
 
   void emitCortexEvent('cortex:server.start', {

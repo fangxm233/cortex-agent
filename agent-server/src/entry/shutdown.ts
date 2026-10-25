@@ -5,6 +5,7 @@ import { CORTEX_VERSION } from '@core/version.js';
 import { flushAllRepositories } from '@core/json-repository.js';
 import { engines } from '@domain/runs/engines.js';
 import { stopBuiltinJobs } from '@domain/scheduling/builtin-jobs.js';
+import { stopTelemetry } from '@domain/telemetry/service.js';
 import { stopClientManager } from '@domain/remote/client-manager.js';
 import { stopMachineRegistryWatcher } from '@domain/remote/machine-registry.js';
 import { stopAllDevicePorts } from '@domain/remote/device-port.js';
@@ -74,6 +75,8 @@ function drainSteps(h: ShutdownHandles): ShutdownStep[] {
     { name: 'claude window warm-up', run: stopClaudeWindowWarmup },
     // Pending WAL entries survive on disk for the next startup.
     { name: 'outbound drain loop', run: () => h.outboundQueue.stop() },
+    // After the engines closed, so turns cancelled by the shutdown are in the persisted rollup.
+    { name: 'telemetry', run: stopTelemetry },
     // SIGTERM landing between `writeFile(tmp)` and `rename(tmp, target)` in atomic-write.ts leaves
     // orphan .tmp.* siblings; the daemon gives 5s before SIGKILL, well over what this needs.
     { name: 'flush stores', run: () => Promise.allSettled([h.bus.close(), h.outboundQueue.flush(), flushAllRepositories()]) },

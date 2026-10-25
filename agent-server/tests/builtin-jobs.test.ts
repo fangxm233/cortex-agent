@@ -234,3 +234,20 @@ test('stop clears timers, unsubscribes, and waits for active serial work', async
   await vi.advanceTimersByTimeAsync(10_000);
   assert.equal(serialRun.mock.calls.length, 1);
 });
+
+test('a job with a fixed interval needs no interval setting', async () => {
+  const run = vi.fn().mockResolvedValue(undefined);
+  const controller = createBuiltinJobController({
+    getSettings: () => settings,
+    onSettingsChange: (callback) => { callbacks.add(callback); return () => callbacks.delete(callback); },
+    jobs: [{ name: 'fixed', enabledKey: 'serialEnabled', fixedIntervalMs: 5_000, mode: 'serial', run }],
+  });
+  controller.start();
+  await vi.advanceTimersByTimeAsync(0);
+  assert.equal(run.mock.calls.length, 1);
+  await vi.advanceTimersByTimeAsync(4_999);
+  assert.equal(run.mock.calls.length, 1);
+  await vi.advanceTimersByTimeAsync(1);
+  assert.equal(run.mock.calls.length, 2);
+  await controller.stop();
+});
