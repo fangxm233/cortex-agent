@@ -243,14 +243,10 @@ export const SETTINGS_SPEC = {
     default: true,
     legacyParse: (raw: string) => raw === '1',
   },
-  // Anonymous product telemetry (domain/telemetry). CORTEX_TELEMETRY=0 also forces it off even
-  // when settings.json turns it on; the gate reads the variable directly for that.
-  telemetryEnabled: {
-    envVar: 'CORTEX_TELEMETRY',
-    type: 'boolean',
-    default: true,
-    legacyParse: (raw: string) => raw.trim() !== '0',
-  },
+  // Anonymous product telemetry (domain/telemetry). CORTEX_TELEMETRY is deliberately not a legacy
+  // variable of this key: the gate reads it directly as a hard switch, so `CORTEX_TELEMETRY=0` in
+  // .env must stay in .env rather than be migrated away (an existing key here would win over it).
+  telemetryEnabled: { type: 'boolean', default: true },
   waitpointSweepMs: {
     envVar: 'CORTEX_WAITPOINT_SWEEP_MS',
     type: 'number',

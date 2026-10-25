@@ -111,6 +111,16 @@ describe.sequential('migrateEnvToSettings', () => {
     assert.equal((await fs.stat(SETTINGS_FILE, { bigint: true })).mtimeNs, settingsBefore.mtimeNs);
   });
 
+  test('leaves the CORTEX_TELEMETRY hard switch in .env', async () => {
+    await fs.writeFile(SETTINGS_FILE, `${JSON.stringify({ telemetryEnabled: true }, null, 2)}\n`);
+    await fs.writeFile(ENV_FILE, 'CORTEX_TELEMETRY=0\nCORTEX_SHOW_TOOL_CALLS=1\n');
+
+    await migrateEnvToSettings();
+
+    assert.deepEqual(JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8')), { telemetryEnabled: true, showToolCalls: true });
+    assert.equal(await fs.readFile(ENV_FILE, 'utf8'), `${MIGRATION_COMMENT}\nCORTEX_TELEMETRY=0\n`);
+  });
+
   test('does not overwrite explicit settings and preserves admin alias precedence', async () => {
     const existing = {
       showToolCalls: false,

@@ -33,7 +33,7 @@ function setup(client: 'desktop' | null = null) {
 test('telemetry.info reports the gate and a stable install id', async () => {
   const { caller } = setup();
   const info = await caller.telemetry.info({});
-  assert.equal(info.settingEnabled, false);
+  assert.equal(info.settingEnabled, true, 'the saved setting is independent of the env switch');
   assert.equal(info.active, false);
   assert.equal(info.inactiveReason, 'env');
   assert.ok(isInstallId(info.installId));
