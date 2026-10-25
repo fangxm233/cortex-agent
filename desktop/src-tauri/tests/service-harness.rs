@@ -612,6 +612,86 @@ mod service {
             assert!(replay(vec![], |r| withdraw_for("macos", &home, r)).is_err());
         }
 
+        /// The same daemon after an app update moved the bundled Node.js to another directory.
+        fn moved() -> ServiceLaunch {
+            ServiceLaunch { program: "/opt/runtime/node-v24/bin/node".into(), ..launch() }
+        }
+
+        fn leftovers(dir: &Path) -> Vec<String> {
+            fs::read_dir(dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+                .filter(|name| name.contains("cortex-new")).collect()
+        }
+
+        #[test]
+        fn an_owned_unit_follows_a_moved_runtime_and_reloads() {
+            let home = scratch();
+            let unit = owned_unit(&home);
+            let reload = vec![step("/usr/bin/systemctl", &["--user", "daemon-reload"], false, "")];
+            assert_eq!(replay(reload, |r| refresh_file("linux", &unit, &moved(), r)), Ok(true));
+            assert_eq!(fs::read_to_string(&unit).unwrap(), render_systemd(&moved()).unwrap());
+            assert!(leftovers(unit.parent().unwrap()).is_empty());
+        }
+
+        #[cfg(unix)]
+        #[test]
+        fn a_rewritten_registration_stays_owner_only() {
+            use std::os::unix::fs::PermissionsExt;
+            let home = scratch();
+            let plist = owned_plist(&home);
+            assert_eq!(replay(vec![], |r| refresh_file("macos", &plist, &moved(), r)), Ok(true));
+            assert_eq!(fs::metadata(&plist).unwrap().permissions().mode() & 0o777, 0o600);
+        }
+
+        #[test]
+        fn an_owned_mac_agent_is_rewritten_for_the_next_login_without_touching_launchd() {
+            let home = scratch();
+            let plist = owned_plist(&home);
+            assert_eq!(replay(vec![], |r| refresh_file("macos", &plist, &moved(), r)), Ok(true));
+            assert_eq!(fs::read_to_string(&plist).unwrap(), render_launchd(&moved()).unwrap());
+        }
+
+        #[test]
+        fn a_current_registration_is_left_as_it_is() {
+            let home = scratch();
+            let unit = owned_unit(&home);
+            assert_eq!(replay(vec![], |r| refresh_file("linux", &unit, &launch(), r)), Ok(false));
+        }
+
+        #[test]
+        fn resuming_on_linux_rewrites_reloads_and_enables() {
+            let home = scratch();
+            let unit = owned_unit(&home);
+            let steps = vec![
+                step("/usr/bin/systemctl", &["--user", "daemon-reload"], false, ""),
+                step("/usr/bin/systemctl", &["--user", "enable", UNIT], false, ""),
+            ];
+            assert_eq!(replay(steps, |r| resume_for("linux", &home, &moved(), r)), Ok(true));
+            assert_eq!(fs::read_to_string(&unit).unwrap(), render_systemd(&moved()).unwrap());
+        }
+
+        #[test]
+        fn resuming_on_mac_enables_the_agent_even_while_an_older_job_is_loaded() {
+            let home = scratch();
+            let plist = owned_plist(&home);
+            let steps = vec![
+                step("/usr/bin/id", &["-u"], true, "501\n"),
+                step("/bin/launchctl", &["enable", &format!("gui/501/{LABEL}")], false, ""),
+            ];
+            assert_eq!(replay(steps, |r| resume_for("macos", &home, &moved(), r)), Ok(true));
+            assert_eq!(fs::read_to_string(&plist).unwrap(), render_launchd(&moved()).unwrap());
+        }
+
+        #[test]
+        fn resuming_needs_an_owned_registration() {
+            let home = scratch();
+            assert_eq!(replay(vec![], |r| resume_for("linux", &home, &launch(), r)), Ok(false));
+            let unit = home.join(".config/systemd/user/cortex.service");
+            fs::create_dir_all(unit.parent().unwrap()).unwrap();
+            fs::write(&unit, "[Service]\nExecStart=/usr/bin/cortex daemon\n").unwrap();
+            assert!(replay(vec![], |r| resume_for("linux", &home, &moved(), r)).is_err());
+            assert_eq!(fs::read_to_string(&unit).unwrap(), "[Service]\nExecStart=/usr/bin/cortex daemon\n");
+        }
+
         #[cfg(unix)]
         #[test]
         fn non_utf8_launch_is_rejected() {

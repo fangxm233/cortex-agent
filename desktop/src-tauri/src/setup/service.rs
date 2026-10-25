@@ -481,6 +481,79 @@ pub(super) fn withdraw_user_service() -> Result<(), String> {
     withdraw_for(std::env::consts::OS, &home, &mut quiet)
 }
 
+/// Point an owned registration at `launch`, then switch it back on. Ok(false) = there is none, so
+/// a first registration is needed. Our own file may name an older runtime (the bundled Node.js is
+/// versioned), and a loaded job is this app's own; the first-registration checks do not apply.
+pub(super) fn resume_user_service(launch: &ServiceLaunch) -> Result<bool, String> {
+    let Some(home) = login_home() else {
+        return Ok(false);
+    };
+    resume_for(std::env::consts::OS, &home, launch, &mut quiet)
+        .map_err(|error| format!("AUTOSTART_FAILED: {error}"))
+}
+
+/// At launch: keep an owned registration on the runtime the app now uses, whether or not it is
+/// switched on, so the next login does not start a Node.js that is gone or too old. The running
+/// daemon is left alone. Ok(true) = the file was rewritten.
+pub(super) fn refresh_user_service(launch: &ServiceLaunch) -> Result<bool, String> {
+    let Some(home) = login_home() else {
+        return Ok(false);
+    };
+    let os = std::env::consts::OS;
+    match owned_registration(os, &home)? {
+        Some(path) => refresh_file(os, &path, launch, &mut quiet),
+        None => Ok(false),
+    }
+}
+
+fn resume_for(os: &str, home: &Path, launch: &ServiceLaunch, runner: &mut Runner<'_>) -> Result<bool, String> {
+    let Some(path) = owned_registration(os, home)? else {
+        return Ok(false);
+    };
+    refresh_file(os, &path, launch, runner)?;
+    let args: Vec<OsString> = match os {
+        "linux" => vec!["--user".into(), "enable".into(), UNIT.into()],
+        _ => vec!["enable".into(), launchd_target(runner)?.1.into()],
+    };
+    let program = if os == "linux" { SYSTEMCTL } else { LAUNCHCTL };
+    let args = args.iter().map(OsString::as_os_str).collect::<Vec<_>>();
+    invoke(runner, program, &args, false)?;
+    Ok(true)
+}
+
+fn refresh_file(os: &str, path: &Path, launch: &ServiceLaunch, runner: &mut Runner<'_>) -> Result<bool, String> {
+    let content = if os == "linux" { render_systemd(launch)? } else { render_launchd(launch)? };
+    if fs::read(path).ok().as_deref() == Some(content.as_bytes()) {
+        return Ok(false);
+    }
+    replace_file(path, &content)?;
+    if os == "linux" {
+        invoke(runner, SYSTEMCTL, &[OsStr::new("--user"), OsStr::new("daemon-reload")], false)?;
+    }
+    Ok(true)
+}
+
+/// Swap in new contents by rename, so the service manager never reads a half-written file.
+fn replace_file(path: &Path, content: &str) -> Result<(), String> {
+    let name = path.file_name().ok_or("service path has no file name")?.to_string_lossy();
+    let staged = path.with_file_name(format!(".{name}.cortex-new"));
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let written = options
+        .open(&staged)
+        .and_then(|mut file| file.write_all(content.as_bytes()).and_then(|_| file.sync_all()))
+        .and_then(|_| fs::rename(&staged, path));
+    written.map_err(|_| {
+        let _ = fs::remove_file(&staged);
+        "cannot update the user service file".to_string()
+    })
+}
+
 fn login_home() -> Option<PathBuf> {
     std::env::var_os("HOME").map(PathBuf::from)
 }
