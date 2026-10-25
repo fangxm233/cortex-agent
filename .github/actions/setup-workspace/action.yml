@@ -64,4 +64,7 @@ runs:
     - name: Build Web SPA
       if: inputs.build-web == 'true'
       shell: bash
-      run: pnpm --filter '@cortex-agent/web...' run build
+      # The hidden source maps go to the GitHub release (publish-server.yml), not into installers.
+      run: |
+        pnpm --filter '@cortex-agent/web...' run build
+        find web/dist -name '*.map' -delete

@@ -65,6 +65,8 @@ GEN_APP="src-tauri/gen/android/app"
 
 echo "=== 1/5  build web SPA ==="
 pnpm --filter '@cortex-agent/web...' build
+# The APK embeds web/dist; its hidden source maps belong to the GitHub release, not the app.
+find ../web/dist -name '*.map' -delete
 
 if [ "$FORCE_INIT" = "1" ] || [ ! -d "src-tauri/gen/android" ]; then
   echo "=== 2/5  tauri android init (regenerates gen/) ==="
