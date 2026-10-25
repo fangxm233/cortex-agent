@@ -13,6 +13,7 @@ import { useSetTheme, useTheme } from '@/theme/ThemeProvider';
 import { disconnectShell } from '@/lib/shell-connection';
 import { isDesktopShell } from '@/lib/desktop-config';
 import { openExternalUrl } from '@/lib/external-navigation';
+import { copyText } from '@/lib/clipboard';
 import { useManualUpdateCheck } from '@/features/update-prompt/useManualUpdateCheck';
 import { DOCS_URL, ISSUES_URL, useAboutModal } from '../AboutModal';
 import { useNewProjectModal } from '@/features/projects/useNewProjectModal';
@@ -121,8 +122,9 @@ export function useAppMenus(): { menus: MenuDef[]; windowActions: WindowActions 
           kind: 'item', id: 'edit.copySessionId', label: L.mEditCopySessionId, disabled: !realSession,
           run: () => {
             if (!realSession) return;
-            void navigator.clipboard?.writeText(realSession).catch(() => {});
-            toast?.toast({ title: L.mEditCopySessionId, tone: 'done' });
+            void copyText(realSession).then((ok) => {
+              if (ok) toast?.toast({ title: L.mEditCopySessionId, tone: 'done' });
+            });
           },
         },
       ],

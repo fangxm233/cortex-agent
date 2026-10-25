@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { copyText } from '@/lib/clipboard';
 
 export interface ClipboardFeedback<Key> {
   copiedKey: Key | null;
@@ -21,9 +22,7 @@ export function useClipboardFeedback<Key>(resetMs = 1400): ClipboardFeedback<Key
     const request = ++requestRef.current;
     if (timerRef.current) clearTimeout(timerRef.current);
     if (mountedRef.current) setCopiedKey(null);
-    const clipboard = globalThis.navigator?.clipboard;
-    if (!clipboard) return false;
-    try { await clipboard.writeText(text); } catch { return false; }
+    if (!await copyText(text)) return false;
     if (!mountedRef.current || request !== requestRef.current) return true;
     setCopiedKey(key);
     timerRef.current = setTimeout(() => setCopiedKey(null), resetMs);

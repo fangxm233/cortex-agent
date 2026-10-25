@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
+import { copyText } from '@/lib/clipboard';
 import { commitSettingValue, type SettingsSetArgs } from './runtime-settings-writer';
 
 /** The Privacy section: what `telemetry.info` reports, and the one switch it offers. */
@@ -36,10 +37,11 @@ export type PrivacyController = ReturnType<typeof usePrivacyController>;
 export function useCopyFeedback(text: string) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
-    void navigator.clipboard?.writeText(text).then(() => {
+    void copyText(text).then((ok) => {
+      if (!ok) return;
       setCopied(true);
       setTimeout(() => setCopied(false), 1_500);
-    }).catch(() => undefined);
+    });
   };
   return { copied, copy };
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { rewindStats, type ChatRow } from '@/features/session/transcript/transcript-vm';
 import type { SessionRewind } from '@/features/session/chat/useChatSession';
+import { copyText } from '@/lib/clipboard';
 import type { MEditMode, MMsgMenu } from './MChatView';
 
 type UserRow = Extract<ChatRow, { kind: 'user' }>;
@@ -64,7 +65,7 @@ export function useMobileMessageEdit(input: {
     ? {
         rowIndex: menuIdx!,
         anchorTop: menuAnchorTop,
-        onCopy: () => { void navigator.clipboard?.writeText(held.text).catch(() => {}); },
+        onCopy: () => { void copyText(held.text); },
         ...(editableRow(held) ? { onEdit: () => start(menuIdx!), editDisabled: running || rewind.pending } : {}),
         onClose: () => setMenuIdx(null),
       }
