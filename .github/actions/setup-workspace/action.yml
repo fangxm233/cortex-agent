@@ -10,6 +10,11 @@ inputs:
   build-web:
     description: Build the Web SPA and the workspace packages it depends on
     default: "true"
+  telemetry-endpoint:
+    description: >-
+      Telemetry ingest URL compiled into the native shell (CORTEX_TELEMETRY_ENDPOINT). Empty
+      builds a shell that sends nothing.
+    default: ""
 
 runs:
   using: composite
@@ -34,6 +39,13 @@ runs:
           if (server !== v || tauri !== v) throw new Error(`tag=${v} server=${server} tauri=${tauri}`);
           fs.appendFileSync(process.env.GITHUB_ENV, `VERSION=${v}\n`);
         ' "${REL_TAG#server-v}"
+
+    - name: Export telemetry endpoint
+      if: inputs.telemetry-endpoint != ''
+      shell: bash
+      env:
+        ENDPOINT: ${{ inputs.telemetry-endpoint }}
+      run: echo "CORTEX_TELEMETRY_ENDPOINT=$ENDPOINT" >> "$GITHUB_ENV"
 
     - name: Setup pnpm
       uses: pnpm/action-setup@v4   # version comes from package.json `packageManager`

@@ -48,6 +48,7 @@ jobs:
         uses: fangxm233/cortex-agent/.github/actions/setup-workspace@main
         with:
           tag: ${{ env.REL_TAG }}
+          telemetry-endpoint: ${{ vars.CORTEX_TELEMETRY_ENDPOINT }}
 
       - name: Cache bundled runtime downloads
         uses: actions/cache@v4
@@ -113,6 +114,7 @@ jobs:
         uses: fangxm233/cortex-agent/.github/actions/setup-workspace@main
         with:
           tag: ${{ env.REL_TAG }}
+          telemetry-endpoint: ${{ vars.CORTEX_TELEMETRY_ENDPOINT }}
 
       - name: Cache bundled runtime downloads
         uses: actions/cache@v4
@@ -175,6 +177,7 @@ jobs:
         uses: fangxm233/cortex-agent/.github/actions/setup-workspace@main
         with:
           tag: ${{ env.REL_TAG }}
+          telemetry-endpoint: ${{ vars.CORTEX_TELEMETRY_ENDPOINT }}
 
       - name: Install Tauri system dependencies
         run: |
@@ -259,6 +262,7 @@ jobs:
         uses: fangxm233/cortex-agent/.github/actions/setup-workspace@main
         with:
           tag: ${{ env.REL_TAG }}
+          telemetry-endpoint: ${{ vars.CORTEX_TELEMETRY_ENDPOINT }}
           build-web: false
 
       - name: Install ImageMagick
