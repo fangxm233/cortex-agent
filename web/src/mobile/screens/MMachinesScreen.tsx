@@ -12,6 +12,7 @@ import {
 } from '@/features/machines/useMachinesResource';
 import { MMachinesView, type MMachineDetailPanel } from './MMachinesView';
 import { buildMMachinesVm } from './m-machines-vm';
+import { MPairedApps } from './MPairedApps';
 
 function detailPanel(detail: MachineDetailResource | undefined): MMachineDetailPanel | null {
   if (!detail || detail.status === 'offline') return null;
@@ -53,6 +54,6 @@ export function MMachinesScreen() {
         <div style={{ color: MC.muted, fontSize: 13 }}>{L.machEmpty}</div></MSettingsPage>
     : <MMachinesView vm={vm} onBack={() => mobileHeaderBack(navigate, '/m/settings')}
       expanded={expanded} onToggle={(name) => setExpanded((old) => old === name ? null : name)}
-      panel={panel} onAdd={requestAdd} addDisabled={resource.addPending} />}
+      panel={panel} onAdd={requestAdd} addDisabled={resource.addPending} pairedApps={<MPairedApps />} />}
   </>;
 }
