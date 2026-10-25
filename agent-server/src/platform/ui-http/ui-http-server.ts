@@ -44,6 +44,8 @@ export interface UiHttpServerOptions {
   router: AnyRouter;
   /** Accessor for the bearer token the server accepts (wiring passes getClientToken). */
   getToken: () => string;
+  /** Paired apps' own tokens, accepted wherever the client token is (including the port forward). */
+  matchDeviceToken?: DeviceTokenMatcher;
   /** TCP port to listen on (0 = ephemeral, useful in tests). */
   port: number;
   /** Host to bind. Defaults to 127.0.0.1 (loopback only — exposure is via a tunnel). */
@@ -65,9 +67,9 @@ export interface UiHttpServerOptions {
    */
   customRoutes?: Record<string, CustomRouteHandler>;
   /**
-   * Custom-route paths served WITHOUT the auth gate. Only the login and session-probe routes belong
-   * here: a browser that holds no credential yet must be able to reach them, and each answers with
-   * nothing more than a boolean or a 401.
+   * Custom-route paths served WITHOUT the auth gate. Only the login, app-pairing and session-probe
+   * routes belong here: a browser or app that holds no credential yet must be able to reach them,
+   * and each answers with nothing more than a boolean, a credential for a valid secret, or a 401.
    */
   publicRoutes?: string[];
   /**
@@ -107,11 +109,21 @@ export interface UiHttpServer {
   close: () => Promise<void>;
 }
 
-/** Bearer gate for a tRPC request: constant-time compare of the accepted token vs the header. */
-function isAuthorized(req: http.IncomingMessage, getToken: () => string): boolean {
+/** Whether a presented `x-cortex-token` belongs to a paired app (ui-devices.ts). */
+export type DeviceTokenMatcher = (token: string | undefined) => boolean;
+
+/**
+ * Bearer gate: the shared client token (constant-time compare) or, when a matcher is wired, a
+ * paired app's own token.
+ */
+function isAuthorized(
+  req: http.IncomingMessage,
+  getToken: () => string,
+  matchDeviceToken?: DeviceTokenMatcher,
+): boolean {
   const provided = req.headers[AUTH_HEADER];
   const headerVal = Array.isArray(provided) ? provided[0] : provided;
-  return timingSafeEqualStr(getToken(), headerVal);
+  return timingSafeEqualStr(getToken(), headerVal) || matchDeviceToken?.(headerVal) === true;
 }
 
 /**
@@ -143,11 +155,12 @@ export type Authorizer = (req: http.IncomingMessage) => Promise<boolean>;
  */
 export function createAuthorizer(opts: {
   getToken: () => string;
+  matchDeviceToken?: DeviceTokenMatcher;
   verifySession?: (sid: string | undefined) => boolean;
   verifyAccessJwt?: AccessJwtVerifier;
 }): Authorizer {
   return async (req) => {
-    if (isAuthorized(req, opts.getToken)) return true;
+    if (isAuthorized(req, opts.getToken, opts.matchDeviceToken)) return true;
     if (opts.verifySession?.(sessionIdFrom(req))) return true;
     return isAccessAuthorized(req, opts.verifyAccessJwt);
   };
@@ -366,7 +379,7 @@ export function createUiHttpServer(opts: UiHttpServerOptions): UiHttpServer {
     server.on('upgrade', (req, socket, head) => {
       const pathname = (req.url ?? '').split('?')[0];
       if (forward && pathname === FORWARD_PATH) {
-        if (!isAuthorized(req, opts.getToken)) {
+        if (!isAuthorized(req, opts.getToken, opts.matchDeviceToken)) {
           log.warn(`forward auth rejected: ${req.url}`);
           socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
           socket.destroy();

@@ -7,6 +7,7 @@ import { timingSafeEqualStr } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
 import { readJsonBody, sendError, sendJson, sendMethodNotAllowed } from './http-json.js';
 import type { CustomRouteHandler } from './ui-http-server.js';
+import { normalizePairingCode } from './ui-pairing.js';
 import { parseCookie, type UiSessionStore } from './ui-session.js';
 
 const log = createLogger('ui-http');
@@ -36,6 +37,8 @@ export interface UiAuthRouteDeps {
   authorize: (req: http.IncomingMessage) => Promise<boolean>;
   /** Session lifetime, mirrored into the cookie's Max-Age. */
   ttlMs: number;
+  /** Consume a one-time pairing code (ui-pairing.ts). Absent → only the client token signs in. */
+  redeemCode?: (code: string) => boolean;
 }
 
 function firstHeader(v: string | string[] | undefined): string | undefined {
@@ -76,6 +79,12 @@ export function sessionIdFrom(req: http.IncomingMessage): string | undefined {
   return parseCookie(req.headers.cookie, UI_SESSION_COOKIE);
 }
 
+/** A typed pairing code is spent on the code store; anything else must be the client token. */
+function acceptsLogin(deps: UiAuthRouteDeps, presented: string): boolean {
+  if (deps.redeemCode && normalizePairingCode(presented)) return deps.redeemCode(presented);
+  return timingSafeEqualStr(deps.getToken(), presented);
+}
+
 /**
  * The three token-login routes. `/api/ui/login` and `/api/ui/session` MUST be registered as public
  * routes on the server (a browser with no credential has to be able to reach them); `/api/ui/logout`
@@ -93,9 +102,9 @@ export function createUiAuthRoutes(deps: UiAuthRouteDeps): Record<string, Custom
       if (!body) return;
 
       const presented = typeof body.token === 'string' ? body.token.trim() : '';
-      if (!timingSafeEqualStr(deps.getToken(), presented)) {
+      if (!acceptsLogin(deps, presented)) {
         await new Promise((resolve) => setTimeout(resolve, LOGIN_FAILURE_DELAY_MS));
-        log.warn('ui login rejected: wrong token');
+        log.warn('ui login rejected: wrong token or pairing code');
         return sendError(res, 401, 'invalid-token', 'Invalid token');
       }
 
