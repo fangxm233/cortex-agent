@@ -81,6 +81,11 @@ export default defineConfig({
   define: {
     __BUILD_STAMP__: JSON.stringify(BUILD_STAMP),
   },
+  // Maps are written but not referenced from the bundle: the server release workflow moves them
+  // into the GitHub release, where crash stacks from the field are symbolicated against them.
+  build: {
+    sourcemap: 'hidden',
+  },
   // Cap test workers: vitest defaults to one worker per CPU core (72 on a big box),
   // which saturates the box and causes load-induced flakes. Mirror the
   // agent-server cap (CORTEX_TEST_CONCURRENCY, default 16).

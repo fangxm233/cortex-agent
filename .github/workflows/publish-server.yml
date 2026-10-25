@@ -35,6 +35,37 @@ jobs:
       - name: Build server, UI contract, and Web SPA
         run: pnpm --filter '@cortex-agent/web...' run build
 
+      - name: Record the telemetry endpoint in the build
+        working-directory: agent-server
+        # Source builds have no build-info.json and never send telemetry; an unset variable here
+        # ships a release that does not send either.
+        env:
+          TELEMETRY_ENDPOINT: ${{ vars.CORTEX_TELEMETRY_ENDPOINT }}
+        run: >-
+          node -e "require('fs').writeFileSync('dist/build-info.json',
+          JSON.stringify({ telemetryEndpoint: process.env.TELEMETRY_ENDPOINT || null }) + '\n')"
+
+      - name: Move the Web source maps out of the package
+        # Vite emits hidden source maps (no sourceMappingURL). They go to the GitHub release for
+        # crash-stack symbolication and are deleted before the SPA is staged into the npm package.
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./agent-server/package.json').version")
+          mkdir -p release-sourcemaps
+          (cd web/dist && find . -name '*.map' -printf '%P\n' | sort) > release-sourcemaps/maps.txt
+          test -s release-sourcemaps/maps.txt
+          tar -czf "release-sourcemaps/web-sourcemaps-$VERSION.tgz" -C web/dist -T release-sourcemaps/maps.txt
+          rm release-sourcemaps/maps.txt
+          find web/dist -name '*.map' -delete
+
+      - name: Keep the source maps for the release
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-sourcemaps
+          path: release-sourcemaps/*.tgz
+          if-no-files-found: error
+
       - name: Stage README and Web SPA into the package
         working-directory: agent-server
         # What `prepare` and `prepack` would do during publish, minus prepare's second server build.
@@ -54,3 +85,41 @@ jobs:
         # YYYY.M.D version this is exactly npm's default behaviour.
         # --ignore-scripts: the steps above already produced everything the lifecycle scripts would.
         run: npm publish --access public --tag latest --ignore-scripts
+
+  attach-sourcemaps:
+    needs: publish
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      REL_TAG: ${{ github.ref_name }}
+    steps:
+      - name: Download the source maps
+        uses: actions/download-artifact@v4
+        with:
+          name: web-sourcemaps
+          path: upload
+
+      - name: Wait for the release to exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The release is created by hand, with its notes, after the tag is pushed (the native
+          # installers wait for it the same way). Give that up to 30 minutes.
+          for _ in $(seq 1 60); do
+            if gh release view "$REL_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "::error::No release for $REL_TAG after 30 minutes. Create it, then re-run this job to attach the source maps."
+          exit 1
+
+      - name: Attach the source maps to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: gh release upload "$REL_TAG" upload/web-sourcemaps-*.tgz --repo "$GITHUB_REPOSITORY" --clobber

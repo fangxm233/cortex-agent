@@ -266,6 +266,8 @@ def _sealed_environment(
         "CORTEX_CONFIG_IMMUTABLE": "1", "CORTEX_WEBHOOK_BENCHMARK_ONLY": "1",
         "WEBHOOK_PORT": "3001",
         "CORTEX_TUI": "1", "CORTEX_TUI_PORT": "3003",
+        # A trial never reports product telemetry.
+        "CORTEX_TELEMETRY": "0",
     })
     if any(_is_residue(key) for key in environment):
         raise ProductionHomeError("provider or chat residue survived environment sealing")

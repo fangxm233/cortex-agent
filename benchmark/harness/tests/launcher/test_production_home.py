@@ -128,7 +128,7 @@ SEALED_ENVIRONMENT_KEYS = {
     "PATH", "LANG", "CORTEX_HOME", "CORTEX_PROJECTS_DIR", "CORTEX_AGENT_CWD", "HOME",
     "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "CORTEX_CONFIG_IMMUTABLE",
     "WEBHOOK_PORT", "CORTEX_TUI", "CORTEX_TUI_PORT",
-    "CORTEX_WEBHOOK_BENCHMARK_ONLY",
+    "CORTEX_WEBHOOK_BENCHMARK_ONLY", "CORTEX_TELEMETRY",
 }
 
 
@@ -286,6 +286,7 @@ def test_materializes_without_host_home_and_scrubs_provider_and_chat_residue(tmp
     assert environment["CORTEX_TUI_PORT"] == "3003"
     assert environment["CORTEX_CONFIG_IMMUTABLE"] == "1"
     assert environment["CORTEX_WEBHOOK_BENCHMARK_ONLY"] == "1"
+    assert environment["CORTEX_TELEMETRY"] == "0"
     auth_tokens = {result.client_token, result.webhook_token}
     assert len(auth_tokens) == 2
     assert all(len(token) == 64 and int(token, 16) >= 0 for token in auth_tokens)
