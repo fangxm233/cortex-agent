@@ -54,6 +54,8 @@ export interface LiveSessionMessage {
   /** Terminal state reported by the backend for the subagent named by `subagentId`. Carries no
    *  prose — it corrects that block's status and produces no row of its own. */
   subagentEnded?: 'completed' | 'failed' | 'killed';
+  /** The subagent named by `subagentId` runs in clean mode. */
+  subagentClean?: boolean;
 }
 
 /** Map a live `session.message` event into a `TranscriptMessage` (same shape the fetched DTO uses).
@@ -85,5 +87,6 @@ export function liveToMessage(m: LiveSessionMessage): TranscriptMessageWithSpawn
     ...(m.subagentDescription ? { subagentDescription: m.subagentDescription } : {}),
     ...(m.subagentModel ? { subagentModel: m.subagentModel } : {}),
     ...(m.subagentEnded ? { subagentEnded: m.subagentEnded } : {}),
+    ...(m.subagentClean ? { subagentClean: true } : {}),
   };
 }

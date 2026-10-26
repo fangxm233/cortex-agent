@@ -1287,6 +1287,32 @@ describe('buildTranscriptRows — native subagent grouping', () => {
     expect(block.model).toBe('claude-haiku-4-5-20260101');
   });
 
+  it('marks a clean subagent from its rows, its live rows or its summary', () => {
+    const fromRows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [
+        msg({ type: 'tool', toolName: 'agent', toolInput: 'survey', subagentSpawns: [{ id: 'c1', type: 'explore', description: 'survey', prompt: 'p' }] } as any),
+        msg({ type: 'assistant', text: 'notes', subagentId: 'c1', subagentClean: true }),
+        msg({ type: 'tool', toolName: 'agent', toolInput: 'other', subagentSpawns: [{ id: 'c2', type: 'explore', description: 'other', prompt: 'p' }] } as any),
+        msg({ type: 'assistant', text: 'notes', subagentId: 'c2' }),
+      ] }]),
+      [{ sessionId: 's', role: 'assistant', text: 'live', subagentId: 'c3', subagentClean: true, ts: '2026-08-01T01:00:00.000Z' }],
+    );
+    const blocks = fromRows.filter((r) => r.kind === 'subagent') as Array<Extract<ChatRow, { kind: 'subagent' }>>;
+    expect(blocks.map((b) => [b.id, b.clean ?? false])).toEqual([['c1', true], ['c2', false], ['c3', true]]);
+
+    const fromSummary = buildTranscriptRows(
+      {
+        sessionId: 's-clean',
+        turns: [{ turnIndex: 0, messages: [
+          msg({ type: 'tool', toolName: 'agent', toolInput: 'survey', subagentSpawns: [{ id: 'c1', type: 'explore', description: 'survey', prompt: 'p' }] } as any),
+        ] }],
+        subagentSummaries: [{ id: 'c1', toolCount: 1, hasDetails: true, structurallyOpen: false, status: 'completed', clean: true }],
+      },
+      [],
+    );
+    expect(fromSummary.find((r) => r.kind === 'subagent')).toMatchObject({ id: 'c1', clean: true });
+  });
+
   it('leaves the model null while only the anchor is known', () => {
     const rows = buildTranscriptRows(
       tx([{ turnIndex: 0, messages: [

@@ -175,7 +175,7 @@ function MSubagentBlock({ row, sessionId, background = false }: {
 }): JSX.Element {
   return (
     <SubagentBlock agentType={row.agentType} description={row.description} prompt={row.prompt}
-      model={row.model} status={row.status} toolCount={row.toolCount} background={background} touch>
+      model={row.model} status={row.status} toolCount={row.toolCount} background={background} clean={row.clean} touch>
       <MSubagentDetail row={row} sessionId={sessionId} />
     </SubagentBlock>
   );

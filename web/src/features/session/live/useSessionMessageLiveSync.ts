@@ -392,7 +392,7 @@ export function useSessionMessageLiveSync(
         return;
       }
       const p = raw.payload as
-        | { sessionId?: string; role?: string; text?: string; systemOrigin?: LiveSessionMessage['systemOrigin']; toolName?: string; toolInput?: string; toolDevice?: string; teamAction?: LiveSessionMessage['teamAction']; boardAction?: LiveSessionMessage['boardAction']; worker?: LiveSessionMessage['worker']; noticeLevel?: LiveSessionMessage['noticeLevel']; noticeAction?: LiveSessionMessage['noticeAction']; authAction?: LiveSessionMessage['authAction']; ts?: string; blockId?: string; pending?: boolean; pendingId?: string; subagentId?: string; subagentSpawns?: LiveSessionMessage['subagentSpawns']; subagentType?: string; subagentDescription?: string; subagentModel?: string; subagentEnded?: 'completed' | 'failed' | 'killed'; attachments?: LiveSessionMessage['attachments']; decisions?: LiveSessionMessage['decisions'] }
+        | { sessionId?: string; role?: string; text?: string; systemOrigin?: LiveSessionMessage['systemOrigin']; toolName?: string; toolInput?: string; toolDevice?: string; teamAction?: LiveSessionMessage['teamAction']; boardAction?: LiveSessionMessage['boardAction']; worker?: LiveSessionMessage['worker']; noticeLevel?: LiveSessionMessage['noticeLevel']; noticeAction?: LiveSessionMessage['noticeAction']; authAction?: LiveSessionMessage['authAction']; ts?: string; blockId?: string; pending?: boolean; pendingId?: string; subagentId?: string; subagentSpawns?: LiveSessionMessage['subagentSpawns']; subagentType?: string; subagentDescription?: string; subagentModel?: string; subagentEnded?: 'completed' | 'failed' | 'killed'; subagentClean?: boolean; attachments?: LiveSessionMessage['attachments']; decisions?: LiveSessionMessage['decisions'] }
         | undefined;
       if (!p || (p.role !== 'user' && p.role !== 'assistant' && p.role !== 'tool' && p.role !== 'worker-progress' && p.role !== 'thinking')) return;
       // A message written into a running turn's backend, which the model has not read yet. It holds
@@ -444,6 +444,7 @@ export function useSessionMessageLiveSync(
         subagentDescription: p.subagentDescription,
         subagentModel: p.subagentModel,
         subagentEnded: p.subagentEnded,
+        subagentClean: p.subagentClean,
         attachments: p.attachments,
         decisions: p.decisions,
       };

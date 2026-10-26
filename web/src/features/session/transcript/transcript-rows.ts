@@ -304,6 +304,7 @@ function reopenBlock(existing: SubagentBlockState, m: FlatMessage, spawn?: Subag
     if (!existing.row.model && m.subagentModel) existing.row.model = m.subagentModel;
   }
   if (!existing.row.prompt && spawn?.prompt) existing.row.prompt = spawn.prompt;
+  if (m.subagentClean) existing.row.clean = true;
 }
 
 function subagentRow(
@@ -324,6 +325,7 @@ function subagentRow(
     status: ended ? 'done' : 'running',
     toolCount: summary?.toolCount ?? 0,
     children: [],
+    ...(summary?.clean || m.subagentClean ? { clean: true } : {}),
     ...(state.summaryAuthority && summary
       ? { hasDetails: summary.hasDetails, detailMode: 'lazy' as const }
       : {}),
@@ -469,6 +471,7 @@ function applySummaries(blocks: Map<string, SubagentBlockState>, sessionLive: bo
     if (block.summary.type) block.row.agentType = block.summary.type;
     if (block.summary.description) block.row.description = block.summary.description;
     if (block.summary.model) block.row.model = block.summary.model;
+    if (block.summary.clean) block.row.clean = true;
   }
 }
 
