@@ -134,10 +134,11 @@ for (const rel of ['package.json', 'README.md', 'CHANGELOG.md', 'docs', 'example
 for (const rel of ['README.md', 'dist/build-info.json']) {
   if (fs.existsSync(path.join(root, rel))) copy(path.join(root, rel), rel);
 }
+copy(path.join(root, 'scripts/bundle-prune-browser.mjs'), 'scripts/bundle-prune-browser.mjs');
 const manifest = { ...pkg,
   private: true, // Prototype: cannot accidentally publish this stage.
-  files: ['dist/', 'defaults/', 'web/dist/', 'vendor/', 'README.md'],
-  scripts: {}, dependencies: { 'agent-browser': pkg.dependencies['agent-browser'], '@silvia-odwyer/photon-node': '0.3.4' },
+  files: ['dist/', 'defaults/', 'web/dist/', 'vendor/', 'README.md', 'scripts/bundle-prune-browser.mjs'],
+  scripts: { postinstall: 'node scripts/bundle-prune-browser.mjs' }, dependencies: { 'agent-browser': pkg.dependencies['agent-browser'], '@silvia-odwyer/photon-node': '0.3.4' },
   optionalDependencies: { sharp: pkg.optionalDependencies.sharp },
 };
 delete manifest.devDependencies;

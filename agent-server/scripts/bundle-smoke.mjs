@@ -177,6 +177,16 @@ try {
     assert.notEqual(result.status, 0); assert(!/ECONNREFUSED|Cannot find|not defined/.test(result.stderr));
     return { exit: result.status, stdout: result.stdout, stderr: result.stderr };
   });
+  if (process.env.CORTEX_BUNDLE_BROWSER === '1') {
+    await check('cortex-browser real page and snapshot', () => {
+      const options = { env: { ...env, CORTEX_SESSION_ID: 'bundle-browser-smoke' }, timeout: 60000 };
+      try {
+        bin('cortex-browser', ['open', 'data:text/html,<title>Bundle smoke</title><button>Smoke button</button>'], 0, options);
+        const snapshot = bin('cortex-browser', ['snapshot', '-i'], 0, options);
+        assert(snapshot.includes('Smoke button'), snapshot); return snapshot;
+      } finally { bin('cortex-browser', ['close'], 0, options); }
+    });
+  }
   await stop(daemon);
   await check('Daemon and children stopped', async () => {
     for (const port of [17301, 17302, 17303, 17304, 17380]) {
