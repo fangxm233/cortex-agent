@@ -20,6 +20,8 @@ const harness = vi.hoisted(() => ({
   attachmentItems: [] as any[],
   attachmentRetry: vi.fn(),
   createPending: false,
+  draftSelection: { selection: null, agentName: null } as { selection: null; agentName: null; clean?: boolean },
+  setDraftSelection: vi.fn(),
   // Query data by key root; every query stays empty unless a test stocks it.
   queries: {} as Record<string, unknown>,
 }));
@@ -56,8 +58,8 @@ vi.mock('@/features/session/state/SelectedSessionProvider', async () => {
       return {
         selectCreatedSession: vi.fn(),
         setSelectedSession: harness.setSelectedSession,
-        draftSelection: { selection: null, agentName: null },
-        setDraftSelection: vi.fn(),
+        draftSelection: harness.draftSelection,
+        setDraftSelection: harness.setDraftSelection,
         pendingCreatedSession: null,
         draftReloadToken: 0,
       };
@@ -70,6 +72,8 @@ vi.mock('./SessionSelector', async () => {
   return {
     SessionSelectorView: () => React.createElement('selection-chip'),
     AgentSelectorView: () => React.createElement('agent-chip'),
+    CleanToggleView: (props: object) => React.createElement('clean-toggle', props),
+    CleanWorkspaceChip: (props: object) => React.createElement('clean-workspace-chip', props),
   };
 });
 
@@ -214,6 +218,60 @@ describe('Composer draft project selector', () => {
     expect(draft.root.findByType('draft-project-selector' as any).props.disabled).toBe(true);
     harness.createPending = false;
     act(() => draft.unmount());
+  });
+});
+
+describe('Composer clean mode', () => {
+  afterEach(() => {
+    harness.draftSelection = { selection: null, agentName: null };
+    harness.setDraftSelection.mockReset();
+    harness.send.mockReset();
+    harness.createPending = false;
+  });
+  const sendDraft = (renderer: ReactTestRenderer) => {
+    act(() => renderer.root.findByProps({ 'data-composer-input': true }).props.onChange({ target: { value: 'hello' } }));
+    act(() => renderer.root.findByProps({ 'data-composer-input': true }).props.onKeyDown({ key: 'Enter', shiftKey: false, preventDefault: vi.fn() }));
+  };
+
+  it('offers the toggle on every draft and locks it while the session is created', () => {
+    const draft = mountComposer(() => {}, { isDraft: true, running: false });
+    const toggle = draft.root.findByType('clean-toggle' as any);
+    expect(toggle.props).toMatchObject({ on: false, disabled: false });
+    act(() => toggle.props.onToggle());
+    expect(harness.setDraftSelection).toHaveBeenCalledWith({ clean: true });
+    act(() => draft.unmount());
+
+    harness.createPending = true;
+    harness.draftSelection = { selection: null, agentName: null, clean: true };
+    const creating = mountComposer(() => {}, { isDraft: true, running: false });
+    expect(creating.root.findByType('clean-toggle' as any).props).toMatchObject({ on: true, disabled: true });
+    act(() => creating.unmount());
+  });
+
+  it('creates the session clean only when the toggle is on', () => {
+    harness.send.mockResolvedValue({ sessionId: 'new', acceptedAt: 'now' });
+    const plain = mountComposer(() => {}, { isDraft: true, sessionId: '', running: false });
+    sendDraft(plain);
+    expect(harness.send.mock.calls[0][0]).not.toHaveProperty('clean');
+    act(() => plain.unmount());
+
+    harness.draftSelection = { selection: null, agentName: null, clean: true };
+    const clean = mountComposer(() => {}, { isDraft: true, sessionId: '', running: false });
+    sendDraft(clean);
+    expect(harness.send.mock.calls[1][0]).toMatchObject({ clean: true, text: 'hello' });
+    act(() => clean.unmount());
+  });
+
+  it('shows a running clean session its workspace and nothing on other sessions', () => {
+    const plain = mountComposer(() => {}, { currentClean: false });
+    expect(plain.root.findAllByType('clean-toggle' as any)).toHaveLength(0);
+    expect(plain.root.findAllByType('clean-workspace-chip' as any)).toHaveLength(0);
+    act(() => plain.unmount());
+
+    const clean = mountComposer(() => {}, { currentClean: true, workspaceDir: '/srv/cortex/workspaces/ab12' });
+    expect(clean.root.findAllByType('clean-toggle' as any)).toHaveLength(0);
+    expect(clean.root.findByType('clean-workspace-chip' as any).props.workspaceDir).toBe('/srv/cortex/workspaces/ab12');
+    act(() => clean.unmount());
   });
 });
 

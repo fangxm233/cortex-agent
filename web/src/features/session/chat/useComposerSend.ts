@@ -144,6 +144,7 @@ export function useComposerSend(options: ComposerSendOptions): ComposerSend {
       projectId: options.projectId,
       ...(selection.selection ? { selection: selection.selection } : {}),
       ...(selection.agentName ? { agentName: selection.agentName } : {}),
+      ...(selection.clean ? { clean: true } : {}),
       text,
       draftUploadId,
       ...withAttachments,

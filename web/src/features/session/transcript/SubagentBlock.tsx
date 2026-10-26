@@ -58,7 +58,7 @@ function boxStyle(expanded: boolean): CSSProperties {
  * with the same renderer the top level uses. The caller passes them in as `children` rather than
  * the block reaching back into the row renderer, which would be a cycle.
  */
-export function SubagentBlock({ agentType, description, prompt, model, status, toolCount, touch = false, background = false, children }: {
+export function SubagentBlock({ agentType, description, prompt, model, status, toolCount, touch = false, background = false, clean = false, children }: {
   agentType: string | null;
   description: string | null;
   prompt: string | null;
@@ -69,6 +69,8 @@ export function SubagentBlock({ agentType, description, prompt, model, status, t
   touch?: boolean;
   /** Still running after the turn that started it ended. */
   background?: boolean;
+  /** Ran in its own workspace without project context. */
+  clean?: boolean;
   children: ReactNode;
 }): JSX.Element {
   const L = useVocab();
@@ -77,7 +79,8 @@ export function SubagentBlock({ agentType, description, prompt, model, status, t
   const running = status === 'running';
   const label = agentType || L.subagentFallbackLabel;
   const tools = toolCount === 1 ? `1 ${L.toolCallUnit}` : `${toolCount} ${L.toolCallsUnit}`;
-  const meta = [running && background ? L.chatSubagentRunningBg : null, model ? modelLabel(model) : null, tools]
+  const meta = [clean ? L.chatSubagentClean : null, running && background ? L.chatSubagentRunningBg : null,
+    model ? modelLabel(model) : null, tools]
     .filter(Boolean).join(' · ');
   return (
     <div data-subagent-block="" style={boxStyle(expanded)}>

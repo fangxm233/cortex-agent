@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 
-// The composer toolbar's setting chips — agent, model, the chosen browser, a draft's project. They
+// The composer toolbar's setting chips — clean mode, agent, model, the chosen browser, a draft's project. They
 // are settings rather than status, so they are not the hairline capsule: a filled quiet chip with no
 // outline, the UI face, and a small muted glyph in front. Hover or an open menu deepens the fill one
 // step; nothing turns the accent.
@@ -43,6 +43,17 @@ export function ProjectGlyph(): JSX.Element {
     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke={QUIET_CHIP_GLYPH} strokeWidth="1.5"
       strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none' }}>
       <path d="M2 12.5v-8A1.5 1.5 0 0 1 3.5 3h2.8l1.4 1.6h4.8A1.5 1.5 0 0 1 14 6.1v6.4a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5z" />
+    </svg>
+  );
+}
+
+/** Clean mode: a dashed frame, a folder of its own with nothing carried in. Drawn in the chip's
+ *  text colour, so it quiets with a switched-off toggle and firms up when the mode is on. */
+export function CleanGlyph(): JSX.Element {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"
+      strokeDasharray="3 2" aria-hidden="true" style={{ flex: 'none' }}>
+      <rect x="2.5" y="2.5" width="11" height="11" rx="2.5" />
     </svg>
   );
 }

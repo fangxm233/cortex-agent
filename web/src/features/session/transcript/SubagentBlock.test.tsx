@@ -42,6 +42,22 @@ describe('SubagentBlock', () => {
     expect(rendered).toContain('child output');
   });
 
+  it('names a clean subagent in its meta line', () => {
+    let renderer!: ReactTestRenderer;
+    const mount = (clean: boolean) => (
+      <LangProvider>
+        <SubagentBlock agentType="explore" description="Inspect" prompt={null} model={null} status="done" toolCount={2} clean={clean}>
+          <div />
+        </SubagentBlock>
+      </LangProvider>
+    );
+    act(() => { renderer = create(mount(true)); });
+    const meta = () => renderer.root.find((node) => node.props.style?.marginLeft === 'auto').props.children;
+    expect(meta()).toBe('clean · 2 tool calls');
+    act(() => renderer.update(mount(false)));
+    expect(meta()).toBe('2 tool calls');
+  });
+
   it('touch headers wrap at a finger-sized height without hover state', () => {
     let renderer!: ReactTestRenderer;
     act(() => {

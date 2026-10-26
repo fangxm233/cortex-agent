@@ -1,4 +1,4 @@
-import { apiBase, authHeaders, isNativeShell, isMobileShell } from './desktop-config';
+import { apiBase, authHeaders, isDesktopShell, isNativeShell, isMobileShell, readDesktopConfig } from './desktop-config';
 import { hasNativeCapability, safeInvoke, type NativeInvokeResult } from './native-bridge';
 
 const DOWNLOAD_PATH = '/api/files/download';
@@ -124,4 +124,17 @@ export async function revealPath(absPath: string): Promise<void> {
   if (!isNativeShell()) return;
   const result = await safeInvoke('reveal_path', { path: absPath });
   throwNativeFailure(result);
+}
+
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+/** Whether a folder on the server's machine can be opened here: only in the desktop app connected
+ *  to a server on this same machine. A remote server's path means nothing to this file manager. */
+export function canRevealServerPath(): boolean {
+  if (!isDesktopShell()) return false;
+  try {
+    return LOOPBACK_HOSTS.has(new URL(readDesktopConfig()?.serverUrl ?? '').hostname);
+  } catch {
+    return false;
+  }
 }

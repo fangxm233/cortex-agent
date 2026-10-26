@@ -100,6 +100,7 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
       sessionId: id,
       selection: draftSelection.selection,
       agentName: draftSelection.agentName ?? null,
+      ...(draftSelection.clean ? { clean: true } : {}),
     });
     setOverride(id);
   }, [draftSelection]);

@@ -81,6 +81,22 @@ export function SessionIdSheet({ sessionId, backendUuid, onClose }: {
   );
 }
 
+/** A clean session's workspace: what the mode means, and the folder to copy. */
+export function CleanWorkspaceSheet({ dir, onClose }: { dir: string; onClose: () => void }): JSX.Element {
+  const copy = useVocabOptional();
+  const { copiedKey, copy: writeCopy } = useClipboardFeedback<'workspace'>();
+  return (
+    <MBottomSheet onClose={onClose}>
+      <div data-mobile-clean-workspace-sheet="true">
+        <div style={{ fontSize: 17, fontWeight: 650, color: MC.ink, padding: '0 2px 4px' }}>{copy.wbClean}</div>
+        <div style={{ fontSize: 12.5, lineHeight: 1.55, color: MC.muted, padding: '0 2px 12px' }}>{copy.wbCleanHint}</div>
+        <SessionIdRow row={{ key: 'workspace', label: copy.wbCleanWorkspace, value: dir }} copied={copiedKey === 'workspace'}
+          onCopy={() => void writeCopy(dir, 'workspace')} />
+      </div>
+    </MBottomSheet>
+  );
+}
+
 export function SessionStatsSheet({ rows, onClose }: {
   rows: SessionStatsRow[];
   onClose: () => void;

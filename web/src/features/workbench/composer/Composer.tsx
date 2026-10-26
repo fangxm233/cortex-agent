@@ -6,7 +6,7 @@ import {
 import { useLang, useVocab } from '@/i18n';
 import type { SlashSuggestion } from '@/features/session/composer/composer-slash';
 import { useSelectedSession } from '@/features/session/state/SelectedSessionProvider';
-import { DRAFT_SENTINEL } from '@/features/session/state/selected-session';
+import { DRAFT_SENTINEL, resolveTransitionClean } from '@/features/session/state/selected-session';
 import { useComposerSend, type SlashFeedbackKey } from '@/features/session/chat/useComposerSend';
 import { runStatusLine } from '@/features/session/chat/run-status-line';
 import { useSessionSelection } from '@/features/session/composer/useSessionSelection';
@@ -19,7 +19,7 @@ import { ComposerAttachmentChip } from './ComposerAttachmentChip';
 import { ActivityStrip } from '@/features/session/rail/ActivityStrip';
 import type { SessionWaitpoints } from '@/features/session/live/useSessionWaitpoints';
 import { ComposerActionRow, ComposerSlashMenu } from './ComposerActionRow';
-import { AgentSelectorView, SessionSelectorView } from './SessionSelector';
+import { AgentSelectorView, CleanToggleView, CleanWorkspaceChip, SessionSelectorView } from './SessionSelector';
 import type { ContextCompactAction } from '@/features/session/composer/ContextUsageControl';
 import type { EngineSelection, SessionTotals, TodoSnapshot } from '@cortex-agent/ui-contract';
 import type { TurnClock } from '@/features/session/transcript/transcript-vm';
@@ -64,6 +64,9 @@ export interface ComposerProps {
   currentSelection: EngineSelection | null | undefined;
   /** The agent it runs in, from that same row. Null = it follows the host's default. */
   currentAgent?: string | null;
+  /** Clean mode and its workspace, from that same row. */
+  currentClean?: boolean;
+  workspaceDir?: string | null;
   hasHistory: boolean;
   projectId?: string;
   /** The chat's optimistic sends: a send shows its row before the server answers, and a locally
@@ -97,6 +100,8 @@ export function Composer({
   isDraft = false,
   currentSelection,
   currentAgent = null,
+  currentClean,
+  workspaceDir = null,
   hasHistory,
   projectId = 'general',
   optimistic,
@@ -373,6 +378,12 @@ export function Composer({
             <ComposerActionRow
               onAttach={() => fileInputRef.current?.click()}
               onCommands={() => { composerSend.openCommands(); setSlashOpen(true); }}
+              cleanControl={isDraft ? (
+                <CleanToggleView on={!!draftSelection.clean} disabled={composerSend.creating}
+                  onToggle={() => setDraftSelection({ clean: !draftSelection.clean })} />
+              ) : resolveTransitionClean(currentClean, pendingCreatedSession, sessionId) ? (
+                <CleanWorkspaceChip workspaceDir={workspaceDir} />
+              ) : null}
               agentControl={<AgentSelectorView selection={engineSelection} />}
               selectionControl={<SessionSelectorView selection={engineSelection} />}
               contextControl={contextControl}

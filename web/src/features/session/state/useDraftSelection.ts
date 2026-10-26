@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import {
-  applyDraftSelection, EMPTY_DRAFT_SELECTION, seedDraftSelection,
+  applyDraftSelection, clearDraftClean, EMPTY_DRAFT_SELECTION, seedDraftSelection,
   type DraftSelection, type SelectionChange,
 } from './selected-session';
 
@@ -17,6 +17,9 @@ export function useDraftSelection(isDraft: boolean): [DraftSelection, (change: S
     const seeded = seedDraftSelection(configQuery.data?.selectionDefault, snapshot.default);
     if (seeded) setSelection(seeded);
   }, [isDraft, selection.selection, selection.agentName, configQuery.data]);
+  useEffect(() => {
+    if (!isDraft) setSelection(clearDraftClean);
+  }, [isDraft]);
   const apply = useCallback((change: SelectionChange) => {
     setSelection((current) => applyDraftSelection(current, change));
   }, []);

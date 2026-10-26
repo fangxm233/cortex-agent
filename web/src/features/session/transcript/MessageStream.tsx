@@ -481,6 +481,7 @@ function Row({ row, interactionActions, actions = false, assistantCopyText, onSt
             status={row.status}
             toolCount={row.toolCount}
             background={background}
+            clean={row.clean}
           >
             {row.detailMode === 'lazy' && row.hasDetails && streamKey ? (
               <SubagentTranscriptDetail

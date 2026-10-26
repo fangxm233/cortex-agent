@@ -4,6 +4,9 @@ export const DRAFT_SENTINEL = '__draft__';
 export interface DraftSelection {
   selection: EngineSelection | null;
   agentName?: string | null;
+  /** The session this draft creates works in its own folder without project context. Every new
+   *  draft starts with it off. */
+  clean?: boolean;
 }
 export interface PendingCreatedSession extends DraftSelection {
   sessionId: string;
@@ -12,11 +15,20 @@ export interface PendingCreatedSession extends DraftSelection {
 export interface SelectionChange {
   selection?: EngineSelection;
   agentName?: string | null;
+  /** Draft only: a running session's clean mode is fixed at creation. */
+  clean?: boolean;
 }
 export const EMPTY_DRAFT_SELECTION: DraftSelection = { selection: null };
 
 export function applyDraftSelection(current: DraftSelection, change: SelectionChange): DraftSelection {
   return { ...current, ...change };
+}
+
+/** Leaving a draft drops its clean choice, so the next draft starts with it off. */
+export function clearDraftClean(current: DraftSelection): DraftSelection {
+  if (current.clean === undefined) return current;
+  const { clean: _clean, ...rest } = current;
+  return rest;
 }
 
 export function seedDraftSelection(
@@ -70,6 +82,17 @@ export function resolveTransitionAgent(
   if (rowAgent !== undefined) return rowAgent;
   const pending = sessionId && pendingCreated?.sessionId === sessionId ? pendingCreated : null;
   return pending?.agentName ?? null;
+}
+
+/** Whether the open session runs in clean mode: its row once it is listed, the draft it was
+ *  created from until then. */
+export function resolveTransitionClean(
+  rowClean: boolean | undefined,
+  pendingCreated: PendingCreatedSession | null,
+  sessionId: string | null | undefined,
+): boolean {
+  if (rowClean !== undefined) return rowClean;
+  return !!sessionId && pendingCreated?.sessionId === sessionId && pendingCreated.clean === true;
 }
 
 export function resolveTransitionSelection(

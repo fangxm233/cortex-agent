@@ -170,12 +170,14 @@ function ComposerPlusMenu({ onAttach, onCommands }: {
  * model, context ring and the send/stop cluster sit right, so every affordance shares one row and
  * the input above keeps the card's full width.
  *
- * The right cluster reads outside-in: WHERE the turn runs (the environment), then WHAT runs it (the
- * engine), then how much room is left, then send.
+ * The right cluster reads outside-in: WHERE the turn runs (clean mode, the environment), then WHAT
+ * runs it (the engine), then how much room is left, then send.
  */
-export function ComposerActionRow({ onAttach, onCommands, agentControl, selectionControl, contextControl, sendControl }: {
+export function ComposerActionRow({ onAttach, onCommands, cleanControl, agentControl, selectionControl, contextControl, sendControl }: {
   onAttach: () => void;
   onCommands: () => void;
+  /** Clean mode: a draft's toggle, or a running clean session's workspace chip. */
+  cleanControl?: ReactNode;
   /** The environment chip (which agent the conversation runs in). Draws nothing of its own on a
    *  host with fewer than two agents — a list of one is not a choice. */
   agentControl?: ReactNode;
@@ -188,6 +190,7 @@ export function ComposerActionRow({ onAttach, onCommands, agentControl, selectio
     <div data-composer-actions style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
       <ComposerPlusMenu onAttach={onAttach} onCommands={onCommands} />
       <span style={{ marginLeft: 'auto' }} />
+      {cleanControl}
       {agentControl}
       {selectionControl}
       {contextControl}

@@ -3,13 +3,17 @@ import { useVocab } from '@/i18n';
 import { agentChipParts, hasAgentChoice, selectionChipParts } from '@/features/session/list/selection-menu';
 import type { SessionSelection } from '@/features/session/composer/useSessionSelection';
 import { AgentMenu } from './AgentMenu';
-import { MENU_FOCUS, useDismissMenu } from '@/design/MenuChrome';
+import { MENU_FOCUS, MONO, useDismissMenu } from '@/design/MenuChrome';
+import { Popover } from '@/design/Popover';
+import { useClipboardFeedback } from '@/design/useClipboardFeedback';
+import { canRevealServerPath, revealPath } from '@/lib/files';
 import { SelectionMenu } from './SelectionMenu';
-import { AgentGlyph, ModelGlyph, quietChipStyle } from './composer-chip';
+import { AgentGlyph, CleanGlyph, ModelGlyph, quietChipStyle } from './composer-chip';
 
-// The composer's two chips, drawn off the one headless `useSessionSelection`: the engine chip and,
-// to its left, the environment chip. The rules behind both live in that hook. Both are the toolbar's
-// filled quiet chip (`composer-chip`), and the model chip reads "model · sub".
+// The composer's chips, drawn off the one headless `useSessionSelection`: the engine chip and, to
+// its left, the environment chip. The rules behind both live in that hook. Both are the toolbar's
+// filled quiet chip (`composer-chip`), and the model chip reads "model · sub". Left of them sits the
+// clean-mode chip: a toggle on a draft, a read-only chip that shows the workspace afterwards.
 
 function SelectionTrigger({ selection, hover, triggerRef }: {
   selection: SessionSelection; hover: boolean; triggerRef: RefObject<HTMLButtonElement>;
@@ -108,4 +112,74 @@ export function AgentSelectorView({ selection }: { selection: SessionSelection }
       ) : null}
     </span>
   );
+}
+
+/** A draft's clean-mode switch. Off it reads a step quieter, like an agent only following the
+ *  default; on, it takes the chip's normal ink. Locked while the draft's session is being created. */
+export function CleanToggleView({ on, disabled = false, onToggle }: {
+  on: boolean;
+  disabled?: boolean;
+  onToggle: () => void;
+}): JSX.Element {
+  const L = useVocab();
+  const [hover, setHover] = useState(false);
+  return <button type="button" data-chip="clean" className={MENU_FOCUS} aria-pressed={on}
+    disabled={disabled} title={L.wbCleanHint}
+    onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+    onClick={(event) => { event.stopPropagation(); if (!disabled) onToggle(); }}
+    style={{
+      ...quietChipStyle(hover && !disabled), flex: 'none', whiteSpace: 'nowrap',
+      color: on ? 'var(--proto-ink-2)' : 'var(--proto-muted)',
+      cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.55 : 1,
+    }}>
+    <CleanGlyph />
+    {L.wbClean}
+  </button>;
+}
+
+const WORKSPACE_ACTION_STYLE = {
+  flex: 'none', font: '500 12px var(--font-ui)', color: 'var(--proto-muted)',
+  border: '1px solid var(--proto-line-3)', borderRadius: 'var(--r-chip)', padding: '4px 8px',
+  background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow)', cursor: 'pointer',
+} as const;
+
+/** What the running clean session's chip opens: where its workspace is, to copy or open. */
+export function CleanWorkspacePanel({ workspaceDir }: { workspaceDir: string }): JSX.Element {
+  const L = useVocab();
+  const { copiedKey, copy } = useClipboardFeedback<'path'>();
+  const copied = copiedKey === 'path';
+  return <div data-clean-workspace="" style={{ display: 'flex', flexDirection: 'column', gap: 6, width: 360, maxWidth: '80vw', padding: 4 }}>
+    <div style={{ fontSize: 12, fontWeight: 550, color: 'var(--proto-muted)' }}>{L.wbCleanWorkspace}</div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <span style={{ flex: 1, minWidth: 0, font: `500 12px ${MONO}`, color: 'var(--proto-ink)', wordBreak: 'break-all', userSelect: 'all' }}>
+        {workspaceDir}
+      </span>
+      {canRevealServerPath() ? (
+        <button type="button" data-action="reveal" className={MENU_FOCUS} style={WORKSPACE_ACTION_STYLE}
+          onClick={() => void revealPath(workspaceDir)}>{L.wbFileOpenFolder}</button>
+      ) : null}
+      <button type="button" data-action="copy" className={MENU_FOCUS}
+        style={{ ...WORKSPACE_ACTION_STYLE, color: copied ? 'var(--proto-ink)' : WORKSPACE_ACTION_STYLE.color }}
+        onClick={() => void copy(workspaceDir, 'path')}>{copied ? L.wbCopied : L.wbCopy}</button>
+    </div>
+  </div>;
+}
+
+/** A running clean session: the same chip, read-only, opening its workspace. The path arrives with
+ *  the session's row, so a session created a moment ago shows the chip before it can open. */
+export function CleanWorkspaceChip({ workspaceDir }: { workspaceDir: string | null }): JSX.Element {
+  const L = useVocab();
+  const [hover, setHover] = useState(false);
+  const [open, setOpen] = useState(false);
+  const chip = <button type="button" data-chip="clean" data-clean-running="" className={MENU_FOCUS}
+    title={L.wbCleanHint} disabled={!workspaceDir}
+    onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+    style={{ ...quietChipStyle((hover || open) && !!workspaceDir), flex: 'none', whiteSpace: 'nowrap', cursor: workspaceDir ? 'pointer' : 'default' }}>
+    <CleanGlyph />
+    {L.wbClean}
+  </button>;
+  if (!workspaceDir) return chip;
+  return <Popover trigger={chip} side="top" align="end" open={open} onOpenChange={setOpen}>
+    <CleanWorkspacePanel workspaceDir={workspaceDir} />
+  </Popover>;
 }

@@ -189,6 +189,8 @@ vi.mock('./MChatView', async () => {
         selection: props.selection,
         onPickSelection: props.onPickSelection,
         selectionView: selectionView(props.selection, en),
+        cleanDraft: props.cleanDraft,
+        cleanWorkspace: props.cleanWorkspace,
       },
       props.rows
         .filter((row: { kind: string }) => row.kind === 'user')
@@ -704,5 +706,38 @@ describe('mobile environment picker', () => {
     mounted = mountChat();
     expect(view(mounted).props.selectionView.agentChip).toBeNull();
     expect(openAgent(mounted)).toBeNull();
+  });
+});
+
+describe('mobile clean mode', () => {
+  it('a draft switches clean on and creates its session clean; off sends no flag', () => {
+    harness.routeParam = 'new';
+    harness.sessions = [];
+    harness.createAndSendMutateAsync.mockReturnValue(new Promise(() => {}));
+    mounted = mountChat();
+    expect(view(mounted).props.cleanDraft).toMatchObject({ on: false, disabled: false });
+    expect(view(mounted).props.cleanWorkspace).toBeNull();
+    typeAndSend(mounted, 'plain');
+    expect(harness.createAndSendMutateAsync.mock.calls[0][0]).not.toHaveProperty('clean');
+    act(() => mounted!.unmount());
+
+    harness.createAndSendMutateAsync.mockReset().mockReturnValue(new Promise(() => {}));
+    mounted = mountChat();
+    act(() => view(mounted!).props.cleanDraft.onToggle());
+    expect(view(mounted).props.cleanDraft.on).toBe(true);
+    typeAndSend(mounted, 'clean');
+    expect(harness.createAndSendMutateAsync.mock.calls[0][0]).toMatchObject({ clean: true, text: 'clean' });
+  });
+
+  it('a clean session has no switch but shows its workspace; other sessions show neither', () => {
+    harness.sessions = [{ ...SESSION, clean: true, workspaceDir: '/srv/cortex/workspaces/s1' }];
+    mounted = mountChat();
+    expect(view(mounted).props.cleanDraft).toBeNull();
+    expect(view(mounted).props.cleanWorkspace).toEqual({ dir: '/srv/cortex/workspaces/s1' });
+    act(() => mounted!.unmount());
+
+    harness.sessions = [{ ...SESSION, clean: false, workspaceDir: null }];
+    mounted = mountChat();
+    expect(view(mounted).props.cleanWorkspace).toBeNull();
   });
 });

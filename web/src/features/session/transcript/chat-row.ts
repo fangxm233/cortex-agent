@@ -69,10 +69,11 @@ export type ChatRow =
   // Explicit per-child lifecycle wins; only legacy histories use parent-turn heuristics.
   // `model` is what actually answered, not what was requested: the CLI ships no `subagent_model`,
   // so it comes off `message.model` of the subagent's own messages and is therefore null until the
-  // subagent has said something — the anchor alone cannot know it.
+  // subagent has said something — the anchor alone cannot know it. `clean` marks a child that ran
+  // in its own workspace without project context.
   | { kind: 'subagent'; id: string; agentType: string | null; description: string | null;
       prompt: string | null; model: string | null; status: 'running' | 'done'; toolCount: number; children: ChatRow[];
-      hasDetails?: boolean; detailMode?: 'lazy' }
+      hasDetails?: boolean; detailMode?: 'lazy'; clean?: boolean }
   // Team mode, in a lead's chat: one lead action on a worker (spawn / send / answer / stop), lifted
   // out of the tool-chip run, and one card per consecutive run of worker traffic. See team-rows.
   | TeamChatRow

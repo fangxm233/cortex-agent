@@ -6,7 +6,7 @@ import { MC, MONO } from '@/mobile/ui/kit';
 import { ComposerAttachmentStrip } from './MChatAttachments';
 import { EditBar } from './MChatMessageActions';
 import { MChatActivityStrip } from './MChatActivity';
-import type { MChatViewProps } from './MChatView.types';
+import type { MChatViewProps, MCleanDraft } from './MChatView.types';
 import type { MChatSelection, MChatSelectionView } from './m-chat-selection';
 import type { ChatOverlay } from './useChatOverlay';
 
@@ -147,6 +147,20 @@ function AgentChip({ axis, label, followingDefault, onClick }: {
   );
 }
 
+/** A draft's clean-mode switch, left of the environment chip. Off it reads a step fainter, like an
+ *  agent only following the default; on, it takes the chip's ink. It never yields width: the word is
+ *  short and the state must stay legible. */
+function CleanChip({ clean }: { clean: MCleanDraft }): JSX.Element {
+  const vocab = useVocabOptional();
+  return (
+    <button type="button" data-chip="clean" aria-pressed={clean.on} aria-label={`${vocab.wbClean} · ${vocab.wbCleanHint}`}
+      disabled={clean.disabled} onClick={clean.onToggle}
+      style={{ ...composerChipStyle, flex: 'none', color: clean.on ? composerChipStyle.color : MC.muted, opacity: clean.disabled ? 0.55 : 1, cursor: clean.disabled ? 'default' : 'pointer' }}>
+      <span style={CHIP_LABEL}>{vocab.wbClean}</span>
+    </button>
+  );
+}
+
 export function ComposerLeading({ onClick }: { onClick: () => void }): JSX.Element {
   const vocab = useVocabOptional();
   return (
@@ -157,13 +171,15 @@ export function ComposerLeading({ onClick }: { onClick: () => void }): JSX.Eleme
 }
 
 /** The chips at the right of the composer toolbar, ahead of context usage and the send keys. */
-export function ComposerTools({ selection, view }: {
+export function ComposerTools({ selection, view, clean }: {
   selection: MChatSelection;
   view: MChatSelectionView;
+  clean?: MCleanDraft | null;
 }): JSX.Element {
   const axis = useVocabOptional().wbAgent;
   return (
     <>
+      {clean ? <CleanChip clean={clean} /> : null}
       {view.agentChip ? (
         <AgentChip
           axis={axis}

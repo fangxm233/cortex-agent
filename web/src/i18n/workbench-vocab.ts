@@ -19,6 +19,9 @@ export const workbenchEn = {
   wbFiredCaption: 'Fired',
   wbCostCaption: 'Cost',
   wbRailResize: 'Drag to resize the sidebar, double-click to reset',
+  wbClean: 'Clean',
+  wbCleanHint: 'Works in its own folder without project context',
+  wbCleanWorkspace: 'Workspace',
 };
 export const workbenchZh: Record<keyof typeof workbenchEn, string> = {
   wbOpenWebPage: '在停靠面板中打开网页',
@@ -30,6 +33,9 @@ export const workbenchZh: Record<keyof typeof workbenchEn, string> = {
   wbFiredCaption: '触发',
   wbCostCaption: '费用',
   wbRailResize: '拖动调整侧栏宽度，双击恢复默认',
+  wbClean: '干净',
+  wbCleanHint: '不读取项目上下文，在独立文件夹中工作',
+  wbCleanWorkspace: '工作区',
 };
 
 // Approval center (desktop overlay) and the mobile approval queue.

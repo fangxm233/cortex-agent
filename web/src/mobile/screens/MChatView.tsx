@@ -49,7 +49,14 @@ interface MChatHeaderProps {
   onMore: () => void;
   /** Context usage, as a bare ring left of ⋯. Absent on a session that reports no window. */
   contextControl?: ReactNode;
+  /** A clean session: a small label after the title; tapping it opens the workspace (once known). */
+  clean?: { onOpen: (() => void) | null } | null;
 }
+
+const CLEAN_LABEL: CSSProperties = {
+  flex: 'none', padding: '1px 6px', border: '1px solid var(--proto-line-3)', borderRadius: 'var(--r-chip)',
+  background: 'transparent', fontFamily: 'var(--font-ui)', fontSize: 11.5, lineHeight: 1.4, color: MC.muted, cursor: 'pointer',
+};
 
 /** The floating header pill, measured once (useHeaderClearance) so the transcript clears it. */
 const HEADER_STACK: CSSProperties = {
@@ -104,6 +111,10 @@ export function MChatHeader(props: MChatHeaderProps): JSX.Element {
           <span style={{ minWidth: 0, fontSize: 15.5, fontWeight: 620, color: MC.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {props.title}
           </span>
+          {props.clean && (
+            <button type="button" data-clean-label="" aria-label={`${vocab.wbClean} · ${vocab.wbCleanWorkspace}`}
+              disabled={!props.clean.onOpen} onClick={props.clean.onOpen ?? undefined} style={CLEAN_LABEL}>{vocab.wbClean}</button>
+          )}
         </div>
         <MChatStatusLine status={props.status} />
       </div>
@@ -175,7 +186,7 @@ function MSubagentBlock({ row, sessionId, background = false }: {
 }): JSX.Element {
   return (
     <SubagentBlock agentType={row.agentType} description={row.description} prompt={row.prompt}
-      model={row.model} status={row.status} toolCount={row.toolCount} background={background} touch>
+      model={row.model} status={row.status} toolCount={row.toolCount} background={background} clean={row.clean} touch>
       <MSubagentDetail row={row} sessionId={sessionId} />
     </SubagentBlock>
   );
@@ -689,7 +700,7 @@ function MChatComposer({ props, shellRef, overlay, selection }: {
       value={props.composerValue} onChange={props.onComposerChange} onSend={props.onSend} sendEnabled={props.sendEnabled}
       running={props.status.running} onStop={props.onStop} stopEnabled={props.stopEnabled}
       leading={takenOver ? undefined : <ComposerLeading onClick={() => overlay.toggle('attach')} />}
-      tools={takenOver ? null : <ComposerTools selection={props.selection} view={selection} />}
+      tools={takenOver ? null : <ComposerTools selection={props.selection} view={selection} clean={props.cleanDraft} />}
       above={<ComposerAbove props={props} overlay={overlay} />}
       commandMenu={commandMenu}
       onPlus={() => overlay.toggle('attach')}
@@ -763,7 +774,8 @@ export function MChatView(props: MChatViewProps): JSX.Element {
         <div ref={clearance.stackRef} data-chat-header-stack="" style={HEADER_STACK}>
           <MChatHeader title={props.title} parent={props.parent} status={props.status}
             onBack={props.onBack} onMore={() => overlay.toggle('more')}
-            contextControl={headerContextControl(props, () => overlay.open('context'))} />
+            contextControl={headerContextControl(props, () => overlay.open('context'))}
+            clean={props.cleanWorkspace ? { onOpen: props.cleanWorkspace.dir ? () => overlay.open('workspace') : null } : null} />
         </div>
         <MChatBody props={props} overlay={overlay} selection={selection} />
         <MChatOverlays props={props} overlay={overlay} selection={selection} files={files} />

@@ -2,7 +2,8 @@ import { useState } from 'react';
 
 /** The chat's menus and sheets. Only one is ever up: each one's backdrop covers the triggers of the
  *  others, so opening one from inside another (⋯ → Session ID) is a hand-over. */
-export type ChatOverlayKind = 'more' | 'sessionId' | 'stats' | 'attach' | 'agentBrowser' | 'context' | 'team' | 'board' | 'todo' | 'wait';
+export type ChatOverlayKind = 'more' | 'sessionId' | 'stats' | 'attach' | 'agentBrowser' | 'context' | 'team' | 'board' | 'todo' | 'wait'
+  | 'workspace';
 
 type OverlayState = { kind: ChatOverlayKind } | { kind: 'original'; text: string } | { kind: 'board'; boardId: string } | null;
 

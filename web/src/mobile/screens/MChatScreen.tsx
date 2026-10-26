@@ -9,7 +9,9 @@ import { useChatSession } from '@/features/session/chat/useChatSession';
 import { useComposerSend } from '@/features/session/chat/useComposerSend';
 import { useSessionSelection } from '@/features/session/composer/useSessionSelection';
 import { useDraftSelection } from '@/features/session/state/useDraftSelection';
-import type { PendingCreatedSession } from '@/features/session/state/selected-session';
+import {
+  resolveTransitionClean, type DraftSelection, type PendingCreatedSession, type SelectionChange,
+} from '@/features/session/state/selected-session';
 import { sessionSpanMs, sessionStatsView, type SessionStatsRow } from '@/features/session/list/session-stats';
 import { sessionDisplayTitle } from '@/features/session/metadata/session-display-title';
 import { useTeamContext } from '@/features/team/useTeamContext';
@@ -25,6 +27,7 @@ import {
 import { useMobileInteractions, type MobileInteractionRouting } from './m-chat-interactions';
 import { useMobileMessageEdit, type MobileMessageEdit } from './m-chat-edit';
 import type { UsageNavState } from './MUsageScreen';
+import type { MChatViewProps } from './MChatView.types';
 
 const DRAFT_PATH = '/m/session/new';
 
@@ -66,6 +69,20 @@ function usePendingCreatedSession(activeSessionId: string | undefined, isDraft: 
     if (authoritativeArrived || movedElsewhere) setPending(null);
   }, [activeSessionId, isDraft, pending, sessionId]);
   return [pending, setPending] as const;
+}
+
+/** Clean mode: a draft's switch beside the agent chip; afterwards, a clean session's workspace. */
+function cleanViewProps(input: {
+  isDraft: boolean;
+  draft: DraftSelection;
+  setDraft: (change: SelectionChange) => void;
+  creating: boolean;
+  clean: boolean;
+  workspaceDir: string | null;
+}): Pick<MChatViewProps, 'cleanDraft' | 'cleanWorkspace'> {
+  if (!input.isDraft) return { cleanDraft: null, cleanWorkspace: input.clean ? { dir: input.workspaceDir } : null };
+  const on = !!input.draft.clean;
+  return { cleanDraft: { on, disabled: input.creating, onToggle: () => input.setDraft({ clean: !on }) }, cleanWorkspace: null };
 }
 
 /** Whole-session totals — the ⋯ menu's「会话统计」sheet. Same vm as desktop; only `summary` goes
@@ -180,6 +197,7 @@ export function MChatScreen(): JSX.Element {
         sessionId: createdId,
         selection: draftSelection.selection,
         agentName: draftSelection.agentName ?? null,
+        ...(draftSelection.clean ? { clean: true } : {}),
       });
       // The same screen carries on as the created session, so the row and chip stay put.
       navigate(`/m/session/${createdId}`, { replace: true, state: SAME_SCREEN_STATE });
@@ -260,6 +278,11 @@ export function MChatScreen(): JSX.Element {
       stopEnabled={!composer.stopPending}
       selection={selection}
       onPickSelection={onPickSelection}
+      {...cleanViewProps({
+        isDraft, draft: draftSelection, setDraft: setDraftSelection, creating: composer.creating,
+        clean: resolveTransitionClean(active?.clean, pendingCreatedSession, sessionId),
+        workspaceDir: active?.workspaceDir ?? null,
+      })}
       contextUsage={chat.contextUsage}
       contextUsageSupported={!!active?.contextCompactionSupported}
       contextCompactAction={chat.compactAction}
