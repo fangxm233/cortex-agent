@@ -60,6 +60,8 @@ export interface SessionMessagePayload {
   /** The model that produced the row, from the subagent's own messages. Absent until the subagent
    *  has actually said something — the spawning call predates any answer. */
   subagentModel?: string;
+  /** The subagent named by `subagentId` runs in clean mode. */
+  subagentClean?: boolean;
 }
 
 /** Tell an open transcript to refetch after sensitive DEBUG metadata is durably persisted.
@@ -125,6 +127,7 @@ export function publishSessionMessage(p: SessionMessagePayload): void {
     ...(p.subagentType !== undefined ? { subagentType: p.subagentType } : {}),
     ...(p.subagentDescription !== undefined ? { subagentDescription: p.subagentDescription } : {}),
     ...(p.subagentModel !== undefined ? { subagentModel: p.subagentModel } : {}),
+    ...(p.subagentClean !== undefined ? { subagentClean: p.subagentClean } : {}),
   });
 }
 

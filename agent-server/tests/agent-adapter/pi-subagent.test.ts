@@ -10,7 +10,7 @@ import {
 } from '../../src/agent-adapter/pi/subagent.js';
 import { MAX_SUBAGENT_TASKS } from '../../src/core/agents/subagent/schema.js';
 import type { ChildSessionHandle, ChildSessionRequest } from '../../src/agent-adapter/pi/child-session.js';
-import { PI_INTERACTION_BRIDGE_ENV } from '../../src/agent-adapter/pi/session-options.js';
+import { PI_CLEAN_WORKSPACE_ENV, PI_INTERACTION_BRIDGE_ENV } from '../../src/agent-adapter/pi/session-options.js';
 import {
   createPIEventParserState,
   piEventToNormalized,
@@ -121,7 +121,7 @@ function parentEnv(agentDir: string): NodeJS.ProcessEnv {
 
 function createHarness(
   role: { model?: string; tools?: string } = {},
-  options: { attributed?: boolean } = {},
+  options: { attributed?: boolean; env?: NodeJS.ProcessEnv } = {},
 ): Harness {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-subagent-'));
   const agentDir = path.join(root, 'pi');
@@ -155,7 +155,7 @@ function createHarness(
       childEnvs.push(env);
       return [];
     },
-    parentEnv: parentEnv(agentDir),
+    parentEnv: { ...parentEnv(agentDir), ...options.env },
     onUsage: (report) => { usageReports.push(report); },
     ...(options.attributed === false ? {} : { onEvent: (notice) => { notices.push(notice); } }),
   };
@@ -915,6 +915,42 @@ test('a session with no event sink still runs the subagent, just without attribu
     const result = await run;
     assert.match(result.content[0].text, /child answer/);
     assert.equal(harness.notices.length, 0);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test('a clean PI parent runs its children in its own workspace, files copied in, without context files', async () => {
+  const workspace = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-clean-')), 'ws');
+  fs.mkdirSync(path.join(workspace, 'inputs'), { recursive: true });
+  const harness = createHarness({}, { env: { [PI_CLEAN_WORKSPACE_ENV]: workspace } });
+  const given = path.join(harness.root, 'brief.md');
+  fs.writeFileSync(given, 'brief');
+  try {
+    const run = harness.tool.execute('tool-clean', singleParams({ files: [given] }), undefined, undefined, context(workspace));
+    await waitForPrompts(harness, 1);
+    const request = harness.calls[0];
+    assert.equal(request.cwd, workspace);
+    assert.equal(request.noContextFiles, true);
+    assert.match(request.appendSystemPrompt.at(-1)!, /^## Workspace/);
+    assert.equal(fs.readFileSync(path.join(workspace, 'inputs', 'brief.md'), 'utf8'), 'brief');
+    harness.sessions[0].finish('child answer');
+    const result = await run;
+    assert.equal(result.content[0].text, `child answer\n\nWorkspace: ${workspace}`);
+    assert.ok(harness.notices.filter(n => n.kind !== 'end').every(n => n.clean === true));
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test('a PI task naming a missing file is refused before any child session starts', async () => {
+  const harness = createHarness();
+  try {
+    await assert.rejects(
+      harness.tool.execute('tool-x', singleParams({ files: ['/nope/missing.txt'] }), undefined, undefined, context(harness.root)),
+      /file not found/,
+    );
+    assert.equal(harness.calls.length, 0);
   } finally {
     harness.cleanup();
   }

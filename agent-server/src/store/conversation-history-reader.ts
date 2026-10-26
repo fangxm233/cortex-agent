@@ -90,6 +90,7 @@ function subagentFields(ev: RawEvent) {
     ...(ev.subagentType ? { subagentType: ev.subagentType } : {}),
     ...(ev.subagentDescription ? { subagentDescription: ev.subagentDescription } : {}),
     ...(ev.subagentModel ? { subagentModel: ev.subagentModel } : {}),
+    ...(ev.subagentClean ? { subagentClean: true } : {}),
   };
 }
 

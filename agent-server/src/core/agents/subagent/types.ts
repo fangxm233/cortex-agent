@@ -29,6 +29,8 @@ export interface SubagentNotice {
   images?: ToolResultImage[];
   text?: string;
   status?: SubagentEndStatus;
+  /** The child runs in clean mode (its own workspace, no Cortex context). */
+  clean?: boolean;
 }
 
 export interface SubagentTask {
@@ -39,6 +41,11 @@ export interface SubagentTask {
   model?: string;
   /** Overrides the role's backend, which in turn overrides the parent's. */
   backend?: Backend;
+  /** Clean mode: the child works in a workspace of its own without Cortex context. Forced on when
+   *  the parent is clean, and implied by `files`. */
+  clean?: boolean;
+  /** Files or directories copied into the child's workspace `inputs/` before it starts. */
+  files?: string[];
 }
 
 export interface SubagentUsage {

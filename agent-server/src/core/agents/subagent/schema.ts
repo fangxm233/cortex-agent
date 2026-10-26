@@ -14,7 +14,17 @@ export const SUBAGENT_BACKEND_DESCRIPTION =
 
 export const SUBAGENT_DESCRIPTION =
   'Delegate isolated, one-shot work; children cannot delegate. Give self-contained prompts. '
-  + 'Choose one mode: single, parallel, or chain. Supports both backends.';
+  + 'Choose one mode: single, parallel, or chain. Supports both backends. '
+  + 'Set clean for work that must not be shaped by Cortex context: the child runs in a fresh '
+  + 'workspace and sees only its brief and the files you list in files, copied to inputs/. Its '
+  + 'brief must stand alone, name those files as inputs/<name>, and mention no path outside the '
+  + 'workspace. Its result ends with the workspace path, where it leaves its output.';
+
+export const SUBAGENT_CLEAN_DESCRIPTION =
+  'Run in a fresh workspace without Cortex context. Implied by files.';
+
+export const SUBAGENT_FILES_DESCRIPTION =
+  'Files or directories (absolute or ~ paths) copied into the workspace inputs/. Implies clean.';
 
 const TASK_KEYS = ['description', 'prompt', 'subagent_type'] as const;
 
@@ -31,6 +41,18 @@ function validateTask(task: SubagentTask): void {
     }
   }
   parseBackendField((task as unknown as Record<string, unknown>).backend, 'Agent task');
+  validateCleanFields(task);
+}
+
+function validateCleanFields(task: SubagentTask): void {
+  if (task.clean !== undefined && typeof task.clean !== 'boolean') {
+    throw new Error('Agent task clean must be a boolean.');
+  }
+  const files = task.files as unknown;
+  if (files === undefined) return;
+  if (!Array.isArray(files) || files.some((file) => typeof file !== 'string' || file.trim() === '')) {
+    throw new Error('Agent task files must be a list of non-empty paths.');
+  }
 }
 
 function checkedInvocation(mode: SubagentMode, tasks: SubagentTask[]): Invocation {

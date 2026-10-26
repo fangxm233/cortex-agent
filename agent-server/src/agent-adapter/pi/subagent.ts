@@ -2,7 +2,8 @@ import { Type } from '@sinclair/typebox';
 import type { ExtensionContext, InlineExtension, ToolDefinition } from '@earendil-works/pi-coding-agent';
 import { findRole, loadRoles, type AgentRole } from '@core/agents/roles.js';
 import {
-  MAX_SUBAGENT_TASKS, SUBAGENT_DESCRIPTION, resolveInvocation,
+  MAX_SUBAGENT_TASKS, SUBAGENT_CLEAN_DESCRIPTION, SUBAGENT_DESCRIPTION, SUBAGENT_FILES_DESCRIPTION,
+  resolveInvocation,
 } from '@core/agents/subagent/schema.js';
 import {
   describeSubagent, type SubagentCatalog, type SubagentFieldDescriptions,
@@ -22,26 +23,35 @@ import { subagentEndNotice } from '@core/agents/subagent/attribution.js';
 import { runPiChild } from './child-runner.js';
 import { selectChildModel } from '@core/agents/subagent/model-spec.js';
 import type { SubagentNotice } from '@core/agents/subagent/types.js';
+import { openChildWorkspace, prepareCleanTasks, withWorkspaceNote } from '@core/agents/subagent/workspace.js';
+import { PI_CLEAN_WORKSPACE_ENV } from './session-options.js';
+
+/** Optional per-task fields shared by single mode and each parallel / chain task. */
+function taskOptionFields(described: SubagentFieldDescriptions) {
+  return {
+    model: Type.Optional(Type.String({ description: described.model })),
+    backend: Type.Optional(Type.Union([Type.Literal('claude'), Type.Literal('pi')], {
+      description: described.backend,
+    })),
+    clean: Type.Optional(Type.Boolean({ description: SUBAGENT_CLEAN_DESCRIPTION })),
+    files: Type.Optional(Type.Array(Type.String(), { description: SUBAGENT_FILES_DESCRIPTION })),
+  };
+}
 
 /** The field descriptions track the live catalog, so the schema is built per tool instead of being
  *  frozen at import time. */
 function buildSubagentParameters(described: SubagentFieldDescriptions) {
-  const BackendSchema = Type.Union([Type.Literal('claude'), Type.Literal('pi')], {
-    description: described.backend,
-  });
   const TaskSchema = Type.Object({
     description: Type.String({ description: 'Short description of the delegated task.' }),
     prompt: Type.String({ description: 'Complete task prompt for the subagent.' }),
     subagent_type: Type.String({ description: described.subagentType }),
-    model: Type.Optional(Type.String({ description: described.model })),
-    backend: Type.Optional(BackendSchema),
+    ...taskOptionFields(described),
   });
   return Type.Object({
     description: Type.Optional(Type.String({ description: 'Short description for single mode.' })),
     prompt: Type.Optional(Type.String({ description: 'Complete prompt for single mode.' })),
     subagent_type: Type.Optional(Type.String({ description: described.subagentTypeSingle })),
-    model: Type.Optional(Type.String({ description: described.model })),
-    backend: Type.Optional(BackendSchema),
+    ...taskOptionFields(described),
     parallel: Type.Optional(Type.Array(TaskSchema, {
       minItems: 1,
       maxItems: MAX_SUBAGENT_TASKS,
@@ -80,6 +90,8 @@ export interface ForeignSubagentRequest {
   role: AgentRole;
   backend: Backend;
   cwd: string;
+  /** A clean child's workspace (then also its `cwd`); null or absent for an ordinary child. */
+  workspace?: string | null;
   /** Attribution block key, `${parentToolCallId}#${childIndex}`. */
   ref: string;
   parent: ForeignSubagentParent;
@@ -158,6 +170,14 @@ function resolveBackend(task: SubagentTask, role: AgentRole): Backend {
 interface ChildContext {
   cwd: string;
   model: ReturnType<typeof fallbackModel>;
+  /** This session's workspace when it is clean; its children work there too. */
+  parentWorkspace: string | null;
+}
+
+/** Where one child runs: its clean workspace, or the parent's cwd. */
+interface ChildPlace {
+  cwd: string;
+  workspace: string | null;
 }
 
 function buildRunChild(
@@ -170,14 +190,22 @@ function buildRunChild(
     const role = findRole(roles, task.subagent_type);
     const backend = resolveBackend(task, role);
     const ref = `${parentToolCallId}#${index}`;
-    const execute = () => backend === 'pi'
-      ? runPiChild({
-        task, role, cwd: ctx.cwd, agentDir: deps.agentDir, parentEnv: deps.parentEnv,
-        model: selectChildModel(task, role, ctx.model && { model: ctx.model.id, provider: ctx.model.provider }),
-        createSession: deps.createSession,
-        childExtensions: deps.childExtensions, signal, forward,
-      })
-      : runForeignChild(ctx, deps, task, role, backend, ref, signal);
+    const execute = async (): Promise<SubagentResult> => {
+      // Only a clean child waits on its folder: an ordinary one starts in this same tick.
+      const workspace = task.clean
+        ? await openChildWorkspace(task, { parentWorkspace: ctx.parentWorkspace, runId: parentToolCallId, index })
+        : null;
+      const place = { cwd: workspace ?? ctx.cwd, workspace };
+      const result = backend === 'pi'
+        ? await runPiChild({
+          task, role, ...place, agentDir: deps.agentDir, parentEnv: deps.parentEnv,
+          model: selectChildModel(task, role, ctx.model && { model: ctx.model.id, provider: ctx.model.provider }),
+          createSession: deps.createSession,
+          childExtensions: deps.childExtensions, signal, forward,
+        })
+        : await runForeignChild(ctx, deps, { task, role, backend, ref, ...place }, signal);
+      return withWorkspaceNote(result, workspace);
+    };
     return runAndSeal(deps, task, backend, ref, signal, execute);
   };
 }
@@ -206,18 +234,15 @@ async function runAndSeal(
 function runForeignChild(
   ctx: ChildContext,
   deps: SubagentToolDeps,
-  task: SubagentTask,
-  role: AgentRole,
-  backend: Backend,
-  ref: string,
+  child: { task: SubagentTask; role: AgentRole; backend: Backend; ref: string } & ChildPlace,
   signal: AbortSignal | undefined,
 ): Promise<SubagentResult> {
   if (!deps.runForeignSubagent) {
-    throw new Error(`Delegating to the ${backend} backend is unavailable in this session.`);
+    throw new Error(`Delegating to the ${child.backend} backend is unavailable in this session.`);
   }
   const parent = ctx.model;
   return deps.runForeignSubagent({
-    task, role, backend, cwd: ctx.cwd, ref,
+    ...child,
     parent: {
       backend: 'pi', model: parent?.id ?? null, provider: parent?.provider ?? null,
       env: deps.parentEnv,
@@ -269,11 +294,13 @@ async function startInBackground(
 function subagentExecutor(deps: SubagentToolDeps): ToolDefinition<SubagentParametersSchema, SubagentDetails>['execute'] {
   return async (toolCallId, params, signal, _update, ctx) => {
     deps.ensureRoles();
-    const invocation = resolveInvocation(params);
+    const parentWorkspace = deps.parentEnv[PI_CLEAN_WORKSPACE_ENV] || null;
+    // Fail before any child starts if a role or a given file is missing: a half-run fan-out is
+    // worse than none.
+    const invocation = prepareCleanTasks(resolveInvocation(params), { cwd: ctx.cwd, parentWorkspace });
     const roles = loadRoles(deps.rolesDir);
-    // Fail before any child starts if a role is missing: a half-run fan-out is worse than none.
     for (const task of invocation.tasks) findRole(roles, task.subagent_type);
-    const context = { cwd: ctx.cwd, model: fallbackModel(ctx) };
+    const context = { cwd: ctx.cwd, model: fallbackModel(ctx), parentWorkspace };
     const bindRunChild = (bound: SubagentToolDeps): RunChildFn => buildRunChild(context, bound, roles, toolCallId);
     if (params.run_in_background) {
       return startInBackground(deps, invocation, bindRunChild, toolCallId);

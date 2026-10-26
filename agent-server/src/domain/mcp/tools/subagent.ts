@@ -1,7 +1,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { requestLoopbackJson } from '@core/loopback-http.js';
-import { MAX_SUBAGENT_TASKS, SUBAGENT_DESCRIPTION } from '@core/agents/subagent/schema.js';
+import {
+  MAX_SUBAGENT_TASKS, SUBAGENT_CLEAN_DESCRIPTION, SUBAGENT_DESCRIPTION, SUBAGENT_FILES_DESCRIPTION,
+} from '@core/agents/subagent/schema.js';
 import {
   hostModelOptions, describeSubagent, roleOptionsFrom, type SubagentFieldDescriptions,
 } from '@core/agents/subagent/catalog.js';
@@ -29,17 +31,24 @@ export const CLIENT_IDLE_FLOOR_MS = 30 * 60 * 1000;
  */
 export const FOREGROUND_DEADLINE_MS = 25 * 60 * 1000;
 
+/** Optional per-task fields shared by single mode and each parallel / chain task. */
+function taskOptionFields(described: SubagentFieldDescriptions) {
+  return {
+    model: z.string().optional().describe(described.model),
+    backend: z.enum(['claude', 'pi']).optional().describe(described.backend),
+    clean: z.boolean().optional().describe(SUBAGENT_CLEAN_DESCRIPTION),
+    files: z.array(z.string()).optional().describe(SUBAGENT_FILES_DESCRIPTION),
+  };
+}
+
 /** Build the agent shape from the host's live catalog. The descriptions name the real roles and
  *  models this sidecar can reach; an empty catalog reproduces the shipped static strings. */
 function buildAgentShape(described: SubagentFieldDescriptions) {
-  const modelField = () => z.string().optional().describe(described.model);
-  const backendField = () => z.enum(['claude', 'pi']).optional().describe(described.backend);
   const taskSchema = z.object({
     description: z.string().describe('Short description of the delegated task.'),
     prompt: z.string().describe('Complete task prompt for the subagent.'),
     subagent_type: z.string().describe(described.subagentType),
-    model: modelField(),
-    backend: backendField(),
+    ...taskOptionFields(described),
   });
 
   /** Single mode's fields are all optional here because the three modes are mutually exclusive; the
@@ -48,8 +57,7 @@ function buildAgentShape(described: SubagentFieldDescriptions) {
     description: z.string().optional().describe('Short description for single mode.'),
     prompt: z.string().optional().describe('Complete prompt for single mode.'),
     subagent_type: z.string().optional().describe(described.subagentTypeSingle),
-    model: modelField(),
-    backend: backendField(),
+    ...taskOptionFields(described),
     parallel: z.array(taskSchema).min(1).max(MAX_SUBAGENT_TASKS).optional()
       .describe('Tasks to execute concurrently.'),
     chain: z.array(taskSchema).min(1).max(MAX_SUBAGENT_TASKS).optional()

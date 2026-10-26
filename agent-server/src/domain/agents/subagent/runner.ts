@@ -20,6 +20,7 @@ import type { RunObserver, RunRequest } from '../../runs/request.js';
 import type { RunEvent } from '../../runs/events.js';
 import { emptyUsage } from '@core/agents/subagent/usage.js';
 import { openBundledMcpServer } from '../../mcp/bundled-server.js';
+import { cleanRunPolicy } from '../../runs/clean-mode.js';
 import type {
   ChildAccumulator, ChildEventForwarder, SubagentResult, SubagentTask, SubagentUsage,
 } from '@core/agents/subagent/types.js';
@@ -52,6 +53,8 @@ export interface SubagentRunRequest {
   role: AgentRole;
   backend: Backend;
   cwd: string;
+  /** A clean child's workspace (then also its `cwd`); null or absent for an ordinary child. */
+  workspace?: string | null;
   /** Attribution block key, `${parentToolUseId}#${childIndex}`. */
   ref: string;
   parent: SubagentParentContext;
@@ -125,6 +128,7 @@ async function runPiSubagent(request: SubagentRunRequest): Promise<SubagentResul
     task: request.task,
     role: request.role,
     cwd: request.cwd,
+    workspace: request.workspace ?? null,
     agentDir: adapter.agentDir,
     parentEnv: request.parent.env ?? process.env,
     model,
@@ -198,8 +202,15 @@ function childEngineKey(request: SubagentRunRequest, runId: string): string {
 }
 
 /** The request a Claude child runs under. A frozen one-shot role: no session to resume, no
- *  hooks, no ambient rules, no transcript log, and a leaf tool surface. */
+ *  hooks, no ambient rules, no transcript log, and a leaf tool surface. A clean child also runs in
+ *  its workspace without project context files, the workspace section after its role prompt. */
 function claudeChildRequest(request: SubagentRunRequest, config: EngineSelection): RunRequest {
+  const child = baseClaudeChildRequest(request, config);
+  if (!request.workspace) return child;
+  return { ...child, cwd: request.workspace, policy: cleanRunPolicy(child.policy) };
+}
+
+function baseClaudeChildRequest(request: SubagentRunRequest, config: EngineSelection): RunRequest {
   const mcpToolAllowlist = withoutSubagentTools(undefined, CHILD_MCP_BUNDLES);
   const runId = randomUUID();
   return {
@@ -311,6 +322,7 @@ function claudeNoticeObserver(request: SubagentRunRequest): RunObserver {
   const base = {
     ref, type: request.task.subagent_type, description: request.task.description,
     backend: 'claude' as const,
+    ...(request.task.clean ? { clean: true } : {}),
   };
   let model: string | null = null;
   let promptSent = false;

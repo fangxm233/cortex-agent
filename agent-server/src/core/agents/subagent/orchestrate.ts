@@ -10,7 +10,7 @@ import type {
 export interface SubagentChannel {
   forChild(
     index: number,
-    task: { description: string; prompt: string; subagent_type: string },
+    task: { description: string; prompt: string; subagent_type: string; clean?: boolean },
   ): ChildEventForwarder;
 }
 

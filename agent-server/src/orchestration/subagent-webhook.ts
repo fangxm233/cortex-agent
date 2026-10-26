@@ -10,6 +10,7 @@ import { startBackgroundSubagentRun } from './subagent-delivery.js';
 import type { SubagentParentContext } from '@domain/agents/subagent/runner.js';
 import type { SubagentToolResult } from '@core/agents/subagent/orchestrate.js';
 import { resolveRunSelection } from '@domain/runs/config-resolver.js';
+import { cleanWorkspaceOf } from '@core/workspace.js';
 
 export interface SubagentWebhookReply {
   success: boolean;
@@ -28,6 +29,11 @@ async function parentContextFor(data: Record<string, any>): Promise<SubagentPare
     project: typeof data.project === 'string' ? data.project : undefined,
     env: process.env,
   };
+}
+
+/** A clean parent's workspace, which its children share. */
+async function parentWorkspaceFor(sessionId: string | null): Promise<string | null> {
+  return sessionId ? cleanWorkspaceOf(await sessionStore.getById(sessionId)) : null;
 }
 
 function resultText(result: SubagentToolResult | null): string {
@@ -56,6 +62,7 @@ export async function handleSubagentWebhook(data: Record<string, any>): Promise<
         params: data.params,
         background,
         cwd: typeof data.cwd === 'string' && data.cwd ? data.cwd : process.cwd(),
+        parentWorkspace: await parentWorkspaceFor(sessionId),
         parent,
         sessionId,
         // Explicit background work never belongs to the parent's active run. Foreground calls

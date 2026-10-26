@@ -14,6 +14,8 @@ export interface CompactSubagentSummary {
   structurallyOpen: boolean;
   /** Explicit lifecycle evidence; absent on legacy structural inferences. */
   status?: 'running' | SubagentEndStatus;
+  /** The child ran in clean mode; absent means not clean or unknown. */
+  clean?: boolean;
 }
 
 export interface CompactConversationHistory {
@@ -100,6 +102,7 @@ function updateSummaryMetadata(summary: SummaryState, event: HistoryEvent): void
   if (!summary.type && event.subagentType) summary.type = event.subagentType;
   if (!summary.description && event.subagentDescription) summary.description = event.subagentDescription;
   if (!summary.model && event.subagentModel) summary.model = event.subagentModel;
+  if (event.subagentClean) summary.clean = true;
   if (!summary.description && isLegacyAnchor(event) && event.toolInput) summary.description = event.toolInput;
 }
 

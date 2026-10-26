@@ -329,6 +329,7 @@ function messageFromEvent(
     ...(event.subagentType !== undefined ? { subagentType: event.subagentType } : {}),
     ...(event.subagentDescription !== undefined ? { subagentDescription: event.subagentDescription } : {}),
     ...(event.subagentModel !== undefined ? { subagentModel: event.subagentModel } : {}),
+    ...(event.subagentClean !== undefined ? { subagentClean: event.subagentClean } : {}),
   };
 }
 
