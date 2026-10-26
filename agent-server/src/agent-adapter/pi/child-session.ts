@@ -18,6 +18,8 @@ export interface ChildSessionRequest {
   tools?: string[];
   /** Role prompt text appended to PI's system prompt. */
   appendSystemPrompt: string[];
+  /** Clean mode: load no context files (AGENTS.md and the like) from the cwd or its ancestors. */
+  noContextFiles?: boolean;
   /** The only extensions the child loads; user extensions are skipped. */
   extensions: InlineExtension[];
 }
@@ -71,6 +73,7 @@ async function createChildServices(sdk: PiSdkModule, request: ChildSessionReques
       noExtensions: true,
       extensionFactories: request.extensions,
       appendSystemPrompt: request.appendSystemPrompt,
+      noContextFiles: request.noContextFiles === true,
     },
   });
 }

@@ -170,6 +170,7 @@ export async function handleCreateAndSend(
     agentName: args.agentName ?? null,
     // Apply the complete engine choice before the first turn.
     selection: args.selection,
+    ...(args.clean ? { clean: true } : {}),
   });
 
   // If the client uploaded files under a draft upload id, move them to the real

@@ -6,6 +6,7 @@ import type {
 import { resolveMcpComposition } from '../../agent-adapter/types.js';
 import { GATEWAY_URL } from '../costs/gateway-manager.js';
 import { composeSystemPrompt, globalRuleBodies } from './prompt.js';
+import { workspacePrompt } from '@core/workspace.js';
 import { resolvePluginRuntime } from '../plugins/runtime.js';
 import type { ModeEnv } from './mode-env.js';
 import type { EngineSelection } from '../agents/engine-selection.js';
@@ -105,6 +106,7 @@ function spawnPolicy(request: RunRequest): Pick<EngineSpec, 'flags' | 'process' 
       isUserInitiated: !!request.context.isUserInitiated,
       ...(request.context.teamLead ? { teamLead: true } : {}),
       ...(request.context.teamWorker ? { teamWorker: true } : {}),
+      ...(request.policy.clean ? { clean: true } : {}),
     },
     process: {
       spawner: request.isolation?.spawner,
@@ -197,6 +199,7 @@ export function buildEngineSpec(
   const context = spawnContext(request, attempt, executionId);
   const appendSystemPrompt = composeSystemPrompt(request.spec, {
     rules: globalRuleBodies(request.policy.loadRules !== false),
+    workspace: request.policy.clean && request.cwd ? workspacePrompt(request.cwd) : null,
   });
   const plugins = pluginFields(request, attempt, mcpComposition);
   const policy = spawnPolicy(request);

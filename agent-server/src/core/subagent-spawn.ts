@@ -76,6 +76,8 @@ export interface ToolUseSubagent {
    *  (tool results carry no message) and on the spawning call itself, which happens before the
    *  subagent has said anything. Consumers fill it in from whichever event reports it first. */
   model?: string | null;
+  /** The child runs in clean mode (its own workspace, no Cortex context). Absent: not clean. */
+  clean?: boolean;
 }
 
 export function subagentSpawnFromAttribution(subagent: ToolUseSubagent): SubagentSpawnRef | null {

@@ -14,6 +14,7 @@ export function subagentRowRef(subagent: ToolUseSubagent): SubagentRowRef {
     type: subagent.type,
     description: subagent.description ?? null,
     model: subagent.model ?? null,
+    ...(subagent.clean ? { clean: true } : {}),
   };
 }
 

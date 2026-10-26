@@ -338,3 +338,26 @@ test('missing session record → not-found', async () => {
   const deps = makeDeps(log, { sessionStore: { getById: async () => null, updateSession: async () => {} } });
   assert.deepEqual(await rewindWebSession({ sessionId: 'ghost', channel: 'c', turnIndex: 0, text: 'x', adapter }, deps), { ok: false, reason: 'not-found' });
 });
+
+test('a clean session rewinds its transcript in its workspace\'s Claude project folder', async () => {
+  const log: CallLog = { calls: [] };
+  const cwds: Array<string | undefined> = [];
+  const backup: RewindDeps['backup'] = {
+    ...makeBackupDeps(log),
+    restoreBackup: async (_sid, _i, cwd) => { cwds.push(cwd); return true; },
+    cleanupBackupsAfter: (_sid, _i, cwd) => { cwds.push(cwd); },
+  };
+  const sessionStore: RewindDeps['sessionStore'] = {
+    ...makeSessionStoreDeps(log),
+    getById: async () => ({
+      sessionId: 'track-1', backendSessionId: 'backend-1', channel: 'web:track-1', backend: 'claude',
+      clean: true, workspaceDir: '/srv/workspaces/a1b2c3d4',
+    } as any),
+  };
+  const res = await rewindWebSession(
+    { sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'edited', adapter },
+    makeDeps(log, { backup, sessionStore }),
+  );
+  assert.deepEqual(res, { ok: true });
+  assert.deepEqual(cwds, ['/srv/workspaces/a1b2c3d4', '/srv/workspaces/a1b2c3d4']);
+});

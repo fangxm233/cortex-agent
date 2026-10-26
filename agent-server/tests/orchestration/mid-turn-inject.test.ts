@@ -1,6 +1,8 @@
 import { test, beforeEach, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import * as path from 'node:path';
+import * as fs from 'node:fs';
+import { createWorkspace } from '../../src/core/workspace.js';
 
 const liveSettings = vi.hoisted(() => ({ injectWaitMaxS: 600 }));
 vi.mock('@core/settings.js', () => ({ getSettings: () => liveSettings }));
@@ -399,6 +401,21 @@ test('attachments ride along to the backend, the pending row, and the committed 
 
   await run.deliver('skip the rest', true);
   assert.deepEqual(r.history[0].attachments, attachments);
+});
+
+test('a clean session\'s injected attachments are copied into its workspace inputs/', async () => {
+  const run = fakeRun();
+  const r = recorder({}, run);
+  fs.mkdirSync(path.join(WORKSPACE_DIR, 'attachments'), { recursive: true });
+  fs.writeFileSync(path.join(WORKSPACE_DIR, 'attachments', 'up_2.png'), 'img');
+  const attachments = [{ name: 'shot.png', path: 'workspace/attachments/up_2.png', size: 3, mimeType: 'image/png', type: 'image' as const }];
+  const workspace = createWorkspace('inject-clean');
+
+  assert.equal(await tryInjectIntoLiveTurn(r.deps, { ...baseCtx, attachments, workspace }), true);
+  const copied = path.join(workspace, 'inputs', 'shot.png');
+  assert.deepEqual(run.injectedMessages[0].attachments, [{ mimeType: 'image/png', path: copied, name: 'shot.png' }]);
+  assert.equal(fs.readFileSync(copied, 'utf8'), 'img');
+  assert.deepEqual(r.published[0].attachments, attachments, 'the transcript card keeps the upload');
 });
 
 test('mid-turn DEBUG prompt includes the image path sent through the adapter', async () => {

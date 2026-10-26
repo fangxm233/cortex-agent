@@ -269,6 +269,20 @@ run: no session to resume, no hooks, no ambient rules, no transcript log. Either
 way the child's MCP surface is the `cortex-core` bundle with the delegation
 tools removed, so it cannot fan out further.
 
+**Clean children.** A task with `clean: true` runs in a fresh
+`$CORTEX_HOME/workspaces/sub-<run>-<index>/` folder under the rules of a
+[clean session](./configuration.md#clean-mode): no `AGENTS.md` from that folder
+or its ancestors, and the workspace section after its role prompt. `files` lists
+files or directories — absolute, `~`-relative, or relative to the parent's
+working directory — that are copied into the child's `inputs/` before it starts.
+Listing any implies `clean`, and a path that does not exist rejects the whole
+call before any child starts. Every child of a clean session is clean and works
+in that session's own workspace, its `files` copied into the same `inputs/`. A
+clean child's brief has to stand on its own: it names the given files as
+`inputs/<name>` and mentions no path outside the workspace. Its result ends with
+`Workspace: <path>`, the folder where it leaves its output, and its block in the
+transcript is marked clean.
+
 **What the parent sees.** A child's tool calls, results, and text are streamed
 into the parent's live transcript attributed to the subagent, and its token
 usage is rolled into the parent's. Attribution is best-effort: a run whose

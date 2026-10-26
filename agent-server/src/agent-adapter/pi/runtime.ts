@@ -138,6 +138,7 @@ async function createRuntimeServices(
       extensionFactories: extensions,
       systemPrompt: request.systemPrompt ?? undefined,
       appendSystemPrompt: request.appendSystemPrompt,
+      noContextFiles: request.noContextFiles,
     },
   });
 }

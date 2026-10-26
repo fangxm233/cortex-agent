@@ -18,6 +18,7 @@ export const runForeignSubagent: RunForeignSubagent = async (request) => {
     role: request.role,
     backend: request.backend,
     cwd: request.cwd,
+    workspace: request.workspace ?? null,
     ref: request.ref,
     signal: request.signal,
     onNotice: request.onNotice,

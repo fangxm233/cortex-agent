@@ -71,6 +71,10 @@ export interface RunRequest {
     mcpComposition: McpComposition;
     mcpToolAllowlist?: string[];
     captureTranscripts: boolean;
+    /** Clean mode: the run works in `cwd` as its workspace, without Cortex context — no rules, no
+     *  hooks, no project context files — and its system prompt gains the workspace section.
+     *  Built by `cleanRunPolicy`, never set alone. */
+    clean?: boolean;
   };
   /** Present only on a production benchmark session's runs: the trial facts each attempt is
    *  frozen and journaled under. */

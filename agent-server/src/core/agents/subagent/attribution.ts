@@ -52,6 +52,7 @@ export function subagentNoticeEvents(notice: SubagentNotice): NormalizedEvent[] 
     description: notice.description || null,
     ...(notice.prompt ? { prompt: notice.prompt } : {}),
     model: notice.model,
+    ...(notice.clean ? { clean: true } : {}),
   };
   if (notice.kind === 'tool_use') {
     return [{

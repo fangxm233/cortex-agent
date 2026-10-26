@@ -10,11 +10,15 @@ import { createChildSession, type ChildSessionFactory, type ChildSessionHandle }
 import { messageEndMessage, textFromMessage } from './child-events.js';
 import { withoutUnseenImages } from './event-parser.js';
 import { PI_INTERACTION_BRIDGE_ENV, PI_TEAM_LEAD_ENV, PI_TEAM_WORKER_ENV } from './session-options.js';
+import { workspacePrompt } from '@core/workspace.js';
 
 export interface PiChildRequest {
   task: SubagentTask;
   role: AgentRole;
   cwd: string;
+  /** A clean child's workspace: it becomes the cwd, context files stay unloaded and the workspace
+   *  section follows the role prompt. Null or absent for an ordinary child. */
+  workspace?: string | null;
   /** PI agent dir whose auth.json and models.json the child authenticates and routes with. */
   agentDir: string;
   /** The parent session's env; the child's is derived from it. */
@@ -47,14 +51,19 @@ export async function runPiChild(request: PiChildRequest): Promise<SubagentResul
   const { task, role } = request;
   const selection = request.model ?? {};
   const create = request.createSession ?? createChildSession;
+  const workspace = request.workspace ?? null;
   const handle = await create({
-    cwd: request.cwd,
+    cwd: workspace ?? request.cwd,
     agentDir: request.agentDir,
     provider: selection.provider ?? null,
     model: selection.model ?? null,
     thinking: selection.thinking ?? null,
     tools: roleToolsForBackend(role, 'pi'),
-    appendSystemPrompt: role.systemPrompt ? [role.systemPrompt] : [],
+    appendSystemPrompt: [
+      ...(role.systemPrompt ? [role.systemPrompt] : []),
+      ...(workspace ? [workspacePrompt(workspace)] : []),
+    ],
+    ...(workspace ? { noContextFiles: true } : {}),
     extensions: request.childExtensions(
       buildChildEnv(request.parentEnv, request.agentDir),
       selection.provider ?? null,

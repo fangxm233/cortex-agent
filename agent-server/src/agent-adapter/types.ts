@@ -80,7 +80,10 @@ export interface EngineSpec {
            /** Team lead: a direct session that also gets the `cortex-workers` tools. */
            teamLead?: boolean;
            /** Team worker: a direct session that also gets the `cortex-worker-report` tool. */
-           teamWorker?: boolean };
+           teamWorker?: boolean;
+           /** Clean mode: `cwd` is the run's workspace, and the backend loads no context files
+            *  (AGENTS.md and the like) from it or its ancestors. */
+           clean?: boolean };
   context: { channel?: string; callbackSource?: string; scheduleTaskId?: string };
   backend:
     | { kind: 'claude'; claudeAgent?: string; outputStyle?: string }

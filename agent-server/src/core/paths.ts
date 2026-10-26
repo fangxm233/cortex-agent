@@ -59,6 +59,13 @@ export function resolveSpawnCwd(cwd?: string): string {
   return path.resolve(cwd ?? AGENT_CWD);
 }
 
+/** Where a session's backend runs, and so where Claude keeps its transcript: a clean session's own
+ *  workspace, every other session the default cwd. Transcript, backup and keep-warm lookups go
+ *  through this so they find the file the spawn wrote. */
+export function sessionSpawnCwd(session?: { workspaceDir?: string | null } | null): string {
+  return resolveSpawnCwd(session?.workspaceDir ?? undefined);
+}
+
 /** aistatus's own home (gateway.yaml, config.yaml, usage/). Always under the user's home, not
  *  DATA_DIR: aistatus reads it from there regardless of CORTEX_HOME. */
 export const AISTATUS_DIR = path.join(os.homedir(), '.aistatus');
@@ -95,6 +102,9 @@ export const PROJECTS_DIR = process.env.CORTEX_PROJECTS_DIR
 
 /** Temporary workspace directory for attachments, tool results, etc. */
 export const WORKSPACE_DIR = path.join(DATA_DIR, 'tmp');
+
+/** Clean-mode workspaces: one folder per clean session or subagent (DATA_DIR/workspaces/). */
+export const CLEAN_WORKSPACES_DIR = path.join(DATA_DIR, 'workspaces');
 
 /** Resolve a UI-relative `workspace/…` path to an absolute path strictly inside WORKSPACE_DIR.
  *  The `workspace/` prefix is a stable UI-facing ALIAS for WORKSPACE_DIR's contents — it is NOT the

@@ -89,6 +89,19 @@ test('sessions.list exposes worker fields and uses null for ordinary sessions', 
   assert.equal(ordinary.workerBrief, null);
 });
 
+test('sessions.list exposes clean mode with its workspace and defaults ordinary sessions', async () => {
+  const deps = makeDeps();
+  deps.sessionStore.listByProject = async () => [
+    { ...mockSessions[0], clean: true, workspaceDir: '/srv/workspaces/a1b2c3d4' },
+    mockSessions[2],
+  ];
+  const [clean, ordinary] = await handleSessionsList(deps, { projectId: 'proj1' });
+  assert.equal(clean.clean, true);
+  assert.equal(clean.workspaceDir, '/srv/workspaces/a1b2c3d4');
+  assert.equal(ordinary.clean, false);
+  assert.equal(ordinary.workspaceDir, null);
+});
+
 test('sessions.list exposes persisted context usage and uses null for legacy sessions', async () => {
   const result = await handleSessionsList(makeDeps(), {});
   const byId = Object.fromEntries(result.map((session) => [session.sessionId, session.contextUsage]));

@@ -141,6 +141,8 @@ export interface HistoryEvent {
    *  anchor (nothing has answered yet) and on rows read back from history written before this
    *  field existed — absent means unknown, never "same as the main agent". */
   subagentModel?: string;
+  /** The subagent ran in clean mode. Absent: not clean, or written before the field existed. */
+  subagentClean?: boolean;
   /** Sensitive lossless fields captured only by DEBUG-enabled orchestration. */
   debug?: HistoryDebugDetails;
   /** interaction subtype: 'ask-user-answered' | 'plan-approved' | 'plan-rejected' (LEGACY interaction rows only). */
@@ -199,6 +201,7 @@ export interface RawEvent {
   subagentType?: string;
   subagentDescription?: string;
   subagentModel?: string;
+  subagentClean?: boolean;
   /** `subagent-end` lines only: the terminal state reached by `subagentId`. */
   subagentEnded?: SubagentEndStatus;
   /** Backend tool-use id: correlates a tool row with its result lines. */
@@ -292,16 +295,20 @@ export interface SubagentRowRef {
   type?: string | null;
   description?: string | null;
   model?: string | null;
+  clean?: boolean;
 }
 
-export function subagentRowFields(ref?: SubagentRowRef):
-  { subagentId?: string; subagentType?: string; subagentDescription?: string; subagentModel?: string } {
+export function subagentRowFields(ref?: SubagentRowRef): {
+  subagentId?: string; subagentType?: string; subagentDescription?: string; subagentModel?: string;
+  subagentClean?: boolean;
+} {
   if (!ref) return {};
   return {
     subagentId: ref.id,
     ...(ref.type ? { subagentType: ref.type } : {}),
     ...(ref.description ? { subagentDescription: ref.description } : {}),
     ...(ref.model ? { subagentModel: ref.model } : {}),
+    ...(ref.clean ? { subagentClean: true } : {}),
   };
 }
 

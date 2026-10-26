@@ -239,6 +239,11 @@ under `context/` is an ancestor or a subdirectory of the working directory and a
 The hook exists for the remaining rows, and it records what the backend already loaded in a shared
 per-session cache so the same rules are never delivered twice.
 
+A [clean](./configuration.md#clean-mode) session or subagent gets none of the local rows: it runs
+in a workspace of its own, its backend is told not to read context files there or above it, and its
+hooks are off. The remote row still applies — a remote tool call adds the chain of the file it
+touches on that device.
+
 Two consequences worth knowing:
 
 - **A `CLAUDE.md` anywhere in the ancestor chain switches Claude's `AGENTS.md` fallback off

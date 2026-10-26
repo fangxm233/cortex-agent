@@ -28,19 +28,27 @@ export function subagentChannel(
   };
 }
 
+type NoticeTask = { description: string; subagent_type: string; clean?: boolean };
+
+/** What every notice of one child carries: its block, its declared role, and what answered. */
+function noticeBase(ref: string, task: NoticeTask, acc: ChildAccumulator) {
+  return {
+    ref, type: task.subagent_type, description: task.description,
+    model: acc.model ?? null,
+    backend: 'pi' as const,
+    ...(task.clean ? { clean: true } : {}),
+  };
+}
+
 /** Translate one child session event into the notices the transcript can render. Returns [] for
  *  everything else — deltas, lifecycle, usage — so the channel stays quiet between real actions. */
 export function noticesFor(
   ref: string,
-  task: { description: string; subagent_type: string },
+  task: NoticeTask,
   acc: ChildAccumulator,
   event: Record<string, unknown>,
 ): SubagentNotice[] {
-  const base = {
-    ref, type: task.subagent_type, description: task.description,
-    model: acc.model ?? null,
-    backend: 'pi' as const,
-  };
+  const base = noticeBase(ref, task, acc);
   const type = event.type;
   if (type === 'tool_execution_start') {
     const id = event.toolCallId;
@@ -48,16 +56,7 @@ export function noticesFor(
     if (typeof id !== 'string' || typeof name !== 'string') return [];
     return [{ ...base, kind: 'tool_use', toolUseId: `${ref}:${id}`, name, input: event.args ?? {} }];
   }
-  if (type === 'tool_execution_end') {
-    const id = event.toolCallId;
-    if (typeof id !== 'string') return [];
-    const images = toolResultImages((event.result as { content?: unknown } | null | undefined)?.content);
-    return [{
-      ...base, kind: 'tool_result', toolUseId: `${ref}:${id}`,
-      ok: event.isError !== true, content: toolResultText(event.result),
-      ...(images.length ? { images } : {}),
-    }];
-  }
+  if (type === 'tool_execution_end') return toolResultNotices(base, event);
   const message = messageEndMessage(event);
   if (!message || message.role !== 'assistant') return [];
   // `model` is read off THIS message, not the accumulator, because the accumulator has not yet
@@ -65,6 +64,17 @@ export function noticesFor(
   const model = typeof message.model === 'string' ? message.model : base.model;
   const text = textFromMessage(message);
   return text ? [{ ...base, model, kind: 'assistant_text', text }] : [];
+}
+
+function toolResultNotices(base: ReturnType<typeof noticeBase>, event: Record<string, unknown>): SubagentNotice[] {
+  const id = event.toolCallId;
+  if (typeof id !== 'string') return [];
+  const images = toolResultImages((event.result as { content?: unknown } | null | undefined)?.content);
+  return [{
+    ...base, kind: 'tool_result', toolUseId: `${base.ref}:${id}`,
+    ok: event.isError !== true, content: toolResultText(event.result),
+    ...(images.length ? { images } : {}),
+  }];
 }
 
 export function messageEndMessage(event: Record<string, unknown>): Record<string, unknown> | null {

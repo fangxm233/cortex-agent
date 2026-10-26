@@ -4,12 +4,15 @@ import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import * as sessionBackup from '@domain/sessions/session-backup.js';
 import { resolveRunSelection } from '@domain/runs/config-resolver.js';
 import { sessionStore } from '@store/session-registry-repo.js';
+import { sessionSpawnCwd } from '@core/paths.js';
 import type { EngineSelection } from '@domain/agents/engine-selection.js';
 
 interface TurnTrackingDeps {
   getSelection(channel: string, sessionId: string | null): EngineSelection | Promise<EngineSelection>;
   ledger: Pick<typeof conversationLedger, 'initAndBeginTurn' | 'setBackupPath'>;
   backup: Pick<typeof sessionBackup, 'findPISessionFile' | 'backupSessionFile' | 'createBackup'>;
+  /** Where the session's backend runs, which is where its Claude transcript is. Absent: the default cwd. */
+  spawnCwd?(sessionId: string | null): Promise<string>;
 }
 
 export interface TurnTrackingOptions {
@@ -24,16 +27,21 @@ const defaultTurnTrackingDeps: TurnTrackingDeps = {
   }),
   ledger: conversationLedger,
   backup: sessionBackup,
+  spawnCwd: async (sessionId) => sessionSpawnCwd(sessionId ? await sessionStore.getById(sessionId) : null),
 };
 
 async function snapshotTurn(
   deps: TurnTrackingDeps,
   backend: string,
-  backendSessionId: string | null,
+  ids: { trackSessionId: string | null; backendSessionId: string | null },
   turnIndex: number,
 ): Promise<string | null> {
+  const { backendSessionId } = ids;
   if (!backendSessionId) return null;
-  if (backend !== 'pi') return deps.backup.createBackup(backendSessionId, turnIndex);
+  if (backend !== 'pi') {
+    const cwd = await deps.spawnCwd?.(ids.trackSessionId);
+    return deps.backup.createBackup(backendSessionId, turnIndex, cwd);
+  }
   const piFile = await deps.backup.findPISessionFile(backendSessionId);
   return piFile ? deps.backup.backupSessionFile(piFile, turnIndex) : null;
 }
@@ -104,7 +112,7 @@ async function runTurnTracking(
       selection, userMessageTs: args.userMessageTs,
       userMessageText: args.userMessageText || '', statusMessageTs: args.statusMessageTs,
     });
-    const backupPath = await snapshotTurn(deps, backend, args.backendSessionId, turnIndex);
+    const backupPath = await snapshotTurn(deps, backend, args, turnIndex);
     if (backupPath) await deps.ledger.setBackupPath(args.channel, args.userMessageTs, backupPath);
     options.onAccepted?.();
     const state = turnTrackingByToken.get(token);

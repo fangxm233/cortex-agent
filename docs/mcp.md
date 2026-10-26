@@ -62,7 +62,7 @@ subagents included.
 | `remote_glob` | `device`, `pattern`, `path?` | Find files matching a glob pattern on a remote device |
 | `remote_grep` | `device`, `pattern`, `path?`, `glob?`, `type?`, `output_mode?`, `-A?`, `-B?`, `-C?` (alias `context?`), `-i?`, `-n?`, `head_limit?`, `offset?`, `multiline?` | Search file contents on a remote device using ripgrep |
 | `current_time` | `timezone?` | Get the current date/time; optional IANA timezone (defaults to server local). Returns Unix epoch, UTC ISO, and localized wall-clock with offset |
-| `agent` | single (`description`, `prompt`, `subagent_type`) **or** `parallel[]` **or** `chain[]` (each item `description`, `prompt`, `subagent_type`, `model?`, `backend?`), plus `model?`, `backend?`, `run_in_background?` | Delegate work to an isolated subagent on either backend |
+| `agent` | single (`description`, `prompt`, `subagent_type`) **or** `parallel[]` **or** `chain[]` (each item `description`, `prompt`, `subagent_type`, `model?`, `backend?`, `clean?`, `files?`), plus `model?`, `backend?`, `clean?`, `files?`, `run_in_background?` | Delegate work to an isolated subagent on either backend |
 | `agent_stop` | `agent_id` | Stop a running subagent and discard whatever it had produced |
 
 The remote tools are registered by
@@ -89,7 +89,9 @@ every Claude spawn. It runs on the same role table as PI's own native `agent`,
 can place a child on either backend, and is visible to the daemon — so a
 delegated run appears in the parent's transcript, is billed to the parent, and
 can be stopped from the UI. A foreground call that is still running after 25
-minutes is handed to the background and its result arrives later. See
+minutes is handed to the background and its result arrives later. `clean` runs
+a child in a workspace of its own without Cortex context, and `files` copies
+files into that workspace's `inputs/` (implying `clean`). See
 [backends.md](./backends.md#subagents).
 
 PI sessions never receive the MCP `agent` and `agent_stop`: PI registers its

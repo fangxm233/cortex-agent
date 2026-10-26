@@ -46,6 +46,8 @@ export interface ClaudeSessionOptions {
   disableSkills?: boolean;
   /** Setting files the CLI may load; see {@link ClaudeSpawnOptions.settingSources}. */
   settingSources?: string[];
+  /** A clean run; see {@link ClaudeSpawnOptions.omitGitContext}. */
+  omitGitContext?: boolean;
   streamDeltas?: boolean;
   captureTranscriptLogs?: boolean;
   processSpawner?: AgentProcessSpawner;
@@ -97,6 +99,7 @@ function surfaceSpawnOptions(options: ClaudeSessionOptions) {
     disableHooks: options.disableHooks === true,
     disableSkills: options.disableSkills === true,
     settingSources: options.settingSources,
+    ...(options.omitGitContext ? { omitGitContext: true } : {}),
     streamDeltas: options.streamDeltas,
     isUserInitiated: options.isUserInitiated === true,
     teamLead: options.teamLead === true,
@@ -201,6 +204,7 @@ function sessionRuntimeOptions(
     disableHooks: spec.flags.disableHooks,
     disableSkills: spec.flags.disableSkills,
     settingSources: spec.flags.settingSources,
+    ...(spec.flags.clean ? { omitGitContext: true } : {}),
     streamDeltas: spec.flags.streamDeltas,
     captureTranscriptLogs: spec.flags.captureTranscripts,
     processSpawner: spec.process.spawner,

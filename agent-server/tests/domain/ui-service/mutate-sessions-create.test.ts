@@ -47,3 +47,19 @@ test('sessions.createAndSend forwards an optional complete engine choice', async
   await handleCreateAndSend(deps, { projectId: 'nimbus', selection, text: 'hi' });
   assert.deepEqual(calls[1]?.selection, selection);
 });
+
+test('sessions.createAndSend forwards clean mode only when asked', async () => {
+  const calls: Array<{ clean?: boolean }> = [];
+  const deps = {
+    createDirectSession: async (opts: { clean?: boolean }) => {
+      calls.push(opts);
+      return { sessionId: 'sess-cl', channel: 'web:sess-cl' };
+    },
+    sendSessionMessage: () => {},
+  } as unknown as UiServiceDeps;
+
+  await handleCreateAndSend(deps, { projectId: 'nimbus', text: 'hi', clean: true });
+  await handleCreateAndSend(deps, { projectId: 'nimbus', text: 'hi', clean: false });
+  assert.equal(calls[0]?.clean, true);
+  assert.equal('clean' in calls[1]!, false);
+});

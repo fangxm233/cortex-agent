@@ -305,6 +305,9 @@ export const sessionsCreateAndSendInput = z.object({
   agentName: z.string().min(1).optional(),
   /** Complete engine choice applied before the first turn. Omitted → system default. */
   selection: engineSelectionInput.optional(),
+  /** Clean mode: the session works in its own folder without project context. Fixed for the
+   *  session's life. Omitted → false. */
+  clean: z.boolean().optional(),
   /** First user message text. */
   text: z.string(),
   /** Temporary upload directory id (draft mode). Attachments were uploaded under this id

@@ -13,19 +13,21 @@ export interface SystemPromptSpec {
 
 /**
  * Everything appended to the backend's own system prompt: the ambient global rules, then the
- * caller's own text. A subagent role reaches its child through the second half — with no rules
- * loaded, the role body is all the child sees.
+ * caller's own text, then — for a clean run — the workspace section. A subagent role reaches its
+ * child through the second part — with no rules loaded, the role body is all the child sees.
  *
- * Rules arrive as an argument rather than being loaded here so the composition stays a pure
- * function of its inputs; {@link globalRuleBodies} is the loader the run layer pairs it with.
+ * Rules and the workspace section arrive as arguments rather than being loaded here so the
+ * composition stays a pure function of its inputs; {@link globalRuleBodies} and `workspacePrompt`
+ * are the loaders the run layer pairs it with.
  */
 export function composeSystemPrompt(
   spec: SystemPromptSpec,
-  sources: { rules?: readonly string[] } = {},
+  sources: { rules?: readonly string[]; workspace?: string | null } = {},
 ): string | undefined {
   const parts = [...(sources.rules ?? [])];
   const extra = spec.appendSystemPrompt?.trim();
   if (extra) parts.push(extra);
+  if (sources.workspace) parts.push(sources.workspace);
   return parts.length > 0 ? parts.join('\n\n---\n\n') : undefined;
 }
 

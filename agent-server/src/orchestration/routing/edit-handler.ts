@@ -3,6 +3,7 @@ import type { PlatformAdapter, MessageEditContext } from '@platform/index.js';
 import type { LedgerTurn, ChannelConversation } from '@store/conversation-ledger-repo.js';
 import { effectiveBackendSessionId, sessionStore } from '@store/session-registry-repo.js';
 import { createLogger } from '@core/log.js';
+import { sessionSpawnCwd } from '@core/paths.js';
 import { Icons } from '../../core/icons.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import * as sessionBackup from '@domain/sessions/session-backup.js';
@@ -129,6 +130,8 @@ async function restorePIEdit(
 
 interface EditRestoreState {
   backendSessionId: string | null;
+  /** Where the session's backend runs, and so where its Claude transcript lives. */
+  spawnCwd: string;
   useSessionId: string | null;
   restored: boolean;
   piSessionFile: string | null;
@@ -174,7 +177,7 @@ async function restoreEditedClaudeSession(
   state: EditRestoreState,
 ): Promise<EditRestoreState> {
   const restored = state.backendSessionId
-    ? await sessionBackup.restoreBackup(state.backendSessionId, input.turnIndex)
+    ? await sessionBackup.restoreBackup(state.backendSessionId, input.turnIndex, state.spawnCwd)
     : false;
   if (restored) return { ...state, restored };
   log.warn('No backup found, falling back to new session');
@@ -187,7 +190,7 @@ async function initialEditRestoreState(conversation: ChannelConversation): Promi
   const sessionRecord = sessionId ? await sessionStore.getById(sessionId) : null;
   const backendSessionId = sessionRecord ? effectiveBackendSessionId(sessionRecord) : sessionId;
   return {
-    backendSessionId, useSessionId: sessionId,
+    backendSessionId, spawnCwd: sessionSpawnCwd(sessionRecord), useSessionId: sessionId,
     restored: false, piSessionFile: null,
   };
 }
@@ -243,7 +246,7 @@ function registerRestoredEditPath(
 
 function cleanupEditedSession(backend: string, turnIndex: number, state: EditRestoreState): void {
   if (backend !== 'pi') {
-    sessionBackup.cleanupBackupsAfter(state.backendSessionId ?? '', turnIndex);
+    sessionBackup.cleanupBackupsAfter(state.backendSessionId ?? '', turnIndex, state.spawnCwd);
     return;
   }
   if (state.piSessionFile && state.restored) {
