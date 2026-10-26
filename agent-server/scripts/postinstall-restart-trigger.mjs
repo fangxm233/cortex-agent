@@ -4,6 +4,9 @@
 // isn't initialized yet (fresh installs — daemon hasn't been started).
 //
 // We don't fail the install on any error: this is best-effort hot-reload.
+//
+// Touching the trigger from a dev checkout or worktree install is harmless: the
+// daemon queues the restart until app.ts reports idle, so live turns are not cut.
 
 import { existsSync, writeFileSync, utimesSync } from 'fs';
 import * as path from 'path';
