@@ -49,6 +49,10 @@ export interface ClaudeSpawnOptions {
   /** Setting files the CLI may load (`--setting-sources`). Absent keeps its default set; an empty
    *  array is passed as an empty value, which the CLI accepts as "load none". */
   settingSources?: string[];
+  /** Keep git out of the system prompt (`includeGitInstructions: false`): a clean run's workspace
+   *  sits inside whatever repository holds it, and that repository's status and recent commits
+   *  are context the run must not see. */
+  omitGitContext?: boolean;
   /** Explicit partial-message policy; absent reads the daemon setting. */
   streamDeltas?: boolean;
   /** Select Slack tools in the bundled server for Slack-originated direct sessions. */
@@ -232,6 +236,7 @@ function buildClaudeSettings(
     hooks: options.disableHooks ? {} : buildHooksSettings(effectiveTools),
   };
   if (options.outputStyle) settings.outputStyle = options.outputStyle;
+  if (options.omitGitContext) settings.includeGitInstructions = false;
   return settings;
 }
 

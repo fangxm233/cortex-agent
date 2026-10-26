@@ -528,7 +528,10 @@ session:
   `settingSources` gets `user,local`, and one that declares a list keeps it
   without `project`. PI loads no context files;
 - loads no Cortex rules and runs no agent hooks;
-- receives no `[Session Project]`, `[Session Transcripts]` or `[Board]` block.
+- receives no `[Session Project]`, `[Session Transcripts]` or `[Board]` block;
+- on Claude, gets no git status or git instructions in its system prompt
+  (`includeGitInstructions: false`), so the repository that holds
+  `$CORTEX_HOME` does not show its branch and recent commits to the agent.
 
 Everything else its environment gives it stays: the system prompt and
 directive, tools, skills, MCP tools, the user profile and the team blocks. A

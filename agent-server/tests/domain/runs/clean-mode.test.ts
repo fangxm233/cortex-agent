@@ -50,13 +50,21 @@ test('an ordinary spec carries no clean flag and no workspace section', () => {
   assert.equal(spec.prompt.append, 'ROLE BODY');
 });
 
-test('the Claude launch of a clean spec drops the project setting source and spawns in the workspace', () => {
+function settingsOf(args: string[]): Record<string, unknown> {
+  return JSON.parse(args[args.indexOf('--settings') + 1]);
+}
+
+test('the Claude launch of a clean spec drops the project setting source and git context, in the workspace', () => {
   const launch = launchFromSpec(buildEngineSpec(cleanRequest(), attemptFixture()));
   assert.equal(launch.options.cwd, WORKSPACE);
   const { args } = claudeProcessLaunch(launch);
   const at = args.indexOf('--setting-sources');
   assert.ok(at >= 0);
   assert.equal(args[at + 1], 'user,local');
+  assert.equal(settingsOf(args).includeGitInstructions, false, 'the enclosing repo stays out of the prompt');
+
+  const plain = claudeProcessLaunch(launchFromSpec(buildEngineSpec(runRequestFixture({ channel: 'web:clean' }), attemptFixture())));
+  assert.equal('includeGitInstructions' in settingsOf(plain.args), false);
 });
 
 test('the PI request of a clean spec loads no context files and names its workspace for children', () => {

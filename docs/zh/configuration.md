@@ -353,7 +353,8 @@ Web 与桌面 App、以及手机上，新对话的输入框里有一枚**干净*
 
 - 不从工作区或其祖先目录加载任何 `AGENTS.md` 或 `CLAUDE.md`。Claude 运行时不带 `project` 设置源：没有声明 `settingSources` 的执行环境得到 `user,local`，声明了列表的则保留该列表、去掉 `project`。PI 不加载任何上下文文件；
 - 不加载 Cortex 规则，也不运行智能体钩子；
-- 不会收到 `[Session Project]`、`[Session Transcripts]` 或 `[Board]` 块。
+- 不会收到 `[Session Project]`、`[Session Transcripts]` 或 `[Board]` 块；
+- 在 Claude 上，系统提示词里没有 git 状态和 git 说明（`includeGitInstructions: false`），所以存放 `$CORTEX_HOME` 的仓库不会把它的分支和最近提交暴露给智能体。
 
 执行环境给它的其余一切照旧：系统提示词与 directive、工具、skill、MCP 工具、用户画像和团队块。系统提示词之后还会附上一段**工作区（Workspace）**说明：告诉智能体，对这个任务而言工作区是唯一存放信息的地方，只在其中读写，草稿文件放在工作区的 `tmp/` 里，缺什么就说出来，而不是去别处找。这段文字随包发布为 `defaults/prompts/clean-workspace.md`；你的 `prompts/clean-workspace.md` 会替换它，其中 `{{workspace}}` 代表工作区的绝对路径。
 
