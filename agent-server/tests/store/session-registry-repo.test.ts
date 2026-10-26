@@ -338,6 +338,23 @@ test('session registry replays a board binding set at registration and rebinding
   assert.equal((await new SessionRegistryRepo(filePath).getById('sess-board'))?.boardId, 'b-2');
 });
 
+test('session registry replays clean mode and its workspace; ordinary sessions carry neither', async () => {
+  const { filePath } = nextPaths();
+  const repo = new SessionRegistryRepo(filePath);
+  await repo.registerSession(registerOpts('sess-clean', { clean: true, workspaceDir: '/srv/workspaces/a1b2c3d4' }));
+  await repo.registerSession(registerOpts('sess-plain'));
+  const plain = jsonlLines(filePath).find(line => line.record?.sessionId === 'sess-plain')?.record;
+  assert.equal('clean' in plain, false);
+  assert.equal('workspaceDir' in plain, false);
+
+  await repo.updateById('sess-plain', record => ({ ...record, clean: true, workspaceDir: '/srv/workspaces/e5f6' }));
+  const reopened = new SessionRegistryRepo(filePath);
+  const clean = await reopened.getById('sess-clean');
+  assert.equal(clean?.clean, true);
+  assert.equal(clean?.workspaceDir, '/srv/workspaces/a1b2c3d4');
+  assert.equal((await reopened.getById('sess-plain'))?.workspaceDir, '/srv/workspaces/e5f6');
+});
+
 test('session registry replays worker fields and lists a lead\'s workers', async () => {
   const { filePath } = nextPaths();
   const repo = new SessionRegistryRepo(filePath);

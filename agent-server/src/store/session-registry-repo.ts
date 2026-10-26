@@ -95,6 +95,8 @@ export interface RegisterSessionOpts {
   teamLeadId?: string | null;
   workerName?: string | null;
   workerBrief?: string | null;
+  clean?: boolean;
+  workspaceDir?: string | null;
 }
 
 /** Mutators available inside `batch(fn)` — each shares the one locked state so several events land
@@ -200,6 +202,7 @@ export class SessionRegistryRepo {
           workerBrief: opts.workerBrief ?? null,
         }
         : {}),
+      ...(opts.clean ? { clean: true, workspaceDir: opts.workspaceDir ?? null } : {}),
     });
   }
 

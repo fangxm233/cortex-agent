@@ -58,6 +58,10 @@ export interface SessionRecord {
   workerName?: string | null;
   /** What the lead spawned the worker to do: the first line of its spawn prompt, capped. */
   workerBrief?: string | null;
+  /** Clean mode, fixed at creation: the session runs in its own workspace without Cortex context. */
+  clean?: boolean;
+  /** A clean session's workspace, the absolute directory its agent runs in. */
+  workspaceDir?: string | null;
 }
 
 /** Copied VERBATIM from store/conversation-ledger-repo.ts:9-22 (B.T1). The journal owns turn history
@@ -552,6 +556,8 @@ function assertSessionRecord(raw: unknown, expectedId: string): SessionRecord {
     teamLeadId: toOptionalNullableString(row?.teamLeadId),
     workerName: toOptionalNullableString(row?.workerName),
     workerBrief: toOptionalNullableString(row?.workerBrief),
+    clean: toOptionalBoolean(row?.clean),
+    workspaceDir: toOptionalNullableString(row?.workspaceDir),
   } satisfies SessionRecord;
   if (record.selection) delete record.profileName;
   return assertRecordId(record, expectedId);
@@ -656,6 +662,8 @@ const PATCH_FIELD_READERS: { [K in SessionPatchUnsetKey]: (value: unknown) => Se
   teamLeadId: toOptionalNullableString,
   workerName: toOptionalNullableString,
   workerBrief: toOptionalNullableString,
+  clean: toOptionalBoolean,
+  workspaceDir: toOptionalNullableString,
 };
 
 /** Every key a `patch` may carry, derived from the exhaustive reader table so the WRITER (repo

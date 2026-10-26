@@ -16,6 +16,7 @@ export interface SessionRegistryWriter {
     boardId?: string | null;
     teamLeadId?: string | null; workerName?: string | null; workerBrief?: string | null;
     scheduleId?: string | null;
+    clean?: boolean; workspaceDir?: string | null;
   }): Promise<void>;
 }
 
@@ -34,6 +35,8 @@ export interface RegisterSessionRecordOpts {
   workerBrief?: string | null;
   /** Provenance retained when the user adopts a scheduled session. */
   scheduleId?: string | null;
+  clean?: boolean;
+  workspaceDir?: string | null;
 }
 
 /** Register a session by its stable ID, freezing the engine choice for future resumes. */
@@ -49,6 +52,7 @@ export async function registerSessionRecord(store: SessionRegistryWriter, opts: 
       ? { teamLeadId: opts.teamLeadId, workerName: opts.workerName ?? null, workerBrief: opts.workerBrief ?? null }
       : {}),
     ...(scheduled ? { scheduleId: opts.scheduleId } : {}),
+    ...(opts.clean ? { clean: true, workspaceDir: opts.workspaceDir ?? null } : {}),
   });
 }
 
@@ -66,6 +70,8 @@ interface CreateDirectSessionOpts {
   boardId?: string | null;
   teamLeadId?: string | null; workerName?: string | null; workerBrief?: string | null;
   label?: string | null; scheduleId?: string | null;
+  /** Clean mode: run the session in its own workspace without Cortex context. */
+  clean?: boolean;
 }
 
 /** A draft's explicit selection goes through the picker rule before the channel is bound. */

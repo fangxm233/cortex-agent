@@ -287,6 +287,11 @@ export interface SessionInfo {
    *  other half of "what will the next turn be". Null when the session follows its channel's
    *  selection and, beneath that, the global default. Kept in sync by the agent-switch rule. */
   agentName?: string | null;
+  /** Clean mode, fixed at creation: the agent works in its own workspace folder without Cortex
+   *  context. Optional for older servers/fixtures; sessions.list always supplies it. */
+  clean?: boolean;
+  /** A clean session's workspace (absolute path on the server host); null otherwise. */
+  workspaceDir?: string | null;
   /** Latest backend context occupancy, or null until a supported backend reports one. Optional only
    *  for rolling compatibility with older servers/fixtures; current sessions.list always supplies it. */
   contextUsage?: SessionContextUsage | null;
@@ -489,6 +494,9 @@ export interface TranscriptMessage {
    *  corrects that block's status while the session is held open and is never persisted, because
    *  a session that is no longer live re-derives every block as done anyway. */
   subagentEnded?: 'completed' | 'failed' | 'killed';
+  /** The subagent named by `subagentId` ran in clean mode (its own workspace, no Cortex context).
+   *  Absent means not clean or unknown. */
+  subagentClean?: boolean;
   ts: string;
   /**
    * Real elapsed since the previous message in the session's chronological stream, in ms
@@ -524,6 +532,8 @@ export interface TranscriptSubagentSummary {
   structurallyOpen: boolean;
   /** Explicit per-child lifecycle authority; absent for legacy structural inference. */
   status?: 'running' | 'completed' | 'failed' | 'killed';
+  /** The child ran in clean mode; absent means not clean or unknown. */
+  clean?: boolean;
 }
 
 /** Rows that changed since a client's cursor, addressed by flat position across the transcript. */
@@ -1858,7 +1868,9 @@ export interface UiServiceDeps {
    * id. Injected in the entry layer (app.ts) to the domain `createDirectSession` primitive with the
    * real session/ledger singletons, so the ui-service domain never imports store internals.
    */
-  createDirectSession: (opts: { projectId: string; sessionId?: string; agentName?: string | null; selection?: EngineSelection }) => Promise<{ sessionId: string; channel: string }>;
+  createDirectSession: (opts: {
+    projectId: string; sessionId?: string; agentName?: string | null; selection?: EngineSelection; clean?: boolean;
+  }) => Promise<{ sessionId: string; channel: string }>;
   /**
    * Convert a scheduled run's session into a normal direct web session before a reply is sent
    * (design 27b: replying adopts the run — it leaves the schedule grouping and becomes a normal
