@@ -9,6 +9,7 @@ import { ConversationLedgerRepo } from '../../../src/store/conversation-ledger-r
 import { ConversationHistoryRepo } from '../../../src/store/conversation-history-repo.js';
 import { RetentionCandidateRepo } from '../../../src/store/retention-candidate-repo.js';
 import { runSessionRetentionSweep } from '../../../src/domain/sessions/session-retention.js';
+import { getProjectDir } from '../../../src/domain/sessions/session-backup.js';
 import { SessionTotalsCarryRepo } from '../../../src/store/session-totals-repo.js';
 import { buildSessionRetentionLiveness } from '../../../src/orchestration/session-retention-liveness.js';
 import { WaitpointRepo } from '../../../src/store/waitpoint-repo.js';
@@ -135,6 +136,43 @@ test('retention sweep retries pending intents, does not commit failed cleanup, t
   assert.equal(await h.registry.getBoundSessionId('web:track-old'), null);
   assert.equal(await h.history.getHistory('track-old'), null);
   await assert.rejects(() => fs.stat(backupPath), { code: 'ENOENT' });
+});
+
+test('retention deletes a clean session\'s backups from its workspace project folder and keeps the workspace', async () => {
+  const h = await makeHarness();
+  const workspace = path.join(h.root, 'workspaces', 'a1b2c3d4');
+  await fs.mkdir(path.join(workspace, 'inputs'), { recursive: true });
+  await fs.writeFile(path.join(workspace, 'report.md'), 'output');
+  await h.registry.registerSession(registerOpts('track-clean', {
+    backendSessionId: 'backend-clean', clean: true, workspaceDir: workspace,
+  }));
+  await h.registry.updateSession('track-clean', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
+  await h.ledger.initConversation('web:track-clean', { sessionId: 'track-clean', backend: 'claude' });
+  await h.ledger.beginTurn('web:track-clean', { userMessageTs: 'M1', userMessageText: 'old' });
+  const projectDir = getProjectDir(workspace);
+  await fs.mkdir(projectDir, { recursive: true });
+  const backupPath = path.join(projectDir, 'backend-clean.jsonl.turn-0.bak');
+  await fs.writeFile(backupPath, 'backup\n');
+  await h.ledger.setBackupPath('web:track-clean', 'M1', backupPath);
+
+  const result = await runSessionRetentionSweep({
+    retentionDays: 30,
+    now: () => Date.parse('2026-08-01T00:00:00.000Z'),
+    registry: h.registry,
+    historyRepo: h.history,
+    candidateRepo: h.candidates,
+    liveness: {
+      protectedTrackSessionIds: [], protectedBackendSessionIds: [],
+      activeClaudeCapturePaths: [], activeClaudeCapturePairs: [],
+    },
+    paths: { historyDir: h.historyDir, piSessionsDir: h.piDir, claudeCaptureDir: h.captureDir, claudeProjectDir: h.claudeProjectDir },
+    syncClaudeUserCleanupPeriodDays: async () => ({ filePath: '/tmp/settings.json', changed: false }),
+  });
+
+  assert.equal(result.registryCommitted, 1);
+  await assert.rejects(() => fs.stat(backupPath), { code: 'ENOENT' });
+  assert.equal(await fs.readFile(path.join(workspace, 'report.md'), 'utf8'), 'output');
+  await fs.rm(projectDir, { recursive: true, force: true });
 });
 
 test('retention sweep ignores untrusted Claude ledger backup paths outside the configured project directory', async () => {

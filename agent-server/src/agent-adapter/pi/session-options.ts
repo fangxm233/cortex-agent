@@ -7,6 +7,8 @@ export const PI_MCP_COMPOSITION_ENV = 'CORTEX_PI_MCP_COMPOSITION';
 export const PI_INTERACTION_BRIDGE_ENV = 'CORTEX_PI_INTERACTION_BRIDGE';
 export const PI_TEAM_LEAD_ENV = 'CORTEX_PI_TEAM_LEAD';
 export const PI_TEAM_WORKER_ENV = 'CORTEX_PI_TEAM_WORKER';
+/** A clean session's workspace, read by the in-process `agent` tool: its children work there too. */
+export const PI_CLEAN_WORKSPACE_ENV = 'CORTEX_PI_CLEAN_WORKSPACE';
 
 export interface PIEnvOptions {
   sessionId?: string | null;
@@ -32,6 +34,8 @@ export interface PIEnvOptions {
   enableTeamWorker?: boolean;
   /** Explicit marker for the restricted PI subagent surface. */
   subagentMarker?: string | null;
+  /** A clean session's workspace (its cwd). */
+  cleanWorkspace?: string | null;
 }
 
 const RESET_CONTEXT_KEYS = [
@@ -44,7 +48,7 @@ const RESET_CONTEXT_KEYS = [
   'CORTEX_WEBHOOK_BENCHMARK_ONLY',
   'CORTEX_PI_ALLOWED_TOOLS', 'CORTEX_PI_SUBAGENT',
   PI_MCP_COMPOSITION_ENV, PI_INTERACTION_BRIDGE_ENV, PI_TEAM_LEAD_ENV, PI_TEAM_WORKER_ENV,
-  MCP_TOOL_ALLOWLIST_ENV,
+  PI_CLEAN_WORKSPACE_ENV, MCP_TOOL_ALLOWLIST_ENV,
 ] as const;
 
 function setOptional(env: NodeJS.ProcessEnv, key: string, value: unknown): void {
@@ -92,6 +96,7 @@ export function buildPiEnv(
   if (options.enableTeamLead === true) env[PI_TEAM_LEAD_ENV] = '1';
   if (options.enableTeamWorker === true) env[PI_TEAM_WORKER_ENV] = '1';
   setOptional(env, 'CORTEX_PI_SUBAGENT', options.subagentMarker);
+  setOptional(env, PI_CLEAN_WORKSPACE_ENV, options.cleanWorkspace);
   applyContext(env, options);
   return env;
 }
@@ -116,6 +121,8 @@ export interface PiSessionRequest {
   /** Skill roots passed to PI (portable plugin skills first, then legacy plugin dirs). */
   skillPaths: string[];
   disableHooks: boolean;
+  /** Clean mode: PI loads no context files (AGENTS.md and the like) from the cwd or its ancestors. */
+  noContextFiles?: boolean;
   /** Gateway-routed runs report provider quota read off response headers. */
   reportsProviderQuota: boolean;
   /** Plugin MCP servers, already filtered by composition. Empty when none apply. */
@@ -197,6 +204,7 @@ export function buildSessionRequest(
       && spec.flags.teamWorker === true
       && marker === undefined,
     subagentMarker: marker,
+    cleanWorkspace: spec.flags.clean ? inputs.cwd : null,
   }, spec.env.pinned);
   return {
     sessionKey: spec.engineKey,
@@ -216,6 +224,7 @@ export function buildSessionRequest(
       ? []
       : [...(spec.plugins.skillDirs ?? []), ...(spec.plugins.dirs ?? [])],
     disableHooks: spec.flags.disableHooks === true,
+    ...(spec.flags.clean ? { noContextFiles: true } : {}),
     reportsProviderQuota: !!spec.route.gatewayBaseUrl,
     pluginMcpServers: pluginMcpServers(spec, composition),
     env,

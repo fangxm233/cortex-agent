@@ -6,7 +6,10 @@ import { setChannelSelection, setDefaultAgent, setSelectionDefaultAgent } from '
 import { resolveRunSelection } from '@domain/runs/config-resolver.js';
 import type { EngineSelection } from '@domain/agents/engine-selection.js';
 import * as sessionBackup from './session-backup.js';
-import type { SessionOrigin } from '@store/session-registry-repo.js';
+import { sessionStore, type SessionOrigin } from '@store/session-registry-repo.js';
+import { shortSessionId } from '@core/short-session-id.js';
+import { sessionSpawnCwd } from '@core/paths.js';
+import { createWorkspace } from '@core/workspace.js';
 
 export interface SessionRegistryWriter {
   registerSession(opts: {
@@ -93,8 +96,11 @@ export async function createDirectSession(
   const sessionId = opts.sessionId ?? crypto.randomUUID();
   const channel = `web:${sessionId}`;
   const selection = await initializeSelection(channel, opts);
+  // The folder is the session's cwd for life: Claude finds its transcript by cwd, so it is made
+  // once, here, and never moves.
+  const workspaceDir = opts.clean ? createWorkspace(shortSessionId(sessionId)) : null;
   await registerSessionRecord(deps.sessionStore, {
-    ...opts, sessionId, channel, backend: selection.backend, selection,
+    ...opts, sessionId, channel, backend: selection.backend, selection, workspaceDir,
   });
   await deps.setChannelSession(channel, sessionId);
   await deps.initConversation(channel, { sessionId, backend: selection.backend, selection });
@@ -147,7 +153,8 @@ export async function adoptScheduledSession(
 export async function resetChannelSession(channel: string): Promise<void> {
   const conv = await conversationLedger.getConversation(channel);
   if (conv) {
-    sessionBackup.cleanupAllBackups(conv.sessionId);
+    const record = await sessionStore.getById(conv.sessionId);
+    sessionBackup.cleanupAllBackups(conv.sessionId, sessionSpawnCwd(record));
     await conversationLedger.clearConversation(channel);
   }
   await deleteSessionAsync(channel).catch(() => {});

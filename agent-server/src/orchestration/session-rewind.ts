@@ -6,6 +6,7 @@ import { conversationLedger, type ChannelConversation, type LedgerTurn } from '@
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { sessionStore, effectiveBackendSessionId, type Session } from '@store/session-registry-repo.js';
 import * as sessionBackup from '@domain/sessions/session-backup.js';
+import { sessionSpawnCwd } from '@core/paths.js';
 import { resolveBackendForChannel } from '@domain/agents/index.js';
 import { publishSessionRewound } from './session-events.js';
 import { deliverToSessionDetached } from './session-gateway.js';
@@ -115,15 +116,15 @@ export async function resolvePISessionFile(
 }
 
 async function restoreSnapshot(
-  backend: string,
-  backendSessionId: string | null,
+  context: RewindContext,
   backupPath: string | null,
   turnIndex: number,
   backup: RewindDeps['backup'],
 ): Promise<SnapshotRestore> {
+  const { backend, backendSessionId } = context;
   if (backend !== 'pi') {
     const restored = turnIndex > 0 && backendSessionId
-      ? await backup.restoreBackup(backendSessionId, turnIndex)
+      ? await backup.restoreBackup(backendSessionId, turnIndex, sessionSpawnCwd(context.session))
       : false;
     return { restored, piSessionFile: null };
   }
@@ -146,12 +147,12 @@ function registerRestoredPIPath(
 }
 
 function cleanupSnapshot(
-  backend: string,
-  backendSessionId: string | null,
+  context: RewindContext,
   turnIndex: number,
   snapshot: SnapshotRestore,
   backup: RewindDeps['backup'],
 ): void {
+  const { backend, backendSessionId } = context;
   if (backend === 'pi') {
     if (!snapshot.piSessionFile) return;
     if (snapshot.restored) backup.cleanupBackupsForFile(snapshot.piSessionFile, turnIndex);
@@ -159,8 +160,9 @@ function cleanupSnapshot(
     return;
   }
   if (!backendSessionId) return;
-  if (snapshot.restored) backup.cleanupBackupsAfter(backendSessionId, turnIndex);
-  else backup.cleanupAllBackups(backendSessionId);
+  const cwd = sessionSpawnCwd(context.session);
+  if (snapshot.restored) backup.cleanupBackupsAfter(backendSessionId, turnIndex, cwd);
+  else backup.cleanupAllBackups(backendSessionId, cwd);
 }
 
 interface RewindContext {
@@ -190,9 +192,7 @@ async function restoreRewindBackend(
 ): Promise<void> {
   await deps.ledger.rollbackTo(channel, turnIndex);
   const backupPath = context.conversation.turns[turnIndex].backupPath;
-  const snapshot = await restoreSnapshot(
-    context.backend, context.backendSessionId, backupPath, turnIndex, deps.backup,
-  );
+  const snapshot = await restoreSnapshot(context, backupPath, turnIndex, deps.backup);
   registerRestoredPIPath(context.backend, context.backendSessionId, snapshot, deps.registerPISessionPath);
   if (!snapshot.restored) {
     if (turnIndex > 0) log.warn('No backup found — starting a fresh backend session (display history keeps earlier turns)');
@@ -200,7 +200,7 @@ async function restoreRewindBackend(
   }
   deps.closePooledSession(channel, context.backend);
   await deps.ledger.truncateTurns(channel, turnIndex);
-  cleanupSnapshot(context.backend, context.backendSessionId, turnIndex, snapshot, deps.backup);
+  cleanupSnapshot(context, turnIndex, snapshot, deps.backup);
 }
 
 async function resendRewoundTurn(

@@ -347,7 +347,7 @@ test('session registry replays clean mode and its workspace; ordinary sessions c
   assert.equal('clean' in plain, false);
   assert.equal('workspaceDir' in plain, false);
 
-  await repo.updateById('sess-plain', record => ({ ...record, clean: true, workspaceDir: '/srv/workspaces/e5f6' }));
+  await repo.batch(ops => ops.updateById('sess-plain', record => ({ ...record, clean: true, workspaceDir: '/srv/workspaces/e5f6' })));
   const reopened = new SessionRegistryRepo(filePath);
   const clean = await reopened.getById('sess-clean');
   assert.equal(clean?.clean, true);

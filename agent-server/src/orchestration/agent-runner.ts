@@ -17,6 +17,7 @@ import { runRegistry } from '@core/run-registry.js';
 import { prepareConversationRequest } from './conversation-request.js';
 import { openTurn, buildInjectDeps } from './turn/turn.js';
 import { recordHistory } from './transcript-sink.js';
+import { cleanWorkspaceOf } from '@core/workspace.js';
 import {
   acquireSessionUseLease, collectTurnFiles, type SessionUseLease,
 } from './turn/turn-prep.js';
@@ -146,11 +147,13 @@ export class AgentRunner {
       if (!runRegistry.hasChannel(ctx.channel)) return false;
       const sessionId = await getSessionAsync(ctx.channel);
       if (!sessionId) return false;
+      const session = await sessionStore.getById(sessionId);
 
       return tryInjectIntoLiveTurn(buildInjectDeps(sessionId, ctx.adapter), {
         channel: ctx.channel,
         sessionId,
-        selection: resolveRunSelection({ channel: ctx.channel, session: await sessionStore.getById(sessionId) }),
+        selection: resolveRunSelection({ channel: ctx.channel, session }),
+        workspace: cleanWorkspaceOf(session),
         text: ctx.userMessage || '',
         senderId: ctx.message.senderId,
         ...(ctx.message.systemOrigin ? { systemOrigin: ctx.message.systemOrigin } : {}),

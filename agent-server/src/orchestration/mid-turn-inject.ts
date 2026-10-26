@@ -18,6 +18,7 @@ import { SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
 import type { PendingInjectionRecord } from '@store/pending-injection-repo.js';
 import { resolveWorkspaceRelPath } from '@core/paths.js';
+import { copyIntoInputs } from '@core/workspace.js';
 import type { AgentRun } from '../domain/runs/run.js';
 import {
   beginInjection, ensureInjectionObserver, resetInjectionLedger,
@@ -53,6 +54,8 @@ export interface MidTurnInjectCtx {
   /** The inbound platform message id — the ledger turn's key. */
   messageId: string;
   attachments?: AttachmentMeta[];
+  /** A clean session's workspace: the files are copied into its `inputs/` and given from there. */
+  workspace?: string | null;
   /** Lazily download platform-native files only after an injectable target is selected. */
   prepareBackendAttachments?: () => Promise<UserMessage['attachments']>;
 }
@@ -124,7 +127,7 @@ export async function tryInjectIntoLiveTurn(
   const platformAttachments = ctx.prepareBackendAttachments
     ? await ctx.prepareBackendAttachments()
     : undefined;
-  const message = prepareBackendMessage(ctx, platformAttachments);
+  const message = await prepareBackendMessage(ctx, platformAttachments);
   const record = buildPendingRecord(deps, ctx, message, ctx.sessionId, target.backend, deps.now());
   const outcome = await target.run.steer(message, record.id);
   if (outcome === 'refused') return false;
@@ -135,22 +138,36 @@ export async function tryInjectIntoLiveTurn(
   return true;
 }
 
-function prepareBackendMessage(
+async function prepareBackendMessage(
   ctx: MidTurnInjectCtx,
   platformAttachments: UserMessage['attachments'],
-): UserMessage {
+): Promise<UserMessage> {
   const platform = platformAttachments ?? [];
-  const web = attachmentsForBackend(ctx.attachments) ?? [];
-  const attachments = [...platform, ...web];
+  const web = attachmentsForBackend(ctx.attachments, !!ctx.workspace) ?? [];
+  const attachments = await intoWorkspace(ctx.workspace ?? null, [...platform, ...web]);
   return { text: ctx.text, attachments: attachments.length > 0 ? attachments : undefined };
 }
 
-/** Resolve UI attachment aliases before handing files to the backend. */
-function attachmentsForBackend(attachments?: AttachmentMeta[]): UserMessage['attachments'] {
+/** The same rule a turn's own files follow (`prepareConversationRequest`): a clean session reads
+ *  its attachments from its workspace's `inputs/`. */
+async function intoWorkspace(
+  workspace: string | null,
+  attachments: NonNullable<UserMessage['attachments']>,
+): Promise<NonNullable<UserMessage['attachments']>> {
+  if (!workspace) return attachments;
+  return Promise.all(attachments.map(async (attachment) => ({
+    ...attachment, path: await copyIntoInputs(workspace, attachment.path, attachment.name),
+  })));
+}
+
+/** Resolve UI attachment aliases before handing files to the backend. A clean session keeps the
+ *  display name: it is the name the file gets in the workspace. */
+function attachmentsForBackend(attachments: AttachmentMeta[] | undefined, keepNames: boolean): UserMessage['attachments'] {
   if (!attachments?.length) return undefined;
   const resolved = attachments.flatMap((attachment) => {
     const localPath = resolveWorkspaceRelPath(attachment.path);
-    return localPath ? [{ mimeType: attachment.mimeType, path: localPath }] : [];
+    const name = keepNames ? { name: attachment.name } : {};
+    return localPath ? [{ mimeType: attachment.mimeType, path: localPath, ...name }] : [];
   });
   return resolved.length > 0 ? resolved : undefined;
 }

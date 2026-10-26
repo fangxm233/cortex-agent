@@ -15,6 +15,8 @@ import type { Project } from '@domain/projects/index.js';
 import { loadBoardPromptContext, type BoardPromptContext } from '@domain/boards/board-context.js';
 import { sessionStore, type Session } from '@store/session-registry-repo.js';
 import { CONVERSATION_HISTORY_DIR } from '@store/conversation-history-repo.js';
+import { cleanWorkspaceOf, copyIntoInputs } from '@core/workspace.js';
+import { cleanRunPolicy } from '@domain/runs/clean-mode.js';
 import { isTeamLead, isTeamWorker } from '@domain/sessions/team.js';
 import { describeTeam, inactiveLine, rosterLine, type WorkerView } from './team-state.js';
 import { takeUnreadDigest } from './team-inbox.js';
@@ -121,9 +123,9 @@ export function resolveConversationProject(args: {
  */
 export function conversationRunPolicy(
   agentConfig: ResolvedEnvironment,
-  opts: { channel: string },
+  opts: { channel: string; clean?: boolean },
 ): RunRequest['policy'] {
-  return {
+  const policy: RunRequest['policy'] = {
     ...DIRECT_RUN_POLICY,
     background: conversationBackgroundPolicy(opts.channel),
     hooks: agentConfig.disableHooks !== true,
@@ -133,6 +135,8 @@ export function conversationRunPolicy(
     mcpComposition: agentConfig.mcpComposition ?? 'direct',
     mcpToolAllowlist: agentConfig.mcpToolAllowlist,
   };
+  // A clean session keeps its agent's tools and skills but none of the Cortex context.
+  return opts.clean ? cleanRunPolicy(policy) : policy;
 }
 
 /**
@@ -270,14 +274,17 @@ async function composeConversationPrompt(
   // USER.md, the project and the transcript location go out on a session's FIRST turn only (no
   // backend session yet): resume keeps them in history, so re-sending them just wastes tokens.
   const isFreshSession = backendSessionId === null;
+  // A clean session is told nothing that points outside its workspace: no project, no transcript
+  // folder, no board. The user profile, the directive and team blocks still go out.
+  const clean = cleanWorkspaceOf(opts.session) !== null;
   const composed = composeUserPrompt(agent.spec, opts.userMessage, {
     userContext: userProfileBlock(isFreshSession),
-    project: resolveConversationProject({
+    project: clean ? null : resolveConversationProject({
       channel: opts.channel, projectId, isFreshSession, projectContext: agent.config.projectContext,
     }),
-    transcriptDir: isFreshSession ? CONVERSATION_HISTORY_DIR : null,
+    transcriptDir: isFreshSession && !clean ? CONVERSATION_HISTORY_DIR : null,
     // Once per board binding rather than once per session (see resolveConversationBoard).
-    board: await resolveConversationBoard(opts.session, { isFreshSession }),
+    board: clean ? null : await resolveConversationBoard(opts.session, { isFreshSession }),
     // Team mode: the lead's roster every turn while it has workers, a worker's orientation once.
     ...(await resolveConversationTeam(opts.session, { teamLead: state.teamLead, isFreshSession })),
   });
@@ -325,7 +332,8 @@ function conversationContext(
 function conversationShape(opts: ConversationEngineOptions): ConversationShape {
   const { session, channel } = opts;
   const { agentConfig } = resolveConversationAgent([session?.agentName ?? null, getDefaultAgent(channel)]);
-  const policy = conversationRunPolicy(agentConfig, { channel });
+  const workspace = cleanWorkspaceOf(session);
+  const policy = conversationRunPolicy(agentConfig, { channel, clean: workspace !== null });
   // Team mode: a lead's engine loads the worker tools, a worker's loads `mark_routine`.
   const teamLead = isTeamLead(session);
   const teamWorker = isTeamWorker(session);
@@ -339,6 +347,8 @@ function conversationShape(opts: ConversationEngineOptions): ConversationShape {
       engineKey: channel,
     },
     selection: resolveRunSelection({ channel, session }),
+    // A clean session runs in its workspace for life: Claude finds the transcript to resume by cwd.
+    ...(workspace ? { cwd: workspace } : {}),
     spec: fromAgentSlot(agentConfig, { mcpComposition: policy.mcpComposition }),
     prompt: { text: '' },
     context: conversationContext(opts, { teamLead, teamWorker }),
@@ -356,7 +366,7 @@ export async function prepareConversationRequest(
   const prompt = await composeConversationPrompt(
     opts, { config: agentConfig, spec: request.spec }, { teamLead },
   );
-  const files = opts.files ?? [];
+  const files = await filesForSession(opts.session, opts.files ?? []);
   const backendPrompt = buildBackendPrompt(prompt, files);
   opts.onPromptBuilt?.(backendPrompt);
   request.prompt = { text: prompt, attachments: files.map(attachmentOf) };
@@ -371,6 +381,16 @@ export async function prepareConversationRequest(
  */
 export function conversationEngineRequest(opts: ConversationEngineOptions): RunRequest {
   return conversationShape(opts).request;
+}
+
+/** A clean session's files are copied into its workspace's `inputs/`, so the paths the agent is
+ *  given are inside the folder it may read. Every other session's files pass through. */
+async function filesForSession(session: Session | null, files: DownloadedFile[]): Promise<DownloadedFile[]> {
+  const workspace = cleanWorkspaceOf(session);
+  if (!workspace) return files;
+  return Promise.all(files.map(async (file) => ({
+    ...file, localPath: await copyIntoInputs(workspace, file.localPath, file.name),
+  })));
 }
 
 function attachmentOf(file: DownloadedFile): { mimeType: string; path: string; name: string } {

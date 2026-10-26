@@ -1,6 +1,8 @@
 import * as assert from 'node:assert';
 import { beforeAll, describe, it } from 'vitest';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, statSync, writeFileSync } from 'node:fs';
+import * as path from 'node:path';
+import { CLEAN_WORKSPACES_DIR } from '@core/paths.js';
 import { modelsRepo } from '@store/models-repo.js';
 import type { EngineSelection } from '@domain/agents/engine-selection.js';
 
@@ -128,6 +130,22 @@ describe('createDirectSession', () => {
     await createDirectSession(deps, { projectId: 'p', boardId: 'b-1' });
     await createDirectSession(deps, { projectId: 'p' });
     assert.deepStrictEqual(registered.map(r => r.boardId), ['b-1', null]);
+  });
+
+  it('creates a clean session\'s workspace and records it; ordinary sessions get none', async () => {
+    const registered: any[] = [];
+    const deps = {
+      sessionStore: { registerSession: async (opts: any) => { registered.push(opts); } } satisfies SessionRegistryWriter,
+      setChannelSession: async () => {},
+      initConversation: async () => {},
+      resolveBackend: () => 'claude',
+    };
+    const clean = await createDirectSession(deps, { projectId: 'p', clean: true });
+    await createDirectSession(deps, { projectId: 'p' });
+    assert.strictEqual(registered[0].clean, true);
+    assert.strictEqual(registered[0].workspaceDir, path.join(CLEAN_WORKSPACES_DIR, clean.sessionId.slice(0, 8)));
+    assert.ok(statSync(path.join(registered[0].workspaceDir, 'inputs')).isDirectory());
+    assert.ok(!('clean' in registered[1]) && !('workspaceDir' in registered[1]));
   });
 });
 

@@ -2,12 +2,14 @@ import { describe, test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import {
-  hasWakeSource, sweepCacheKeepWarm,
+  hasWakeSource, productionKeepWarmDeps, sweepCacheKeepWarm,
   type KeepWarmCostEntry, type KeepWarmDeps, type KeepWarmTarget, type WakeSourceDeps,
 } from '../../src/orchestration/cache-keep-warm.js';
 import type { CacheRefreshResult } from '../../src/agent-adapter/claude/cache-refresh.js';
 import type { WorkerView } from '../../src/orchestration/team-state.js';
 import type { Session } from '../../src/store/session-registry-repo.js';
+import { computeTranscriptPath } from '../../src/agent-adapter/claude/transcript-path.js';
+import { AGENT_CWD } from '../../src/core/paths.js';
 
 const MIN = 60_000;
 const NOW = Date.parse('2026-10-19T20:00:00.000Z');
@@ -262,4 +264,11 @@ describe('hasWakeSource', () => {
     assert.equal(await hasWakeSource(session(), deps), false);
     assert.equal(asked, false);
   });
+});
+
+test('production keep-warm reads a clean session\'s transcript under its workspace', () => {
+  const workspace = '/srv/workspaces/a1b2c3d4';
+  const clean = session({ clean: true, workspaceDir: workspace });
+  assert.equal(productionKeepWarmDeps.transcriptPath('backend-1', clean), computeTranscriptPath(workspace, 'backend-1'));
+  assert.equal(productionKeepWarmDeps.transcriptPath('backend-1', session()), computeTranscriptPath(AGENT_CWD, 'backend-1'));
 });

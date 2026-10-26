@@ -11,7 +11,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { createLogger } from '@core/log.js';
-import { resolveSpawnCwd } from '@core/paths.js';
+import { sessionSpawnCwd } from '@core/paths.js';
 import { runRegistry } from '@core/run-registry.js';
 import { getSettings } from '@core/settings.js';
 import { shortSessionId } from '@core/short-session-id.js';
@@ -73,7 +73,8 @@ export interface KeepWarmDeps {
   settings(): KeepWarmSettings;
   /** The selection the session's next turn would run under; throws when it cannot resume there. */
   selection(session: Session): EngineSelection;
-  transcriptPath(backendSessionId: string): string;
+  /** The Claude transcript of `session`, under the cwd it spawns in. */
+  transcriptPath(backendSessionId: string, session: Session): string;
   lastActivity(transcriptPath: string): number | null;
   lastTouch(transcriptPath: string, backendSessionId: string): number | null;
   /** Something will still wake the session: an open waitpoint, a busy worker, a background run. */
@@ -105,7 +106,7 @@ function subscriptionSelection(
 /** Due when the cache nears the hour but has not yet passed it, while the last model activity is
  *  within the cap. */
 function refreshDue(target: KeepWarmTarget, deps: KeepWarmDeps, hours: number): boolean {
-  const transcript = deps.transcriptPath(target.backendSessionId);
+  const transcript = deps.transcriptPath(target.backendSessionId, target.session);
   const active = deps.lastActivity(transcript);
   if (active === null) return false;
   const now = deps.now();
@@ -237,8 +238,8 @@ export const productionKeepWarmDeps: KeepWarmDeps = {
     return { hours: settings.cacheKeepWarmHours, subscriptionModes: settings.anthropicSubscriptionModes };
   },
   selection: (session) => resolveRunSelection({ channel: session.channel, session }),
-  // A conversation turn spawns in the default cwd, which is where its transcript lives.
-  transcriptPath: (backendSessionId) => computeTranscriptPath(resolveSpawnCwd(), backendSessionId),
+  // A conversation turn spawns in its session's cwd, which is where its transcript lives.
+  transcriptPath: (backendSessionId, session) => computeTranscriptPath(sessionSpawnCwd(session), backendSessionId),
   lastActivity: lastModelActivity,
   lastTouch: lastCacheTouch,
   hasWakeSource: (session) => hasWakeSource(session),

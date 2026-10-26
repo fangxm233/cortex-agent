@@ -22,6 +22,7 @@ import { Icons } from '../../core/icons.js';
 import { t } from '../../core/i18n.js';
 import { shortSessionId } from '../../core/short-session-id.js';
 import * as sessionBackup from '@domain/sessions/session-backup.js';
+import { sessionSpawnCwd } from '@core/paths.js';
 import { deliverPlanResponse } from './plan-response.js';
 import { createLogger } from '@core/log.js';
 
@@ -285,7 +286,8 @@ async function resetChannelFromStatusButton(ctx: ActionContext, opts: { skipHook
   const conv = await conversationLedger.getConversation(channel);
   const selection = resolveRunSelection({ channel });
   if (conv) {
-    sessionBackup.cleanupAllBackups(conv.sessionId);
+    const record = await sessionStore.getById(conv.sessionId);
+    sessionBackup.cleanupAllBackups(conv.sessionId, sessionSpawnCwd(record));
     await conversationLedger.clearConversation(channel);
   }
   await deleteSessionAsync(channel);

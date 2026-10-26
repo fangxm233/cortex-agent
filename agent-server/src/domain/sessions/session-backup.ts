@@ -1,7 +1,7 @@
 import { unlinkSync, readdirSync } from 'fs';
 import { copyFile, readdir } from 'node:fs/promises';
 import * as path from 'path';
-import { CLAUDE_CONFIG_HOME, DATA_DIR } from '@core/paths.js';
+import { AGENT_CWD, CLAUDE_CONFIG_HOME, DATA_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import { selectPISessionFilename } from '@core/pi-session-filename.js';
 import { relocateLegacyClaudePath } from '@store/claude-transcript-migration.js';
@@ -9,19 +9,19 @@ import { relocateLegacyClaudePath } from '@store/claude-transcript-migration.js'
 const log = createLogger('session-backup');
 
 /**
- * The Claude Code project directory for DATA_DIR, inside Cortex's own Claude config dir.
- * Claude Code encodes project directories by replacing '/' and '.' with '-'.
+ * The Claude Code project directory for a session's cwd (`sessionSpawnCwd`), inside Cortex's own
+ * Claude config dir. Claude Code encodes project directories by replacing '/' and '.' with '-'.
  * e.g. /home/user/.cortex → -home-user--cortex
  */
-function getProjectDir(): string {
-  return path.join(CLAUDE_CONFIG_HOME, 'projects', DATA_DIR.replace(/[\/.]/g, '-'));
+function getProjectDir(cwd: string = AGENT_CWD): string {
+  return path.join(CLAUDE_CONFIG_HOME, 'projects', path.resolve(cwd).replace(/[\/.]/g, '-'));
 }
 
 /**
- * Get the path to a Claude Code session JSONL file.
+ * Get the path to a Claude Code session JSONL file for a session that runs in `cwd`.
  */
-function getSessionFilePath(sessionId: string): string {
-  return path.join(getProjectDir(), `${sessionId}.jsonl`);
+function getSessionFilePath(sessionId: string, cwd?: string): string {
+  return path.join(getProjectDir(cwd), `${sessionId}.jsonl`);
 }
 
 // --- PI session file utilities ---
@@ -121,28 +121,28 @@ function cleanupAllBackupsForFile(filePath: string): void {
  * Create a backup of the session file before processing a turn.
  * Returns the backup path, or null if the session file doesn't exist yet.
  */
-async function createBackup(sessionId: string, turnIndex: number): Promise<string | null> {
-  return backupSessionFile(getSessionFilePath(sessionId), turnIndex);
+async function createBackup(sessionId: string, turnIndex: number, cwd?: string): Promise<string | null> {
+  return backupSessionFile(getSessionFilePath(sessionId, cwd), turnIndex);
 }
 
-async function restoreBackup(sessionId: string, turnIndex: number): Promise<boolean> {
-  return restoreSessionFile(getSessionFilePath(sessionId), turnIndex);
+async function restoreBackup(sessionId: string, turnIndex: number, cwd?: string): Promise<boolean> {
+  return restoreSessionFile(getSessionFilePath(sessionId, cwd), turnIndex);
 }
 
 /**
  * Delete all backup files for a session.
  * Called on !new to clean up.
  */
-function cleanupAllBackups(sessionId: string): void {
-  cleanupAllBackupsForFile(getSessionFilePath(sessionId));
+function cleanupAllBackups(sessionId: string, cwd?: string): void {
+  cleanupAllBackupsForFile(getSessionFilePath(sessionId, cwd));
 }
 
 /**
  * Delete backups for turns strictly after the given index.
  * Called after rollback to remove invalidated backups.
  */
-function cleanupBackupsAfter(sessionId: string, afterTurnIndex: number): void {
-  cleanupBackupsForFile(getSessionFilePath(sessionId), afterTurnIndex);
+function cleanupBackupsAfter(sessionId: string, afterTurnIndex: number, cwd?: string): void {
+  cleanupBackupsForFile(getSessionFilePath(sessionId, cwd), afterTurnIndex);
 }
 
 export {

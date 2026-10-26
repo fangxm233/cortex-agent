@@ -22,9 +22,11 @@ vi.mock('node:fs/promises', async () => {
 
 import {
   createBackup,
+  getProjectDir,
   getSessionFilePath,
   restoreBackup,
 } from '../src/domain/sessions/session-backup.js';
+import { DATA_DIR } from '../src/core/paths.js';
 
 beforeEach(() => {
   copyControl.calls.length = 0;
@@ -62,4 +64,24 @@ test('Claude helpers convert non-ENOENT copy failures to best-effort results', a
 
   assert.equal(await createBackup(sessionId, 1), null);
   assert.equal(await restoreBackup(sessionId, 1), false);
+});
+
+test('a clean session\'s backups live under its workspace\'s Claude project folder', async () => {
+  const sessionId = `claude-clean-${process.pid}-${Date.now()}`;
+  const workspace = path.join(DATA_DIR, 'workspaces', 'a1b2c3d4');
+  const sessionFile = getSessionFilePath(sessionId, workspace);
+  assert.equal(path.dirname(sessionFile), getProjectDir(workspace));
+  assert.notEqual(getProjectDir(workspace), getProjectDir());
+  assert.ok(path.basename(path.dirname(sessionFile)).endsWith('-workspaces-a1b2c3d4'));
+  mkdirSync(path.dirname(sessionFile), { recursive: true });
+  writeFileSync(sessionFile, 'before\n', 'utf8');
+  try {
+    assert.equal(await createBackup(sessionId, 1, workspace), `${sessionFile}.turn-1.bak`);
+    writeFileSync(sessionFile, 'after\n', 'utf8');
+    assert.equal(await restoreBackup(sessionId, 1, workspace), true);
+    assert.equal(readFileSync(sessionFile, 'utf8'), 'before\n');
+    assert.equal(await restoreBackup(sessionId, 1), false, 'the default cwd holds no such transcript');
+  } finally {
+    rmSync(path.dirname(sessionFile), { recursive: true, force: true });
+  }
 });

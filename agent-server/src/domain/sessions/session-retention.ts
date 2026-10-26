@@ -10,6 +10,7 @@ import { activeSessionUseIds } from '@domain/sessions/session-use.js';
 import { toolImageSessionDir } from '@store/tool-image-files.js';
 import type { ClaudeUserSettingsSyncResult } from '@domain/auth/claude-user-settings.js';
 import { relocateLegacyClaudePath } from '@store/claude-transcript-migration.js';
+import { getProjectDir } from './session-backup.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CAPTURE_PREFIX = 'claude-output-';
@@ -28,6 +29,7 @@ export interface SessionRetentionPaths {
   historyDir: string;
   piSessionsDir: string;
   claudeCaptureDir: string;
+  /** The Claude project folder of the default cwd, where an ordinary session's turn backups are. */
   claudeProjectDir: string;
   /** Root of the per-session tool-result image directories. Absent ⇒ not swept. */
   toolImagesDir?: string;
@@ -272,8 +274,11 @@ async function prepareDeleteCleanup(
   const backendId = effectiveBackendSessionId(session);
   if (!backendId) return { claudeBackupPaths: [] };
   const candidates = turns.map(turn => turn.backupPath && relocateLegacyClaudePath(turn.backupPath));
+  // A clean session ran in its own workspace, so its backups sit in that folder's project dir.
+  // The workspace itself is left alone: it may hold what the session produced.
+  const projectDir = session.workspaceDir ? getProjectDir(session.workspaceDir) : deps.paths.claudeProjectDir;
   return {
-    claudeBackupPaths: await trustedClaudeBackupPaths(deps.paths.claudeProjectDir, backendId, candidates),
+    claudeBackupPaths: await trustedClaudeBackupPaths(projectDir, backendId, candidates),
   };
 }
 
