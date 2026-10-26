@@ -51,7 +51,8 @@ $CORTEX_HOME/
 │   ├── events/                   # Daily event-bus JSONL (the `eventLog` setting)
 │   ├── sessions/                 # Claude capture logs
 │   └── sessions-pi/              # PI transcript bundles
-└── tmp/                          # Temporary workspaces, spooled signals, tool images
+├── tmp/                          # Temporary workspaces, spooled signals, tool images
+└── workspaces/                   # Clean-mode workspaces, one folder per clean session or subagent
 ```
 
 The gateway configuration, `~/.aistatus/gateway.yaml`, lives outside
@@ -503,6 +504,50 @@ this `creative` keeps all three tools in the Web and desktop app, and only
 which this list does not name). A name that exists in no bundle on the host is
 still refused at spawn — that is a typo, not a surface.
 
+### Clean mode
+
+A clean conversation works in a folder of its own, out of reach of what Cortex
+knows: a second opinion, a reviewer that should see only what it is handed, a
+task that must start from nothing.
+
+The composer of a new conversation in the Web and desktop app, and on a phone,
+has a **Clean** toggle among its chips. It is off for every new
+conversation; turned on, the conversation is clean from its first message, for
+its whole life. A clean conversation keeps the mark where the toggle was (in the
+header on a phone), and opening it shows the workspace path to copy, or, in the
+desktop app, to open.
+
+When the conversation starts, Cortex creates its workspace,
+`$CORTEX_HOME/workspaces/<id>/` — the first eight characters of the session id,
+with a numeric suffix when that folder exists — and an `inputs/` folder inside
+it. The workspace is the agent's working directory on every turn. A clean
+session:
+
+- loads no `AGENTS.md` or `CLAUDE.md` from the workspace or its ancestors. Claude
+  runs without the `project` setting source: an environment that declares no
+  `settingSources` gets `user,local`, and one that declares a list keeps it
+  without `project`. PI loads no context files;
+- loads no Cortex rules and runs no agent hooks;
+- receives no `[Session Project]`, `[Session Transcripts]` or `[Board]` block.
+
+Everything else its environment gives it stays: the system prompt and
+directive, tools, skills, MCP tools, the user profile and the team blocks. A
+**Workspace** section follows the system prompt. It tells the agent that the
+workspace is the only place holding information for the task, to read and
+write only there, to keep scratch files in the workspace's `tmp/`, and to say
+what is missing rather than look for it elsewhere. The text ships as
+`defaults/prompts/clean-workspace.md`; a `prompts/clean-workspace.md` of yours
+replaces it, with `{{workspace}}` standing for the workspace's absolute path.
+
+Files attached to a clean conversation are copied into `inputs/` under their own
+names, and the agent is pointed at the copies. Clean mode keeps Cortex context
+out of the session and asks the agent to stay in its folder; it does not fence
+the agent in at the operating-system level. Workspaces are never deleted — the
+retention sweep that removes an old session leaves its workspace in place,
+since it may hold what the agent produced.
+
+Subagents run clean the same way; see [Subagents](./backends.md#subagents).
+
 ### Skills outside `pluginDirs`
 
 `pluginDirs` is not the whole skill layer. Claude Code loads its own on every
@@ -853,6 +898,7 @@ brings the built-in one back.
 | Rules | `defaults/rules/*.md` | `rules/*.md` | Same file name: replaces the built-in rule |
 | Subagent roles | `defaults/agents/*.md` | `config/agents/*.md` | Same file name: replaces the built-in role |
 | System prompts | `defaults/prompts/systemPrompts/*.md` | `prompts/systemPrompts/*.md` | Same file name: replaces the built-in prompt |
+| Clean-mode workspace prompt | `defaults/prompts/clean-workspace.md` | `prompts/clean-workspace.md` | Replaces the built-in text; see [Clean mode](#clean-mode) |
 
 Rules are Markdown files for agent sessions. A rule without `paths` frontmatter
 is prepended to every session whose environment loads rules (`loadRules`); a

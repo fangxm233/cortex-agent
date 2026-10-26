@@ -49,7 +49,8 @@ $CORTEX_HOME/
 │   ├── events/                   # 按日的事件总线 JSONL（`eventLog` 设置）
 │   ├── sessions/                 # Claude capture 日志
 │   └── sessions-pi/              # PI transcript bundle
-└── tmp/                          # 临时工作区、落盘的信号、工具图片
+├── tmp/                          # 临时工作区、落盘的信号、工具图片
+└── workspaces/                   # 干净模式工作区，每个干净会话或子智能体一个文件夹
 ```
 
 网关配置 `~/.aistatus/gateway.yaml` 位于 `$CORTEX_HOME` 之外；`cortex setup-gateway` 和 provider 登录会写入它。
@@ -342,6 +343,24 @@ Cortex 随包提供两个：
 
 `mcpToolAllowlist` 是上界，不是要求。它把会话的 MCP 面收窄到所列的名字；某个名字在会话所在的 surface 上本来就没有组装，那它在那里就只是不存在。所以同一份列表到处都能用：这个 `creative` 在 Web 与桌面 App 保留三个工具，在 Slack 与飞书只剩 `cortex_ask_user`（它们的文件交付是另一个工具，本列表没写）。而一个在本机任何 bundle 里都不存在的名字仍然会在 spawn 时被拒绝——那是拼写错误，不是 surface。
 
+### 干净模式 {#clean-mode}
+
+干净对话在一个自己的文件夹里工作，碰不到 Cortex 知道的东西：适合要第二意见、只该看到递给它的材料的审阅者，或者必须从零开始的任务。
+
+Web 与桌面 App、以及手机上，新对话的输入框里有一枚**干净**开关胶囊。每个新对话都默认关闭；打开后，对话从第一条消息起就是干净的，并在整个生命周期内保持。干净对话会在开关原来的位置保留这个标记（手机上在标题栏），点开可以看到工作区路径并复制，桌面 App 里还能直接打开该文件夹。
+
+对话开始时，Cortex 创建它的工作区 `$CORTEX_HOME/workspaces/<id>/`——取会话 id 的前八个字符，同名文件夹已存在时加数字后缀——并在其中建 `inputs/` 文件夹。每一轮里，工作区都是智能体的工作目录。干净会话：
+
+- 不从工作区或其祖先目录加载任何 `AGENTS.md` 或 `CLAUDE.md`。Claude 运行时不带 `project` 设置源：没有声明 `settingSources` 的执行环境得到 `user,local`，声明了列表的则保留该列表、去掉 `project`。PI 不加载任何上下文文件；
+- 不加载 Cortex 规则，也不运行智能体钩子；
+- 不会收到 `[Session Project]`、`[Session Transcripts]` 或 `[Board]` 块。
+
+执行环境给它的其余一切照旧：系统提示词与 directive、工具、skill、MCP 工具、用户画像和团队块。系统提示词之后还会附上一段**工作区（Workspace）**说明：告诉智能体，对这个任务而言工作区是唯一存放信息的地方，只在其中读写，草稿文件放在工作区的 `tmp/` 里，缺什么就说出来，而不是去别处找。这段文字随包发布为 `defaults/prompts/clean-workspace.md`；你的 `prompts/clean-workspace.md` 会替换它，其中 `{{workspace}}` 代表工作区的绝对路径。
+
+发到干净对话里的附件会以原名复制进 `inputs/`，智能体拿到的是这些副本的路径。干净模式把 Cortex 上下文挡在会话之外，并要求智能体待在自己的文件夹里；它不在操作系统层面把智能体关起来。工作区从不删除——保留期清理删掉旧会话时，它的工作区原样保留，因为里面可能有智能体的产出。
+
+子智能体也能以同样的方式干净运行，见[子智能体](./backends.md#subagents)。
+
 ### `pluginDirs` 之外的 skill {#skills-outside-plugindirs}
 
 `pluginDirs` 并不是 skill 层的全部。无论 Cortex 传什么，Claude Code 每次 spawn 都会加载它自己的那一份：其设置文件里启用的 plugin（安装在 Cortex 的 Claude 配置目录 `$CORTEX_HOME/data/claude` 下）、`$CORTEX_HOME/data/claude/skills/` 下的内容，以及 CLI 的内置 skill。有两个执行环境字段能够到它们。`settingSources: []` 让设置文件根本不被读取，于是启用的 plugin 带来的 skill 随之消失；`skills: false` 直接移除整层，内置的也不剩，连 `Skill` 工具一起拿掉。两个都设的执行环境看不到任何 skill 和斜杠命令。
@@ -512,6 +531,7 @@ Cortex 的插件、钩子、规则、子智能体角色与系统提示词随安�
 | 规则 | `defaults/rules/*.md` | `rules/*.md` | 同名文件：替换内置规则 |
 | 子智能体角色 | `defaults/agents/*.md` | `config/agents/*.md` | 同名文件：替换内置角色 |
 | 系统提示词 | `defaults/prompts/systemPrompts/*.md` | `prompts/systemPrompts/*.md` | 同名文件：替换内置提示词 |
+| 干净模式工作区提示词 | `defaults/prompts/clean-workspace.md` | `prompts/clean-workspace.md` | 替换内置文字；见[干净模式](#clean-mode) |
 
 规则是给智能体会话用的 Markdown 文件。没有 `paths` frontmatter 的规则会前置到每个其执行环境加载规则（`loadRules`）的会话中；`paths` glob 与会话读取的文件匹配的规则，会在那时由 `rules-loader` 钩子注入，每会话一次。
 

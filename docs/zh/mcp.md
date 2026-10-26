@@ -31,7 +31,7 @@ Cortex 的 agent-server 维护着智能体进程无法直接触及的状态：�
 | `remote_glob` | `device`, `pattern`, `path?` | 在远程设备上查找匹配 glob 模式的文件 |
 | `remote_grep` | `device`, `pattern`, `path?`, `glob?`, `type?`, `output_mode?`, `-A?`, `-B?`, `-C?` (alias `context?`), `-i?`, `-n?`, `head_limit?`, `offset?`, `multiline?` | 用 ripgrep 在远程设备上搜索文件内容 |
 | `current_time` | `timezone?` | 获取当前日期时间；可选 IANA 时区（默认为服务器本地时区）。返回 Unix 时间戳、UTC ISO 时间，以及带偏移的本地挂钟时间 |
-| `agent` | single (`description`, `prompt`, `subagent_type`) **or** `parallel[]` **or** `chain[]` (each item `description`, `prompt`, `subagent_type`, `model?`, `backend?`), plus `model?`, `backend?`, `run_in_background?` | 把工作委派给任一后端上的隔离子智能体 |
+| `agent` | single (`description`, `prompt`, `subagent_type`) **or** `parallel[]` **or** `chain[]` (each item `description`, `prompt`, `subagent_type`, `model?`, `backend?`, `clean?`, `files?`), plus `model?`, `backend?`, `clean?`, `files?`, `run_in_background?` | 把工作委派给任一后端上的隔离子智能体 |
 | `agent_stop` | `agent_id` | 停止运行中的子智能体，并丢弃它已产出的内容 |
 
 远程工具由 `agent-server/src/domain/mcp/tools/remote-ops.ts` 注册；`agent` 和 `agent_stop` 由 `agent-server/src/domain/mcp/tools/subagent.ts` 注册。
@@ -43,7 +43,7 @@ Cortex 的 agent-server 维护着智能体进程无法直接触及的状态：�
 - `remote_read` 以媒体形式返回图像和 PDF；当 `sharp` 可用时，服务器会把大图缩小。
 - 输出超过 30,000 字符（`remote_bash`）、20,000 字符（`remote_grep`）或 100,000 字符（`remote_glob`）时，会保存到 `$CORTEX_HOME/tmp/tool-results/` 下，工具返回该路径和一段 2 KB 的预览。
 
-`agent` 取代 Claude Code 内置的 `Agent` 工具，Cortex 会在每次 Claude spawn 时把后者剥离。它运行在与 PI 原生 `agent` 相同的角色表上，可以把子智能体放到任一后端，并且对 daemon 可见——因此一次委派会出现在父会话的 transcript 里、计入父会话的费用，并且可以从界面上停止。前台调用运行超过 25 分钟仍未结束时，会转入后台，结果稍后送达。见 [backends.md](./backends.md#subagents)。
+`agent` 取代 Claude Code 内置的 `Agent` 工具，Cortex 会在每次 Claude spawn 时把后者剥离。它运行在与 PI 原生 `agent` 相同的角色表上，可以把子智能体放到任一后端，并且对 daemon 可见——因此一次委派会出现在父会话的 transcript 里、计入父会话的费用，并且可以从界面上停止。前台调用运行超过 25 分钟仍未结束时，会转入后台，结果稍后送达。`clean` 让子端在自己的工作区里、不带 Cortex 上下文地运行，`files` 把文件复制进该工作区的 `inputs/`（意味着 `clean`）。见 [backends.md](./backends.md#subagents)。
 
 PI 会话永远拿不到 MCP 版的 `agent` 和 `agent_stop`：PI 注册了自己的 `agent`，同名的两个工具无法共存。子智能体在两种后端上都拿不到这两个工具。这一点由工具 allowlist 强制，而不是靠提示词约束，所以无论子智能体被要求做什么，都无法继续向下扇出。
 
