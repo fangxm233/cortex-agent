@@ -70,6 +70,9 @@ vi.mock('@/lib/trpc', () => {
     config: {
       get: query('config.get'),
     },
+    models: {
+      catalog: query('models.catalog'),
+    },
   }) };
 });
 
@@ -163,7 +166,9 @@ describe('desktop accounts settings', () => {
     act(() => { actions(renderer, 'openrouter', 'logout-confirm')[0]?.props.onClick(); });
 
     expect(harness.logoutCalls).toEqual([{ backend: 'pi', provider: 'openrouter', authType: 'oauth' }]);
-    expect(harness.invalidations).toEqual([{ __kind: 'auth.status' }, { __kind: 'config.get' }]);
+    expect(harness.invalidations).toEqual([
+      { __kind: 'auth.status' }, { __kind: 'config.get' }, { __kind: 'models.catalog' },
+    ]);
     expect(harness.toasts).toEqual([{ title: 'Logged out of OpenRouter', tone: 'done' }]);
   });
 

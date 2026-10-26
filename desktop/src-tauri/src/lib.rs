@@ -166,7 +166,6 @@ mod initial_route_tests {
 
 // ─── App entry point ───────────────────────────────────────────────────────
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 /// A local install has no one else to start it: bring the daemon up before the workbench opens
 /// onto a dead server. Bounded — see setup::ensure_local_daemon. None = not a usable local install.
 fn start_local_daemon(app: &tauri::AppHandle, config: &ConnectionConfig) -> Option<bool> {
@@ -182,6 +181,7 @@ fn start_local_daemon(app: &tauri::AppHandle, config: &ConnectionConfig) -> Opti
     Some(setup::ensure_local_daemon(app, bin, url, token))
 }
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Route the `log` facade to logcat on Android (Rust stderr is not captured there) so the shell's
     // OTA/seed diagnostics are observable via `adb logcat -s cortex-desktop`. init_once is safe to call

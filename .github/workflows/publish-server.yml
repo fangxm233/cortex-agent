@@ -49,21 +49,23 @@ jobs:
         # Vite emits hidden source maps (no sourceMappingURL). They go to the GitHub release for
         # crash-stack symbolication and are deleted before the SPA is staged into the npm package.
         shell: bash
+        # The archive goes outside the checkout: client-bundle.js requires a clean worktree.
         run: |
           set -euo pipefail
           VERSION=$(node -p "require('./agent-server/package.json').version")
-          mkdir -p release-sourcemaps
-          (cd web/dist && find . -name '*.map' -printf '%P\n' | sort) > release-sourcemaps/maps.txt
-          test -s release-sourcemaps/maps.txt
-          tar -czf "release-sourcemaps/web-sourcemaps-$VERSION.tgz" -C web/dist -T release-sourcemaps/maps.txt
-          rm release-sourcemaps/maps.txt
+          OUT="$RUNNER_TEMP/release-sourcemaps"
+          mkdir -p "$OUT"
+          (cd web/dist && find . -name '*.map' -printf '%P\n' | sort) > "$OUT/maps.txt"
+          test -s "$OUT/maps.txt"
+          tar -czf "$OUT/web-sourcemaps-$VERSION.tgz" -C web/dist -T "$OUT/maps.txt"
+          rm "$OUT/maps.txt"
           find web/dist -name '*.map' -delete
 
       - name: Keep the source maps for the release
         uses: actions/upload-artifact@v4
         with:
           name: web-sourcemaps
-          path: release-sourcemaps/*.tgz
+          path: ${{ runner.temp }}/release-sourcemaps/*.tgz
           if-no-files-found: error
 
       - name: Stage README and Web SPA into the package

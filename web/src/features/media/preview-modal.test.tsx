@@ -95,7 +95,7 @@ describe('usePreviewHost', () => {
 describe('usePreviewModalChrome', () => {
   afterEach(() => { vi.unstubAllGlobals(); });
 
-  function stubPage(): { target: EventTarget; body: { style: { overflow: string } } } {
+  function stubPage(): { target: EventTarget; body: { style: { overflow: string } }; history: { state: unknown } } {
     const target = new EventTarget();
     const history = { state: null as unknown, pushState(state: unknown) { history.state = state; }, back: vi.fn() };
     const body = { style: { overflow: 'auto' } };
@@ -105,7 +105,7 @@ describe('usePreviewModalChrome', () => {
       history,
     });
     vi.stubGlobal('document', { body });
-    return { target, body };
+    return { target, body, history };
   }
 
   it('closes on Escape and locks page scroll only while mounted', () => {
@@ -129,15 +129,18 @@ describe('usePreviewModalChrome', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('closes on a back navigation instead of leaving the page', () => {
-    const { target } = stubPage();
+  it('closes on a back navigation instead of leaving the page', async () => {
+    const { target, history } = stubPage();
     const onClose = vi.fn();
     function Modal(): null {
       usePreviewModalChrome(onClose);
       return null;
     }
-    act(() => { create(<Modal />); });
+    // The back guard arms in a microtask; an async act flushes it.
+    await act(async () => { create(<Modal />); });
+    expect(history.state).toMatchObject({ __cortexOverlayDepth: 1 });
 
+    history.state = null;
     target.dispatchEvent(new Event('popstate'));
 
     expect(onClose).toHaveBeenCalledTimes(1);

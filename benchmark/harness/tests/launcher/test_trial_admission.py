@@ -1676,7 +1676,10 @@ def test_the_scratch_trees_are_censused_and_then_actually_gone(tmp_path: Path) -
     assert document["directories"]["xdg-cache"]["present"] is True
     assert document["directories"]["xdg-cache"]["files"] == 1
     assert document["directories"]["xdg-cache"]["kib"] > 0
-    assert document["directories"]["tmp"] == {"present": True, "files": 1, "kib": 8}
+    # du's block accounting differs between GNU and uutils coreutils (Ubuntu 26.04); only count it.
+    assert document["directories"]["tmp"]["present"] is True
+    assert document["directories"]["tmp"]["files"] == 1
+    assert document["directories"]["tmp"]["kib"] > 0
     # Never created by this trial, and saying so is more useful than omitting it.
     assert document["directories"]["xdg-config"] == {
         "present": False, "files": 0, "kib": 0,
