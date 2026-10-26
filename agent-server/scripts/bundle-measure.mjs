@@ -38,7 +38,7 @@ for (const args of [['--version'], ['--help'], ['daemon', '--version']]) {
   for (let i = 0; i < 9; i++) {
     for (const [label, root] of i % 2 ? [['bundled', bundled], ['current', current]] : [['current', current], ['bundled', bundled]]) {
       const start = performance.now();
-      const result = spawnSync(process.execPath, [path.join(root, 'dist/entry/cortex-cli.js'), ...args], { env, encoding: 'utf8', timeout: 30000 });
+      const result = spawnSync(path.join(root, 'dist/entry/cortex-cli.js'), args, { env, encoding: 'utf8', timeout: 30000 });
       samples[label].push(Math.round((performance.now() - start) * 10) / 10);
       assert(!result.error, String(result.error)); exitCodes[label] = result.status;
     }
