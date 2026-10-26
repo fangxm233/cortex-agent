@@ -1,3 +1,4 @@
+import { runtimeEntry } from '@core/runtime-entry.js';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -139,7 +140,7 @@ function proxyServer(
   const configPath = privateContentFile(directory, text, 'Claude remote MCP runtime');
   return {
     name: server.name, type: 'stdio', command: process.execPath,
-    args: [REMOTE_PROXY_PATH, configPath], env: {}, cwd: directory,
+    args: [runtimeEntry(REMOTE_PROXY_PATH), configPath], env: {}, cwd: directory,
   };
 }
 

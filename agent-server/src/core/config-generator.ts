@@ -1,3 +1,4 @@
+import { runtimeEntry, runtimeCommand } from '@core/runtime-entry.js';
 import { createHash } from 'node:crypto';
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import * as path from 'path';
@@ -29,8 +30,8 @@ const WEB_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-web.json');
  */
 function serverEntry(script: string, serverRoot: string, env?: Record<string, string>) {
   return {
-    command: 'node',
-    args: [path.join(serverRoot, script)],
+    command: runtimeCommand(),
+    args: [runtimeEntry(path.join(serverRoot, script))],
     cwd: serverRoot,
     ...(env ? { env } : {}),
   };

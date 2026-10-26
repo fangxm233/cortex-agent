@@ -1,3 +1,4 @@
+import { runtimeEntry } from '@core/runtime-entry.js';
 import { fork, type ForkOptions, type SpawnOptions } from 'child_process';
 import * as path from 'path';
 import * as net from 'net';
@@ -110,7 +111,7 @@ export async function cmdTui(args: string[]): Promise<void> {
   if (opts.resume) childArgs.push('--resume');
   if (opts.project) { childArgs.push('--project', opts.project); }
 
-  const child = fork(TUI_JS, childArgs, {
+  const child = fork(runtimeEntry(TUI_JS), childArgs, {
     stdio: 'inherit',
     env: { ...process.env, CORTEX_TUI_PORT: String(port) },
   });
@@ -561,7 +562,7 @@ function main(): void {
       log.error('Run `npm run build` first.');
       process.exit(1);
     }
-    const child = fork(APP_JS, [], {
+    const child = fork(runtimeEntry(APP_JS), [], {
       cwd: DATA_DIR,
       stdio: 'inherit',
       env: { ...process.env },
@@ -584,7 +585,7 @@ function main(): void {
         }
 
         console.log('Starting daemon...');
-        fork(DAEMON_JS, [], {
+        fork(runtimeEntry(DAEMON_JS), [], {
           cwd: DATA_DIR,
           detached: true,
           stdio: 'ignore',
@@ -619,7 +620,7 @@ function main(): void {
       stdio: 'ignore',
       env: { ...process.env },
     } satisfies ForkOptions & Pick<SpawnOptions, 'windowsHide'>;
-    fork(DAEMON_JS, [], daemonOptions);
+    fork(runtimeEntry(DAEMON_JS), [], daemonOptions);
     process.exit(0);
   }
 

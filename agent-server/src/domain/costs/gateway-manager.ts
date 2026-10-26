@@ -1,3 +1,4 @@
+import { runtimeEntry } from '@core/runtime-entry.js';
 import { spawn as childSpawn, ChildProcess } from 'child_process';
 import { createWriteStream, mkdirSync, existsSync } from 'fs';
 import * as path from 'path';
@@ -133,7 +134,7 @@ function launchGateway() {
   const gatewayLogStream = getLogStream();
 
   // API dumps remain opt-in via GATEWAY_DUMP_DIR.
-  child = spawnProcess(process.execPath, [GATEWAY_CLI_PATH, 'start', '-c', GATEWAY_CONFIG.configPath, '-p', String(GATEWAY_CONFIG.port)], {
+  child = spawnProcess(process.execPath, [runtimeEntry(GATEWAY_CLI_PATH), 'start', '-c', GATEWAY_CONFIG.configPath, '-p', String(GATEWAY_CONFIG.port)], {
     cwd: DATA_DIR,
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,

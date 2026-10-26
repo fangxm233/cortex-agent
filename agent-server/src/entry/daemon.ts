@@ -85,6 +85,7 @@ import { loadLang } from '@domain/system/preferences.js';
 import { loadRuntimeDotenv } from '@core/runtime-env.js';
 import { createResilientWatchMonitor, type WatchMonitor } from '@core/resilient-watch.js';
 import { isMainModule, moduleDir } from '@core/utils.js';
+import { runtimeEntry } from '@core/runtime-entry.js';
 import {
   DATA_DIR, CONFIG_DIR, INSTALL_ROOT, DAEMON_PID_FILE, DAEMON_CHILD_PID_FILE, RESTART_TRIGGER_FILE,
 } from '@core/paths.js';
@@ -210,7 +211,7 @@ function startChild() {
   childBusy = false;
   pendingRestart = null;
 
-  child = fork(APP_ENTRY, [], buildChildProcessConfig(reasonForChild, childExit));
+  child = fork(runtimeEntry(APP_ENTRY), [], buildChildProcessConfig(reasonForChild, childExit));
 
   // Daemon only logs its own messages; app.ts handles its own output independently.
 

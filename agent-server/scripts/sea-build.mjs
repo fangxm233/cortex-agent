@@ -35,7 +35,9 @@ function records(directory, prefix = '') {
   });
 }
 const files = records(source);
-files.push(['sea-runtime.cjs', 0o644, fs.readFileSync(path.join(scripts, 'sea-runtime.cjs')).toString('base64')]);
+for (const file of ['sea-runtime.cjs', 'sea-preload.cjs']) {
+  files.push([file, 0o644, fs.readFileSync(path.join(scripts, file)).toString('base64')]);
+}
 const payload = gzipSync(JSON.stringify(files), { level: 9 });
 const id = `${JSON.parse(fs.readFileSync(path.join(source, 'package.json'))).version}-${createHash('sha256').update(payload).digest('hex').slice(0, 12)}`;
 fs.mkdirSync(out, { recursive: true });

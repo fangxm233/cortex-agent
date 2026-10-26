@@ -9,19 +9,27 @@ const entries = {
   'remote-mcp': 'dist/agent-adapter/claude/remote-mcp-proxy.js',
 };
 
+function writeChanged(file, content, mode) {
+  if (fs.existsSync(file) && fs.readFileSync(file, 'utf8') === content) return;
+  const temporary = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(temporary, content, { mode });
+  fs.renameSync(temporary, file);
+}
+
 function writeAliases() {
   const directory = path.join(root, 'bin');
   fs.mkdirSync(directory, { recursive: true });
   for (const [name, entry] of Object.entries(bins)) {
-    const quoted = process.execPath.replace(/'/g, `'\\''`);
-    fs.writeFileSync(path.join(directory, name), `#!/bin/sh\nexec '${quoted}' --entry=${entry} "$@"\n`, { mode: 0o755 });
-    fs.writeFileSync(path.join(directory, `${name}.cmd`), `@echo off\r\n"${process.execPath}" --entry=${entry} %*\r\n`);
+    const quoted = process.execPath.replaceAll('\\', '/').replace(/'/g, `'\\''`);
+    writeChanged(path.join(directory, name), `#!/bin/sh\nexec '${quoted}' --entry=${entry} "$@"\n`, 0o755);
+    writeChanged(path.join(directory, `${name}.cmd`), `@echo off\r\n"${process.execPath}" --entry=${entry} %*\r\n`, 0o644);
   }
   process.env.PATH = directory + path.delimiter + (process.env.PATH || '');
 }
 
 async function main() {
   writeAliases();
+  await require('./sea-preload.cjs').loadPreloads(process.env.NODE_OPTIONS || '');
   const args = process.argv.slice(2);
   while (args[0] === '--import') { args.shift(); await import(args.shift()); }
   let entry = entries.cortex;

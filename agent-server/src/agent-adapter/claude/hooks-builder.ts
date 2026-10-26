@@ -1,3 +1,4 @@
+import { runtimeCommandLine } from '@core/runtime-entry.js';
 import { hookScriptArgs } from '../../core/hook-scripts.js';
 import { filterHookEntries, loadHookRegistry, type HookEntry, type HookRun } from '../../store/hook-registry.js';
 import { DEFAULT_TOOLS } from './defaults.js';
@@ -33,7 +34,7 @@ export function claudeEventName(event: HookEntry['event']): string | null {
 
 function commandHook(run: HookRun): ClaudeCommandHook {
   const command = run.script !== undefined
-    ? `node ${hookScriptArgs(run.script).join(' ')}`
+    ? runtimeCommandLine(hookScriptArgs(run.script))
     : run.command;
   const hook: ClaudeCommandHook = { type: 'command', command };
   if (run.timeout !== undefined) hook.timeout = run.timeout;
