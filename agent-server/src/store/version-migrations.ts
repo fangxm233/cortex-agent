@@ -13,6 +13,7 @@ import { migrateProviderStateFromSchedules } from './provider-state-repo.js';
 import { RETIRED_SCHEDULE_TYPES } from './schedule-repo.js';
 import { importLegacySessionStores } from './session-registry-import.js';
 import { migrateClaudeConfigHome } from './claude-transcript-migration.js';
+import { migrateTurnBackupsToAnchors } from './turn-anchor-migration.js';
 import { retireCommissions } from './board-migration.js';
 import { migrateToBuiltinOverlay } from './builtin-overlay-migration.js';
 import { retireProfiles } from './retire-profiles-migration.js';
@@ -563,6 +564,14 @@ const stepMigrations: StepMigration[] = [
     key: 'sentinel:pi-retired-upstreams',
     version: '2026.10.22',
     run: async () => { migrateRetiredPiUpstreams(path.join(AISTATUS_DIR, 'gateway.yaml')); },
+  },
+  // S12: rewinding cuts the backend transcript back to an anchor (an entry id) recorded per turn
+  // instead of restoring a full per-turn copy. Turns recorded with a copy get the anchor that copy
+  // stands for, so they stay rewindable; the copies themselves are left to retention.
+  {
+    key: 'sentinel:turn-anchors',
+    version: '2026.10.25',
+    run: async ({ storeDir }) => { await migrateTurnBackupsToAnchors(storeDir); },
   },
 ];
 
