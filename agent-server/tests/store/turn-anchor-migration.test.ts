@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, test } from 'vitest';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { SessionRegistryRepo } from '../../src/store/session-registry-repo.js';
-import { anchorFromBackup, migrateTurnBackupsToAnchors } from '../../src/store/turn-anchor-migration.js';
+import { anchorFromBackup, migrateTurnBackupsToAnchors, removeTurnBackups, retireTurnBackups } from '../../src/store/turn-anchor-migration.js';
 import type { TurnRecord } from '../../src/store/session-registry-journal.js';
 
 let dir: string;
@@ -51,4 +51,40 @@ test('the migration anchors backed-up turns, keeps backupPath, and skips anchore
   const turns = (await new SessionRegistryRepo(registryFile).readConversation('web:a'))!.turns;
   assert.deepEqual(turns.map((t) => t.anchor), [undefined, { file: live, after: 'e1' }, undefined, kept]);
   assert.equal(turns[1].backupPath, `${live}.turn-1.bak`);
+});
+
+test('turn backups are removed from every backup dir, leaving transcripts and other files', async () => {
+  const pi = path.join(dir, 'sessions-pi');
+  const claude = path.join(dir, 'claude-projects');
+  mkdirSync(path.join(claude, '-home-x'), { recursive: true });
+  mkdirSync(pi, { recursive: true });
+  const kept = [path.join(pi, 'ts_s.jsonl'), path.join(claude, '-home-x', 'u.jsonl'), path.join(pi, 'notes.bak')];
+  const removed = [path.join(pi, 'ts_s.jsonl.turn-1.bak'), path.join(claude, '-home-x', 'u.jsonl.turn-12.bak')];
+  for (const file of [...kept, ...removed]) writeFileSync(file, 'x');
+
+  const report = await removeTurnBackups([pi, claude, path.join(dir, 'absent')]);
+  assert.deepEqual(report, { removed: 2, failed: 0 });
+  for (const file of kept) assert.ok(existsSync(file), file);
+  for (const file of removed) assert.ok(!existsSync(file), file);
+});
+
+test('retiring backups anchors turns before it deletes the backups', async () => {
+  const storeDir = path.join(dir, 'data');
+  const projectDir = path.join(storeDir, 'claude', 'projects', '-home-x');
+  mkdirSync(projectDir, { recursive: true });
+  const live = path.join(projectDir, 'u.jsonl');
+  const backup = `${live}.turn-1.bak`;
+  writeFileSync(backup, jsonl([{ type: 'user', uuid: 'u1' }]));
+  const registryFile = path.join(storeDir, 'session-registry.jsonl');
+  const seed = new SessionRegistryRepo(registryFile);
+  await seed.batch(async (ops) => {
+    await ops.setConversation('web:a', { sessionId: 'a', backend: 'claude', selection: null, updatedAt: 'T' });
+    await ops.beginTurn('web:a', turn(1, backup));
+  });
+  await seed.flush();
+
+  await retireTurnBackups(dir, storeDir);
+  const turns = (await new SessionRegistryRepo(registryFile).readConversation('web:a'))!.turns;
+  assert.deepEqual(turns[0].anchor, { file: live, after: 'u1' });
+  assert.ok(!existsSync(backup));
 });

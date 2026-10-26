@@ -1,3 +1,5 @@
+import type { Dirent } from 'node:fs';
+import { readdir, unlink } from 'node:fs/promises';
 import * as path from 'node:path';
 import { createLogger } from '@core/log.js';
 import { lastEntryId } from '@core/transcript-anchor.js';
@@ -45,10 +47,8 @@ async function anchorsFor(turns: TurnRecord[], report: TurnAnchorMigrationReport
   return anchors;
 }
 
-/**
- * Give every turn that has a legacy backup the anchor it stands for. `backupPath` and the backup
- * files are left in place, so retention still removes them with their sessions.
- */
+/** Give every turn that has a legacy backup the anchor it stands for. The backups are left in
+ *  place; `removeTurnBackups` deletes them once every conversation is anchored. */
 export async function migrateTurnBackupsToAnchors(storeDir: string): Promise<TurnAnchorMigrationReport> {
   const registry = new SessionRegistryRepo(path.join(storeDir, 'session-registry.jsonl'));
   const report: TurnAnchorMigrationReport = { converted: 0, missing: 0 };
@@ -62,4 +62,65 @@ export async function migrateTurnBackupsToAnchors(storeDir: string): Promise<Tur
   await registry.flush();
   log.info(`Turn backups converted to anchors: ${JSON.stringify(report)}`);
   return report;
+}
+
+const TURN_BACKUP_FILE = /\.jsonl\.turn-\d+\.bak$/;
+
+function isTurnBackup(entry: Dirent): boolean {
+  return entry.isFile() && TURN_BACKUP_FILE.test(entry.name);
+}
+
+async function listDir(dir: string): Promise<Dirent[]> {
+  try {
+    return await readdir(dir, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw error;
+  }
+}
+
+/** Turn backups directly in `dir` or one level below it (Claude keeps a folder per project). */
+async function turnBackupsIn(dir: string): Promise<string[]> {
+  const found: string[] = [];
+  for (const entry of await listDir(dir)) {
+    const full = path.join(dir, entry.name);
+    if (isTurnBackup(entry)) found.push(full);
+    if (!entry.isDirectory()) continue;
+    for (const child of await listDir(full)) if (isTurnBackup(child)) found.push(path.join(full, child.name));
+  }
+  return found;
+}
+
+export interface TurnBackupRemovalReport {
+  removed: number;
+  /** Backups that could not be deleted; logged and left in place. */
+  failed: number;
+}
+
+async function removeOne(file: string, report: TurnBackupRemovalReport): Promise<void> {
+  try {
+    await unlink(file);
+    report.removed++;
+  } catch (error) {
+    report.failed++;
+    log.warn(`Could not remove turn backup ${file}: ${(error as Error).message}`);
+  }
+}
+
+/** Delete every legacy turn backup (`<transcript>.jsonl.turn-N.bak`) under `dirs`. Rewinds cut the
+ *  transcript at the turn's anchor, so nothing reads the backups. */
+export async function removeTurnBackups(dirs: string[]): Promise<TurnBackupRemovalReport> {
+  const report: TurnBackupRemovalReport = { removed: 0, failed: 0 };
+  for (const dir of dirs) {
+    for (const file of await turnBackupsIn(dir)) await removeOne(file, report);
+  }
+  log.info(`Turn backups removed: ${JSON.stringify(report)}`);
+  return report;
+}
+
+/** Anchor every backed-up turn, then delete the backups in Cortex's PI and Claude transcript dirs.
+ *  A conversion that throws stops before anything is deleted. */
+export async function retireTurnBackups(dataDir: string, storeDir: string): Promise<void> {
+  await migrateTurnBackupsToAnchors(storeDir);
+  await removeTurnBackups([path.join(dataDir, 'logs', 'sessions-pi'), path.join(storeDir, 'claude', 'projects')]);
 }
