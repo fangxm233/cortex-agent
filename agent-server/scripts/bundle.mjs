@@ -2,7 +2,7 @@
 // Never mutates dist/, package.json, node_modules, or the normal publishing lifecycle.
 import fs from 'node:fs';
 import path from 'node:path';
-import { createRequire, builtinModules } from 'node:module';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
@@ -37,11 +37,12 @@ const runtimeEntries = [...new Set([
   'dist/tui/index.js', 'dist/domain/mcp/bundled-server.js',
   'dist/agent-adapter/claude/remote-mcp-proxy.js',
   // Publicly inspectable seams for the installed-package smoke test (not extra npm bins).
-  'dist/core/pi-sdk.js',
+  'dist/core/pi-sdk.js', 'dist/domain/auth/cc-auth-cli.js',
 ])];
 const entries = Object.fromEntries(runtimeEntries.map(rel => [rel.slice(0, -3), path.join(root, rel)]));
 entries['vendor/aistatus/gateway-cli'] = gatewayEntry;
 entries['vendor/pi/dist/utils/image-resize-worker'] = path.join(piRoot, 'dist/utils/image-resize-worker.js');
+entries['vendor/pi/dist/utils/image-resize'] = path.join(piRoot, 'dist/utils/image-resize.js');
 entries['vendor/pi/dist/core/extensions/loader'] = path.join(piRoot, 'dist/core/extensions/loader.js');
 entries['vendor/pi-ai/oauth-load'] = path.join(aiRoot, 'dist/auth/oauth/load.js');
 entries['vendor/pi-ai/bedrock'] = path.join(aiRoot, 'dist/api/bedrock-converse-stream.lazy.js');
@@ -99,11 +100,11 @@ const options = {
   minify: true, legalComments: 'eof', external, write: false, metafile: true,
   define: { PI_BUNDLED_NODE: 'true', 'process.env.NODE_ENV': '"production"', 'process.env.DEV': '"false"' }, plugins: [compatibility], logLevel: 'info',
 };
-function saveOutputs(result) {
+function saveOutputs(result, addBanner = true) {
   for (const output of result.outputFiles) {
     const rel = path.relative(stage, output.path);
     let text = output.text;
-    if (rel.endsWith('.js')) {
+    if (rel.endsWith('.js') && addBanner) {
       const rootRelative = posix(path.relative(path.dirname(output.path), stage)) + '/';
       const banner = `import { createRequire as __cortexCreateRequire } from 'node:module';\nconst require = __cortexCreateRequire(import.meta.url);\nconst __cortexPackageRoot = new URL(${JSON.stringify(rootRelative)}, import.meta.url);\n`;
       // CJS dependencies can require Node builtins. Keep Node's require available in ESM chunks.
@@ -120,7 +121,8 @@ const result = await build({ ...options, entryPoints: entries, outdir: stage, sp
 saveOutputs(result);
 // Pi reads this worker into a data: URL: it must be self-contained, without relative imports.
 const worker = await build({ ...options, entryPoints: [path.join(piRoot, 'dist/extensions/codemode/worker.js')], outfile: path.join(stage, 'vendor/pi/dist/codemode-worker.js') });
-saveOutputs(worker);
+if (worker.outputFiles.some(file => file.text.includes('import.meta'))) throw new Error('Codemode worker must be data-URL safe');
+saveOutputs(worker, false);
 copy(require.resolve('quickjs-wasi/quickjs.wasm'), 'vendor/quickjs.wasm');
 copy(path.join(root, 'defaults'), 'defaults');
 copy(path.join(root, '../web/dist'), 'web/dist');
