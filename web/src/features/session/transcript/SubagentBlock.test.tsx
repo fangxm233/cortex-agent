@@ -76,6 +76,45 @@ describe('SubagentBlock', () => {
     expect(JSON.stringify(renderer.toJSON())).toContain('child output');
   });
 
+  it('keeps a touch meta line inside the card and covers the body above a pinned header', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <LangProvider>
+          <SubagentBlock agentType="general-purpose" description="Prototype bundled server" prompt={null} model={null}
+            status="running" toolCount={98} background touch>
+            <div>child output</div>
+          </SubagentBlock>
+        </LangProvider>,
+      );
+    });
+    const meta = renderer.root.find((node) => node.type === 'span' && node.props.children === 'running in the background · 98 tool calls');
+    expect(meta.props.style).toMatchObject({ flex: '1 1 100%', boxSizing: 'border-box', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' });
+    const cover = () => renderer.root.findAll((node) => node.type === 'span' && node.props['aria-hidden'] === true);
+    expect(cover()).toHaveLength(0);
+    act(() => renderer.root.findByProps({ role: 'button' }).props.onClick());
+    expect(renderer.root.findByProps({ 'data-subagent-block': '' }).props.style.overflow).toBe('clip');
+    expect(cover()).toHaveLength(1);
+    expect(cover()[0].props.style).toMatchObject({ position: 'absolute', zIndex: -1, background: 'var(--proto-card)' });
+    expect(cover()[0].props.style.height).toContain('var(--transcript-sticky-top, 0px)');
+  });
+
+  it('leaves the desktop card unclipped', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <LangProvider>
+          <SubagentBlock agentType="explore" description="Inspect" prompt={null} model={null} status="done" toolCount={2}>
+            <div />
+          </SubagentBlock>
+        </LangProvider>,
+      );
+    });
+    act(() => renderer.root.findByProps({ role: 'button' }).props.onClick());
+    expect(renderer.root.findByProps({ 'data-subagent-block': '' }).props.style.overflow).toBeUndefined();
+    expect(renderer.root.findAll((node) => node.type === 'span' && node.props['aria-hidden'] === true)).toHaveLength(0);
+  });
+
   it('keeps one outer turn-copy action after an expanded subagent', () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     vi.stubGlobal('navigator', { clipboard: { writeText } });
