@@ -46,6 +46,13 @@ export interface MEditMode {
   onCancel: () => void;
 }
 
+export interface MCleanDraft {
+  on: boolean;
+  /** Locked while the draft's session is being created. */
+  disabled: boolean;
+  onToggle: () => void;
+}
+
 export interface MChatViewProps {
   title: string;
   /** Team mode: the worker's lead, named before the title; tapping it opens the lead. */
@@ -108,6 +115,11 @@ export interface MChatViewProps {
   selection: MChatSelection;
   /** A sheet row was tapped: send its change. */
   onPickSelection: (row: SelectionSheetRow) => void;
+  /** A draft's clean-mode switch, beside the agent chip; null once the session exists. */
+  cleanDraft?: MCleanDraft | null;
+  /** A clean session's workspace, behind the header label; null for a session that is not clean.
+   *  `dir` is null until the session's row brings it. */
+  cleanWorkspace?: { dir: string | null } | null;
   contextUsage?: SessionContextUsage | null;
   contextUsageSupported?: boolean;
   contextCompactAction?: ContextCompactAction;

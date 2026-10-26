@@ -2,7 +2,7 @@ import { useVocabOptional } from '@/i18n';
 import { MBottomSheet, MC } from '@/mobile/ui/kit';
 import { AttachMenu } from './MChatComposerPresentation';
 import {
-  ContextUsageSheet, SelectionSheets, SessionIdSheet, SessionStatsSheet,
+  CleanWorkspaceSheet, ContextUsageSheet, SelectionSheets, SessionIdSheet, SessionStatsSheet,
 } from './MChatSheets';
 import { MChatSessionMenu } from './MChatSessionMenu';
 import { MTeamSheet } from './MChatTeam';
@@ -29,7 +29,7 @@ function OriginalMessageSheet({ text, onClose }: { text: string; onClose: () => 
   );
 }
 
-/** The ⋯ menu and what it opens, the header's context-usage sheet, the activity strip's task, wait,
+/** The ⋯ menu and what it opens, the header's context-usage and workspace sheets, the activity strip's task, wait,
  *  team, board and agent-browser sheets, and the 已编辑 original. */
 function SessionOverlays({ props, overlay }: OverlayProps): JSX.Element {
   const statsRows = props.sessionStatsRows?.length ? props.sessionStatsRows : null;
@@ -41,6 +41,9 @@ function SessionOverlays({ props, overlay }: OverlayProps): JSX.Element {
       {overlay.is('stats') && statsRows && <SessionStatsSheet rows={statsRows} onClose={() => overlay.close('stats')} />}
       {overlay.is('sessionId') && (
         <SessionIdSheet sessionId={props.sessionId} backendUuid={props.backendUuid} onClose={() => overlay.close('sessionId')} />
+      )}
+      {overlay.is('workspace') && props.cleanWorkspace?.dir && (
+        <CleanWorkspaceSheet dir={props.cleanWorkspace.dir} onClose={() => overlay.close('workspace')} />
       )}
       {overlay.originalText != null && (
         <OriginalMessageSheet text={overlay.originalText} onClose={() => overlay.close('original')} />

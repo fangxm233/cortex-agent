@@ -338,6 +338,18 @@ describe('MChatStream subagent prompt', () => {
     expect([...order].sort((a, b) => a - b)).toEqual(order);
   });
 
+  it('marks a clean subagent like the desktop block', () => {
+    const row: ChatRow = {
+      kind: 'subagent', id: 'tu_c', agentType: 'explore', description: 'Inspect', prompt: null, model: null,
+      status: 'done', toolCount: 1, children: [], clean: true,
+    };
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = create(<LangProvider><MChatStream rows={[row]} /></LangProvider>); });
+    expect(renderer.root.findByType(SubagentBlock).props.clean).toBe(true);
+    expect(JSON.stringify(renderer.toJSON())).toContain('clean · 1 tool call');
+    act(() => renderer.unmount());
+  });
+
   it('hands a tool row\'s images to the touch tool row, inside a subagent block too', () => {
     const images = [{ name: 'tu-0.png', path: 'workspace/tool-images/s1/tu-0.png' }];
     const rows: ChatRow[] = [
@@ -579,6 +591,51 @@ describe('MChatView overlays', () => {
     expect(setOpen).toHaveBeenCalledWith(true);
     expect(r.root.findAll((n) => n.props['data-chip'] === 'agent')).toHaveLength(0);
     act(() => r.unmount());
+    vi.unstubAllGlobals();
+  });
+
+  it('offers the clean switch on a draft, left of the engine chip', () => {
+    const onToggle = vi.fn();
+    const r = mount({ cleanDraft: { on: false, disabled: false, onToggle } });
+    const chip = () => r.root.findByProps({ 'data-chip': 'clean' });
+    const chips = r.root.findAll((n) => n.type === 'button' && typeof n.props['data-chip'] === 'string').map((n) => n.props['data-chip']);
+    expect(chips).toEqual(['clean', 'selection']);
+    expect(chip().props['aria-pressed']).toBe(false);
+    expect(chip().props.style.color).toBe('var(--m-muted)');
+    act(() => chip().props.onClick());
+    expect(onToggle).toHaveBeenCalledTimes(1);
+    act(() => r.update(<LangProvider><MChatView {...baseProps} rows={[]} status={status} sessionId=""
+      cleanDraft={{ on: true, disabled: true, onToggle }} /></LangProvider>));
+    expect(chip().props['aria-pressed']).toBe(true);
+    expect(chip().props.disabled).toBe(true);
+    expect(chip().props.style.color).not.toBe('var(--m-muted)');
+    act(() => r.unmount());
+
+    const running = mount();
+    expect(running.root.findAll((n) => n.props['data-chip'] === 'clean')).toHaveLength(0);
+    expect(running.root.findAll((n) => n.props['data-clean-label'] !== undefined)).toHaveLength(0);
+    act(() => running.unmount());
+  });
+
+  it('labels a clean session in the header and opens its workspace to copy', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    const dir = '/srv/cortex/workspaces/ab12cd34';
+    const r = mount({ cleanWorkspace: { dir } });
+    const label = r.root.findByProps({ 'data-clean-label': '' });
+    expect(label.children).toEqual(['Clean']);
+    act(() => label.props.onClick());
+    expect(sheets(r)).toHaveLength(1);
+    expect(sheets(r)[0].findAll((n) => n.props['data-mobile-clean-workspace-sheet'] !== undefined)).toHaveLength(1);
+    expect(sheets(r)[0].findAll((n) => n.type === 'span' && n.children.includes(dir))).toHaveLength(1);
+    const copy = sheets(r)[0].findAll((n) => n.props.role === 'button' && n.children.includes('Copy'))[0];
+    await act(async () => { copy.props.onClick(); });
+    expect(writeText).toHaveBeenCalledWith(dir);
+    act(() => r.unmount());
+
+    const pending = mount({ cleanWorkspace: { dir: null } });
+    expect(pending.root.findByProps({ 'data-clean-label': '' }).props.disabled).toBe(true);
+    act(() => pending.unmount());
     vi.unstubAllGlobals();
   });
 
