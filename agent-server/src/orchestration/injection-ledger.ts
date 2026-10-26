@@ -10,6 +10,7 @@
 
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
+import type { TranscriptPosition } from '@core/types/transcript-anchor.js';
 import type { PendingInjectionRecord } from '@store/pending-injection-repo.js';
 import type { RunEvent } from '../domain/runs/events.js';
 import type { RunObserver } from '../domain/runs/request.js';
@@ -31,7 +32,8 @@ export interface InjectionLedgerDeps {
   }) => void;
   publishStatus: (ev: { sessionId: string; channel: string; running: boolean }) => void;
   persistPending: (record: PendingInjectionRecord) => Promise<void>;
-  commitPending: (record: PendingInjectionRecord) => Promise<{ committedTs: string }>;
+  /** `position`: where the backend wrote the message in its transcript, when its ack said. */
+  commitPending: (record: PendingInjectionRecord, position?: TranscriptPosition) => Promise<{ committedTs: string }>;
   markPending?: (record: PendingInjectionRecord) => Promise<void>;
   unmarkPending?: (record: PendingInjectionRecord) => Promise<void>;
   track: (delta: number) => void;
@@ -56,6 +58,8 @@ interface PendingInjection {
   activate: () => void;
   /** Move it into the conversation record (history + ledger turn + the delivered event). Single-fire. */
   commit: () => Promise<boolean>;
+  /** Where the backend wrote the message, set by its delivery ack before the commit. */
+  position?: TranscriptPosition;
   mark: () => void;
   release: () => Promise<void>;
   isReleased: () => boolean;
@@ -93,6 +97,7 @@ function disposeIfIdle(channel: string): void {
 
 class PendingLifecycle implements PendingInjection {
   readonly ts: string;
+  position?: TranscriptPosition;
   private activeResolve!: () => void;
   private readonly active: Promise<void>;
   private commitPromise: Promise<boolean> | null = null;
@@ -145,7 +150,7 @@ class PendingLifecycle implements PendingInjection {
   private async commitOnce(): Promise<boolean> {
     await this.active;
     try {
-      const { committedTs } = await this.deps.commitPending(this.record);
+      const { committedTs } = await this.deps.commitPending(this.record, this.position);
       this.clearMarker();
       this.deps.publishDelivered({
         sessionId: this.record.sessionId, channel: this.record.channel,
@@ -232,16 +237,16 @@ export async function beginInjection(
 
 async function handleDelivered(
   channel: string,
-  injectionId: string,
-  foldedIntoTurn: boolean,
+  event: Extract<RunEvent, { type: 'injection_delivered' }>,
 ): Promise<void> {
   const state = channelStates.get(channel);
   if (!state) return;
-  const index = state.pending.findIndex((entry) => entry.record.id === injectionId);
+  const index = state.pending.findIndex((entry) => entry.record.id === event.injectionId);
   if (index === -1) return;
   const [entry] = state.pending.splice(index, 1);
+  entry.position = event.position;
   await entry.commit();
-  if (foldedIntoTurn) await entry.release();
+  if (event.foldedIntoTurn) await entry.release();
   else disposeIfIdle(channel);
 }
 
@@ -325,7 +330,7 @@ export function createInjectionObserver(
     onEvent(event: RunEvent): void | Promise<void> {
       switch (event.type) {
         case 'injection_delivered':
-          return handleDelivered(channel, event.injectionId, event.foldedIntoTurn);
+          return handleDelivered(channel, event);
         case 'injection_rejected':
           return handleUndelivered(channel, event.injectionId);
         case 'background_result':

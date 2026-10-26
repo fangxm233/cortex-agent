@@ -10,7 +10,7 @@ import { activeSessionUseIds } from '@domain/sessions/session-use.js';
 import { toolImageSessionDir } from '@store/tool-image-files.js';
 import type { ClaudeUserSettingsSyncResult } from '@domain/auth/claude-user-settings.js';
 import { relocateLegacyClaudePath } from '@store/claude-transcript-migration.js';
-import { getProjectDir } from './session-backup.js';
+import { getProjectDir } from './session-transcript.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CAPTURE_PREFIX = 'claude-output-';

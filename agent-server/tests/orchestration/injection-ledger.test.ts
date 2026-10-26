@@ -2,7 +2,7 @@ import { beforeEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import {
-  createInjectionObserver, resetInjectionLedger, type InjectionLedgerDeps,
+  beginInjection, createInjectionObserver, resetInjectionLedger, type InjectionLedgerDeps,
 } from '../../src/orchestration/injection-ledger.js';
 import { createTranscriptSink, type TranscriptSinkDeps } from '../../src/orchestration/transcript-sink.js';
 import type { RunEvent, RunPhase } from '../../src/domain/runs/events.js';
@@ -167,4 +167,20 @@ test('continuation context usage is keyed by the stable session ID', async () =>
     kind: 'context', sessionId: SESSION, channel: CHANNEL,
     usage: { usedTokens: 1, contextWindow: 10, percent: 10, accuracy: 'exact' },
   }]);
+});
+
+test('a delivery ack hands its transcript position to the commit', async () => {
+  const commits: unknown[] = [];
+  const deps: InjectionLedgerDeps = {
+    ...ledgerDeps({}),
+    commitPending: async (record, position) => { commits.push([record.id, position]); return { committedTs: 'T' }; },
+  };
+  const record = {
+    id: 'pin-pos', sessionId: SESSION, channel: CHANNEL, messageId: 'web-pos', backend: 'pi',
+    selection: null, text: 'steer', createdAt: 'T',
+  };
+  await beginInjection(deps, record);
+  const ledger = createInjectionObserver(deps, CHANNEL, SESSION);
+  await ledger.onEvent({ type: 'injection_delivered', injectionId: 'pin-pos', foldedIntoTurn: true, position: { after: 'e5' } });
+  assert.deepEqual(commits, [['pin-pos', { after: 'e5' }]]);
 });

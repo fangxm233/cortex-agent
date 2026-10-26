@@ -369,17 +369,23 @@ export class ClaudeTurnMachine {
    */
   private handleReplayEcho(data: any): void {
     const text = extractReplayText(data);
-    if (text === null) return;
     const head = this.pendingInjections[0];
-    if (!head || head.prompt !== text) return; // the turn's own prompt (or a tool_result carrier)
+    // Anything else is the turn's own prompt (or a tool_result carrier).
+    if (text === null || !head || head.prompt !== text) return;
     this.pendingInjections.shift();
     // Consumed with no turn in flight ⇒ this is the post-result outcome: the CLI is starting a turn
     // of its own. Arm the spontaneous-turn capture before its first assistant line arrives.
     const foldedIntoTurn = !!this.currentTurn;
     if (!foldedIntoTurn) this.injectionContinuationArmed = true;
+    this.ackDelivered(head.text, foldedIntoTurn, data.uuid);
+  }
+
+  /** `uuid` is the echo's: the id of the transcript entry the message was written as. */
+  private ackDelivered(text: string, foldedIntoTurn: boolean, uuid: unknown): void {
     const ack = this.injectionAck;
     if (!ack) return;
-    try { ack.onDelivered({ text: head.text, foldedIntoTurn }); }
+    const position = typeof uuid === 'string' && uuid ? { before: uuid } : undefined;
+    try { ack.onDelivered({ text, foldedIntoTurn, ...(position ? { position } : {}) }); }
     catch (e) { log.warn('injection onDelivered threw:', (e as Error).message); }
   }
 

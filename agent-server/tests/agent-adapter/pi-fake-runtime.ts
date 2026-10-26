@@ -71,6 +71,8 @@ export class FakeRuntime implements PiRuntimeHandle {
   readonly heldPrompts: HeldPrompt[] = [];
   /** When set, switchSession() waits for it before answering (a switch still in flight). */
   switchGate: Promise<void> | null = null;
+  /** The transcript leaf the fake session manager reports; null like an empty session. */
+  leafId: string | null = null;
   private readonly holdPrompts: boolean;
   private readonly callWaiters: { kind: FakeSessionCall['kind']; resolve: (call: FakeSessionCall) => void }[] = [];
 
@@ -107,6 +109,7 @@ export class FakeRuntime implements PiRuntimeHandle {
         return self.compactResult;
       },
       getSessionStats: () => ({ ...self.stats, sessionFile: self.sessionFile, sessionId: self.sessionId }),
+      sessionManager: { getLeafId: () => self.leafId } as unknown as PiAgentSessionLike['sessionManager'],
     };
   }
 

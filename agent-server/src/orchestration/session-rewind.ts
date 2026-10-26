@@ -5,18 +5,17 @@ import { runRegistry } from '@core/run-registry.js';
 import { conversationLedger, type ChannelConversation, type LedgerTurn } from '@store/conversation-ledger-repo.js';
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { sessionStore, effectiveBackendSessionId, type Session } from '@store/session-registry-repo.js';
-import * as sessionBackup from '@domain/sessions/session-backup.js';
-import { sessionSpawnCwd } from '@core/paths.js';
 import { resolveBackendForChannel } from '@domain/agents/index.js';
 import { publishSessionRewound } from './session-events.js';
 import { deliverToSessionDetached } from './session-gateway.js';
 import { activeTurns } from './turn/active-turns.js';
 import { tryAcquireTurnMutationLock } from './turn-mutation-lock.js';
+import { applyRestore, planRestore, transcriptCutter, type RestorePlan, type TranscriptCutter } from './rewind-restore.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
 
 const log = createLogger('session-rewind');
 
-export type RewindResult = { ok: true } | { ok: false; reason: 'running' | 'not-found' };
+export type RewindResult = { ok: true } | { ok: false; reason: 'running' | 'not-found' | 'no-restore-point' };
 
 /** Injectable dependency surface (unit tests). Defaults bind the production singletons. */
 export interface RewindDeps {
@@ -36,11 +35,7 @@ export interface RewindDeps {
     getById(sessionId: string): Promise<Session | null>;
     updateSession(sessionId: string, updates: { backendSessionId: string | null }): Promise<void>;
   };
-  backup: Pick<typeof sessionBackup,
-    'restoreBackup' | 'cleanupBackupsAfter' | 'cleanupAllBackups' |
-    'findPISessionFile' | 'restoreSessionFile' | 'restoreSessionBackup' |
-    'sessionFileFromBackupPath' | 'cleanupBackupsForFile' | 'cleanupAllBackupsForFile'
-  >;
+  transcript: TranscriptCutter;
   resolveBackend: (channel: string) => string;
   registerPISessionPath: (sessionId: string, sessionPath: string) => void;
   closePooledSession: (channel: string, backend: string) => void;
@@ -62,7 +57,7 @@ function defaultDeps(): RewindDeps {
     ledger: conversationLedger,
     history: conversationHistory,
     sessionStore,
-    backup: sessionBackup,
+    transcript: transcriptCutter,
     resolveBackend: (channel) => resolveBackendForChannel(channel),
     registerPISessionPath: (sessionId, sessionPath) => engines.registerSessionPath(sessionId, sessionPath),
     // Backend-neutral: every backend pools its subprocess, and a live one would keep the
@@ -75,12 +70,13 @@ function defaultDeps(): RewindDeps {
 
 /**
  * Edit a previously-sent user message and rewind the conversation to it: every turn from
- * `turnIndex` onward is rolled back (ledger + backend session jsonl + display history), then the
+ * `turnIndex` onward is rolled back (ledger + backend transcript + display history), then the
  * edited `text` is re-sent as a genuine user turn (original attachments preserved). Fire-and-forget
  * on the regeneration — the new reply streams over `session.message` as usual.
  *
- * Rejected while a run is live on the channel ('running' — the UI greys the edit action out too)
- * and when the session/turn cannot be found ('not-found').
+ * Rejected while a run is live on the channel ('running' — the UI greys the edit action out too),
+ * when the session/turn cannot be found ('not-found'), and when the backend cannot be put back to
+ * where the turn started ('no-restore-point'). A rejection leaves everything untouched.
  */
 export async function rewindWebSession(
   opts: { sessionId: string; channel: string; turnIndex: number; text: string; adapter: PlatformAdapter },
@@ -96,73 +92,6 @@ export async function rewindWebSession(
   } finally {
     releaseMutation?.();
   }
-}
-
-interface SnapshotRestore {
-  restored: boolean;
-  piSessionFile: string | null;
-}
-
-/** The PI session file a rewind or edit acts on: the one recorded beside the turn's backup, else
- *  the file found for the backend session. Takes the backup primitives so callers keep their fakes. */
-export async function resolvePISessionFile(
-  backup: Pick<typeof sessionBackup, 'sessionFileFromBackupPath' | 'findPISessionFile'>,
-  backendSessionId: string | null,
-  backupPath: string | null,
-  turnIndex: number,
-): Promise<string | null> {
-  if (backupPath) return backup.sessionFileFromBackupPath(backupPath, turnIndex);
-  return backendSessionId ? backup.findPISessionFile(backendSessionId) : null;
-}
-
-async function restoreSnapshot(
-  context: RewindContext,
-  backupPath: string | null,
-  turnIndex: number,
-  backup: RewindDeps['backup'],
-): Promise<SnapshotRestore> {
-  const { backend, backendSessionId } = context;
-  if (backend !== 'pi') {
-    const restored = turnIndex > 0 && backendSessionId
-      ? await backup.restoreBackup(backendSessionId, turnIndex, sessionSpawnCwd(context.session))
-      : false;
-    return { restored, piSessionFile: null };
-  }
-  const piSessionFile = await resolvePISessionFile(backup, backendSessionId, backupPath, turnIndex);
-  if (turnIndex === 0 || !backendSessionId) return { restored: false, piSessionFile };
-  const restored = backupPath
-    ? await backup.restoreSessionBackup(backupPath, turnIndex)
-    : piSessionFile ? await backup.restoreSessionFile(piSessionFile, turnIndex) : false;
-  return { restored, piSessionFile };
-}
-
-function registerRestoredPIPath(
-  backend: string,
-  backendSessionId: string | null,
-  snapshot: SnapshotRestore,
-  register: RewindDeps['registerPISessionPath'],
-): void {
-  if (backend !== 'pi' || !backendSessionId || !snapshot.restored || !snapshot.piSessionFile) return;
-  register(backendSessionId, snapshot.piSessionFile);
-}
-
-function cleanupSnapshot(
-  context: RewindContext,
-  turnIndex: number,
-  snapshot: SnapshotRestore,
-  backup: RewindDeps['backup'],
-): void {
-  const { backend, backendSessionId } = context;
-  if (backend === 'pi') {
-    if (!snapshot.piSessionFile) return;
-    if (snapshot.restored) backup.cleanupBackupsForFile(snapshot.piSessionFile, turnIndex);
-    else backup.cleanupAllBackupsForFile(snapshot.piSessionFile);
-    return;
-  }
-  if (!backendSessionId) return;
-  const cwd = sessionSpawnCwd(context.session);
-  if (snapshot.restored) backup.cleanupBackupsAfter(backendSessionId, turnIndex, cwd);
-  else backup.cleanupAllBackups(backendSessionId, cwd);
 }
 
 interface RewindContext {
@@ -184,23 +113,35 @@ async function resolveRewindContext(
   return { conversation, session, backend, backendSessionId: effectiveBackendSessionId(session) };
 }
 
+/** Point the backend at the restored transcript, or at a fresh session when there is none. */
+async function settleBackendSession(
+  context: RewindContext,
+  plan: RestorePlan,
+  restored: boolean,
+  deps: RewindDeps,
+): Promise<void> {
+  if (restored && plan.kind === 'anchor') {
+    if (context.backend === 'pi' && context.backendSessionId) {
+      deps.registerPISessionPath(context.backendSessionId, plan.anchor.file);
+    }
+    return;
+  }
+  if (!restored) log.error('Transcript changed during rewind — starting a fresh backend session');
+  await deps.sessionStore.updateSession(context.session.sessionId, { backendSessionId: null });
+}
+
 async function restoreRewindBackend(
   context: RewindContext,
   channel: string,
   turnIndex: number,
+  plan: RestorePlan,
   deps: RewindDeps,
 ): Promise<void> {
   await deps.ledger.rollbackTo(channel, turnIndex);
-  const backupPath = context.conversation.turns[turnIndex].backupPath;
-  const snapshot = await restoreSnapshot(context, backupPath, turnIndex, deps.backup);
-  registerRestoredPIPath(context.backend, context.backendSessionId, snapshot, deps.registerPISessionPath);
-  if (!snapshot.restored) {
-    if (turnIndex > 0) log.warn('No backup found — starting a fresh backend session (display history keeps earlier turns)');
-    await deps.sessionStore.updateSession(context.session.sessionId, { backendSessionId: null });
-  }
+  const restored = await applyRestore(plan, deps.transcript);
+  await settleBackendSession(context, plan, restored, deps);
   deps.closePooledSession(channel, context.backend);
   await deps.ledger.truncateTurns(channel, turnIndex);
-  cleanupSnapshot(context, turnIndex, snapshot, deps.backup);
 }
 
 async function resendRewoundTurn(
@@ -229,8 +170,15 @@ async function rewindLocked(
   if (deps.activeAgents.hasChannel(opts.channel)) return { ok: false, reason: 'running' };
   const context = await resolveRewindContext(opts, deps);
   if (!context) return { ok: false, reason: 'not-found' };
-  log.info('Rewinding session:', { channel: opts.channel, turnIndex: opts.turnIndex, backend: context.backend });
-  await restoreRewindBackend(context, opts.channel, opts.turnIndex, deps);
+  const turn = context.conversation.turns[opts.turnIndex];
+  const plan = await planRestore(turn, opts.turnIndex, context.backendSessionId, deps.transcript);
+  const where = { channel: opts.channel, turnIndex: opts.turnIndex, backend: context.backend };
+  if (!plan) {
+    log.warn('Rewind refused — no restore point for the turn:', where);
+    return { ok: false, reason: 'no-restore-point' };
+  }
+  log.info('Rewinding session:', { ...where, restore: plan.kind });
+  await restoreRewindBackend(context, opts.channel, opts.turnIndex, plan, deps);
   await resendRewoundTurn(opts, context.conversation, deps, mutationRelease);
   return { ok: true };
 }

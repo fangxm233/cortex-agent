@@ -21,8 +21,6 @@ import { attachExistingSession } from '@domain/sessions/session-lifecycle.js';
 import { Icons } from '../../core/icons.js';
 import { t } from '../../core/i18n.js';
 import { shortSessionId } from '../../core/short-session-id.js';
-import * as sessionBackup from '@domain/sessions/session-backup.js';
-import { sessionSpawnCwd } from '@core/paths.js';
 import { deliverPlanResponse } from './plan-response.js';
 import { createLogger } from '@core/log.js';
 
@@ -285,11 +283,7 @@ async function resetChannelFromStatusButton(ctx: ActionContext, opts: { skipHook
   void engines.close(channel);
   const conv = await conversationLedger.getConversation(channel);
   const selection = resolveRunSelection({ channel });
-  if (conv) {
-    const record = await sessionStore.getById(conv.sessionId);
-    sessionBackup.cleanupAllBackups(conv.sessionId, sessionSpawnCwd(record));
-    await conversationLedger.clearConversation(channel);
-  }
+  if (conv) await conversationLedger.clearConversation(channel);
   await deleteSessionAsync(channel);
   planApprovals.clearByChannel(channel);
   const newDest: Destination = { type: 'interactive-reply', conduit: ctx.channelId, sessionId: '' };

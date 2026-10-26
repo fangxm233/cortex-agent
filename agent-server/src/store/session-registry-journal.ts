@@ -4,6 +4,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import readline from 'node:readline';
 import { STORE_DIR } from '@core/paths.js';
+import { toTurnAnchor, type TurnAnchor } from '@core/types/transcript-anchor.js';
 
 const REGISTRY_VERSION = 1;
 const DEFAULT_YIELD_EVERY = 256;
@@ -76,7 +77,12 @@ export interface TurnRecord {
   statusMessageTs: string | null;
   responseMessageTimestamps: string[];
   executionId: string | null;
+  /** Legacy: a full copy of the backend transcript taken at turn start. Superseded by `anchor`;
+   *  only startup migration reads it. */
   backupPath: string | null;
+  /** Where the turn starts in its backend transcript; rewinding to the turn cuts the file back here.
+   *  Absent when none was recorded, and then the turn cannot be rewound to. */
+  anchor?: TurnAnchor;
   status: TurnStatus;
   createdAt: string;
   updatedAt: string;
@@ -717,10 +723,16 @@ function assertTurnRecord(raw: unknown): TurnRecord {
     responseMessageTimestamps: toStringArray(row.responseMessageTimestamps),
     executionId: toTurnNullableString(row.executionId),
     backupPath: toTurnNullableString(row.backupPath),
+    ...withAnchor(row.anchor),
     status: toTurnStatus(row.status),
     createdAt: toStringValue(row.createdAt),
     updatedAt: toStringValue(row.updatedAt),
   };
+}
+
+function withAnchor(value: unknown): Pick<TurnRecord, 'anchor'> {
+  const anchor = toTurnAnchor(value);
+  return anchor ? { anchor } : {};
 }
 
 const TURN_FIELD_READERS: { [K in keyof TurnRecord]: (value: unknown) => TurnRecord[K] } = {
@@ -731,6 +743,7 @@ const TURN_FIELD_READERS: { [K in keyof TurnRecord]: (value: unknown) => TurnRec
   responseMessageTimestamps: toStringArray,
   executionId: toTurnNullableString,
   backupPath: toTurnNullableString,
+  anchor: toTurnAnchor,
   status: toTurnStatus,
   createdAt: toStringValue,
   updatedAt: toStringValue,

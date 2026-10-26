@@ -3,17 +3,15 @@ import type { PlatformAdapter, MessageEditContext } from '@platform/index.js';
 import type { LedgerTurn, ChannelConversation } from '@store/conversation-ledger-repo.js';
 import { effectiveBackendSessionId, sessionStore } from '@store/session-registry-repo.js';
 import { createLogger } from '@core/log.js';
-import { sessionSpawnCwd } from '@core/paths.js';
 import { Icons } from '../../core/icons.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
-import * as sessionBackup from '@domain/sessions/session-backup.js';
 import { deleteSessionAsync } from '@domain/sessions/session.js';
 import { resolveBackendForChannel } from '@domain/agents/index.js';
 import type { RunRegistry } from '../../core/run-registry.js';
 import { conduitQueues } from '../conduit-queue.js';
 import { activeTurns } from '../turn/active-turns.js';
 import { acquireTurnMutationLock } from '../turn-mutation-lock.js';
-import { resolvePISessionFile } from '../session-rewind.js';
+import { applyRestore, planRestore, transcriptCutter, type RestorePlan } from '../rewind-restore.js';
 import { t } from '@core/i18n.js';
 
 const log = createLogger('edit-handler');
@@ -111,100 +109,31 @@ async function processEdit(args: ProcessEditArgs): Promise<void> {
   }
 }
 
-interface PIEditRestore {
-  restored: boolean;
-  sessionFile: string | null;
-}
-
-async function restorePIEdit(
-  backendSessionId: string | null,
-  backupPath: string | null,
-  turnIndex: number,
-): Promise<PIEditRestore> {
-  const sessionFile = await resolvePISessionFile(sessionBackup, backendSessionId, backupPath, turnIndex);
-  const restored = backupPath
-    ? await sessionBackup.restoreSessionBackup(backupPath, turnIndex)
-    : sessionFile ? await sessionBackup.restoreSessionFile(sessionFile, turnIndex) : false;
-  return { restored, sessionFile };
-}
-
 interface EditRestoreState {
   backendSessionId: string | null;
-  /** Where the session's backend runs, and so where its Claude transcript lives. */
-  spawnCwd: string;
   useSessionId: string | null;
   restored: boolean;
-  piSessionFile: string | null;
-}
-
-interface EditRestoreInput {
-  channel: string;
-  backend: string;
-  turnIndex: number;
-  targetBackupPath: string | null;
-}
-
-async function restoreFirstEditedTurn(
-  input: EditRestoreInput,
-  state: EditRestoreState,
-): Promise<EditRestoreState> {
-  let piSessionFile: string | null = null;
-  if (input.backend === 'pi') {
-    piSessionFile = await resolvePISessionFile(
-      sessionBackup, state.backendSessionId, input.targetBackupPath, input.turnIndex,
-    );
-  }
-  await deleteSessionAsync(input.channel);
-  return { ...state, useSessionId: null, piSessionFile };
-}
-
-async function restoreEditedPISession(
-  input: EditRestoreInput,
-  state: EditRestoreState,
-): Promise<EditRestoreState> {
-  const restored = await restorePIEdit(
-    state.backendSessionId, input.targetBackupPath, input.turnIndex,
-  );
-  const next = { ...state, restored: restored.restored, piSessionFile: restored.sessionFile };
-  if (restored.restored) return next;
-  log.warn('No backup found for PI session, falling back to new session');
-  await deleteSessionAsync(input.channel);
-  return { ...next, useSessionId: null };
-}
-
-async function restoreEditedClaudeSession(
-  input: EditRestoreInput,
-  state: EditRestoreState,
-): Promise<EditRestoreState> {
-  const restored = state.backendSessionId
-    ? await sessionBackup.restoreBackup(state.backendSessionId, input.turnIndex, state.spawnCwd)
-    : false;
-  if (restored) return { ...state, restored };
-  log.warn('No backup found, falling back to new session');
-  await deleteSessionAsync(input.channel);
-  return { ...state, restored, useSessionId: null };
 }
 
 async function initialEditRestoreState(conversation: ChannelConversation): Promise<EditRestoreState> {
   const sessionId = conversation.sessionId;
   const sessionRecord = sessionId ? await sessionStore.getById(sessionId) : null;
   const backendSessionId = sessionRecord ? effectiveBackendSessionId(sessionRecord) : sessionId;
-  return {
-    backendSessionId, spawnCwd: sessionSpawnCwd(sessionRecord), useSessionId: sessionId,
-    restored: false, piSessionFile: null,
-  };
+  return { backendSessionId, useSessionId: sessionId, restored: false };
 }
 
+/** Cut the transcript back to the plan's anchor; a fresh plan, or a transcript that changed since
+ *  planning, drops the backend session so the retry starts a new one. */
 async function restoreEditedSession(
-  args: ProcessEditArgs,
-  backend: string,
-  targetBackupPath: string | null,
+  channel: string,
+  plan: RestorePlan,
+  state: EditRestoreState,
 ): Promise<EditRestoreState> {
-  const state = await initialEditRestoreState(args.conversation);
-  const input = { channel: args.channel, backend, turnIndex: args.turnIndex, targetBackupPath };
-  if (args.turnIndex === 0) return restoreFirstEditedTurn(input, state);
-  if (backend === 'pi') return restoreEditedPISession(input, state);
-  return restoreEditedClaudeSession(input, state);
+  const restored = plan.kind === 'anchor' && await applyRestore(plan, transcriptCutter);
+  if (restored) return { ...state, restored };
+  if (plan.kind === 'anchor') log.error('Transcript changed during edit — starting a fresh backend session');
+  await deleteSessionAsync(channel);
+  return { ...state, restored, useSessionId: null };
 }
 
 function stopActiveEdit(channel: string, activeAgents: RunRegistry): void {
@@ -216,7 +145,6 @@ function stopActiveEdit(channel: string, activeAgents: RunRegistry): void {
 }
 
 interface EditRollback {
-  targetBackupPath: string | null;
   supersededStatusTimestamps: string[];
 }
 
@@ -226,50 +154,49 @@ async function rollbackEditedTurn(args: ProcessEditArgs): Promise<EditRollback |
     log.error('Rollback failed — no conversation found');
     return null;
   }
-  const targetBackupPath = result.supersededTurns.find((turn) => turn.turnIndex === args.turnIndex)?.backupPath
-    ?? args.conversation.turns[args.turnIndex]?.backupPath
-    ?? null;
   const supersededStatusTimestamps = await cleanupSupersededMessages(
     result.supersededTurns, args.channel, args.adapter,
   );
-  return { targetBackupPath, supersededStatusTimestamps };
+  return { supersededStatusTimestamps };
 }
 
 function registerRestoredEditPath(
   backend: string,
+  plan: RestorePlan,
   state: EditRestoreState,
   register: (sessionId: string, sessionPath: string) => void,
 ): void {
-  if (backend !== 'pi' || !state.restored || !state.backendSessionId || !state.piSessionFile) return;
-  register(state.backendSessionId, state.piSessionFile);
+  if (backend !== 'pi' || !state.restored || !state.backendSessionId || plan.kind !== 'anchor') return;
+  register(state.backendSessionId, plan.anchor.file);
 }
 
-function cleanupEditedSession(backend: string, turnIndex: number, state: EditRestoreState): void {
-  if (backend !== 'pi') {
-    sessionBackup.cleanupBackupsAfter(state.backendSessionId ?? '', turnIndex, state.spawnCwd);
-    return;
-  }
-  if (state.piSessionFile && state.restored) {
-    sessionBackup.cleanupBackupsForFile(state.piSessionFile, turnIndex);
-  } else if (state.piSessionFile) {
-    sessionBackup.cleanupAllBackupsForFile(state.piSessionFile);
-  }
+/** Tell the channel the edit was not applied: the backend cannot be put back to that turn. */
+async function refuseEdit(args: ProcessEditArgs, sessionId: string | null): Promise<void> {
+  log.warn('Edit refused — no restore point for the turn:', { channel: args.channel, turnIndex: args.turnIndex });
+  await args.adapter.postMessage(
+    { type: 'interactive-reply', conduit: args.channel, sessionId: sessionId ?? '' },
+    { text: t('status.editNoRestorePoint') },
+  ).catch((e) => log.warn('Failed to post edit refusal:', (e as Error).message));
 }
 
 async function processEditLocked(args: ProcessEditArgs): Promise<void> {
   const { channel, originalTs, newText, turnIndex, deps } = args;
   const backend = (deps.resolveBackend ?? resolveBackendForChannel)(channel) || args.conversation.backend;
+  const initial = await initialEditRestoreState(args.conversation);
+  const plan = await planRestore(
+    args.conversation.turns[turnIndex], turnIndex, initial.backendSessionId, transcriptCutter,
+  );
+  if (!plan) return refuseEdit(args, initial.useSessionId);
   stopActiveEdit(channel, deps.activeAgents);
   const rollback = await rollbackEditedTurn(args);
   if (!rollback) return;
-  const state = await restoreEditedSession(args, backend, rollback.targetBackupPath);
+  const state = await restoreEditedSession(channel, plan, initial);
   registerRestoredEditPath(
-    backend, state,
+    backend, plan, state,
     deps.registerPISessionPath ?? ((id, path) => engines.registerSessionPath(id, path)),
   );
   deps.closePooledSession?.(channel, backend);
   await conversationLedger.truncateTurns(channel, turnIndex);
-  cleanupEditedSession(backend, turnIndex, state);
   deps.reprocessMessage(channel, newText, args.adapter, {
     originalTs, sessionId: state.useSessionId,
     supersededStatusTimestamps: rollback.supersededStatusTimestamps,

@@ -248,10 +248,11 @@ export async function handleSetSelection(
 }
 
 // Message edit + rewind (desktop design 23 / mobile 7): resolve session→channel and delegate to
-// the injected orchestration rewind path (ledger rollback + backend backup restore + display-history
+// the injected orchestration rewind path (ledger rollback + backend transcript cut + display-history
 // truncate + resend). Fire-and-forget like sessions.send — the regenerated reply streams over
 // `session.message`. A live run maps to `session-running` (CONFLICT — the UI greys editing out
-// while running); an unknown turn maps to not-found.
+// while running); a turn the backend cannot be put back to maps to not-available; an unknown turn
+// maps to not-found.
 export async function handleRewindSession(
   deps: UiServiceDeps,
   args: MutateArgs<'sessions.rewind'>,
@@ -274,6 +275,9 @@ export async function handleRewindSession(
   }
   if (res.reason === 'running') {
     return { ok: false, code: 'session-running', message: t('ui.session.runningEdit') };
+  }
+  if (res.reason === 'no-restore-point') {
+    return { ok: false, code: 'not-available', message: t('ui.session.rewindNoRestorePoint') };
   }
   return { ok: false, code: 'not-found', message: t('ui.session.noTurn', { turn: args.turnIndex, id: args.sessionId }) };
 }

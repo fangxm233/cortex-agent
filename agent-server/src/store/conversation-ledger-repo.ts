@@ -12,6 +12,7 @@ import {
 } from './session-registry-repo.js';
 import type { EngineSelection } from '@domain/agents/engine-selection.js';
 import type { TurnRecord, TurnStatus } from './session-registry-journal.js';
+import type { TurnAnchor } from '@core/types/transcript-anchor.js';
 
 // --- Types ---
 
@@ -222,8 +223,7 @@ export class ConversationLedgerRepo {
   }
 
   /**
-   * Atomic init-if-missing + beginTurn. Captures the turn index under one lock
-   * so callers can safely pass it to sessionBackup.createBackup.
+   * Atomic init-if-missing + beginTurn. Captures the turn index under one lock.
    * Returns { turn, turnIndex } for the caller.
    */
   async initAndBeginTurn(channel: string, opts: {
@@ -233,6 +233,7 @@ export class ConversationLedgerRepo {
     userMessageTs: string;
     userMessageText: string;
     statusMessageTs: string;
+    anchor?: TurnAnchor | null;
   }): Promise<{ turn: LedgerTurn; turnIndex: number }> {
     return this.registry.batch(async (ops) => {
       if (!ops.getConversationHeader(channel)) {
@@ -253,21 +254,13 @@ export class ConversationLedgerRepo {
         responseMessageTimestamps: [],
         executionId: null,
         backupPath: null,
+        ...(opts.anchor ? { anchor: opts.anchor } : {}),
         status: 'processing',
         createdAt: now,
         updatedAt: now,
       };
       await ops.beginTurn(channel, turn);
       return { turn, turnIndex };
-    });
-  }
-
-  /** Set the backup path on the turn identified by userMessageTs. */
-  async setBackupPath(channel: string, userMessageTs: string, backupPath: string | null): Promise<void> {
-    await this.registry.batch(async (ops) => {
-      const turn = ops.getTurns(channel).find(t => t.userMessageTs === userMessageTs);
-      if (!turn) return;
-      await ops.patchTurn(channel, turn.turnIndex, { backupPath, updatedAt: nowIso() });
     });
   }
 

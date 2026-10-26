@@ -4,42 +4,47 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join as pathJoin } from 'node:path';
 import { PIAdapter } from '../../src/agent-adapter/pi/adapter.js';
-import * as realSessionBackup from '../../src/domain/sessions/session-backup.js';
 import { rewindWebSession, type RewindDeps } from '../../src/orchestration/session-rewind.js';
+import { transcriptCutter } from '../../src/orchestration/rewind-restore.js';
+import type { TurnAnchor } from '../../src/core/types/transcript-anchor.js';
 import type { PlatformAdapter } from '../../src/platform/index.js';
 
 const adapter = {} as PlatformAdapter;
+const CLAUDE_FILE = '/projects/-w/backend-1.jsonl';
 
 interface CallLog { calls: string[] }
 
-function makeConversation() {
+function turn(turnIndex: number, text: string, anchor?: TurnAnchor) {
+  return {
+    turnIndex, userMessageTs: `ts${turnIndex}`, userMessageText: text, statusMessageTs: null,
+    responseMessageTimestamps: [], executionId: null, backupPath: null,
+    ...(anchor ? { anchor } : {}),
+    status: 'completed' as const, createdAt: '', updatedAt: '',
+  };
+}
+
+function makeConversation(turn1Anchor: TurnAnchor | null = { file: CLAUDE_FILE, after: 'e1' }) {
   return {
     sessionId: 'track-1', backend: 'claude', selection: null,
-    turns: [
-      { turnIndex: 0, userMessageTs: 'ts0', userMessageText: 'first', statusMessageTs: null, responseMessageTimestamps: [], executionId: null, backupPath: null, status: 'completed' as const, createdAt: '', updatedAt: '' },
-      { turnIndex: 1, userMessageTs: 'ts1', userMessageText: 'orig text', statusMessageTs: null, responseMessageTimestamps: [], executionId: null, backupPath: null, status: 'completed' as const, createdAt: '', updatedAt: '' },
-    ],
+    turns: [turn(0, 'first'), turn(1, 'orig text', turn1Anchor ?? undefined)],
     updatedAt: '',
   };
 }
 
-function makeBackupDeps(log: CallLog): RewindDeps['backup'] {
+function anchorId(anchor: TurnAnchor): string {
+  return 'after' in anchor ? anchor.after : anchor.before;
+}
+
+function makeCutter(log: CallLog, opts: { resolves?: boolean; truncates?: boolean } = {}): RewindDeps['transcript'] {
   return {
-    restoreBackup: async (sid, i) => { log.calls.push(`restoreBackup:${sid}:${i}`); return true; },
-    cleanupBackupsAfter: (sid, i) => { log.calls.push(`cleanupAfter:${sid}:${i}`); },
-    cleanupAllBackups: (sid) => { log.calls.push(`cleanupAll:${sid}`); },
-    findPISessionFile: async () => null,
-    restoreSessionFile: async () => false,
-    restoreSessionBackup: async () => false,
-    sessionFileFromBackupPath: () => null,
-    cleanupBackupsForFile: () => {},
-    cleanupAllBackupsForFile: () => {},
+    resolves: async (a) => { log.calls.push(`resolves:${a.file}:${anchorId(a)}`); return opts.resolves ?? true; },
+    truncate: async (a) => { log.calls.push(`truncate:${a.file}:${anchorId(a)}`); return opts.truncates ?? true; },
   };
 }
 
-function makeLedgerDeps(log: CallLog): RewindDeps['ledger'] {
+function makeLedgerDeps(log: CallLog, conversation = makeConversation()): RewindDeps['ledger'] {
   return {
-    getConversation: async () => makeConversation(),
+    getConversation: async () => conversation,
     rollbackTo: async (ch, i) => {
       log.calls.push(`rollbackTo:${ch}:${i}`);
       return { supersededTurns: [], conversation: {} as any };
@@ -56,10 +61,10 @@ function makeHistoryDeps(log: CallLog): RewindDeps['history'] {
   };
 }
 
-function makeSessionStoreDeps(log: CallLog): RewindDeps['sessionStore'] {
+function makeSessionStoreDeps(log: CallLog, backendSessionId: string | null = 'backend-1'): RewindDeps['sessionStore'] {
   return {
     getById: async () => ({
-      sessionId: 'track-1', backendSessionId: 'backend-1',
+      sessionId: 'track-1', backendSessionId,
       channel: 'web:track-1', backend: 'claude',
     } as any),
     updateSession: async (name, updates) => {
@@ -76,9 +81,9 @@ function makeDeps(log: CallLog, overrides: Partial<RewindDeps> = {}): RewindDeps
     ledger: makeLedgerDeps(log),
     history: makeHistoryDeps(log),
     sessionStore: makeSessionStoreDeps(log),
-    backup: makeBackupDeps(log),
+    transcript: makeCutter(log),
     resolveBackend: () => 'claude',
-    registerPISessionPath: () => {},
+    registerPISessionPath: (id, file) => { log.calls.push(`registerPI:${id}:${file}`); },
     closePooledSession: (ch, backend) => { log.calls.push(`closePooled:${ch}:${backend}`); },
     send: (opts) => {
       log.calls.push(`send:${opts.channel}:${opts.text}:${opts.attachments?.length ?? 0}`);
@@ -89,97 +94,22 @@ function makeDeps(log: CallLog, overrides: Partial<RewindDeps> = {}): RewindDeps
   };
 }
 
-interface PIRewindFixture {
-  sessionDir: string;
-  source: string;
-  canonical: string;
-  backupPath: string;
-  piAdapter: PIAdapter;
-}
-
-function stagePIRewindFixture(): PIRewindFixture {
-  const sessionDir = pathJoin(tmpdir(), `web-rewind-pi-${process.pid}-${Date.now()}`);
-  const source = pathJoin(sessionDir, '2026-08-01T00-00-00Z_backend-1.jsonl');
-  const canonical = pathJoin(sessionDir, 'backend-1.jsonl');
-  const backupPath = `${source}.turn-1.bak`;
-  mkdirSync(sessionDir, { recursive: true });
-  writeFileSync(source, 'after-turn');
-  writeFileSync(backupPath, 'restored-context');
-  writeFileSync(canonical, 'selector-preferred-context');
-  return { sessionDir, source, canonical, backupPath, piAdapter: new PIAdapter(undefined, sessionDir) };
-}
-
-function makeRecordedPIBackup(log: CallLog, fixture: PIRewindFixture): RewindDeps['backup'] {
-  return {
-    ...makeBackupDeps(log),
-    findPISessionFile: async () => { log.calls.push('findPI:canonical'); return fixture.canonical; },
-    sessionFileFromBackupPath: realSessionBackup.sessionFileFromBackupPath,
-    restoreSessionBackup: realSessionBackup.restoreSessionBackup,
-    cleanupBackupsForFile: (filePath, turnIndex) => {
-      log.calls.push(`cleanupForFile:${filePath}:${turnIndex}`);
-    },
-  };
-}
-
-async function makeRecordedPIRewindDeps(
-  log: CallLog,
-  fixture: PIRewindFixture,
-  run: { resendPath: string | null },
-): Promise<RewindDeps> {
-  const base = makeDeps(log);
-  const conversation = await base.ledger.getConversation('web:track-1');
-  conversation!.backend = 'pi';
-  conversation!.turns[1].backupPath = fixture.backupPath;
-  return makeDeps(log, {
-    resolveBackend: () => 'pi',
-    ledger: { ...base.ledger, getConversation: async () => conversation },
-    backup: makeRecordedPIBackup(log, fixture),
-    registerPISessionPath: (sessionId, filePath) => {
-      log.calls.push(`registerPI:${sessionId}:${filePath}`);
-      fixture.piAdapter.registerSessionPath(sessionId, filePath);
-    },
-    send: (opts) => {
-      run.resendPath = fixture.piAdapter.resolveSessionPath('backend-1');
-      log.calls.push(`send:${opts.channel}:${opts.text}`);
-      opts.mutationRelease?.();
-    },
-  });
-}
-
-async function makeFailedPIRewindDeps(log: CallLog, source: string): Promise<RewindDeps> {
-  const base = makeDeps(log);
-  const conversation = await base.ledger.getConversation('web:track-1');
-  conversation!.backend = 'pi';
-  conversation!.turns[1].backupPath = `${source}.turn-1.bak`;
-  return makeDeps(log, {
-    resolveBackend: () => 'pi',
-    ledger: { ...base.ledger, getConversation: async () => conversation },
-    backup: {
-      ...base.backup,
-      sessionFileFromBackupPath: () => source,
-      restoreSessionBackup: async () => false,
-      cleanupAllBackupsForFile: (filePath) => { log.calls.push(`cleanupAllForFile:${filePath}`); },
-    },
-    registerPISessionPath: (sessionId, filePath) => {
-      log.calls.push(`registerPI:${sessionId}:${filePath}`);
-    },
-  });
+function rewind(deps: RewindDeps, turnIndex = 1, text = 'edited text') {
+  return rewindWebSession({ sessionId: 'track-1', channel: 'web:track-1', turnIndex, text, adapter }, deps);
 }
 
 test('rejects when the channel has a live run (edit is disabled while running)', async () => {
   const log: CallLog = { calls: [] };
-  const deps = makeDeps(log, { activeAgents: { hasChannel: () => true } });
-  const res = await rewindWebSession({ sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'new', adapter }, deps);
+  const res = await rewind(makeDeps(log, { activeAgents: { hasChannel: () => true } }));
   assert.deepEqual(res, { ok: false, reason: 'running' });
   assert.equal(log.calls.length, 0, 'nothing was touched');
 });
 
-test('rejects while the pre-turn snapshot is pending', async () => {
+test('rejects while the turn is still being recorded', async () => {
   const log: CallLog = { calls: [] };
-  const deps = makeDeps(log, { snapshotPending: () => true });
-  const res = await rewindWebSession({ sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'new', adapter }, deps);
+  const res = await rewind(makeDeps(log, { snapshotPending: () => true }));
   assert.deepEqual(res, { ok: false, reason: 'running' });
-  assert.equal(log.calls.length, 0, 'rewind cannot race an incomplete snapshot');
+  assert.equal(log.calls.length, 0, 'rewind cannot race an incomplete turn record');
 });
 
 test('holds the turn mutation lock through rewind validation', async () => {
@@ -187,13 +117,12 @@ test('holds the turn mutation lock through rewind validation', async () => {
   let releaseCount = 0;
   let resolveConversation!: (value: null) => void;
   const conversation = new Promise<null>((resolve) => { resolveConversation = resolve; });
-  const base = makeDeps(log);
   const deps = makeDeps(log, {
     tryAcquireMutation: () => () => { releaseCount++; },
-    ledger: { ...base.ledger, getConversation: async () => conversation },
+    ledger: { ...makeLedgerDeps(log), getConversation: async () => conversation },
   });
 
-  const attempt = rewindWebSession({ sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'new', adapter }, deps);
+  const attempt = rewind(deps);
   await Promise.resolve();
   assert.equal(releaseCount, 0);
   resolveConversation(null);
@@ -203,24 +132,21 @@ test('holds the turn mutation lock through rewind validation', async () => {
 
 test('rejects when the ledger has no conversation or the turn is out of range', async () => {
   const log: CallLog = { calls: [] };
-  const noConv = makeDeps(log, { ledger: { ...makeDeps(log).ledger, getConversation: async () => null } });
-  assert.deepEqual(await rewindWebSession({ sessionId: 's', channel: 'c', turnIndex: 0, text: 'x', adapter }, noConv), { ok: false, reason: 'not-found' });
-
-  const outOfRange = makeDeps(log);
-  assert.deepEqual(await rewindWebSession({ sessionId: 's', channel: 'c', turnIndex: 2, text: 'x', adapter }, outOfRange), { ok: false, reason: 'not-found' });
+  const noConv = makeDeps(log, { ledger: { ...makeLedgerDeps(log), getConversation: async () => null } });
+  assert.deepEqual(await rewind(noConv, 0, 'x'), { ok: false, reason: 'not-found' });
+  assert.deepEqual(await rewind(makeDeps(log), 2, 'x'), { ok: false, reason: 'not-found' });
   assert.ok(!log.calls.some(c => c.startsWith('rollbackTo')), 'no rollback on rejection');
 });
 
-test('happy path (turn ≥ 1, claude, backup exists): rollback → restore → close pool → truncate → history → marker → publish → resend with original attachments', async () => {
+test('happy path (turn ≥ 1, claude): plan → rollback → cut transcript → close pool → truncate → history → marker → publish → resend', async () => {
   const log: CallLog = { calls: [] };
-  const res = await rewindWebSession({ sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'edited text', adapter }, makeDeps(log));
-  assert.deepEqual(res, { ok: true });
+  assert.deepEqual(await rewind(makeDeps(log)), { ok: true });
   assert.deepEqual(log.calls, [
+    `resolves:${CLAUDE_FILE}:e1`,
     'rollbackTo:web:track-1:1',
-    'restoreBackup:backend-1:1',
+    `truncate:${CLAUDE_FILE}:e1`,
     'closePooled:web:track-1:claude',
     'truncateTurns:web:track-1:1',
-    'cleanupAfter:backend-1:1',
     'historyTruncate:track-1:1',
     'marker:track-1:orig text',
     'rewound:track-1:1',
@@ -228,58 +154,106 @@ test('happy path (turn ≥ 1, claude, backup exists): rollback → restore → c
   ]);
 });
 
-test('turn 0: no backup restore — backend session id is cleared (fresh backend session, track id kept)', async () => {
+test('turn 0 starts a fresh backend session (track id kept), cutting nothing', async () => {
   const log: CallLog = { calls: [] };
-  const res = await rewindWebSession({ sessionId: 'track-1', channel: 'web:track-1', turnIndex: 0, text: 'redo', adapter }, makeDeps(log));
-  assert.deepEqual(res, { ok: true });
-  assert.ok(!log.calls.some(c => c.startsWith('restoreBackup')), 'no restore for turn 0');
+  assert.deepEqual(await rewind(makeDeps(log), 0, 'redo'), { ok: true });
+  assert.ok(!log.calls.some(c => c.startsWith('truncate:') || c.startsWith('resolves:')));
   assert.ok(log.calls.includes('updateSession:track-1:{"backendSessionId":null}'), 'backend id cleared');
-  assert.ok(log.calls.includes('cleanupAll:backend-1'), 'all backups cleaned');
   assert.ok(log.calls.includes('closePooled:web:track-1:claude'));
   assert.ok(log.calls.some(c => c.startsWith('send:web:track-1:redo')));
 });
 
-test('missing backup on turn ≥ 1 falls back to clearing the backend session id', async () => {
+test('a turn with no anchor (a message injected mid-run before anchors existed) is refused untouched', async () => {
   const log: CallLog = { calls: [] };
-  const deps = makeDeps(log, {
-    backup: { ...makeDeps({ calls: [] }).backup, restoreBackup: async (sid, i) => { log.calls.push(`restoreBackup:${sid}:${i}`); return false; }, cleanupAllBackups: (sid) => { log.calls.push(`cleanupAll:${sid}`); } },
-  });
-  const res = await rewindWebSession({ sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'edited', adapter }, deps);
-  assert.deepEqual(res, { ok: true });
-  assert.ok(log.calls.includes('updateSession:track-1:{"backendSessionId":null}'), 'fallback clears backend id');
+  const deps = makeDeps(log, { ledger: makeLedgerDeps(log, makeConversation(null)) });
+  assert.deepEqual(await rewind(deps), { ok: false, reason: 'no-restore-point' });
+  assert.deepEqual(log.calls, [], 'no rollback, no fresh backend session, no resend');
 });
 
-test('PI rewind resends from the recorded restored path when an empty registry would prefer a canonical duplicate', async () => {
+test('an anchor in another backend session\'s transcript is refused untouched', async () => {
+  const log: CallLog = { calls: [] };
+  const conv = makeConversation({ file: '/projects/-w/backend-old.jsonl', before: 'u5' });
+  const deps = makeDeps(log, { ledger: makeLedgerDeps(log, conv) });
+  assert.deepEqual(await rewind(deps), { ok: false, reason: 'no-restore-point' });
+  assert.deepEqual(log.calls, []);
+});
+
+test('an anchor whose entry is gone from the transcript is refused untouched', async () => {
+  const log: CallLog = { calls: [] };
+  const deps = makeDeps(log, { transcript: makeCutter(log, { resolves: false }) });
+  assert.deepEqual(await rewind(deps), { ok: false, reason: 'no-restore-point' });
+  assert.deepEqual(log.calls, [`resolves:${CLAUDE_FILE}:e1`]);
+});
+
+test('a session the backend never opened rewinds to a fresh session', async () => {
+  const log: CallLog = { calls: [] };
+  const deps = makeDeps(log, { sessionStore: makeSessionStoreDeps(log, null) });
+  assert.deepEqual(await rewind(deps), { ok: true });
+  assert.ok(log.calls.includes('updateSession:track-1:{"backendSessionId":null}'));
+  assert.ok(!log.calls.some(c => c.startsWith('truncate:')));
+});
+
+test('a transcript that changed between planning and cutting falls back to a fresh session', async () => {
+  const log: CallLog = { calls: [] };
+  const deps = makeDeps(log, { transcript: makeCutter(log, { truncates: false }) });
+  assert.deepEqual(await rewind(deps), { ok: true });
+  assert.ok(log.calls.includes('updateSession:track-1:{"backendSessionId":null}'));
+});
+
+interface PIRewindFixture {
+  sessionDir: string;
+  source: string;
+  canonical: string;
+  piAdapter: PIAdapter;
+}
+
+const PI_LINES = [
+  { type: 'session', id: 'backend-1' },
+  { type: 'message', id: 'e1', parentId: null, message: { role: 'user', content: 'first' } },
+  { type: 'message', id: 'e2', parentId: 'e1', message: { role: 'assistant', content: 'reply' } },
+  { type: 'message', id: 'e3', parentId: 'e2', message: { role: 'user', content: 'orig text' } },
+  { type: 'message', id: 'e4', parentId: 'e3', message: { role: 'assistant', content: 'reply 2' } },
+].map((row) => `${JSON.stringify(row)}\n`);
+
+function stagePIRewindFixture(): PIRewindFixture {
+  const sessionDir = pathJoin(tmpdir(), `web-rewind-pi-${process.pid}-${Date.now()}`);
+  const source = pathJoin(sessionDir, '2026-08-01T00-00-00Z_backend-1.jsonl');
+  const canonical = pathJoin(sessionDir, 'backend-1.jsonl');
+  mkdirSync(sessionDir, { recursive: true });
+  writeFileSync(source, PI_LINES.join(''));
+  writeFileSync(canonical, 'selector-preferred-context');
+  return { sessionDir, source, canonical, piAdapter: new PIAdapter(undefined, sessionDir) };
+}
+
+test('PI rewind cuts the anchored transcript and resends from it even when a canonical duplicate exists', async () => {
   const log: CallLog = { calls: [] };
   const fixture = stagePIRewindFixture();
-  const run = { resendPath: null as string | null };
-  const deps = await makeRecordedPIRewindDeps(log, fixture, run);
+  let resendPath: string | null = null;
+  const conv = makeConversation({ file: fixture.source, after: 'e2' });
+  conv.backend = 'pi';
+  const deps = makeDeps(log, {
+    resolveBackend: () => 'pi',
+    ledger: makeLedgerDeps(log, conv),
+    transcript: transcriptCutter,
+    registerPISessionPath: (sessionId, filePath) => {
+      log.calls.push(`registerPI:${sessionId}:${filePath}`);
+      fixture.piAdapter.registerSessionPath(sessionId, filePath);
+    },
+    send: (opts) => {
+      resendPath = fixture.piAdapter.resolveSessionPath('backend-1');
+      opts.mutationRelease?.();
+    },
+  });
   try {
-    const result = await rewindWebSession(
-      { sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'edited', adapter }, deps,
-    );
-    assert.deepEqual(result, { ok: true });
-    assert.equal(readFileSync(fixture.source, 'utf8'), 'restored-context');
+    assert.deepEqual(await rewind(deps, 1, 'edited'), { ok: true });
+    assert.equal(readFileSync(fixture.source, 'utf8'), PI_LINES.slice(0, 3).join(''));
     assert.equal(readFileSync(fixture.canonical, 'utf8'), 'selector-preferred-context');
-    assert.equal(run.resendPath, fixture.source);
+    assert.equal(resendPath, fixture.source);
     assert.ok(log.calls.includes(`registerPI:backend-1:${fixture.source}`));
-    assert.ok(!log.calls.includes('findPI:canonical'));
+    assert.ok(!log.calls.some(c => c.startsWith('updateSession:')), 'the backend session is kept');
   } finally {
     rmSync(fixture.sessionDir, { recursive: true, force: true });
   }
-});
-
-test('failed PI rewind cleans every backup beside the recorded session file', async () => {
-  const log: CallLog = { calls: [] };
-  const source = '/sessions/2026-08-01_backend-1.jsonl';
-  const deps = await makeFailedPIRewindDeps(log, source);
-  const result = await rewindWebSession(
-    { sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'edited', adapter }, deps,
-  );
-  assert.deepEqual(result, { ok: true });
-  assert.ok(log.calls.includes(`cleanupAllForFile:${source}`));
-  assert.ok(!log.calls.some((call) => call.startsWith('registerPI:')));
-  assert.ok(!log.calls.includes('cleanupAll:backend-1'));
 });
 
 test('integration: real ledger + history + session registry round-trip (isolated CORTEX_HOME)', async () => {
@@ -296,6 +270,7 @@ test('integration: real ledger + history + session registry round-trip (isolated
     await conversationLedger.initAndBeginTurn(channel, {
       sessionId: sid, backend: 'claude',
       userMessageTs: `ts${i}`, userMessageText: msg, statusMessageTs: `st${i}`,
+      anchor: { file: '/projects/-w/backend-int-1.jsonl', after: `e${i}` },
     });
     await conversationHistory.appendUser(sid, { text: msg });
     await conversationHistory.appendAssistant(sid, { text: `reply-${i}` });
@@ -304,12 +279,7 @@ test('integration: real ledger + history + session registry round-trip (isolated
   const log: CallLog = { calls: [] };
   const res = await rewindWebSession(
     { sessionId: sid, channel, turnIndex: 1, text: 'second (edited)', adapter },
-    {
-      ...makeDeps(log),
-      ledger: conversationLedger,
-      history: conversationHistory,
-      sessionStore,
-    },
+    { ...makeDeps(log), ledger: conversationLedger, history: conversationHistory, sessionStore },
   );
   assert.deepEqual(res, { ok: true });
 
@@ -322,8 +292,8 @@ test('integration: real ledger + history + session registry round-trip (isolated
   assert.equal(conv!.turns.length, 1);
   assert.equal(conv!.turns[0].userMessageText, 'first');
 
-  // The edited text was re-sent; the marker carries the REAL original text.
-  assert.ok(log.calls.includes('restoreBackup:backend-int-1:1'), 'backup restored for the real backend id');
+  // The transcript was cut at the edited turn's own anchor; the edited text was re-sent.
+  assert.ok(log.calls.includes('truncate:/projects/-w/backend-int-1.jsonl:e1'));
   assert.ok(log.calls.some(c => c.startsWith('send:web:track-int-1:second (edited)')));
 
   // A resend would append the new user event — simulate it and confirm the edited marker merges.
@@ -337,27 +307,4 @@ test('missing session record → not-found', async () => {
   const log: CallLog = { calls: [] };
   const deps = makeDeps(log, { sessionStore: { getById: async () => null, updateSession: async () => {} } });
   assert.deepEqual(await rewindWebSession({ sessionId: 'ghost', channel: 'c', turnIndex: 0, text: 'x', adapter }, deps), { ok: false, reason: 'not-found' });
-});
-
-test('a clean session rewinds its transcript in its workspace\'s Claude project folder', async () => {
-  const log: CallLog = { calls: [] };
-  const cwds: Array<string | undefined> = [];
-  const backup: RewindDeps['backup'] = {
-    ...makeBackupDeps(log),
-    restoreBackup: async (_sid, _i, cwd) => { cwds.push(cwd); return true; },
-    cleanupBackupsAfter: (_sid, _i, cwd) => { cwds.push(cwd); },
-  };
-  const sessionStore: RewindDeps['sessionStore'] = {
-    ...makeSessionStoreDeps(log),
-    getById: async () => ({
-      sessionId: 'track-1', backendSessionId: 'backend-1', channel: 'web:track-1', backend: 'claude',
-      clean: true, workspaceDir: '/srv/workspaces/a1b2c3d4',
-    } as any),
-  };
-  const res = await rewindWebSession(
-    { sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'edited', adapter },
-    makeDeps(log, { backup, sessionStore }),
-  );
-  assert.deepEqual(res, { ok: true });
-  assert.deepEqual(cwds, ['/srv/workspaces/a1b2c3d4', '/srv/workspaces/a1b2c3d4']);
 });

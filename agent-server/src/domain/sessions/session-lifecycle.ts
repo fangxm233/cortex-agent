@@ -5,10 +5,8 @@ import { applyChannelSelection } from '@domain/agents/model-selection.js';
 import { setChannelSelection, setDefaultAgent, setSelectionDefaultAgent } from '@domain/agents/config.js';
 import { resolveRunSelection } from '@domain/runs/config-resolver.js';
 import type { EngineSelection } from '@domain/agents/engine-selection.js';
-import * as sessionBackup from './session-backup.js';
-import { sessionStore, type SessionOrigin } from '@store/session-registry-repo.js';
+import type { SessionOrigin } from '@store/session-registry-repo.js';
 import { shortSessionId } from '@core/short-session-id.js';
-import { sessionSpawnCwd } from '@core/paths.js';
 import { createWorkspace } from '@core/workspace.js';
 
 export interface SessionRegistryWriter {
@@ -149,13 +147,9 @@ export async function adoptScheduledSession(
   return { channel };
 }
 
-/** Clear the channel's binding, backups and conversation ledger. */
+/** Clear the channel's binding and conversation ledger. */
 export async function resetChannelSession(channel: string): Promise<void> {
   const conv = await conversationLedger.getConversation(channel);
-  if (conv) {
-    const record = await sessionStore.getById(conv.sessionId);
-    sessionBackup.cleanupAllBackups(conv.sessionId, sessionSpawnCwd(record));
-    await conversationLedger.clearConversation(channel);
-  }
+  if (conv) await conversationLedger.clearConversation(channel);
   await deleteSessionAsync(channel).catch(() => {});
 }

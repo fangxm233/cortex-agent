@@ -552,3 +552,25 @@ test('a batch append rejects the same session twice before writing anything', as
   ]), /twice/);
   assert.equal(await fileText(filePath), before);
 });
+
+test('a turn anchor survives a journal reload, and a malformed one is dropped', async () => {
+  const { filePath } = nextPaths();
+  const repo = new SessionRegistryRepo(filePath);
+  const anchor = { file: '/sessions/backend-a.jsonl', before: 'u-3' };
+  await repo.batch(async (ops) => {
+    await ops.setConversation('web:anc', { sessionId: 'anc', backend: 'claude', selection: null, updatedAt: 'T' });
+    await ops.beginTurn('web:anc', {
+      turnIndex: 0, userMessageTs: 'm0', userMessageText: 'x', statusMessageTs: null,
+      responseMessageTimestamps: [], executionId: null, backupPath: null, anchor,
+      status: 'processing', createdAt: 'T', updatedAt: 'T',
+    });
+    await ops.patchTurn('web:anc', 0, { anchor: { file: '/f' } as never });
+  });
+  const reopened = new SessionRegistryRepo(filePath);
+  const turns = (await reopened.readConversation('web:anc'))!.turns;
+  assert.equal(turns[0].anchor, undefined, 'the malformed patch replaced it');
+
+  await reopened.batch(async (ops) => { await ops.patchTurn('web:anc', 0, { anchor }); });
+  const again = new SessionRegistryRepo(filePath);
+  assert.deepEqual((await again.readConversation('web:anc'))!.turns[0].anchor, anchor);
+});

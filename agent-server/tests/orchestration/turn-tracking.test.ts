@@ -47,13 +47,8 @@ test('stale generation finish and supersession cannot affect the next turn', asy
     getSelection: () => CLAUDE_SELECTION,
     ledger: {
       initAndBeginTurn: async () => ({ turn: {} as never, turnIndex: 0 }),
-      setBackupPath: async () => {},
     },
-    backup: {
-      findPISessionFile: async () => null,
-      backupSessionFile: async () => null,
-      createBackup: async () => null,
-    },
+    anchorEnd: async () => null,
   };
   const first = await initTurnTracking(channel, 'track-1', null, 'm1', 'one', 's1', { deps });
   const secondPending = initTurnTracking(channel, 'track-1', null, 'm2', 'two', 's2', { deps });
@@ -70,32 +65,22 @@ test('stale generation finish and supersession cannot affect the next turn', asy
   assert.equal(isTurnTrackingPending(channel), false);
 });
 
-test('idle user acceptance publishes after snapshot completion and before backend start', async () => {
+test('idle user acceptance publishes after the turn anchor is recorded and before backend start', async () => {
   const order: string[] = [];
-  const copy = deferred<string | null>();
+  const anchorRead = deferred<{ file: string; after: string } | null>();
   const deps = {
     getSelection: () => PI_SELECTION,
     ledger: {
-      initAndBeginTurn: async () => {
-        order.push('ledger');
+      initAndBeginTurn: async (_channel: string, opts: { anchor?: unknown }) => {
+        order.push(`ledger:${JSON.stringify(opts.anchor)}`);
         return { turn: {} as never, turnIndex: 7 };
       },
-      setBackupPath: async (_channel: string, _messageId: string, backupPath: string | null) => {
-        order.push(`backup-path:${backupPath}`);
-      },
     },
-    backup: {
-      findPISessionFile: async (sessionId: string) => {
-        order.push(`find:${sessionId}`);
-        return '/sessions/target.jsonl';
-      },
-      backupSessionFile: async (filePath: string, turnIndex: number) => {
-        order.push(`copy-start:${filePath}:${turnIndex}`);
-        const result = await copy.promise;
-        order.push('copy-end');
-        return result;
-      },
-      createBackup: async () => null,
+    anchorEnd: async (backend: string, backendSessionId: string) => {
+      order.push(`anchor-start:${backend}:${backendSessionId}`);
+      const anchor = await anchorRead.promise;
+      order.push('anchor-end');
+      return anchor;
     },
   };
 
@@ -111,16 +96,15 @@ test('idle user acceptance publishes after snapshot completion and before backen
   );
   void tracking.then(() => { settled = true; });
 
-  for (let step = 0; step < 10 && !order.some((item) => item.startsWith('copy-start:')); step++) {
+  for (let step = 0; step < 10 && !order.some((item) => item.startsWith('anchor-start:')); step++) {
     await Promise.resolve();
   }
   assert.equal(isTurnTrackingPending('web:track-1'), true);
-  assert.equal(settled, false, 'turn tracking remains behind the incomplete snapshot');
-  assert.ok(order.includes('copy-start:/sessions/target.jsonl:7'));
-  assert.ok(!order.includes('accepted'), 'acceptance cannot expose a rewindable turn before its snapshot');
+  assert.equal(settled, false, 'turn tracking remains behind the unread anchor');
+  assert.ok(!order.includes('accepted'), 'acceptance cannot expose a rewindable turn before its anchor');
   markPendingTurnSuperseded('web:track-1');
 
-  copy.resolve('/sessions/target.jsonl.turn-7.bak');
+  anchorRead.resolve({ file: '/sessions/target.jsonl', after: 'e9' });
   const token = await tracking;
   assert.equal(typeof token, 'symbol');
   assert.equal(consumePendingTurnSupersession('web:track-1', token), true);
@@ -131,12 +115,23 @@ test('idle user acceptance publishes after snapshot completion and before backen
   order.push('backend-start');
 
   assert.deepEqual(order, [
-    'ledger',
-    'find:backend-1',
-    'copy-start:/sessions/target.jsonl:7',
-    'copy-end',
-    'backup-path:/sessions/target.jsonl.turn-7.bak',
+    'anchor-start:pi:backend-1',
+    'anchor-end',
+    'ledger:{"file":"/sessions/target.jsonl","after":"e9"}',
     'accepted',
     'backend-start',
   ]);
+});
+
+test('a Claude turn anchors in the transcript under the session\'s spawn cwd', async () => {
+  const calls: string[] = [];
+  const deps = {
+    getSelection: () => CLAUDE_SELECTION,
+    ledger: { initAndBeginTurn: async () => ({ turn: {} as never, turnIndex: 1 }) },
+    anchorEnd: async (backend: string, id: string, cwd?: string) => { calls.push(`${backend}:${id}:${cwd}`); return null; },
+    spawnCwd: async () => '/srv/workspaces/w1',
+  };
+  const token = await initTurnTracking('web:track-2', 'track-2', 'backend-2', 'm', 'hi', 's', { deps });
+  finishTurnTracking('web:track-2', token);
+  assert.deepEqual(calls, ['claude:backend-2:/srv/workspaces/w1']);
 });

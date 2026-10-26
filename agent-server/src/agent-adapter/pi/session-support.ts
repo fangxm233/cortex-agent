@@ -1,5 +1,6 @@
 import { createLogger } from '@core/log.js';
 import type { AgentResult } from '@core/types/agent-types.js';
+import type { TranscriptPosition } from '@core/types/transcript-anchor.js';
 import type { InjectionAckSink, UserMessage } from '../types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import { buildPrompt } from '../normalize/prompt-builder.js';
@@ -94,10 +95,11 @@ export class PISteeringQueue {
     return true;
   }
 
-  consumeNext(): void {
+  /** The next pending message reached PI; `position` is where it lands in the transcript. */
+  consumeNext(position?: TranscriptPosition): void {
     this.drainRejected();
     const entry = this.pending.shift();
-    if (entry) this.notifyDelivered(entry);
+    if (entry) this.notifyDelivered(entry, position);
     this.drainRejected();
   }
 
@@ -112,9 +114,9 @@ export class PISteeringQueue {
     }
   }
 
-  private notifyDelivered(entry: PendingPiInjection): void {
+  private notifyDelivered(entry: PendingPiInjection, position?: TranscriptPosition): void {
     try {
-      this.sink?.onDelivered({ text: entry.text, foldedIntoTurn: true });
+      this.sink?.onDelivered({ text: entry.text, foldedIntoTurn: true, ...(position ? { position } : {}) });
     } catch (err) {
       log.warn(`PI injection delivery sink failed: ${(err as Error).message}`);
     }

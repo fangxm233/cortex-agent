@@ -3,6 +3,7 @@ import type { NormalizedEvent, ToolUseSubagent } from './normalize/event-types.j
 import type { AwaitBackground } from './continuation-phase.js';
 import type { RunEvent } from './run-events.js';
 import type { AgentResult, ContextUsage, ToolResultImage } from '@core/types/agent-types.js';
+import type { TranscriptPosition } from '@core/types/transcript-anchor.js';
 import type { EngineSelection } from '@domain/agents/engine-selection.js';
 
 // Re-exported so every `import { Backend } from '.../agent-adapter/types.js'` keeps working;
@@ -201,8 +202,9 @@ export interface BackgroundTurnSink {
  * or a spontaneous background turn must carry it (`false`).
  */
 export interface InjectionAckSink {
-  /** Fired once per injected message, when the backend reports having consumed it. */
-  onDelivered: (message: { text: string; foldedIntoTurn: boolean }) => void;
+  /** Fired once per injected message, when the backend reports having consumed it. `position` is
+   *  where the message lands in the backend transcript, when the backend can tell. */
+  onDelivered: (message: { text: string; foldedIntoTurn: boolean; position?: TranscriptPosition }) => void;
   /** Optional terminal edge for a message accepted by Cortex but never consumed by the backend. */
   onUndelivered?: (message: { text: string }) => void;
 }

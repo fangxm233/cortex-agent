@@ -9,7 +9,7 @@ import { ConversationLedgerRepo } from '../../../src/store/conversation-ledger-r
 import { ConversationHistoryRepo } from '../../../src/store/conversation-history-repo.js';
 import { RetentionCandidateRepo } from '../../../src/store/retention-candidate-repo.js';
 import { runSessionRetentionSweep } from '../../../src/domain/sessions/session-retention.js';
-import { getProjectDir } from '../../../src/domain/sessions/session-backup.js';
+import { getProjectDir } from '../../../src/domain/sessions/session-transcript.js';
 import { SessionTotalsCarryRepo } from '../../../src/store/session-totals-repo.js';
 import { buildSessionRetentionLiveness } from '../../../src/orchestration/session-retention-liveness.js';
 import { WaitpointRepo } from '../../../src/store/waitpoint-repo.js';
@@ -67,12 +67,11 @@ test('retention sweep retries pending intents, does not commit failed cleanup, t
     sessionId: 'track-old', backend: 'claude',
   });
   await h.history.appendUser('track-old', { text: 'old' });
-  await h.ledger.beginTurn('web:track-old', {
-    userMessageTs: 'M1', userMessageText: 'old',
-  });
   const backupPath = path.join(h.claudeProjectDir, 'backend-old.jsonl.turn-0.bak');
   await fs.writeFile(backupPath, 'backup\n');
-  await h.ledger.setBackupPath('web:track-old', 'M1', backupPath);
+  await h.ledger.beginTurn('web:track-old', {
+    userMessageTs: 'M1', userMessageText: 'old', backupPath,
+  });
 
   let failHistory = true;
   const first = await runSessionRetentionSweep({
@@ -148,12 +147,11 @@ test('retention deletes a clean session\'s backups from its workspace project fo
   }));
   await h.registry.updateSession('track-clean', { lastUsedAt: '2020-01-01T00:00:00.000Z' });
   await h.ledger.initConversation('web:track-clean', { sessionId: 'track-clean', backend: 'claude' });
-  await h.ledger.beginTurn('web:track-clean', { userMessageTs: 'M1', userMessageText: 'old' });
   const projectDir = getProjectDir(workspace);
   await fs.mkdir(projectDir, { recursive: true });
   const backupPath = path.join(projectDir, 'backend-clean.jsonl.turn-0.bak');
   await fs.writeFile(backupPath, 'backup\n');
-  await h.ledger.setBackupPath('web:track-clean', 'M1', backupPath);
+  await h.ledger.beginTurn('web:track-clean', { userMessageTs: 'M1', userMessageText: 'old', backupPath });
 
   const result = await runSessionRetentionSweep({
     retentionDays: 30,
@@ -182,14 +180,12 @@ test('retention sweep ignores untrusted Claude ledger backup paths outside the c
   await h.ledger.initConversation('web:track-untrusted', {
     sessionId: 'track-untrusted', backend: 'claude',
   });
-  await h.ledger.beginTurn('web:track-untrusted', { userMessageTs: 'M1', userMessageText: 'old' });
   const outside = path.join(h.root, 'outside.jsonl.turn-0.bak');
   const symlink = path.join(h.claudeProjectDir, 'backend-untrusted.jsonl.turn-1.bak');
   await fs.writeFile(outside, 'must-survive\n');
   await fs.symlink(outside, symlink);
-  await h.ledger.setBackupPath('web:track-untrusted', 'M1', outside);
-  await h.ledger.beginTurn('web:track-untrusted', { userMessageTs: 'M2', userMessageText: 'old-2' });
-  await h.ledger.setBackupPath('web:track-untrusted', 'M2', symlink);
+  await h.ledger.beginTurn('web:track-untrusted', { userMessageTs: 'M1', userMessageText: 'old', backupPath: outside });
+  await h.ledger.beginTurn('web:track-untrusted', { userMessageTs: 'M2', userMessageText: 'old-2', backupPath: symlink });
 
   const result = await runSessionRetentionSweep({
     retentionDays: 30,

@@ -352,6 +352,20 @@ test('an injection echoed during the turn is acknowledged as folded in', async (
   await promise;
 });
 
+test('an injection ack carries the echoed uuid as the transcript entry it is written as', async () => {
+  const { machine } = makeMachine();
+  const acks: unknown[] = [];
+  machine.setInjectionAckSink({ onDelivered: (m) => acks.push(m) });
+  const { promise } = startTurn(machine);
+
+  machine.injectUserMessage({ text: 'also do Y' });
+  machine.handleLine(line({ type: 'user', isReplay: true, uuid: 'u-77', message: { role: 'user', content: 'also do Y' } }));
+  assert.deepEqual(acks, [{ text: 'also do Y', foldedIntoTurn: true, position: { before: 'u-77' } }]);
+
+  machine.handleLine(result());
+  await promise;
+});
+
 test('an injection consumed after the result opens an injected-message continuation turn', async () => {
   const { machine } = makeMachine();
   const { sink, events, texts, wakes } = makeSink();

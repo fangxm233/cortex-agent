@@ -51,6 +51,7 @@ function recorder(opts: { ledgerExists?: boolean; historyExists?: boolean; recor
         return {} as any;
       },
     },
+    anchorFor: async (rec, position) => ({ file: `/t/${rec.sessionId}.jsonl`, ...position }),
     now: () => '2026-07-26T00:00:09.000Z',
   };
   return { deps, calls, removed, appended };
@@ -111,6 +112,7 @@ test('concurrent commits on one channel preserve ledger and history order', asyn
         return {};
       },
     },
+    anchorFor: async () => null,
     now: () => '2026-07-26T00:00:09.000Z',
   };
 
@@ -131,4 +133,13 @@ test('startup recovery drains every active record through the same idempotent co
   assert.equal(await recoverPendingInjections(r.deps), 2);
   assert.deepEqual(r.removed, ['pin-1', 'pin-2']);
   assert.deepEqual(r.appended.map((x) => x.sourceId), ['pin-1', 'pin-2']);
+});
+
+test('a commit with a delivery position records the anchor on the new ledger turn', async () => {
+  const r = recorder();
+  const anchors: unknown[] = [];
+  r.deps.ledger.initAndBeginTurn = async (_channel, input) => { anchors.push(input.anchor); return {}; };
+  await commitPendingInjection(record(), r.deps, { before: 'u-9' });
+  await commitPendingInjection(record('pin-2'), r.deps);
+  assert.deepEqual(anchors, [{ file: '/t/sess-1.jsonl', before: 'u-9' }, null]);
 });

@@ -98,7 +98,7 @@ import { runSessionRetentionSweep, type RetentionLivenessSnapshot } from '@domai
 import { cancelWaitpointsForSessions } from '@domain/waitpoints/service.js';
 import { pruneInboundAttachments } from '@orch/attachments-store.js';
 import { seedClaudeUserSettings, syncClaudeUserCleanupPeriodDays } from '@domain/auth/claude-user-settings.js';
-import { getProjectDir } from '@domain/sessions/session-backup.js';
+import { getProjectDir } from '@domain/sessions/session-transcript.js';
 import { initDiskMonitor } from '@domain/monitor/disk-monitor.js';
 import { startEventLoopMonitor } from '@domain/monitor/event-loop-monitor.js';
 import { loadMachinesFromFile, startMachineRegistryWatcher, setAdminNotifier as setMachineNotifier, setMachineReloadListener } from '@domain/remote/machine-registry.js';

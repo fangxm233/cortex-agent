@@ -98,8 +98,8 @@ function normalize<T>(value: T, subs: Array<[string, string]> = []): unknown {
   return walk(value);
 }
 
-// ── 5. Turn lifecycle: initAndBeginTurn → setBackupPath → addResponseTs×2 → completeTurn → 2nd turn ──
-test('golden 5: turn lifecycle records the turn verbatim (text, response ts, status, exec id, backup)', async () => {
+// ── 5. Turn lifecycle: initAndBeginTurn(anchor) → addResponseTs×2 → completeTurn → 2nd turn ──
+test('golden 5: turn lifecycle records the turn verbatim (text, response ts, status, exec id, anchor)', async () => {
   const { ledger } = freshStores();
   const channel = 'web:g5-channel';
   const userText1 = 'first user message\nwith a newline and unicode ☃ kept verbatim';
@@ -107,8 +107,8 @@ test('golden 5: turn lifecycle records the turn verbatim (text, response ts, sta
   await ledger.initAndBeginTurn(channel, {
     sessionId: 'sid-5', backend: 'claude', selection: TEST_CLAUDE_SELECTION,
     userMessageTs: 'u-msg-1', userMessageText: userText1, statusMessageTs: 'status-1',
+    anchor: { file: '/sessions/backend-5.jsonl', after: 'e-41' },
   });
-  await ledger.setBackupPath(channel, 'u-msg-1', '/backups/turn-0.bak');
   await ledger.addResponseTs(channel, 'u-msg-1', 'resp-1a');
   await ledger.addResponseTs(channel, 'u-msg-1', 'resp-1b');
   await ledger.completeTurn(channel, 'u-msg-1', { executionId: 'exec-1' });
@@ -126,7 +126,8 @@ test('golden 5: turn lifecycle records the turn verbatim (text, response ts, sta
         statusMessageTs: 'status-1',
         responseMessageTimestamps: ['resp-1a', 'resp-1b'],
         executionId: 'exec-1',
-        backupPath: '/backups/turn-0.bak',
+        backupPath: null,
+        anchor: { file: '/sessions/backend-5.jsonl', after: 'e-41' },
         status: 'completed',
         createdAt: '<ts>',
         updatedAt: '<ts>',

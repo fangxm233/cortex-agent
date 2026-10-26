@@ -211,7 +211,7 @@ test('fold-in: echo while the turn is live acks as folded, opens no continuation
   await done;
 
   assert.deepEqual(injectionEvents(events), [
-    { type: 'injection_delivered', injectionId: steered.injectionId, foldedIntoTurn: true },
+    { type: 'injection_delivered', injectionId: steered.injectionId, foldedIntoTurn: true, position: { before: 'u-1' } },
   ], 'acked as folded into the live turn');
   const results = resultEvents(events);
   assert.equal(results.length, 1, 'the already-awaited turn resolves exactly once');
@@ -239,7 +239,7 @@ test('post-result: echo after the result opens a spontaneous turn routed to the 
   f.session.handleLine(replayEcho('TEXT-INTERRUPTED'));   // NOW consumed — the CLI starts a turn of its own
   await tick();
   assert.deepEqual(injectionEvents(events), [
-    { type: 'injection_delivered', injectionId: steered.injectionId, foldedIntoTurn: false },
+    { type: 'injection_delivered', injectionId: steered.injectionId, foldedIntoTurn: false, position: { before: 'u-1' } },
   ], 'acked as a NEW turn, not folded');
 
   f.session.handleLine(ASSISTANT_TEXT);                   // spontaneous turn's reply

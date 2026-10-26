@@ -1,6 +1,7 @@
 import type {
   AgentResult, ChatNoticeLevel, ContextUsage, NoticeAction, TodoSnapshot, ToolResultImage,
 } from '@core/types/agent-types.js';
+import type { TranscriptPosition } from '@core/types/transcript-anchor.js';
 import type { NormalizedEvent, ToolUseSubagent } from './normalize/event-types.js';
 
 /** Where in the run's lifetime an event was produced.
@@ -58,7 +59,7 @@ export type RunEvent =
       type: 'dialog_request'; dialogId: string;
       kind: 'ask_user' | 'plan_approval' | 'select' | 'confirm' | 'input'; payload: unknown;
     }
-  | { type: 'injection_delivered'; injectionId: string; foldedIntoTurn: boolean }
+  | { type: 'injection_delivered'; injectionId: string; foldedIntoTurn: boolean; position?: TranscriptPosition }
   | { type: 'injection_rejected'; injectionId: string; reason: string }
   // provider/mode are optional only because PI's normalized `rate_limit` event carries neither;
   // Claude's adapter always sets both.

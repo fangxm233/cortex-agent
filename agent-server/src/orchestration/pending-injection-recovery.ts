@@ -1,7 +1,11 @@
 import type { EngineSelection } from '@domain/agents/engine-selection.js';
 import { createLogger } from '@core/log.js';
+import { sessionSpawnCwd } from '@core/paths.js';
+import type { TranscriptPosition, TurnAnchor } from '@core/types/transcript-anchor.js';
+import { transcriptFile } from '@domain/sessions/session-transcript.js';
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
+import { effectiveBackendSessionId, sessionStore } from '@store/session-registry-repo.js';
 import {
   pendingInjectionRepo,
   type PendingInjectionRecord,
@@ -34,9 +38,23 @@ export interface PendingInjectionCommitDeps {
       userMessageTs: string;
       userMessageText: string;
       statusMessageTs: string;
+      anchor?: TurnAnchor | null;
     }): Promise<unknown>;
   };
+  /** The anchor at `position` in the transcript the record's session currently writes. */
+  anchorFor(record: PendingInjectionRecord, position: TranscriptPosition): Promise<TurnAnchor | null>;
   now: () => string;
+}
+
+async function currentTranscriptAnchor(
+  record: PendingInjectionRecord,
+  position: TranscriptPosition,
+): Promise<TurnAnchor | null> {
+  const session = await sessionStore.getById(record.sessionId);
+  const backendSessionId = session ? effectiveBackendSessionId(session) : null;
+  if (!backendSessionId) return null;
+  const file = await transcriptFile(record.backend, backendSessionId, sessionSpawnCwd(session));
+  return file ? { file, ...position } : null;
 }
 
 export const productionPendingInjectionDeps: PendingInjectionCommitDeps = {
@@ -52,14 +70,17 @@ export const productionPendingInjectionDeps: PendingInjectionCommitDeps = {
     findTurn: (channel, messageId) => conversationLedger.findTurn(channel, messageId),
     initAndBeginTurn: (channel, opts) => conversationLedger.initAndBeginTurn(channel, opts),
   },
+  anchorFor: currentTranscriptAnchor,
   now: () => new Date().toISOString(),
 };
 
 async function ensureLedgerTurn(
   record: PendingInjectionRecord,
   deps: PendingInjectionCommitDeps,
+  position: TranscriptPosition | undefined,
 ): Promise<void> {
   if (await deps.ledger.findTurn(record.channel, record.messageId)) return;
+  const anchor = position ? await deps.anchorFor(record, position) : null;
   await deps.ledger.initAndBeginTurn(record.channel, {
     sessionId: record.sessionId,
     backend: record.backend,
@@ -67,6 +88,7 @@ async function ensureLedgerTurn(
     userMessageTs: record.messageId,
     userMessageText: record.text,
     statusMessageTs: '',
+    anchor,
   });
 }
 
@@ -110,19 +132,23 @@ async function runCommitSerialized<T>(channel: string, operation: () => Promise<
 async function commitPendingInjectionOnce(
   record: PendingInjectionRecord,
   deps: PendingInjectionCommitDeps,
+  position: TranscriptPosition | undefined,
 ): Promise<{ committedTs: string }> {
   const committedTs = deps.now();
-  await ensureLedgerTurn(record, deps);
+  await ensureLedgerTurn(record, deps, position);
   await ensureHistoryRow(record, committedTs, deps);
   await deps.pendingRepo.remove(record.id);
   return { committedTs };
 }
 
+/** Commit an injected message into history and the ledger. `position` is where the backend wrote
+ *  it in its transcript, when the delivery ack said; it becomes the turn's anchor. */
 export function commitPendingInjection(
   record: PendingInjectionRecord,
   deps: PendingInjectionCommitDeps = productionPendingInjectionDeps,
+  position?: TranscriptPosition,
 ): Promise<{ committedTs: string }> {
-  return runCommitSerialized(record.channel, () => commitPendingInjectionOnce(record, deps));
+  return runCommitSerialized(record.channel, () => commitPendingInjectionOnce(record, deps, position));
 }
 
 export async function recoverPendingInjections(

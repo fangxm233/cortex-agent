@@ -186,6 +186,25 @@ test('opening user event is ignored, then steering messages ack FIFO including d
   await run.result;
 });
 
+test('a steering ack carries the transcript leaf the message lands after', async (t) => {
+  const fixture = openEngine();
+  t.onTestFinished(() => fixture.engine.close());
+  const { run, runtime, events } = await openTurn(fixture);
+  runtime.emit({ type: 'agent_start' });
+
+  fixture.engine.steer({ text: 'and this' }, 'inj-pos-1');
+  runtime.leafId = 'e-opening';
+  runtime.emitUserMessage('opening');
+  runtime.leafId = 'e-tool-result';
+  runtime.emitUserMessage('and this');
+  await tick();
+  assert.deepEqual(injectionAcks(events), [
+    { type: 'injection_delivered', injectionId: 'inj-pos-1', foldedIntoTurn: true, position: { after: 'e-tool-result' } },
+  ]);
+  settleRun(runtime, 0.01);
+  await run.result;
+});
+
 test('a later rejected duplicate waits for the earlier duplicate delivery before sealing FIFO', async (t) => {
   const fixture = openEngine();
   t.onTestFinished(() => fixture.engine.close());

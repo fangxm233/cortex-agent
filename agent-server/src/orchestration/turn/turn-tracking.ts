@@ -1,7 +1,8 @@
 import type { TurnMutationRelease } from '../turn-mutation-lock.js';
 import { acquireTurnMutationLock } from '../turn-mutation-lock.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
-import * as sessionBackup from '@domain/sessions/session-backup.js';
+import { anchorTranscriptEnd } from '@domain/sessions/session-transcript.js';
+import type { TurnAnchor } from '@core/types/transcript-anchor.js';
 import { resolveRunSelection } from '@domain/runs/config-resolver.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { sessionSpawnCwd } from '@core/paths.js';
@@ -9,8 +10,9 @@ import type { EngineSelection } from '@domain/agents/engine-selection.js';
 
 interface TurnTrackingDeps {
   getSelection(channel: string, sessionId: string | null): EngineSelection | Promise<EngineSelection>;
-  ledger: Pick<typeof conversationLedger, 'initAndBeginTurn' | 'setBackupPath'>;
-  backup: Pick<typeof sessionBackup, 'findPISessionFile' | 'backupSessionFile' | 'createBackup'>;
+  ledger: Pick<typeof conversationLedger, 'initAndBeginTurn'>;
+  /** Where the backend session's transcript currently ends; null when it has none yet. */
+  anchorEnd(backend: string, backendSessionId: string, cwd?: string): Promise<TurnAnchor | null>;
   /** Where the session's backend runs, which is where its Claude transcript is. Absent: the default cwd. */
   spawnCwd?(sessionId: string | null): Promise<string>;
 }
@@ -26,24 +28,20 @@ const defaultTurnTrackingDeps: TurnTrackingDeps = {
     channel, session: sessionId ? await sessionStore.getById(sessionId) : null,
   }),
   ledger: conversationLedger,
-  backup: sessionBackup,
+  anchorEnd: anchorTranscriptEnd,
   spawnCwd: async (sessionId) => sessionSpawnCwd(sessionId ? await sessionStore.getById(sessionId) : null),
 };
 
-async function snapshotTurn(
+/** The turn starts where the transcript ends now: no run is writing it while the turn begins. */
+async function anchorTurn(
   deps: TurnTrackingDeps,
   backend: string,
   ids: { trackSessionId: string | null; backendSessionId: string | null },
-  turnIndex: number,
-): Promise<string | null> {
+): Promise<TurnAnchor | null> {
   const { backendSessionId } = ids;
   if (!backendSessionId) return null;
-  if (backend !== 'pi') {
-    const cwd = await deps.spawnCwd?.(ids.trackSessionId);
-    return deps.backup.createBackup(backendSessionId, turnIndex, cwd);
-  }
-  const piFile = await deps.backup.findPISessionFile(backendSessionId);
-  return piFile ? deps.backup.backupSessionFile(piFile, turnIndex) : null;
+  const cwd = backend === 'pi' ? undefined : await deps.spawnCwd?.(ids.trackSessionId);
+  return deps.anchorEnd(backend, backendSessionId, cwd);
 }
 
 interface TurnTrackingArgs {
@@ -107,13 +105,12 @@ async function runTurnTracking(
     const deps = options.deps ?? defaultTurnTrackingDeps;
     const selection = await deps.getSelection(args.channel, args.trackSessionId);
     const backend = selection.backend;
-    const { turnIndex } = await deps.ledger.initAndBeginTurn(args.channel, {
+    const anchor = await anchorTurn(deps, backend, args);
+    await deps.ledger.initAndBeginTurn(args.channel, {
       sessionId: args.trackSessionId || null, backend,
       selection, userMessageTs: args.userMessageTs,
-      userMessageText: args.userMessageText || '', statusMessageTs: args.statusMessageTs,
+      userMessageText: args.userMessageText || '', statusMessageTs: args.statusMessageTs, anchor,
     });
-    const backupPath = await snapshotTurn(deps, backend, args, turnIndex);
-    if (backupPath) await deps.ledger.setBackupPath(args.channel, args.userMessageTs, backupPath);
     options.onAccepted?.();
     const state = turnTrackingByToken.get(token);
     if (state) state.release = release;

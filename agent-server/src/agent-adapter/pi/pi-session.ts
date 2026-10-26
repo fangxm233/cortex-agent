@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import type { AgentResult } from '@core/types/agent-types.js';
+import type { TranscriptPosition } from '@core/types/transcript-anchor.js';
 import type { CodexQuotaReading } from '@core/codex-quota.js';
 import type { PiSubagentBridge } from './subagent-bridge.js';
 import type { OpenBundledMcpServer } from './mcp-bridge.js';
@@ -387,7 +388,14 @@ export class PISession {
     if (event.type !== 'message_start' || !isUserStart(event['message'])) return;
     const turn = this.pendingTurn;
     if (turn && !turn.openingUserSeen) turn.openingUserSeen = true;
-    else if (turn) this.steering.consumeNext();
+    else if (turn) this.steering.consumeNext(this.leafPosition());
+  }
+
+  /** A steering message starting now lands right after the transcript's current leaf: PI persists a
+   *  message on its `message_end`, so the leaf is still the entry before it. */
+  private leafPosition(): TranscriptPosition | undefined {
+    const leaf = this.handle?.session.sessionManager?.getLeafId();
+    return leaf ? { after: leaf } : undefined;
   }
 
   private handleProviderQuota(reading: CodexQuotaReading): void {

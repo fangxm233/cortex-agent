@@ -735,7 +735,7 @@ export function buildInjectDeps(sessionId: string | null, adapter: PlatformAdapt
     publishDelivered: publishSessionMessageDelivered,
     publishStatus: publishSessionStatus,
     persistPending: (record) => pendingInjectionRepo.add(record),
-    commitPending: (record) => commitPendingInjection(record),
+    commitPending: (record, position) => commitPendingInjection(record, undefined, position),
     markPending: (record) => adapter.markQueued({ conduit: record.channel, messageId: record.messageId }),
     unmarkPending: (record) => adapter.unmarkQueued({ conduit: record.channel, messageId: record.messageId }),
     track: trackPendingTask,

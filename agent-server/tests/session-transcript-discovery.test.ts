@@ -1,15 +1,13 @@
 import { beforeEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import {
-  existsSync,
   mkdirSync,
-  readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
 import * as path from 'node:path';
 
-const ioProbe = vi.hoisted(() => ({ jsonlReads: 0, syncCopies: 0 }));
+const ioProbe = vi.hoisted(() => ({ jsonlReads: 0 }));
 
 vi.mock('fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('fs')>();
@@ -24,17 +22,10 @@ vi.mock('fs', async (importOriginal) => {
       }
       return (actual.readFileSync as (...inner: unknown[]) => unknown)(...args);
     },
-    copyFileSync: (...args: unknown[]) => {
-      ioProbe.syncCopies++;
-      return (actual.copyFileSync as (...inner: unknown[]) => unknown)(...args);
-    },
   };
 });
 
-const {
-  backupSessionFile,
-  findPISessionFile,
-} = await import('../src/domain/sessions/session-backup.js');
+const { findPISessionFile } = await import('../src/domain/sessions/session-transcript.js');
 
 const sessionDir = path.join(process.env.CORTEX_HOME!, 'logs', 'sessions-pi');
 
@@ -42,7 +33,6 @@ beforeEach(() => {
   rmSync(sessionDir, { recursive: true, force: true });
   mkdirSync(sessionDir, { recursive: true });
   ioProbe.jsonlReads = 0;
-  ioProbe.syncCopies = 0;
 });
 
 function writeDecoys(count: number): void {
@@ -52,7 +42,7 @@ function writeDecoys(count: number): void {
   }
 }
 
-test('PI lookup ignores hundreds of unrelated bodies and backs up the exact filename match', async () => {
+test('PI lookup ignores hundreds of unrelated bodies and finds the exact filename match', async () => {
   writeDecoys(240);
   const sessionId = '01234567-89ab-7cde-8fab-0123456789ab';
   const target = path.join(sessionDir, `2026-08-01T01-02-03Z_${sessionId}.jsonl`);
@@ -62,12 +52,6 @@ test('PI lookup ignores hundreds of unrelated bodies and backs up the exact file
   const found = await findPISessionFile(sessionId);
   assert.equal(found, target);
   assert.equal(ioProbe.jsonlReads, 0, 'filename lookup must not open target or decoy transcript bodies');
-
-  const backup = await backupSessionFile(found!, 4);
-  assert.equal(backup, `${target}.turn-4.bak`);
-  assert.equal(readFileSync(backup!, 'utf8'), content);
-  assert.equal(ioProbe.syncCopies, 0, 'turn backup must not use copyFileSync');
-  assert.ok(existsSync(target), 'source transcript remains intact');
 });
 
 test('PI lookup deterministically prefers the canonical direct-id filename', async () => {

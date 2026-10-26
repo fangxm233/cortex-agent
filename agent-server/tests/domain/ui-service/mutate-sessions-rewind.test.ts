@@ -6,7 +6,7 @@ import type { Session } from '../../../src/store/session-registry-repo.js';
 
 interface RewindCall { sessionId: string; channel: string; turnIndex: number; text: string }
 
-function makeDeps(session: Session | null, sink: RewindCall[], outcome: { ok: true } | { ok: false; reason: 'running' | 'not-found' } = { ok: true }): UiServiceDeps {
+function makeDeps(session: Session | null, sink: RewindCall[], outcome: { ok: true } | { ok: false; reason: 'running' | 'not-found' | 'no-restore-point' } = { ok: true }): UiServiceDeps {
   return {
     sessionStore: { listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => session },
     rewindSession: async (opts: RewindCall) => { sink.push(opts); return outcome; },
@@ -54,4 +54,14 @@ test('sessions.rewind maps an unknown turn to not-found', async () => {
   const res = await handleRewindSession(makeDeps(session('web:sess-1'), sink, { ok: false, reason: 'not-found' }), { sessionId: 'sess-1', turnIndex: 99, text: 'edited' });
   assert.equal(res.ok, false);
   if (!res.ok) assert.equal(res.code, 'not-found');
+});
+
+test('sessions.rewind maps a turn without a restore point to not-available with a reason', async () => {
+  const sink: RewindCall[] = [];
+  const res = await handleRewindSession(makeDeps(session('web:sess-1'), sink, { ok: false, reason: 'no-restore-point' }), { sessionId: 'sess-1', turnIndex: 4, text: 'edited' });
+  assert.equal(res.ok, false);
+  if (!res.ok) {
+    assert.equal(res.code, 'not-available');
+    assert.ok(res.message.length > 0);
+  }
 });

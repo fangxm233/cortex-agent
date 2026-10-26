@@ -11,7 +11,7 @@ import {
   resolveBackendForChannel,
 } from '../../src/domain/agents/config.js';
 import { resolveRunBackend } from '../../src/domain/runs/config-resolver.js';
-import * as sessionBackup from '../../src/domain/sessions/session-backup.js';
+import { getSessionFilePath } from '../../src/domain/sessions/session-transcript.js';
 import { sessionStore } from '../../src/store/session-registry-repo.js';
 import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'fs';
 import * as path from 'path';
@@ -52,10 +52,12 @@ function freshChannel(): string {
   return `edit-handler-test-${Date.now()}-${++_seq}`;
 }
 
+/** `anchorFile`: every turn i ≥ 1 is anchored after entry `e${i}` of that transcript. */
 async function seedConversationWithTurns(channel: string, opts: {
   sessionId: string;
   backend: string;
   turnCount: number;
+  anchorFile?: string;
 }): Promise<void> {
   for (let i = 0; i < opts.turnCount; i++) {
     await conversationLedger.initAndBeginTurn(channel, {
@@ -64,6 +66,7 @@ async function seedConversationWithTurns(channel: string, opts: {
       userMessageTs: `M${i}`,
       userMessageText: `message ${i}`,
       statusMessageTs: `S${i}`,
+      anchor: opts.anchorFile && i > 0 ? { file: opts.anchorFile, after: `e${i}` } : null,
     });
     await conversationLedger.completeTurn(channel, `M${i}`);
   }
@@ -73,6 +76,11 @@ async function clearLedgerEntry(channel: string): Promise<void> {
   await conversationLedger.clearConversation(channel);
 }
 
+/** A transcript holding entries e0..e{count-1}, one per line. */
+function transcriptLines(count: number): string[] {
+  return Array.from({ length: count }, (_, i) => `${JSON.stringify({ type: 'message', id: `e${i}` })}\n`);
+}
+
 interface PIEditFixture {
   channel: string;
   sessionId: string;
@@ -80,7 +88,6 @@ interface PIEditFixture {
   piDir: string;
   recordedFile: string;
   canonicalFile: string;
-  backupPath: string;
 }
 
 interface PIEditRun {
@@ -89,25 +96,24 @@ interface PIEditRun {
   resendPath: string | null;
 }
 
-async function stagePIEditFixture(withBackup: boolean): Promise<PIEditFixture> {
+async function stagePIEditFixture(anchored: boolean): Promise<PIEditFixture> {
   const stamp = Date.now();
   const channel = freshChannel();
   const sessionId = `track-pi-recorded-${stamp}`;
   const backendSessionId = `01234567-89ab-7cde-8fab-${stamp.toString(16).padStart(12, '0')}`;
-  await seedConversationWithTurns(channel, { sessionId, backend: 'pi', turnCount: 2 });
-  await sessionStore.registerSession({
-    sessionId, backendSessionId, channel, backend: 'pi', kind: 'local',
-  });
   const piDir = path.join(DATA_DIR, 'logs', 'sessions-pi');
   const recordedFile = path.join(piDir, `2026-08-01T00-00-00Z_${backendSessionId}.jsonl`);
   const canonicalFile = path.join(piDir, `${backendSessionId}.jsonl`);
-  const backupPath = `${recordedFile}.turn-1.bak`;
+  await seedConversationWithTurns(channel, {
+    sessionId, backend: 'pi', turnCount: 2, ...(anchored ? { anchorFile: recordedFile } : {}),
+  });
+  await sessionStore.registerSession({
+    sessionId, backendSessionId, channel, backend: 'pi', kind: 'local',
+  });
   mkdirSync(piDir, { recursive: true });
-  writeFileSync(recordedFile, 'after-turn', 'utf8');
+  writeFileSync(recordedFile, transcriptLines(4).join(''), 'utf8');
   writeFileSync(canonicalFile, 'new-canonical', 'utf8');
-  if (withBackup) writeFileSync(backupPath, 'before-turn', 'utf8');
-  await conversationLedger.setBackupPath(channel, 'M1', backupPath);
-  return { channel, sessionId, backendSessionId, piDir, recordedFile, canonicalFile, backupPath };
+  return { channel, sessionId, backendSessionId, piDir, recordedFile, canonicalFile };
 }
 
 function buildPIEditHandler(fixture: PIEditFixture, run: PIEditRun) {
@@ -126,22 +132,22 @@ function buildPIEditHandler(fixture: PIEditFixture, run: PIEditRun) {
   });
 }
 
-async function runPIEditFixture(fixture: PIEditFixture): Promise<PIEditRun> {
+async function runPIEditFixture(fixture: PIEditFixture, adapter = new MockAdapter()): Promise<PIEditRun> {
   const run: PIEditRun = { reprocessCalls: [], registerCalls: [], resendPath: null };
   const handler = buildPIEditHandler(fixture, run);
   vi.useFakeTimers();
   await handler({
     originalRef: { conduit: fixture.channel, messageId: 'M1', threadId: null },
     newText: 'edited PI turn',
-  } as any, new MockAdapter() as any);
+  } as any, adapter as any);
   await fireDebounce();
-  await waitFor(() => run.reprocessCalls.length === 1);
+  await waitFor(() => run.reprocessCalls.length === 1 || adapter.posted.length > 0);
   return run;
 }
 
 async function cleanupPIEditFixture(fixture: PIEditFixture): Promise<void> {
   await clearLedgerEntry(fixture.channel);
-  for (const file of [fixture.recordedFile, fixture.canonicalFile, fixture.backupPath]) {
+  for (const file of [fixture.recordedFile, fixture.canonicalFile]) {
     try { rmSync(file, { force: true }); } catch {}
   }
 }
@@ -174,20 +180,14 @@ test('Bug 1: edit restores the backend id then invokes closePooledSession', asyn
   const channel = freshChannel();
   const sessionId = `track-${Date.now()}-test`;
   const backendSessionId = `claude-${Date.now()}-backend`;
-  await seedConversationWithTurns(channel, { sessionId, backend: 'claude', turnCount: 3 });
+  // The ledger stores the stable tracking id, while the transcript is named by the backend id.
+  const jsonlPath = getSessionFilePath(backendSessionId);
+  await seedConversationWithTurns(channel, { sessionId, backend: 'claude', turnCount: 3, anchorFile: jsonlPath });
   await sessionStore.registerSession({
     sessionId, backendSessionId, channel, backend: 'claude', kind: 'local',
   });
-
-  // The ledger stores the stable tracking id, while transcript backups use the backend id.
-  const jsonlPath = sessionBackup.getSessionFilePath(backendSessionId);
-
-  // Stage the JSONL + turn-1 backup so restoreBackup() succeeds. closePooledSession
-  // is called regardless of restore outcome (Step 4.5 runs after restore branch), but
-  // staging keeps the test exercising the success path end-to-end.
   mkdirSync(path.dirname(jsonlPath), { recursive: true });
-  writeFileSync(jsonlPath, '{"type":"summary"}\n', 'utf8');
-  writeFileSync(`${jsonlPath}.turn-1.bak`, '{"type":"summary"}\n', 'utf8');
+  writeFileSync(jsonlPath, transcriptLines(4).join(''), 'utf8');
 
   const closeCalls: Array<{ channel: string; backend: string }> = [];
   const reprocessCalls: any[] = [];
@@ -215,31 +215,25 @@ test('Bug 1: edit restores the backend id then invokes closePooledSession', asyn
     assert.equal(closeCalls[0].backend, 'claude');
     assert.equal(reprocessCalls.length, 1, 'reprocessMessage must run after close');
     assert.equal(reprocessCalls[0].opts.sessionId, sessionId, 'stable tracking id is preserved after backend restore');
+    assert.equal(readFileSync(jsonlPath, 'utf8'), transcriptLines(2).join(''), 'cut back to turn 1\'s anchor');
   } finally {
     await clearLedgerEntry(channel);
     try { rmSync(jsonlPath, { force: true }); } catch {}
-    try { rmSync(`${jsonlPath}.turn-1.bak`, { force: true }); } catch {}
   }
 });
 
 test('Bug 2: edit on conversation with PI channel selection routes through PI restore branch', async () => {
   const channel = freshChannel();
   const sessionId = `019de999-0000-7000-8000-${Date.now().toString(16).padStart(12, '0')}`;
+  // Without a session record the conversation's own id is the backend session id.
+  const piDir = path.join(os.tmpdir(), `cortex-test-pi-${Date.now()}`);
+  const transcript = path.join(piDir, `${sessionId}.jsonl`);
+  mkdirSync(piDir, { recursive: true });
+  writeFileSync(transcript, transcriptLines(4).join(''), 'utf8');
   // Conversation was initialized when global backend was 'claude' (bug scenario).
-  await seedConversationWithTurns(channel, { sessionId, backend: 'claude', turnCount: 3 });
+  await seedConversationWithTurns(channel, { sessionId, backend: 'claude', turnCount: 3, anchorFile: transcript });
   // The channel's selected backend is PI.
   setChannelSelection(channel, PI_SELECTION);
-
-  // Stage a PI session file + turn-1 backup so the PI restore branch returns true.
-  const piDir = path.join(os.tmpdir(), `cortex-test-pi-${Date.now()}`);
-  mkdirSync(piDir, { recursive: true });
-  // Reuse real PI sessions dir convention — write a header that findPISessionFile can match.
-  // We can't easily redirect PI_SESSIONS_DIR from here, so we accept that restore may report
-  // "Backup not found" but the LOG MESSAGE format will reveal which branch ran.
-  // The decisive test: after the fix, useSessionId should remain non-null when restore succeeds,
-  // OR fall back gracefully. We assert the BRANCH was the PI one, by checking that
-  // closePooledSession was invoked with backend='pi' (which only happens when the resolved
-  // backend is 'pi').
 
   const closeCalls: Array<{ channel: string; backend: string }> = [];
   const reprocessCalls: any[] = [];
@@ -271,25 +265,31 @@ test('Bug 2: edit on conversation with PI channel selection routes through PI re
   }
 });
 
-test('PI edit restores the ledger backup when filename preference changes after snapshot', async () => {
+test('PI edit cuts the anchored transcript even when a canonical duplicate exists', async () => {
   const fixture = await stagePIEditFixture(true);
   try {
     const run = await runPIEditFixture(fixture);
-    assert.equal(readFileSync(fixture.recordedFile, 'utf8'), 'before-turn');
+    assert.equal(readFileSync(fixture.recordedFile, 'utf8'), transcriptLines(2).join(''));
     assert.equal(readFileSync(fixture.canonicalFile, 'utf8'), 'new-canonical');
-    assert.equal(run.resendPath, fixture.recordedFile, 'retry resumes the exact restored transcript');
+    assert.equal(run.resendPath, fixture.recordedFile, 'retry resumes the exact cut transcript');
     assert.equal(run.reprocessCalls[0].opts.sessionId, fixture.sessionId);
   } finally {
     await cleanupPIEditFixture(fixture);
   }
 });
 
-test('PI edit with a missing recorded backup skips registration and retries fresh', async () => {
+test('PI edit of a turn without an anchor is refused with a notice and changes nothing', async () => {
   const fixture = await stagePIEditFixture(false);
+  const adapter = new MockAdapter();
   try {
-    const run = await runPIEditFixture(fixture);
+    const run = await runPIEditFixture(fixture, adapter);
+    assert.deepEqual(run.reprocessCalls, []);
     assert.deepEqual(run.registerCalls, []);
-    assert.equal(run.reprocessCalls[0].opts.sessionId, null);
+    assert.equal(adapter.posted.length, 1);
+    assert.match(adapter.posted[0].content.text ?? '', /restore|恢复/);
+    const turns = (await conversationLedger.getConversation(fixture.channel))!.turns;
+    assert.deepEqual(turns.map((t) => t.status), ['completed', 'completed'], 'the ledger was not rolled back');
+    assert.equal(readFileSync(fixture.recordedFile, 'utf8'), transcriptLines(4).join(''));
   } finally {
     await cleanupPIEditFixture(fixture);
   }

@@ -89,8 +89,9 @@ export class EngineInjections {
       else run.queue.push(event);
     };
     return {
-      onDelivered: ({ text, foldedIntoTurn }) => deliver({
+      onDelivered: ({ text, foldedIntoTurn, position }) => deliver({
         type: 'injection_delivered', injectionId: this.ackedId(run, text), foldedIntoTurn,
+        ...(position ? { position } : {}),
       }),
       onUndelivered: ({ text }) => deliver({
         type: 'injection_rejected', injectionId: this.ackedId(run, text), reason: 'undelivered',
