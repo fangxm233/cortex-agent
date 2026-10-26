@@ -175,4 +175,16 @@ describe('default project draft', () => {
     expect(api().selectedSessionId).toBe('created');
     expect(api().pendingCreatedSession).toBeNull();
   });
+
+  it('carries a clean draft into the created session and starts the next draft off', () => {
+    const api = mount();
+    act(() => api().setDraftSelection({ clean: true }));
+    expect(api().draftSelection.clean).toBe(true);
+    act(() => api().selectCreatedSession('created'));
+    expect(api().pendingCreatedSession).toMatchObject({ sessionId: 'created', clean: true });
+    expect(api().draftSelection.clean).toBeUndefined();
+    act(() => api().setSelectedSession(DRAFT_SENTINEL));
+    expect(api().isDraft).toBe(true);
+    expect(api().draftSelection.clean).toBeUndefined();
+  });
 });

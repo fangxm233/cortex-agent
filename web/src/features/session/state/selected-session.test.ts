@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { EngineSelection, SessionInfo } from '@cortex-agent/ui-contract';
 import {
-  applyDraftSelection, deriveMostRecentSessionId, DRAFT_SENTINEL, EMPTY_DRAFT_SELECTION,
-  resolveSelectedSessionId, resolveTransitionAgent, resolveTransitionSelection, seedDraftSelection,
+  applyDraftSelection, clearDraftClean, deriveMostRecentSessionId, DRAFT_SENTINEL, EMPTY_DRAFT_SELECTION,
+  resolveSelectedSessionId, resolveTransitionAgent, resolveTransitionClean, resolveTransitionSelection,
+  seedDraftSelection,
   type PendingCreatedSession,
 } from './selected-session';
 
@@ -94,6 +95,29 @@ describe('resolveTransitionAgent', () => {
     expect(resolveTransitionAgent(undefined, pending, 'other')).toBeNull();
     expect(resolveTransitionAgent(undefined, pending, null)).toBeNull();
     expect(resolveTransitionAgent(undefined, null, 'new')).toBeNull();
+  });
+});
+
+describe('clean mode', () => {
+  it('toggles on a draft and is dropped when the draft is left', () => {
+    const on = applyDraftSelection({ selection: pi, agentName: 'research' }, { clean: true });
+    expect(on).toEqual({ selection: pi, agentName: 'research', clean: true });
+    expect(clearDraftClean(on)).toEqual({ selection: pi, agentName: 'research' });
+    const off = { selection: pi };
+    expect(clearDraftClean(off)).toBe(off);
+  });
+
+  it('is never seeded from the remembered selection', () => {
+    expect(seedDraftSelection({ ...pi, agentName: 'research' }, claude)).not.toHaveProperty('clean');
+  });
+
+  it('follows the created draft until the row lands, then the row', () => {
+    const created = { ...pending, clean: true };
+    expect(resolveTransitionClean(undefined, created, 'new')).toBe(true);
+    expect(resolveTransitionClean(false, created, 'new')).toBe(false);
+    expect(resolveTransitionClean(true, null, 'new')).toBe(true);
+    expect(resolveTransitionClean(undefined, created, 'other')).toBe(false);
+    expect(resolveTransitionClean(undefined, pending, 'new')).toBe(false);
   });
 });
 
