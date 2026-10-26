@@ -32,17 +32,25 @@ afterEach(() => {
 });
 
 describe('CleanToggleView', () => {
-  it('reads muted while off, takes normal ink when on, and toggles', () => {
+  it('uses a quiet fill while off, an inverted fill when on, and toggles', () => {
     const onToggle = vi.fn();
     mount(<CleanToggleView on={false} onToggle={onToggle} />);
     expect(chip().props['aria-pressed']).toBe(false);
     expect(chip().props.style.color).toBe('var(--proto-muted)');
+    expect(chip().props.style.background).toBe('var(--proto-line-2)');
+    const { height, padding } = chip().props.style;
     expect(chip().props.title).toBe('Works in its own folder without project context');
     act(() => chip().props.onClick({ stopPropagation: vi.fn() }));
     expect(onToggle).toHaveBeenCalledTimes(1);
     act(() => renderer.update(<LangProvider><CleanToggleView on onToggle={onToggle} /></LangProvider>));
     expect(chip().props['aria-pressed']).toBe(true);
-    expect(chip().props.style.color).toBe('var(--proto-ink-2)');
+    expect(chip().props.style).toMatchObject({
+      background: 'var(--ink-solid-bg)', color: 'var(--ink-solid-fg)', height, padding,
+    });
+    act(() => chip().props.onMouseEnter());
+    expect(chip().props.style.background).toBe('var(--ink-solid-hover)');
+    act(() => chip().props.onMouseLeave());
+    expect(chip().props.style.background).toBe('var(--ink-solid-bg)');
   });
 
   it('is dimmed and inert while the session is created', () => {
@@ -50,6 +58,8 @@ describe('CleanToggleView', () => {
     mount(<CleanToggleView on onToggle={onToggle} disabled />);
     expect(chip().props.disabled).toBe(true);
     expect(chip().props.style.opacity).toBe(0.55);
+    act(() => chip().props.onMouseEnter());
+    expect(chip().props.style.background).toBe('var(--ink-solid-bg)');
     act(() => chip().props.onClick({ stopPropagation: vi.fn() }));
     expect(onToggle).not.toHaveBeenCalled();
   });
@@ -60,6 +70,7 @@ describe('CleanWorkspaceChip', () => {
     mount(<CleanWorkspaceChip workspaceDir={WORKSPACE} />);
     expect(chip().props['aria-pressed']).toBeUndefined();
     expect(chip().props.disabled).toBe(false);
+    expect(chip().props.style).toMatchObject({ background: 'var(--ink-solid-bg)', color: 'var(--ink-solid-fg)' });
     expect(renderer.root.findByType(RadixPopover.Root).props.open).toBe(false);
   });
 

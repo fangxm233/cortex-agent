@@ -147,15 +147,16 @@ function AgentChip({ axis, label, followingDefault, onClick }: {
   );
 }
 
-/** A draft's clean-mode switch, left of the environment chip. Off it reads a step fainter, like an
- *  agent only following the default; on, it takes the chip's ink. It never yields width: the word is
- *  short and the state must stay legible. */
+/** Clean mode keeps its width and uses an inverted fill when enabled. */
 function CleanChip({ clean }: { clean: MCleanDraft }): JSX.Element {
   const vocab = useVocabOptional();
   return (
     <button type="button" data-chip="clean" aria-pressed={clean.on} aria-label={`${vocab.wbClean} · ${vocab.wbCleanHint}`}
       disabled={clean.disabled} onClick={clean.onToggle}
-      style={{ ...composerChipStyle, flex: 'none', color: clean.on ? composerChipStyle.color : MC.muted, opacity: clean.disabled ? 0.55 : 1, cursor: clean.disabled ? 'default' : 'pointer' }}>
+      style={{ ...composerChipStyle, flex: 'none',
+        background: clean.on ? 'var(--ink-solid-bg)' : composerChipStyle.background,
+        color: clean.on ? 'var(--ink-solid-fg)' : MC.muted,
+        opacity: clean.disabled ? 0.55 : 1, cursor: clean.disabled ? 'default' : 'pointer' }}>
       <span style={CHIP_LABEL}>{vocab.wbClean}</span>
     </button>
   );

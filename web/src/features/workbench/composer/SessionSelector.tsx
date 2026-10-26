@@ -114,8 +114,7 @@ export function AgentSelectorView({ selection }: { selection: SessionSelection }
   );
 }
 
-/** A draft's clean-mode switch. Off it reads a step quieter, like an agent only following the
- *  default; on, it takes the chip's normal ink. Locked while the draft's session is being created. */
+/** Clean mode uses an inverted fill when enabled; locked while the session is being created. */
 export function CleanToggleView({ on, disabled = false, onToggle }: {
   on: boolean;
   disabled?: boolean;
@@ -129,12 +128,19 @@ export function CleanToggleView({ on, disabled = false, onToggle }: {
     onClick={(event) => { event.stopPropagation(); if (!disabled) onToggle(); }}
     style={{
       ...quietChipStyle(hover && !disabled), flex: 'none', whiteSpace: 'nowrap',
-      color: on ? 'var(--proto-ink-2)' : 'var(--proto-muted)',
+      ...(on ? cleanEnabledStyle(hover && !disabled) : { color: 'var(--proto-muted)' }),
       cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.55 : 1,
     }}>
     <CleanGlyph />
     {L.wbClean}
   </button>;
+}
+
+function cleanEnabledStyle(hover: boolean) {
+  return {
+    background: hover ? 'var(--ink-solid-hover)' : 'var(--ink-solid-bg)',
+    color: 'var(--ink-solid-fg)',
+  };
 }
 
 const WORKSPACE_ACTION_STYLE = {
@@ -174,7 +180,8 @@ export function CleanWorkspaceChip({ workspaceDir }: { workspaceDir: string | nu
   const chip = <button type="button" data-chip="clean" data-clean-running="" className={MENU_FOCUS}
     title={L.wbCleanHint} disabled={!workspaceDir}
     onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-    style={{ ...quietChipStyle((hover || open) && !!workspaceDir), flex: 'none', whiteSpace: 'nowrap', cursor: workspaceDir ? 'pointer' : 'default' }}>
+    style={{ ...quietChipStyle(false), ...cleanEnabledStyle((hover || open) && !!workspaceDir),
+      flex: 'none', whiteSpace: 'nowrap', cursor: workspaceDir ? 'pointer' : 'default' }}>
     <CleanGlyph />
     {L.wbClean}
   </button>;

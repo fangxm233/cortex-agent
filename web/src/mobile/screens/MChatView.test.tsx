@@ -602,13 +602,17 @@ describe('MChatView overlays', () => {
     expect(chips).toEqual(['clean', 'selection']);
     expect(chip().props['aria-pressed']).toBe(false);
     expect(chip().props.style.color).toBe('var(--m-muted)');
+    expect(chip().props.style.background).toBe('var(--proto-gray)');
+    const { height, padding } = chip().props.style;
     act(() => chip().props.onClick());
     expect(onToggle).toHaveBeenCalledTimes(1);
     act(() => r.update(<LangProvider><MChatView {...baseProps} rows={[]} status={status} sessionId=""
       cleanDraft={{ on: true, disabled: true, onToggle }} /></LangProvider>));
     expect(chip().props['aria-pressed']).toBe(true);
     expect(chip().props.disabled).toBe(true);
-    expect(chip().props.style.color).not.toBe('var(--m-muted)');
+    expect(chip().props.style).toMatchObject({
+      background: 'var(--ink-solid-bg)', color: 'var(--ink-solid-fg)', height, padding,
+    });
     act(() => r.unmount());
 
     const running = mount();
