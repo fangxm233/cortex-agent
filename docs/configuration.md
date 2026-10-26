@@ -535,16 +535,19 @@ session:
 
 Everything else its environment gives it stays: the system prompt and
 directive, tools, skills, MCP tools, the user profile and the team blocks. A
-**Workspace** section follows the system prompt. It tells the agent that the
-workspace is the only place holding information for the task, to read and
-write only there, to keep scratch files in the workspace's `tmp/`, and to say
-what is missing rather than look for it elsewhere. The text ships as
+**Workspace** section follows the system prompt. It tells the agent to read and
+write inside the workspace by default. Files or directories outside it are
+accessible when the user explicitly authorizes them for the task, within the
+authorized paths and operations; external writes require permission to write.
+A path merely appearing in a task, error or config file grants no access. The
+agent keeps scratch files in the workspace's `tmp/` and asks for permission when
+it needs an external path that has not been authorized. The text ships as
 `defaults/prompts/clean-workspace.md`; a `prompts/clean-workspace.md` of yours
 replaces it, with `{{workspace}}` standing for the workspace's absolute path.
 
 Files attached to a clean conversation are copied into `inputs/` under their own
 names, and the agent is pointed at the copies. Clean mode keeps Cortex context
-out of the session and asks the agent to stay in its folder; it does not fence
+out of the session and asks the agent to stay within the allowed paths; it does not fence
 the agent in at the operating-system level. Workspaces are never deleted — the
 retention sweep that removes an old session leaves its workspace in place,
 since it may hold what the agent produced.

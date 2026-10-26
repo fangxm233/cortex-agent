@@ -16,9 +16,10 @@ export const SUBAGENT_DESCRIPTION =
   'Delegate isolated, one-shot work; children cannot delegate. Give self-contained prompts. '
   + 'Choose one mode: single, parallel, or chain. Supports both backends. '
   + 'Set clean for work that must not be shaped by Cortex context: the child runs in a fresh '
-  + 'workspace and sees only its brief and the files you list in files, copied to inputs/. Its '
-  + 'brief must stand alone, name those files as inputs/<name>, and mention no path outside the '
-  + 'workspace. Its result ends with the workspace path, where it leaves its output.';
+  + 'workspace with its brief and the files you list in files, copied to inputs/. Its brief must '
+  + 'stand alone, name those files as inputs/<name>, and include external paths only when the user '
+  + 'explicitly authorizes access, stating the allowed operations. Its result ends with the '
+  + 'workspace path, where it leaves its output.';
 
 export const SUBAGENT_CLEAN_DESCRIPTION =
   'Run in a fresh workspace without Cortex context. Implied by files.';

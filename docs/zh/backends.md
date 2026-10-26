@@ -99,7 +99,7 @@ PI provider 名称与 Cortex 后端名称相互独立。特别地，`openai-code
 
 **隔离。** `pi` 子端是一个不写 transcript、headless 运行的嵌套进程内会话。`claude` 子端是一次冻结的一次性 `claude` 运行：没有可恢复的会话、没有钩子、没有环境规则、没有 transcript 日志。无论哪种，子端的 MCP 面都是去掉委派工具后的 `cortex-core` bundle，因此不能继续向下扇出。
 
-**干净子端。** 带 `clean: true` 的任务在一个新建的 `$CORTEX_HOME/workspaces/sub-<run>-<index>/` 文件夹里运行，遵循[干净会话](./configuration.md#clean-mode)的规则：不从该文件夹或其祖先目录加载 `AGENTS.md`，角色提示词之后附上工作区说明。`files` 列出文件或目录——绝对路径、`~` 开头，或相对父端工作目录——在子端启动前复制进它的 `inputs/`。列了任何文件就意味着 `clean`；任一路径不存在时，整个调用在任何子端启动前就被拒绝。干净会话的每个子端都是干净的，并在该会话自己的工作区里工作，它的 `files` 复制进同一个 `inputs/`。干净子端的任务说明必须自成一体：用 `inputs/<name>` 指称给它的文件，不提工作区之外的任何路径。它的结果以 `Workspace: <path>` 结尾，那就是它放产出的文件夹；它在 transcript 里的块会标记为干净。
+**干净子端。** 带 `clean: true` 的任务在一个新建的 `$CORTEX_HOME/workspaces/sub-<run>-<index>/` 文件夹里运行，遵循[干净会话](./configuration.md#clean-mode)的规则：不从该文件夹或其祖先目录加载 `AGENTS.md`，角色提示词之后附上工作区说明。`files` 列出文件或目录——绝对路径、`~` 开头，或相对父端工作目录——在子端启动前复制进它的 `inputs/`。列了任何文件就意味着 `clean`；任一路径不存在时，整个调用在任何子端启动前就被拒绝。干净会话的每个子端都是干净的，并在该会话自己的工作区里工作，它的 `files` 复制进同一个 `inputs/`。干净子端的任务说明必须自成一体：用 `inputs/<name>` 指称给它的文件；只有用户明确授权访问时才可包含外部路径，并须说明允许的操作。它的结果以 `Workspace: <path>` 结尾，那就是它放产出的文件夹；它在 transcript 里的块会标记为干净。
 
 **父端看到什么。** 子端的工具调用、结果与文本会流入父端的实时 transcript 并归属到该子智能体，其 token 用量并入父端。归属是 best-effort：父回合已经结束的运行只是停止推送，答案照样返回。
 

@@ -279,7 +279,8 @@ Listing any implies `clean`, and a path that does not exist rejects the whole
 call before any child starts. Every child of a clean session is clean and works
 in that session's own workspace, its `files` copied into the same `inputs/`. A
 clean child's brief has to stand on its own: it names the given files as
-`inputs/<name>` and mentions no path outside the workspace. Its result ends with
+`inputs/<name>`. It may include external paths only when the user explicitly
+authorizes access, and must state the allowed operations. Its result ends with
 `Workspace: <path>`, the folder where it leaves its output, and its block in the
 transcript is marked clean.
 
