@@ -21,9 +21,9 @@ const write = (rel, content) => {
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.writeFileSync(dest, content);
 };
-const copy = (src, rel) => {
+const copy = (src, rel, filter) => {
   fs.mkdirSync(path.dirname(path.join(stage, rel)), { recursive: true });
-  fs.cpSync(src, path.join(stage, rel), { recursive: true });
+  fs.cpSync(src, path.join(stage, rel), { recursive: true, filter });
 };
 function replaceOnce(source, before, after, file) {
   if (source.split(before).length !== 2) throw new Error(`Bundle compatibility check changed: ${file}: ${before}`);
@@ -125,10 +125,11 @@ if (worker.outputFiles.some(file => file.text.includes('import.meta'))) throw ne
 saveOutputs(worker, false);
 copy(require.resolve('quickjs-wasi/quickjs.wasm'), 'vendor/quickjs.wasm');
 copy(path.join(root, 'defaults'), 'defaults');
-copy(path.join(root, '../web/dist'), 'web/dist');
+// Match release-server's hidden-map policy without deleting the worktree's debugging assets.
+copy(path.join(root, '../web/dist'), 'web/dist', file => !file.endsWith('.map'));
 copy(path.join(root, 'dist/client-bundle'), 'dist/client-bundle');
-for (const rel of ['package.json', 'README.md', 'CHANGELOG.md', 'docs', 'dist/modes/interactive/theme', 'dist/modes/interactive/assets', 'dist/core/export-html']) {
-  copy(path.join(piRoot, rel), `vendor/pi/${rel}`);
+for (const rel of ['package.json', 'README.md', 'CHANGELOG.md', 'docs', 'examples', 'schemas', 'dist/modes/interactive/theme', 'dist/modes/interactive/assets', 'dist/core/export-html']) {
+  copy(path.join(piRoot, rel), `vendor/pi/${rel}`, file => !file.endsWith('.map') && !file.endsWith('.d.ts'));
 }
 for (const rel of ['README.md', 'dist/build-info.json']) {
   if (fs.existsSync(path.join(root, rel))) copy(path.join(root, rel), rel);
