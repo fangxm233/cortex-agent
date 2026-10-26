@@ -24,6 +24,7 @@ agent-server/executions.json
 agent-server/tasks/
 agent-server/data/pi/
 agent-server/dist/
+agent-server/.bundle-package*/
 agent-server/web/dist/
 agent-server/src/**/*.js
 agent-server/tests/**/*.js
