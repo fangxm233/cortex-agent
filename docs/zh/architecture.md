@@ -31,7 +31,9 @@ Windows ARM64 fallback；遇到未知包布局则保留原样。这减少的是�
 `node agent-server/scripts/bundle.mjs <全新暂存目录>` 生成发布包，再将该目录打成 tarball。
 CI 把 tarball 安装到临时 prefix，用无凭据的 home 和隔离端口运行 `bundle-smoke.mjs`；
 冒烟成功才发布同一个 tarball。包中保留 Cortex 的 `LICENSE`、esbuild legal comments，
-并携带收录第三方声明及已有许可证全文的 `THIRD_PARTY_NOTICES.txt`。Web source maps 单独作为 release 资产。
+并携带收录第三方声明及许可证全文的 `THIRD_PARTY_NOTICES.txt`。缺独立许可证文件的包使用共享 SPDX 标准全文，
+附包内已有的作者/版权元数据；嵌入的 QuickJS-NG 引擎另附上游声明。notices 生成完全离线。
+Web source maps 单独作为 release 资产。
 
 源码 checkout 的本地开发使用普通 TypeScript build 和 `npm pack` 布局。
 发布暂存命令不替换 checkout 的 `dist/` 或 package manifest。

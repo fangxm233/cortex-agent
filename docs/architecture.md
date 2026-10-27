@@ -34,7 +34,9 @@ restart trigger so a running daemon can load the installed update when idle.
 the tarball into a temporary prefix and runs `bundle-smoke.mjs` with credential-free homes and
 isolated ports. Only a successful smoke run permits publication of that exact tarball. The package
 includes Cortex's `LICENSE`, retained esbuild legal comments, and `THIRD_PARTY_NOTICES.txt` with
-third-party declarations and available license texts. Web source maps are separate release assets.
+third-party declarations and license texts. Packages without a license file use shared SPDX standard
+texts with their published author/copyright metadata; the embedded QuickJS-NG engine has its own
+upstream notice. Notice generation is offline. Web source maps are separate release assets.
 
 Source checkouts use the ordinary TypeScript build and `npm pack` layout for local development.
 The release staging command does not replace the checkout's `dist/` or package manifest.
