@@ -52,6 +52,24 @@ function runBin(name, args, options = {}) {
   const executable = windows ? path.join(prefix, `${name}.cmd`) : path.join(prefix, 'bin', name);
   return spawnSync(executable, args, { env, encoding: 'utf8', shell: windows, ...options });
 }
+await check('Release manifest, entry points and license notices', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert.equal(pkg.name, '@cortex-agent/server'); assert.equal(pkg.cortexBundle, true);
+  assert(!pkg.private && !pkg.devDependencies && typeof pkg.engines.node === 'string');
+  assert.equal(Object.keys(pkg.bin).length, 5);
+  for (const rel of [pkg.main, ...Object.values(pkg.bin), 'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.txt']) assert(fs.statSync(path.join(root, rel)).size > 0);
+  assert(fs.readFileSync(path.join(root, 'LICENSE'), 'utf8').includes('MIT License'));
+  assert(fs.readFileSync(path.join(root, 'THIRD_PARTY_NOTICES.txt'), 'utf8').includes('@earendil-works/pi-coding-agent'));
+  assert(pkg.scripts.postinstall.includes('bundle-prune-browser.mjs') && pkg.scripts.postinstall.includes('postinstall-restart-trigger.mjs'));
+  assert(!pkg.scripts.postinstall.includes('install-bundled-dependencies'));
+  return { version: pkg.version, engines: pkg.engines, dependencies: Object.keys(pkg.dependencies) };
+});
+await check('Postinstall restart trigger stays inside the isolated home', () => {
+  const trigger = path.join(home, 'data/.restart');
+  fs.rmSync(trigger, { force: true });
+  const result = spawnSync(process.execPath, [path.join(root, 'scripts/postinstall-restart-trigger.mjs')], { env, encoding: 'utf8', timeout: 10000 });
+  assert.equal(result.status, 0, result.stderr); assert(fs.existsSync(trigger));
+});
 for (const name of ['cortex', 'cortex-browser', 'cortex-evidence-export', 'cortex-hook', 'cortex-signal']) {
   await check(`${name} --help`, () => bin(name, ['--help']));
   const unsupported = { cortex: 1, 'cortex-evidence-export': 1, 'cortex-hook': 1, 'cortex-signal': 2 };

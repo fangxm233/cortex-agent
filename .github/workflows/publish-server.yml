@@ -13,6 +13,9 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    env:
+      CORTEX_HOME: /tmp/cortex-bundle-release/home
+      CORTEX_TELEMETRY: '0'
 
     steps:
       - name: Checkout
@@ -30,10 +33,10 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Install workspace dependencies
-        run: pnpm install --frozen-lockfile
+        run: CORTEX_HOME="$CORTEX_HOME" pnpm install --frozen-lockfile
 
       - name: Build server, UI contract, and Web SPA
-        run: pnpm --filter '@cortex-agent/web...' run build
+        run: CORTEX_HOME="$CORTEX_HOME" pnpm --filter '@cortex-agent/web...' run build
 
       - name: Record the telemetry endpoint in the build
         working-directory: agent-server
@@ -68,25 +71,43 @@ jobs:
           path: ${{ runner.temp }}/release-sourcemaps/*.tgz
           if-no-files-found: error
 
-      - name: Stage README and Web SPA into the package
-        working-directory: agent-server
-        # What `prepare` and `prepack` would do during publish, minus prepare's second server build.
+      - name: Stage and pack the release bundle
         run: |
-          cp ../README.md .
-          node scripts/copy-web-dist.js
-          node scripts/client-bundle.js
+          node --test agent-server/scripts/bundle-prune-browser.test.mjs agent-server/scripts/bundle-notices.test.mjs
+          node agent-server/scripts/client-bundle.js
+          CORTEX_HOME="$CORTEX_HOME" node agent-server/scripts/bundle.mjs "/tmp/cortex-bundle-release/stage"
+          mkdir -p "/tmp/cortex-bundle-release/artifacts"
+          cd "/tmp/cortex-bundle-release/stage"
+          CORTEX_HOME="$CORTEX_HOME" npm pack --ignore-scripts --pack-destination "/tmp/cortex-bundle-release/artifacts" --json > ../pack.json
+          TARBALL=$(node -p "require('../pack.json')[0].filename")
+          echo "BUNDLE_TARBALL=/tmp/cortex-bundle-release/artifacts/$TARBALL" >> "$GITHUB_ENV"
+
+      - name: Smoke test the exact tarball before publishing
+        run: |
+          export HOME="/tmp/cortex-bundle-release/os-home"
+          mkdir -p "$HOME" "$CORTEX_HOME/data"
+          CORTEX_HOME="$CORTEX_HOME" npm install -g --prefix "/tmp/cortex-bundle-release/prefix" "$BUNDLE_TARBALL" --foreground-scripts
+          "/tmp/cortex-bundle-release/prefix/bin/cortex" init </dev/null
+          env -i PATH="$PATH" HOME="$HOME" CORTEX_HOME="$CORTEX_HOME" \
+            node agent-server/scripts/bundle-smoke.mjs "/tmp/cortex-bundle-release/prefix"
+
+      - name: Keep installed-package smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-bundle-smoke
+          path: |
+            /tmp/cortex-bundle-release/smoke
+            /tmp/cortex-bundle-release/pack.json
+          if-no-files-found: warn
 
       - name: Upgrade npm for trusted publishing
-        run: npm install -g npm@latest   # OIDC trusted publishing needs npm >= 11.5.1
+        run: CORTEX_HOME="$CORTEX_HOME" npm install -g npm@latest   # OIDC needs npm >= 11.5.1
 
-      - name: Publish package
-        working-directory: agent-server
-        # --tag latest is required, not cosmetic: CalVer same-day re-releases use a YYYY.M.D-N
-        # suffix, which semver classifies as a prerelease. npm >= 11 refuses to publish one
-        # without an explicit tag, and the step above always pulls the newest npm. For a plain
-        # YYYY.M.D version this is exactly npm's default behaviour.
-        # --ignore-scripts: the steps above already produced everything the lifecycle scripts would.
-        run: npm publish --access public --tag latest --ignore-scripts
+      - name: Publish the smoke-tested tarball
+        # CalVer same-day suffixes are semver prereleases, so latest must be explicit.
+        # The tarball has no prepare/prepack lifecycle; publish exactly what passed smoke.
+        run: npm publish "$BUNDLE_TARBALL" --access public --tag latest --ignore-scripts
 
   attach-sourcemaps:
     needs: publish

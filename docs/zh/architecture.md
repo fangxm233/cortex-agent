@@ -16,6 +16,26 @@ Cortex 是一个面向机器人学与 AI/ML 的自主研究智能体系统。它
 | `@cortex-agent/deepseek-relay-worker` | `packages/deepseek-relay-worker/` | Cloudflare Worker，为无法直连 DeepSeek 的主机做中转 |
 | 插件 | `agent-server/defaults/plugins/` | 包含技能的内置插件包（`cortex-system`、`cortex-board`、`cortex-feishu`）。不是 npm 包——运行时作为目录原地读取 |
 
+### Server 软件包与发布 {#server-package-and-release}
+
+npm server 包包含拆分 chunk 的 JavaScript bundle、PI 运行时及资源文件、Web SPA、client bundle、
+默认配置和许可证声明，运行时仍为 Node.js。npm 另行安装 `agent-browser`、Photon WASM 和可选的
+`sharp`；大部分 JavaScript 库已在 bundle 内。桌面安装器通过自带的 Node 安装同一个 npm 包。
+
+postinstall 按 agent-browser launcher 的规则保留当前主机的二进制，包括 Linux libc 区分和
+Windows ARM64 fallback；遇到未知包布局则保留原样。这减少的是安装后磁盘占用，不是包含全部平台
+二进制的 browser tarball 下载量。Node、Chrome 和用户数据不计入 server 包。postinstall 还会在已初始化
+的 Cortex home 写入重启触发文件，让运行中的 daemon 在空闲时加载安装好的更新。
+
+`publish-server.yml` 构建 workspace，通过
+`node agent-server/scripts/bundle.mjs <全新暂存目录>` 生成发布包，再将该目录打成 tarball。
+CI 把 tarball 安装到临时 prefix，用无凭据的 home 和隔离端口运行 `bundle-smoke.mjs`；
+冒烟成功才发布同一个 tarball。包中保留 Cortex 的 `LICENSE`、esbuild legal comments，
+并携带收录第三方声明及已有许可证全文的 `THIRD_PARTY_NOTICES.txt`。Web source maps 单独作为 release 资产。
+
+源码 checkout 的本地开发使用普通 TypeScript build 和 `npm pack` 布局。
+发布暂存命令不替换 checkout 的 `dist/` 或 package manifest。
+
 ## Agent-Server 架构：六层结构 {#agent-server-architecture-six-layers}
 
 `agent-server/src/` 下的 agent-server 代码组织为六层（L0 到 L5），另有两个各自有规则的适配器目录。运行时每层只能从其下方的层导入；仅类型导入可以跨层。这些规则由 `agent-server/.dependency-cruiser.cjs` **在测试时强制执行**——`npm test` 会运行 `depcruise`，出现任何运行时违规即失败（`npm run test:quick` 跳过这一步）。
@@ -196,7 +216,10 @@ L5  entry/         → everything (composition root)
 类型，而 web 的类型检查依赖 ui-contract 的构建产物。另外两条 `web-bundle` 和
 `web-depcruise` 只读 web 源码，一开始就与它并行。每条 lane 都会跑到底，
 任何一步失败都会在安装之前终止这次重建，并发出一条点名每个失败步骤的通知。
-有两个机制让重建既可见又安全。
+fast install 只把源码构建产物复制进兼容的未打包安装。目标 package 标记为 `cortexBundle: true`
+时必须走完整的源码 `npm pack` + `npm install -g`，不会把未打包文件覆盖进 chunk 布局。
+普通 npm 自更新整体替换 package，因此未打包安装也能接收打包版发布物。
+两种布局都保留 `CORTEX_HOME` 和 restart trigger 的约定。有两个机制让重建既可见又安全。
 
 **进度写在文件里，不在内存里。** 流水线在第一步之前就把完整计划写入
 `$STORE_DIR/daemon-rebuild.json`——这个 checkout 会跑的步骤（上述构建步骤，随后是

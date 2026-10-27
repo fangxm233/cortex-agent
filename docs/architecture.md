@@ -16,6 +16,29 @@ The repository is a pnpm workspace. Two packages are published to npm; the other
 | `@cortex-agent/deepseek-relay-worker` | `packages/deepseek-relay-worker/` | Cloudflare Worker that relays to DeepSeek for hosts that cannot reach it directly |
 | Plugins | `agent-server/defaults/plugins/` | Built-in plugin bundles (`cortex-system`, `cortex-board`, `cortex-feishu`) containing skills. Not npm packages — read in place as directories at runtime |
 
+### Server package and release
+
+The npm server package contains code-split JavaScript bundles, the PI runtime and its resource files,
+Web SPA, client bundle, defaults, and license notices. Node.js remains the runtime. npm installs
+`agent-browser`, Photon WASM, and optional `sharp` alongside the package; most JavaScript libraries
+are already inside the bundles. The desktop installer uses this same npm package with its bundled Node.
+
+Postinstall keeps the agent-browser binary selected by its launcher for the host, including Linux
+libc and Windows ARM64 fallback selection. Unknown package layouts are left intact. This reduces
+installed disk usage, not the all-platform browser tarball's download size. Node, Chrome, and user
+data are separate from the server package. Postinstall also writes the initialized Cortex home's
+restart trigger so a running daemon can load the installed update when idle.
+
+`publish-server.yml` builds the workspace, stages a release package with
+`node agent-server/scripts/bundle.mjs <fresh-stage-directory>`, and packs that directory. It installs
+the tarball into a temporary prefix and runs `bundle-smoke.mjs` with credential-free homes and
+isolated ports. Only a successful smoke run permits publication of that exact tarball. The package
+includes Cortex's `LICENSE`, retained esbuild legal comments, and `THIRD_PARTY_NOTICES.txt` with
+third-party declarations and available license texts. Web source maps are separate release assets.
+
+Source checkouts use the ordinary TypeScript build and `npm pack` layout for local development.
+The release staging command does not replace the checkout's `dist/` or package manifest.
+
 ## Agent-Server Architecture: Six Layers
 
 The agent-server code at `agent-server/src/` is organized into six layers (L0 through L5), plus two adapter directories with rules of their own. A layer may import only from the layers below it at runtime; type-only imports may cross layers. These rules are **enforced at test time** by `agent-server/.dependency-cruiser.cjs` — `npm test` runs `depcruise` and fails on any runtime violation (`npm run test:quick` skips it).
@@ -197,7 +220,11 @@ and replace the app process. The build runs as three concurrent lanes. One is an
 types and web typechecks against ui-contract's built output. The other two, `web-bundle` and
 `web-depcruise`, read only web sources and start at once beside it. Every lane runs to its end, and
 any failed step stops the rebuild before the install, with a notice naming each step that failed.
-Two mechanisms make the rebuild visible and safe.
+The fast install path copies source-build outputs only into a compatible, unbundled installation.
+A package marked `cortexBundle: true` requires the full source `npm pack` + `npm install -g` path;
+unbundled files are never overlaid onto its chunks. Normal npm self-updates replace the package as
+a whole, so an unbundled installation can receive a bundled release. Neither layout changes
+`CORTEX_HOME` or the restart-trigger contract. Two mechanisms make the rebuild visible and safe.
 
 **Progress lives in a file, not in memory.** Before step one the pipeline writes its whole plan to
 `$STORE_DIR/daemon-rebuild.json` — the steps this checkout will run (the build steps above, then

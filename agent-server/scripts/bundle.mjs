@@ -1,10 +1,12 @@
-// Opt-in prototype: build normally, then `pnpm bundle:package` and npm pack the printed stage.
-// Never mutates dist/, package.json, node_modules, or the normal publishing lifecycle.
+// Stage the published package after the workspace build. Source installs keep their normal layout.
+// Never mutates dist/, package.json or node_modules; pack the printed stage for release.
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
+import { bundleCompatibility } from './bundle-compat.mjs';
+import { thirdPartyNotices } from './bundle-notices.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const require = createRequire(new URL('../package.json', import.meta.url));
@@ -25,11 +27,6 @@ const copy = (src, rel, filter) => {
   fs.mkdirSync(path.dirname(path.join(stage, rel)), { recursive: true });
   fs.cpSync(src, path.join(stage, rel), { recursive: true, filter });
 };
-function replaceOnce(source, before, after, file) {
-  if (source.split(before).length !== 2) throw new Error(`Bundle compatibility check changed: ${file}: ${before}`);
-  return source.replace(before, after);
-}
-
 // Keep path-addressed entry points explicit and review this list when spawn sites change.
 const runtimeEntries = [...new Set([
   pkg.main, ...Object.values(pkg.bin),
@@ -49,52 +46,7 @@ entries['vendor/pi-ai/bedrock'] = path.join(aiRoot, 'dist/api/bedrock-converse-s
 entries['vendor/pi/dist/extensions/codemode/execute'] = path.join(piRoot, 'dist/extensions/codemode/execute.js');
 
 const external = ['sharp', 'agent-browser', '@silvia-odwyer/photon-node', 'readline/promises', 'bufferutil', 'utf-8-validate'];
-const compatibility = {
-  name: 'cortex-runtime-layout',
-  setup(builder) {
-    builder.onResolve({ filter: /^cortex:pi-model-resolver$/ }, () => ({ path: path.join(piRoot, 'dist/core/model-resolver.js') }));
-    builder.onLoad({ filter: /\.js$/ }, async ({ path: file }) => {
-      let source = fs.readFileSync(file, 'utf8');
-      const original = source;
-      if (file.endsWith('/ink/build/reconciler.js')) {
-        source = replaceOnce(source, "process.env['DEV'] === 'true'", 'false', file);
-      }
-      if (file === path.join(root, 'dist/core/pi-sdk.js')) {
-        source = replaceOnce(source,
-          'await import(new URL(PI_MODEL_RESOLVER, entry).href)',
-          '(entryUrl ? await import(new URL(PI_MODEL_RESOLVER, entry).href) : await import("cortex:pi-model-resolver"))', file);
-        source = replaceOnce(source, 'entryUrl ?? import.meta.resolve(PI_SDK_PACKAGE)', 'entryUrl ?? "file:///unused-bundled-entry.js"', file);
-      }
-      if (file === path.join(root, 'dist/domain/costs/gateway-manager.js')) {
-        source = replaceOnce(source, "path.dirname(require.resolve('aistatus'))", 'fileURLToPath(new URL("vendor/aistatus/", __cortexPackageRoot))', file);
-        source = 'import { fileURLToPath } from "node:url";\n' + source;
-      }
-      if (file.startsWith(path.join(root, 'dist/'))) {
-        // An esbuild chunk's URL is NOT the URL of the original module. Preserve logical URLs
-        // for main-module guards, sibling spawns, defaults, version and web asset lookups.
-        // Turn opaque createRequire calls into statically discoverable, still-lazy CJS loads.
-        source = source.replaceAll("createRequire(import.meta.url)('@larksuiteoapi/node-sdk')", "require('@larksuiteoapi/node-sdk')");
-        source = source.replaceAll('import.meta.url', `new URL(${JSON.stringify(posix(path.relative(root, file)))}, __cortexPackageRoot).href`);
-      }
-      if (file.startsWith(piRoot + path.sep)) {
-        source = source.replaceAll('import.meta.url', `new URL(${JSON.stringify('vendor/pi/' + posix(path.relative(piRoot, file)))}, __cortexPackageRoot).href`);
-      }
-      // pi-ai deliberately hides these Node-only imports from browser bundlers. This is Node.
-      if (file === path.join(aiRoot, 'dist/auth/oauth/load.js')) {
-        source = source.replace(/importOAuthModule\("\.\/([\w-]+)\.ts"\)/g, 'import("./$1.js")');
-      }
-      if (file === path.join(aiRoot, 'dist/api/bedrock-converse-stream.lazy.js')) {
-        source = replaceOnce(source, 'importNodeOnlyApi("./bedrock-converse-stream.ts")', 'import("./bedrock-converse-stream.js")', file);
-      }
-      if (source.includes('.resolve("quickjs-wasi/quickjs.wasm")')) {
-        source = source.replace(/createRequire\([^;\n]+?\)\.resolve\("quickjs-wasi\/quickjs.wasm"\)/g,
-          'fileURLToPath(new URL("vendor/quickjs.wasm", __cortexPackageRoot))');
-        if (!original.includes('import { fileURLToPath }')) source = 'import { fileURLToPath } from "node:url";\n' + source;
-      }
-      return source === original ? undefined : { contents: source, loader: 'js', resolveDir: path.dirname(file) };
-    });
-  },
-};
+const compatibility = bundleCompatibility({ root, piRoot, aiRoot });
 const options = {
   absWorkingDir: root, bundle: true, platform: 'node', target: 'node22.19', format: 'esm',
   minify: true, legalComments: 'eof', external, write: false, metafile: true,
@@ -131,19 +83,28 @@ copy(path.join(root, 'dist/client-bundle'), 'dist/client-bundle');
 for (const rel of ['package.json', 'README.md', 'CHANGELOG.md', 'docs', 'examples', 'schemas', 'dist/modes/interactive/theme', 'dist/modes/interactive/assets', 'dist/core/export-html']) {
   copy(path.join(piRoot, rel), `vendor/pi/${rel}`, file => !file.endsWith('.map') && !file.endsWith('.d.ts'));
 }
-for (const rel of ['README.md', 'dist/build-info.json']) {
+copy(path.join(root, '../README.md'), 'README.md');
+copy(path.join(root, '../LICENSE'), 'LICENSE');
+for (const rel of ['dist/build-info.json']) {
   if (fs.existsSync(path.join(root, rel))) copy(path.join(root, rel), rel);
 }
-copy(path.join(root, 'scripts/bundle-prune-browser.mjs'), 'scripts/bundle-prune-browser.mjs');
+for (const script of ['bundle-prune-browser.mjs', 'postinstall-restart-trigger.mjs']) copy(path.join(root, 'scripts', script), `scripts/${script}`);
+write('THIRD_PARTY_NOTICES.txt', thirdPartyNotices({
+  cwd: root,
+  inputFiles: [...Object.keys(result.metafile.inputs), ...Object.keys(worker.metafile.inputs), require.resolve('quickjs-wasi/quickjs.wasm')],
+  packageJsons: [path.join(root, '../web/package.json'), path.join(root, '../client/package.json')],
+}));
 const manifest = { ...pkg,
-  private: true, // Prototype: cannot accidentally publish this stage.
-  files: ['dist/', 'defaults/', 'web/dist/', 'vendor/', 'README.md', 'scripts/bundle-prune-browser.mjs'],
-  scripts: { postinstall: 'node scripts/bundle-prune-browser.mjs' }, dependencies: { 'agent-browser': pkg.dependencies['agent-browser'], '@silvia-odwyer/photon-node': '0.3.4' },
+  cortexBundle: true,
+  files: ['dist/', 'defaults/', 'web/dist/', 'vendor/', 'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.txt',
+    'scripts/bundle-prune-browser.mjs', 'scripts/postinstall-restart-trigger.mjs'],
+  scripts: { postinstall: 'node scripts/bundle-prune-browser.mjs && node scripts/postinstall-restart-trigger.mjs' }, dependencies: { 'agent-browser': pkg.dependencies['agent-browser'], '@silvia-odwyer/photon-node': '0.3.4' },
   optionalDependencies: { sharp: pkg.optionalDependencies.sharp },
 };
 delete manifest.devDependencies;
+delete manifest.private;
 write('package.json', JSON.stringify(manifest, null, 2) + '\n');
 for (const rel of Object.values(pkg.bin)) fs.chmodSync(path.join(stage, rel), 0o755);
 // Keep audit data outside the published file allowlist.
 write('bundle-meta.json', JSON.stringify({ runtimeEntries, external, ...result.metafile }, null, 2));
-console.log(`Staged prototype: ${stage}\nPack: cd ${stage} && npm pack --ignore-scripts`);
+console.log(`Staged release package: ${stage}\nPack: cd ${stage} && npm pack --ignore-scripts`);
