@@ -105,8 +105,7 @@ await check('Claude CLI auth probe through server spawn adapter', async () => {
 });
 await check('hook-cli list', () => bin('cortex-hook', ['list']));
 await check('Named shell alias without a Node launcher', () => {
-  const alias = path.join(root, 'bin', 'cortex-signal').replaceAll('\\', '/');
-  const result = spawnSync('sh', ['-c', `"${alias}" --help`], { env, encoding: 'utf8', timeout: 10000 });
+  const result = spawnSync('sh', ['-c', 'cortex-signal --help'], { env, encoding: 'utf8', timeout: 10000 });
   assert.equal(result.status, 0, result.stderr); return result.stdout;
 });
 await check('Extracted host agent-browser binary', () => {
