@@ -12,6 +12,21 @@ const descStyle: CSSProperties = {
 const metaStyle: CSSProperties = {
   fontSize: 12, color: 'var(--proto-faint)', flex: 'none', marginLeft: 'auto', paddingLeft: 12, whiteSpace: 'nowrap',
 };
+/** On a phone the meta takes its own line under the label (icon 16 + gap 9) and truncates rather
+ *  than run past the card's edge. */
+const touchMetaStyle: CSSProperties = {
+  fontSize: 12, color: 'var(--proto-faint)', flex: '1 1 100%', boxSizing: 'border-box', minWidth: 0, paddingLeft: 25,
+  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+};
+/** Paints the card above a pinned header, up to the scroller top, so the body scrolling out above it
+ *  does not show through the clearance under the floating title. The open touch card clips it, so
+ *  it only shows once the header has moved down inside its own card; it reaches into the header's
+ *  rounded corners, under its content, so the pinned header joins it without notches. */
+const pinnedCoverStyle: CSSProperties = {
+  position: 'absolute', left: 0, right: 0, zIndex: -1, pointerEvents: 'none',
+  bottom: 'calc(100% - var(--r-card, 0px))', height: 'calc(var(--transcript-sticky-top, 0px) + var(--r-card, 0px))',
+  background: 'var(--proto-card)',
+};
 const bodyStyle: CSSProperties = {
   display: 'flex', flexDirection: 'column', gap: 12,
   padding: '8px 14px 12px 34px',
@@ -43,9 +58,10 @@ function headerStyle(hover: boolean, expanded: boolean, touch: boolean): CSSProp
   };
 }
 
-function boxStyle(expanded: boolean): CSSProperties {
+function boxStyle(expanded: boolean, touch: boolean): CSSProperties {
   return expanded
-    ? { border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-card)', background: 'var(--material-inset-bg)' }
+    ? { border: '1px solid var(--proto-line-2)', borderRadius: 'var(--r-card)', background: 'var(--material-inset-bg)',
+      ...(touch ? { overflow: 'clip' } : {}) }
     : { margin: '0 -8px' };
 }
 
@@ -83,7 +99,7 @@ export function SubagentBlock({ agentType, description, prompt, model, status, t
     model ? modelLabel(model) : null, tools]
     .filter(Boolean).join(' · ');
   return (
-    <div data-subagent-block="" style={boxStyle(expanded)}>
+    <div data-subagent-block="" style={boxStyle(expanded, touch)}>
       <button
         type="button"
         className={MENU_FOCUS}
@@ -102,7 +118,8 @@ export function SubagentBlock({ agentType, description, prompt, model, status, t
         {description && description !== label
           ? <span style={touch ? { ...descStyle, flex: '1 1 100px' } : descStyle}>{description}</span>
           : null}
-        <span style={metaStyle}>{meta}</span>
+        <span style={touch ? touchMetaStyle : metaStyle}>{meta}</span>
+        {touch && expanded ? <span aria-hidden style={pinnedCoverStyle} /> : null}
       </button>
       {expanded ? (
         <div style={bodyStyle}>
