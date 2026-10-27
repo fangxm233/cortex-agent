@@ -13,6 +13,8 @@ export interface ProviderStateData {
   rateLimitThrottle: RateLimitThrottleState | null;
   resumeQueue: ResumeEntry[];
   providerUsage: ProviderUsage[];
+  /** Epoch seconds each provider's subscription was last signed out through Cortex. */
+  subscriptionSignOuts?: Record<string, number>;
 }
 
 function defaultData(): ProviderStateData {
@@ -132,6 +134,20 @@ export class ProviderStateRepo {
 
   async getProviderUsage(): Promise<ProviderUsage[]> {
     return (await this.repo.read()).providerUsage ?? [];
+  }
+
+  async getSubscriptionSignOuts(): Promise<Record<string, number>> {
+    return { ...(await this.repo.read()).subscriptionSignOuts };
+  }
+
+  /** Null clears the provider's entry. */
+  async setSubscriptionSignOut(provider: string, at: number | null): Promise<void> {
+    await this.repo.mutate((data) => {
+      const signOuts = { ...data.subscriptionSignOuts };
+      if (at === null) delete signOuts[provider];
+      else signOuts[provider] = at;
+      return { next: { ...data, subscriptionSignOuts: signOuts }, result: undefined };
+    });
   }
 
   flush(): Promise<void> {

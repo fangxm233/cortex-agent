@@ -12,6 +12,8 @@ import { createAppRouter } from '../../../src/domain/ui-service/app-router.js';
 import type { AuthLoginService } from '../../../src/domain/auth/login-service.js';
 import { LoginFlowError, type LoginFlowState } from '../../../src/domain/auth/login-flow.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
+import { usageService } from '../../../src/domain/costs/usage-service.js';
+import { usageStore } from '../../../src/domain/costs/usage-store.js';
 
 const STATE: LoginFlowState = {
   flowId: 'flow-web',
@@ -258,6 +260,24 @@ test('auth.logout tRPC maps an unmanageable credential to a client error with gu
       return true;
     },
   );
+});
+
+test('auth.logout of a subscription login hides its usage; an API-key logout leaves usage alone', async () => {
+  const row = (provider: string, billing: 'subscription' | 'api') => ({
+    provider, displayName: provider, modes: [provider], billing, observedAt: 1_700_000_000, freshness: 'stale' as const,
+    windows: billing === 'subscription' ? [{ type: 'five_hour', utilization: 0.5, resetsAt: 1_700_010_000 }] : [],
+  });
+  await usageStore.commit([row('anthropic', 'subscription'), row('anthropic', 'api'), row('openai-codex', 'subscription')]);
+  const logout = async (input: { backend: 'claude' | 'pi'; provider: string; authType: 'oauth' | 'api_key' }) => {
+    const caller = createAppRouter(createUiService(logoutDeps({ ok: true, ...input }, []))).createCaller({});
+    await caller.auth.logout(input);
+    return (await usageService.getStatus()).map((record) => `${record.provider}::${record.billing}`);
+  };
+
+  assert.deepEqual(await logout({ backend: 'pi', provider: 'openai-codex', authType: 'api_key' }),
+    ['anthropic::api', 'anthropic::subscription', 'openai-codex::subscription']);
+  assert.deepEqual(await logout({ backend: 'claude', provider: 'anthropic', authType: 'oauth' }),
+    ['anthropic::api', 'openai-codex::subscription']);
 });
 
 test('auth.syncGateway rebuilds model routing and reports what it produced', async () => {

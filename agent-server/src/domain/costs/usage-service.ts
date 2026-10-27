@@ -4,6 +4,7 @@ import type { AgentUsageScope } from '../../agent-adapter/types.js';
 import { getSettings as readSettings, type Settings } from '@core/settings.js';
 import { t } from '@core/i18n.js';
 import { createLogger } from '@core/log.js';
+import { providerStateRepo } from '@store/provider-state-repo.js';
 import { GATEWAY_URL } from './gateway-manager.js';
 import { claudeAccountClient } from './claude-account.js';
 import { codexAccountClient } from './codex-account.js';
@@ -49,8 +50,17 @@ export interface UsageServiceStore {
   commit(records: ProviderUsage[]): Promise<void>;
 }
 
+/** When each provider's subscription was last signed out, epoch seconds. */
+export interface SubscriptionSignOuts {
+  list(): Promise<Record<string, number>>;
+  /** Null clears the provider's entry. */
+  set(provider: string, at: number | null): Promise<void>;
+}
+
 export interface UsageServiceDependencies {
   store?: UsageServiceStore;
+  /** Absent, sign-outs last only as long as this service. */
+  signOuts?: SubscriptionSignOuts;
   getAdapter?: AdapterResolver;
   getSettings?: SettingsReader;
   fetch?: typeof globalThis.fetch;
@@ -104,6 +114,17 @@ interface GatewayQuotaSnapshot {
   observedAt: number;
   /** A reading taken from the account just now, not one observed in passing traffic. */
   live?: boolean;
+}
+
+function memorySignOuts(): SubscriptionSignOuts {
+  const entries = new Map<string, number>();
+  return {
+    list: async () => Object.fromEntries(entries),
+    set: async (provider, at) => {
+      if (at === null) entries.delete(provider);
+      else entries.set(provider, at);
+    },
+  };
 }
 
 /** Without an injected account reader, Codex usage is only what response headers reported. */
@@ -402,6 +423,14 @@ function finalizeDraft(draft: RowDraft, prior: ProviderUsage | undefined): Provi
   };
 }
 
+/** A signed-out subscription stays hidden until a reading taken after the sign-out; metered rows
+ *  are unaffected. */
+function isSignedOut(record: ProviderUsage, signOuts: Record<string, number>): boolean {
+  const at = signOuts[record.provider];
+  if (at === undefined || record.billing === 'api') return false;
+  return record.observedAt === null || record.observedAt <= at;
+}
+
 /** Anthropic model-scoped windows are internal detail; the panel shows the account windows only. */
 function visibleUsage(record: ProviderUsage): ProviderUsage {
   if (record.provider !== ANTHROPIC_PROVIDER) return record;
@@ -505,6 +534,7 @@ function applyAllTime(
 
 export class UsageService {
   private readonly store: UsageServiceStore;
+  private readonly signOuts: SubscriptionSignOuts;
   private readonly getAdapter: AdapterResolver;
   private readonly getSettings: SettingsReader;
   private readonly fetch: typeof globalThis.fetch;
@@ -518,6 +548,7 @@ export class UsageService {
 
   constructor(dependencies: UsageServiceDependencies = {}) {
     this.store = dependencies.store ?? usageStore;
+    this.signOuts = dependencies.signOuts ?? memorySignOuts();
     this.getAdapter = dependencies.getAdapter ?? (() => getPiEngineAdapter());
     this.getSettings = dependencies.getSettings ?? readSettings;
     this.fetch = dependencies.fetch ?? globalThis.fetch;
@@ -529,14 +560,29 @@ export class UsageService {
   }
 
   async getStatus(): Promise<ProviderUsage[]> {
-    return (await this.store.list()).map(visibleUsage);
+    return (await this.signedIn(await this.store.list())).map(visibleUsage);
+  }
+
+  /** Hides the provider's subscription usage once its login is gone. */
+  async signOut(provider: string): Promise<void> {
+    await this.signOuts.set(provider, Math.floor(this.now().getTime() / 1000));
+    await this.store.commit(await this.signedIn(await this.store.list()));
+  }
+
+  async signIn(provider: string): Promise<void> {
+    await this.signOuts.set(provider, null);
+  }
+
+  private async signedIn(records: ProviderUsage[]): Promise<ProviderUsage[]> {
+    const signOuts = await this.signOuts.list();
+    return records.filter((record) => !isSignedOut(record, signOuts));
   }
 
   async collect(): Promise<ProviderUsage[]> {
     const settings = this.getSettings();
     const anthropicModes = normalizeModes(settings.anthropicSubscriptionModes);
     const subscriptionModes = new Set(normalizeModes(settings.subscriptionBillingModes));
-    const prior = await this.store.list();
+    const prior = await this.signedIn(await this.store.list());
 
     const [today, month, all, quota, codex] = await Promise.allSettled([
       this.readSpend('today'),
@@ -559,7 +605,7 @@ export class UsageService {
       priorByKey.get(draftKey(draft.provider, draft.billing))
         ?? prior.find((row) => row.provider === draft.provider && row.billing === undefined),
     ));
-    await this.store.commit(this.guardDeletions(composed, prior, today, month));
+    await this.store.commit(await this.signedIn(this.guardDeletions(composed, prior, today, month)));
     return this.getStatus();
   }
 
@@ -775,6 +821,10 @@ export class UsageService {
 }
 
 export const usageService = new UsageService({
+  signOuts: {
+    list: () => providerStateRepo.getSubscriptionSignOuts(),
+    set: (provider, at) => providerStateRepo.setSubscriptionSignOut(provider, at),
+  },
   codexAccount: codexAccountClient,
   claudeAccount: claudeAccountClient,
   releaseThrottle: releaseRecoveredQuota,

@@ -80,6 +80,7 @@ import {
   initRateLimitThrottle, clearThrottle, setRateLimitNoticeActions, RATE_LIMIT_CLEAR_ACTION_ID,
 } from '@domain/costs/rate-limit-throttle.js';
 import { initResumeRegistry, getResumeCount, pendingDirectTrackSessionIds } from '@domain/costs/resume-registry.js';
+import { usageService } from '@domain/costs/usage-service.js';
 import {
   dispatchPendingResumes,
   registerResumeWakeOnAgentSettle,
@@ -310,6 +311,10 @@ initAuthEvents(bus);
 // from the workbench gets usable models without dropping to a terminal for `cortex setup-gateway`.
 // Merge-aware and non-throwing (see gateway-sync.ts) — the existing default is never overwritten.
 onLoginSuccess((event) => {
+  if (event.authType === 'oauth') {
+    void usageService.signIn(event.provider)
+      .catch((error: unknown) => log.warn(`showing ${event.provider} subscription usage failed:`, error));
+  }
   void syncGatewayFromBackends({ backends: [event.backend] }).then((result) => {
     if (!result.configured && result.reason !== 'no-endpoints') {
       log.warn(`Gateway sync after ${event.backend} login did not complete: ${result.reason}`);

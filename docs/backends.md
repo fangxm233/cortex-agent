@@ -570,6 +570,12 @@ screen, or **Refresh** — reads two subscription accounts directly:
   The account offers resets only to a current Claude Code client, so these
   requests identify as the installed `claude` CLI version.
 
+Signing out of a subscription in **Settings → Accounts** removes that
+provider's subscription row from the Usage screens; metered rows stay. The row
+returns when the account is signed in again through Cortex, or when a quota
+reading taken after the sign-out arrives — a sign-in made outside Cortex shows
+up this way on the next collection.
+
 Each reading also lists the account's banked resets: how many are available
 and when the earliest one expires. An account reading never starts a
 throttle, but it lifts that provider's throttle windows that have fallen below

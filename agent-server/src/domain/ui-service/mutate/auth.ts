@@ -1,4 +1,6 @@
 import { t } from '@core/i18n.js';
+import { createLogger } from '@core/log.js';
+import { usageService } from '@domain/costs/usage-service.js';
 import {
   authLoginService,
   bindAuthNoticeFlow,
@@ -17,6 +19,8 @@ import type {
   UiServiceDeps,
   MutateArgs,
 } from '../types.js';
+
+const log = createLogger('ui-auth');
 
 function serviceFor(deps: UiServiceDeps): AuthLoginService {
   return deps.authLogin ?? authLoginService;
@@ -114,7 +118,13 @@ export async function handleAuthLogout(
   args: MutateArgs<'auth.logout'>,
 ): Promise<Result<AuthLogoutReturn>> {
   const result = await (deps.logoutAccount ?? logoutAccount)(args);
-  if (result.ok === true) return { ok: true, data: result };
+  if (result.ok === true) {
+    if (args.authType === 'oauth') {
+      await usageService.signOut(args.provider)
+        .catch((error: unknown) => log.warn(`hiding ${args.provider} subscription usage failed:`, error));
+    }
+    return { ok: true, data: result };
+  }
   return { ok: false, code: result.error.code, message: result.error.message };
 }
 
