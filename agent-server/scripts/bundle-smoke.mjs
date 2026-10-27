@@ -37,7 +37,7 @@ const env = {
 Object.assign(process.env, env);
 const checks = [];
 async function check(name, fn) {
-  try { const detail = await fn(); checks.push({ name, status: 'pass', detail }); }
+  try { const detail = await fn(); checks.push({ name, status: detail?.skip ? 'unverified' : 'pass', detail }); }
   catch (error) { checks.push({ name, status: 'fail', error: error.stack }); }
   console.log(name, checks.at(-1).status);
 }
@@ -115,7 +115,11 @@ await check('Claude CLI auth probe through server spawn adapter', async () => {
   const { readClaudeAuthStatus } = await load('dist/domain/auth/cc-auth-cli.js');
   // Claude returns exit 1 when logged out. The adapter intentionally reports that as a typed error.
   try { const status = await readClaudeAuthStatus(); assert.equal(status.loggedIn, false); return status; }
-  catch (error) { assert.equal(error.code, 'claude_auth_status_failed'); return { loggedOut: true, error: error.message }; }
+  catch (error) {
+    assert.equal(error.code, 'claude_auth_status_failed');
+    if (error.message.includes('ENOENT')) return { skip: 'Claude CLI not installed on this runner' };
+    return { loggedOut: true, error: error.message };
+  }
 });
 await check('hook-cli list', () => bin('cortex-hook', ['list']));
 
