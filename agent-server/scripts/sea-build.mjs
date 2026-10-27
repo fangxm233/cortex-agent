@@ -31,14 +31,17 @@ function records(directory, prefix = '') {
     const name = prefix + entry.name, file = path.join(directory, entry.name);
     if (!include(name) || entry.isSymbolicLink()) return [];
     if (entry.isDirectory()) return records(file, name + '/');
-    return [[name, fs.statSync(file).mode & 0o777, fs.readFileSync(file).toString('base64')]];
+    return [[name, fs.statSync(file).mode & 0o777, fs.readFileSync(file)]];
   });
 }
 const files = records(source);
 for (const file of ['sea-runtime.cjs', 'sea-preload.cjs']) {
-  files.push([file, 0o644, fs.readFileSync(path.join(scripts, file)).toString('base64')]);
+  files.push([file, 0o644, fs.readFileSync(path.join(scripts, file))]);
 }
-const payload = gzipSync(JSON.stringify(files), { level: 9 });
+const header = Buffer.from(JSON.stringify(files.map(([name, mode, data]) => [name, mode, data.length])));
+const headerLength = Buffer.alloc(4);
+headerLength.writeUInt32LE(header.length);
+const payload = gzipSync(Buffer.concat([headerLength, header, ...files.map(file => file[2])]), { level: 9 });
 const id = `${JSON.parse(fs.readFileSync(path.join(source, 'package.json'))).version}-${createHash('sha256').update(payload).digest('hex').slice(0, 12)}`;
 fs.mkdirSync(out, { recursive: true });
 fs.writeFileSync(path.join(out, 'payload.gz'), payload);
@@ -52,7 +55,7 @@ fs.writeFileSync(path.join(out, 'sea-config.json'), JSON.stringify(config, null,
 execFileSync(process.execPath, ['--build-sea', path.join(out, 'sea-config.json')], { stdio: 'inherit' });
 fs.chmodSync(executable, 0o755);
 const manifest = { id, node: process.version, platform: values.platform, arch: values.arch,
-  codeCache: values['code-cache'], files: files.length, extractedBytes: files.reduce((sum, file) => sum + Buffer.from(file[2], 'base64').length, 0),
+  codeCache: values['code-cache'], files: files.length, extractedBytes: files.reduce((sum, file) => sum + file[2].length, 0),
   payloadBytes: payload.length, binaryBytes: fs.statSync(executable).size };
 fs.writeFileSync(path.join(out, 'build.json'), JSON.stringify(manifest, null, 2));
 console.log(JSON.stringify({ ok: true, executable, ...manifest }, null, 2));

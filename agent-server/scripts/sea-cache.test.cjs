@@ -11,7 +11,12 @@ function fixture(t) {
   t.after(() => fs.rmSync(parent, { recursive: true, force: true }));
   return parent;
 }
-const archive = files => gzipSync(JSON.stringify(files));
+function archive(files) {
+  const buffers = files.map(file => Buffer.from(file[2], 'base64'));
+  const header = Buffer.from(JSON.stringify(files.map(([name, mode], i) => [name, mode, buffers[i].length])));
+  const length = Buffer.alloc(4); length.writeUInt32LE(header.length);
+  return gzipSync(Buffer.concat([length, header, ...buffers]));
+}
 
 test('extract atomically, preserve modes, and reuse only a complete cache', t => {
   const parent = fixture(t);
