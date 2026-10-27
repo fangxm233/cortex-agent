@@ -1,6 +1,8 @@
 /* The agent's browser reuses the docked browser's toolbar and notice rows (browser.css); only the
-   read-only address, the status dot, the control strip and the stage are its own. */
-.agent-browser-address { cursor: default; font-family: var(--font-ui); font-size: 12.5px; }
+   read-only address, the status dot, the control strip and the stage are its own. It shows a page
+   title rather than a typed address, so it reads in the UI face throughout. */
+.agent-browser { font-family: var(--font-ui); font-size: 12.5px; }
+.agent-browser-address { cursor: default; }
 .agent-browser-dot {
   flex: none;
   width: 7px;
@@ -32,7 +34,7 @@
 .agent-browser-device { flex: none; color: var(--proto-muted); white-space: nowrap; }
 
 .agent-browser-control { gap: 8px; padding: 6px 8px; }
-.agent-browser-in-control { flex: none !important; color: var(--proto-accent); font-family: var(--font-ui); font-size: 12.5px; }
+.agent-browser-in-control { flex: none !important; color: var(--proto-accent); }
 .agent-browser-paste { flex: 1 1 auto; height: 28px; }
 
 .agent-browser-stage {
@@ -53,7 +55,6 @@
   max-width: none;
   margin: 0;
   pointer-events: none;
-  font-family: var(--font-ui);
   font-size: 13px;
 }
 .agent-browser-error-detail { max-width: 420px; overflow-wrap: anywhere; color: var(--proto-muted); }

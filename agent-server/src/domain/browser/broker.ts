@@ -4,7 +4,7 @@ import {
 } from '@platform/browser/managed-browser.js';
 import {
   agentBrowserArgs, agentBrowserBaseEnv, agentBrowserSessionName, isTabGone, resolveAgentBrowserBin,
-  runAgentBrowserProcess, AgentBrowserMissingError, type AgentBrowserRun,
+  runAgentBrowserProcess, AgentBrowserMissingError, SESSION_VIEWPORT_ARGS, type AgentBrowserRun,
 } from '@platform/browser/agent-browser.js';
 import { acquireDeviceBrowser, releaseDeviceBrowser } from '../remote/device-browser.js';
 import { getOnlineDevices, isDeviceOnline } from '../remote/client-manager.js';
@@ -283,6 +283,7 @@ export function createBrowserBroker(deps: BrokerDeps): BrowserBroker {
       getRuntime();
       lease.cdpEndpoint = await acquireOn(lease.device);
       lease.holdsRef = true;
+      await pinViewport(lease);
       lease.state = 'ready';
       lease.error = undefined;
       lastVerified.set(lease, deps.now());
@@ -370,7 +371,17 @@ export function createBrowserBroker(deps: BrokerDeps): BrowserBroker {
     log.info(`${lease.sessionId}: bound tab is gone — opening a new one`);
     const rebound = await deps.run(rt.bin, agentBrowserArgs(lease.cdpEndpoint!, lease.abSession, ['tab', 'new']), rt.env);
     if (rebound.code !== 0) return first;
+    await pinViewport(lease);
     return run();
+  }
+
+  /** Bind the session's tab and give it the standard viewport. Best effort: a page at the window's
+   *  size still works, it only streams oddly. */
+  async function pinViewport(lease: Lease): Promise<void> {
+    const rt = getRuntime();
+    const result = await deps.run(rt.bin, agentBrowserArgs(lease.cdpEndpoint!, lease.abSession, SESSION_VIEWPORT_ARGS), rt.env)
+      .catch((e: unknown) => ({ code: -1, stdout: '', stderr: String(e) }));
+    if (result.code !== 0) log.warn(`${lease.sessionId}: could not set the viewport: ${result.stderr.trim().slice(0, 200)}`);
   }
 
   async function refreshInfo(lease: Lease): Promise<void> {

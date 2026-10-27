@@ -50,11 +50,14 @@ export function useAgentBrowserStream({ sessionId, enabled, boxRef, canvasRef }:
   const frame = useRef<ImageBitmap | null>(null);
   const meta = useRef<FrameMeta | null>(null);
 
+  // Fitted by the frame's own shape: the metadata carries the size agent-browser set, which a page
+  // left at its window's size does not match, and a frame drawn to it comes out stretched.
   const frameRect = useCallback((): Rect => {
     const box = boxRef.current;
+    const bitmap = frame.current;
     const m = meta.current;
     if (!box || !m) return { x: 0, y: 0, width: 0, height: 0 };
-    return fitRect(box.clientWidth, box.clientHeight, m.deviceWidth, m.deviceHeight);
+    return fitRect(box.clientWidth, box.clientHeight, bitmap?.width ?? m.deviceWidth, bitmap?.height ?? m.deviceHeight);
   }, [boxRef]);
 
   const draw = useCallback(() => {

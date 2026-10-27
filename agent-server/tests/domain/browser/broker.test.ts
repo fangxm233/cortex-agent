@@ -80,6 +80,13 @@ function command(args: string[]): string[] {
   return args.slice(5);
 }
 
+const VIEWPORT = 'set viewport 1280 800';
+
+/** The commands run so far, without the viewport every new tab is given. */
+function commands(): string[][] {
+  return w.runs.map(command).filter((c) => c.join(' ') !== VIEWPORT);
+}
+
 describe('leaseBrowser', () => {
   it('starts the server Chrome once and reuses it across calls from one session', async () => {
     const a = await broker.leaseBrowser({ sessionId: 'sess-1' });
@@ -109,9 +116,10 @@ describe('leaseBrowser', () => {
     await broker.leaseBrowser({ sessionId: 's', device: 'desk' });
     expect(w.refs.get('server')).toBe(0);
     expect(w.refs.get('desk')).toBe(1);
-    expect(w.runs.map(command)).toEqual([['tab', 'close'], ['close']]);
-    expect(w.runs[0]).toContain('cortex-s-server');
-    expect(w.runs[0]).toContain('--cdp');
+    expect(commands()).toEqual([['tab', 'close'], ['close']]);
+    const close = w.runs.find((r) => command(r)[0] === 'tab')!;
+    expect(close).toContain('cortex-s-server');
+    expect(close).toContain('--cdp');
   });
 
   it('shows the lease as starting while Chrome launches, then ready', async () => {
@@ -126,6 +134,18 @@ describe('leaseBrowser', () => {
     await pending;
     expect(broker.listBrowserSessions()[0].state).toBe('ready');
     expect(changes).toEqual(['starting', 'ready']);
+  });
+
+  it('gives the new tab the standard viewport before the lease is ready', async () => {
+    await broker.leaseBrowser({ sessionId: 's' });
+    expect(w.runs.map((r) => command(r).join(' '))).toEqual([VIEWPORT]);
+    expect(w.runs[0]).toContain('cortex-s-server');
+  });
+
+  it('is ready even when the viewport cannot be set', async () => {
+    w.respond = (args) => (command(args).join(' ') === VIEWPORT ? { code: 1, stdout: '', stderr: '✗ failed' } : ok());
+    await broker.leaseBrowser({ sessionId: 's' });
+    expect(broker.listBrowserSessions()[0].state).toBe('ready');
   });
 
   it('serializes concurrent first calls into one Chrome reference', async () => {
@@ -182,7 +202,7 @@ describe('idle release', () => {
     await vi.advanceTimersByTimeAsync(2000);
     expect(w.refs.get('server')).toBe(0);
     expect(broker.listBrowserSessions()).toEqual([]);
-    expect(w.runs.map(command)).toEqual([['tab', 'close'], ['close']]);
+    expect(commands()).toEqual([['tab', 'close'], ['close']]);
   });
 
   it('releases the Chrome reference before closing the tab', async () => {
@@ -195,7 +215,7 @@ describe('idle release', () => {
     });
     await b.leaseBrowser({ sessionId: 's' });
     await vi.advanceTimersByTimeAsync(IDLE + 1);
-    expect(order).toEqual(['release', 'tab close', 'close']);
+    expect(order.filter((o) => o !== VIEWPORT)).toEqual(['release', 'tab close', 'close']);
     b.shutdown();
   });
 
@@ -232,7 +252,7 @@ describe('takeover', () => {
 describe('runAgentBrowser', () => {
   it('always attaches with --cdp, --session and --pin-tab', async () => {
     await broker.runAgentBrowser('s', ['snapshot', '-i']);
-    expect(w.runs[0]).toEqual(['--cdp', 'http://127.0.0.1:9222', '--session', 'cortex-s-server', '--pin-tab', 'snapshot', '-i']);
+    expect(w.runs[1]).toEqual(['--cdp', 'http://127.0.0.1:9222', '--session', 'cortex-s-server', '--pin-tab', 'snapshot', '-i']);
   });
 
   it('rebinds a fresh tab once when the bound tab is gone, then retries', async () => {
@@ -245,7 +265,7 @@ describe('runAgentBrowser', () => {
     };
     const result = await broker.runAgentBrowser('s', ['get', 'title']);
     expect(result).toEqual(ok('done'));
-    expect(w.runs.slice(0, 3).map(command)).toEqual([['get', 'title'], ['tab', 'new'], ['get', 'title']]);
+    expect(w.runs.slice(0, 5).map((r) => command(r).join(' '))).toEqual([VIEWPORT, 'get title', 'tab new', VIEWPORT, 'get title']);
   });
 
   it('returns other failures as they are', async () => {
