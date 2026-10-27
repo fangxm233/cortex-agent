@@ -225,19 +225,31 @@ fast install 整体替换 `dist`、`web`、`defaults`、`vendor`、`scripts` 目
 它不是叠加覆盖，因此过时的 hash chunk 会被清除。依赖改变或已装包为未打包版时，
 在 stage 内执行 `npm pack --ignore-scripts`，再向原 prefix 执行 `npm install -g`。
 
+daemon 启动时先加载 `$CORTEX_HOME/config/.env`（默认 `~/.cortex/config/.env`），再读取重建设置。
+`loadRuntimeDotenv` 只补充缺失变量，不覆盖已有值，已有空值也不例外：shell 或服务启动器的环境优先。
+`cortex daemon restart-self` 从 CLI 当前环境 fork，不继承旧 daemon 的环境。
+需要持久化的设置应写入 `config/.env`，并移除或统一启动环境中的冲突变量；
+命令前的环境变量前缀只影响本次启动，不能保证以后通过其他启动器启动时仍生效。
+
 本地 stage 包含映射到打包前可读 JavaScript 的 linked source maps。npm tarball 排除这些文件；
 完整安装成功后，本地安装器从 stage 补复制 maps。运行时映射有可测的启动开销，因此需要手动启用。
-在空闲维护窗口执行
-`NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--enable-source-maps" cortex daemon restart-self`，
-即可让 daemon 和 app 启用映射；不带该 Node 选项重启 daemon 可关闭映射。
-发布包不带 server maps。daemon 自己发起的安装跳过 postinstall
-重启通知，由 daemon 直接重启 app；外部 npm 升级仍通过 postinstall 通知 daemon，在空闲时重启 app。
+要为 app 持久启用映射，在 `config/.env` 中设置 `NODE_OPTIONS=--enable-source-maps`
+（已有其他 Node 选项时在原值后追加此标志），再在空闲维护窗口执行 `cortex daemon restart-self`。
+daemon 会把加载后的环境（含 `NODE_OPTIONS`）传给 app 的新 Node 进程。
+从 `.env` 加载该值发生在 daemon 自身的 Node 启动之后，因此不会追溯启用监督器自身的映射。
+关闭 app 映射时，从文件及启动环境中移除该标志，再重启 daemon。发布包不带 server maps。
+daemon 自己发起的安装跳过 postinstall 重启通知，由 daemon 直接重启 app；
+外部 npm 升级仍通过 postinstall 通知 daemon，在空闲时重启 app。
 
-`CORTEX_REBUILD_BUNDLE=0` 是恢复选项，选择普通未打包 build 和源码 fast install / pack-install 路径。
-从打包版退回该布局需要完整替换。开关在 daemon 启动时读取：在空闲维护窗口运行
-`CORTEX_REBUILD_BUNDLE=0 cortex daemon restart-self`，再运行 `cortex daemon restart` 请求源码重建。
-将同样命令里的值设为 `1` 可恢复打包重建。源码重建替换的是安装文件和 app，不是运行中的监督器；
-daemon 代码变更须在新版 daemon 文件安装后，通过 `restart-self` 生效。两种布局都保留 `CORTEX_HOME`。
+打包重建是默认行为，激活时无需 `CORTEX_REBUILD_BUNDLE=1` 前缀。
+要持久回退，在 `config/.env` 中设置 `CORTEX_REBUILD_BUNDLE=0`，选择普通未打包 build 和源码
+fast install / pack-install 路径。在空闲维护窗口执行 `cortex daemon restart-self`，
+等 daemon 和 app 恢复，再执行 `cortex daemon restart` 请求源码重建。从打包版退回该布局需要完整替换。
+恢复打包重建时，删除文件中的该项或改为 `1`，检查启动环境没有冲突值，再重复这两条命令。
+开关在 daemon 启动时读取，仅编辑文件不会让监督器重新加载它。
+源码重建替换的是安装文件和 app，不是运行中的监督器；daemon 代码变更须在新版 daemon 文件安装后，
+通过 `cortex daemon restart-self` 生效。配置文件也应在空闲维护窗口编辑：`.env` watcher 本身可能请求
+重启 app。两种布局都保留 `CORTEX_HOME`。
 
 **进度写在文件里，不在内存里。** 流水线在第一步之前就把完整计划写入
 `$STORE_DIR/daemon-rebuild.json`——这个 checkout 会跑的步骤（上述构建步骤，随后是打包模式下的

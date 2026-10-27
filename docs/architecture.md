@@ -232,21 +232,37 @@ while retaining `node_modules`. It does not overlay directories, so obsolete has
 A dependency change or an unbundled installation takes the full path: `npm pack --ignore-scripts`
 in the stage, followed by `npm install -g` in the existing prefix.
 
+The daemon loads `$CORTEX_HOME/config/.env` (default `~/.cortex/config/.env`) at startup before
+reading its rebuild settings. `loadRuntimeDotenv` fills missing variables without overwriting
+existing ones, even empty values: the shell or service launcher's environment takes precedence.
+`cortex daemon restart-self` forks from the CLI's current environment, not the old daemon's.
+Keep persistent settings in `config/.env`, and remove or reconcile conflicting launcher variables;
+a command-line environment prefix affects that launch, not future starts through other launchers.
+
 Local stages contain linked source maps for readable, pre-bundle JavaScript. npm tarballs exclude
 the maps; the local installer copies them from the stage after a full install. Runtime mapping is
-opt-in because it adds measurable startup cost. During an idle maintenance window, use
-`NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--enable-source-maps" cortex daemon restart-self`
-to enable it for the daemon and its app; restart the daemon without that Node option to disable it.
-Release packages have no server maps. Daemon-managed installs suppress their own postinstall restart notification and restart the
-app directly; external npm upgrades retain the postinstall notification and idle-aware app restart.
+opt-in because it adds measurable startup cost. To enable it persistently for the app, set
+`NODE_OPTIONS=--enable-source-maps` in `config/.env` (append the flag to any existing Node options),
+then run `cortex daemon restart-self` during an idle maintenance window. The daemon passes its
+loaded environment, including `NODE_OPTIONS`, to the app's new Node process. Loading that value
+from `.env` happens after the daemon's own Node startup, so it does not retroactively enable
+mapping in the supervisor itself. To disable app mapping, remove that flag from the file and any
+launcher environment, then restart the daemon. Release packages have no server maps.
+Daemon-managed installs suppress their own postinstall restart notification and restart the app
+directly; external npm upgrades retain the postinstall notification and idle-aware app restart.
 
-`CORTEX_REBUILD_BUNDLE=0` selects the ordinary unbundled build and source fast-install/pack-install
-path as a recovery option. A bundled installation needs a full replacement to return to that layout.
-The switch is read when the daemon starts: during an idle maintenance window, run
-`CORTEX_REBUILD_BUNDLE=0 cortex daemon restart-self`, then `cortex daemon restart` to request the
-source rebuild. Set the value to `1` in the same commands to return to bundled rebuilds. A source
-rebuild replaces installed files and the app, not the running supervisor; daemon code changes require
-`restart-self` after the updated daemon files have been installed. Both layouts preserve `CORTEX_HOME`.
+Bundled rebuilds are the default; no `CORTEX_REBUILD_BUNDLE=1` prefix is needed to activate them.
+For persistent recovery, set `CORTEX_REBUILD_BUNDLE=0` in `config/.env`. This selects the ordinary
+unbundled build and source fast-install/pack-install path. During an idle maintenance window, run
+`cortex daemon restart-self`, wait for the daemon and app to recover, then run `cortex daemon restart`
+to request the source rebuild. A bundled installation needs a full replacement to return to that
+layout. To restore bundled rebuilds, remove the setting from the file or set it to `1`, check for
+conflicting launcher variables, and repeat those two commands. The switch is read at daemon
+startup; editing the file alone does not reload it in the supervisor. A source rebuild replaces
+installed files and the app, not the running supervisor; daemon code changes require
+`cortex daemon restart-self` after the updated daemon files have been installed.
+Make configuration edits during an idle maintenance window: the `.env` watcher can also request
+an app restart. Both layouts preserve `CORTEX_HOME`.
 
 **Progress lives in a file, not in memory.** Before step one the pipeline writes its whole plan to
 `$STORE_DIR/daemon-rebuild.json` — the steps this checkout will run (the build steps above, then
