@@ -35,8 +35,9 @@ CI 把 tarball 安装到临时 prefix，用无凭据的 home 和隔离端口运�
 附包内已有的作者/版权元数据；嵌入的 QuickJS-NG 引擎另附上游声明。notices 生成完全离线。
 Web source maps 单独作为 release 资产。
 
-源码 checkout 的本地开发使用普通 TypeScript build 和 `npm pack` 布局。
-发布暂存命令不替换 checkout 的 `dist/` 或 package manifest。
+源码 checkout 的 `dist/` 保留普通 TypeScript 构建产物。源码模式 daemon 通过发布所用的同一个
+`bundle.mjs` 暂存待安装的包，不替换 checkout 的 `dist/` 或 package manifest。
+本地重建另生成 JavaScript source maps，仅保留在本机，不进入 npm tarball。
 
 ## Agent-Server 架构：六层结构 {#agent-server-architecture-six-layers}
 
@@ -212,20 +213,32 @@ L5  entry/         → everything (composition root)
 
 ### 热重建：发布的进度与回合闸门 {#hot-rebuild-published-progress-and-the-turn-hold}
 
-设置了 `CORTEX_REPO` 时，源码改动会让监督器重新构建各软件包、重新安装自身，
-并替换 app 进程。构建分三条并发 lane 进行。其中一条是有序链——
+`CORTEX_REPO` 指向 checkout 的 `agent-server` 目录时，源码改动会让监督器重新构建各软件包、
+重新安装自身，并替换 app 进程。构建分三条并发 lane 进行。其中一条是有序链——
 先 `server`，再 `ui-contract`，最后 `web-typecheck`——因为 ui-contract 重新导出 server 构建出的
 类型，而 web 的类型检查依赖 ui-contract 的构建产物。另外两条 `web-bundle` 和
 `web-depcruise` 只读 web 源码，一开始就与它并行。每条 lane 都会跑到底，
 任何一步失败都会在安装之前终止这次重建，并发出一条点名每个失败步骤的通知。
-fast install 只把源码构建产物复制进兼容的未打包安装。目标 package 标记为 `cortexBundle: true`
-时必须走完整的源码 `npm pack` + `npm install -g`，不会把未打包文件覆盖进 chunk 布局。
-普通 npm 自更新整体替换 package，因此未打包安装也能接收打包版发布物。
-两种布局都保留 `CORTEX_HOME` 和 restart trigger 的约定。有两个机制让重建既可见又安全。
+构建成功后，`bundle.mjs` 在全新 stage 中生成发布布局，带 `cortexBundle: true` 标记。
+构建或 stage 失败时，现有安装和 app 保持不变。已装包同样为打包版，且外部依赖声明与 stage 一致时，
+fast install 整体替换 `dist`、`web`、`defaults`、`vendor`、`scripts` 目录及包元数据，保留 `node_modules`。
+它不是叠加覆盖，因此过时的 hash chunk 会被清除。依赖改变或已装包为未打包版时，
+在 stage 内执行 `npm pack --ignore-scripts`，再向原 prefix 执行 `npm install -g`。
+
+本地 stage 包含映射到打包前可读 JavaScript 的 linked source maps。npm tarball 排除这些文件；
+完整安装成功后，本地安装器从 stage 补复制 maps。daemon 发现 app 入口的 map 时，
+以 `--enable-source-maps` 启动 app；发布包不带 server maps。daemon 自己发起的安装跳过 postinstall
+重启通知，由 daemon 直接重启 app；外部 npm 升级仍通过 postinstall 通知 daemon，在空闲时重启 app。
+
+`CORTEX_REBUILD_BUNDLE=0` 是恢复选项，选择普通未打包 build 和源码 fast install / pack-install 路径。
+从打包版退回该布局需要完整替换。开关在 daemon 启动时读取：在空闲维护窗口运行
+`CORTEX_REBUILD_BUNDLE=0 cortex daemon restart-self`，再运行 `cortex daemon restart` 请求源码重建。
+将同样命令里的值设为 `1` 可恢复打包重建。源码重建替换的是安装文件和 app，不是运行中的监督器；
+daemon 代码变更须在新版 daemon 文件安装后，通过 `restart-self` 生效。两种布局都保留 `CORTEX_HOME`。
 
 **进度写在文件里，不在内存里。** 流水线在第一步之前就把完整计划写入
-`$STORE_DIR/daemon-rebuild.json`——这个 checkout 会跑的步骤（上述构建步骤，随后是
-`install` 和 `restart`）、哪些正在进行、每一步如何结束（`done`、`failed`、
+`$STORE_DIR/daemon-rebuild.json`——这个 checkout 会跑的步骤（上述构建步骤，随后是打包模式下的
+`bundle`、`install` 和 `restart`）、哪些正在进行、每一步如何结束（`done`、`failed`、
 `skipped`），其中 `install` 步骤还记录它走的是快速 staged-rename 路径还是
 `npm pack` + `npm install -g`。只能用文件：流水线的最后一个动作就是替换掉本该保存这份
 状态的进程，所以内存里的任何东西都无法告诉新的 `app.js`，催生它的那次
@@ -236,8 +249,8 @@ fast install 只把源码构建产物复制进兼容的未打包安装。目标 
 `aborted` 和 `deferred`。
 
 **流水线中危险的那一半会等待 app 空闲。** 构建步骤读取仓库、
-写入 `dist/`；`install` 步骤覆盖运行中 `app.js` 加载的文件，`restart`
-则杀掉它。因此 busy/idle 会检查两次：构建之前一次，构建之后再一次，因为构建
+写入 `dist/`，打包写入独立 stage；`install` 步骤替换运行中 `app.js` 加载的文件，`restart`
+则杀掉它。因此 busy/idle 会检查两次：构建之前一次，准备完成后再一次，因为构建
 要花数分钟，这期间完全可能有回合正当地开始。第二道门发现子进程忙碌时，
 会把触发暂存到 `pendingRebuild`、把记录发布为 `deferred`，并在下一次转为空闲时
 重跑整条流水线——真实工作会被等待而不是被拒绝，因为被拒绝的回合不等于被延迟的

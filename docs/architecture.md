@@ -38,8 +38,10 @@ third-party declarations and license texts. Packages without a license file use 
 texts with their published author/copyright metadata; the embedded QuickJS-NG engine has its own
 upstream notice. Notice generation is offline. Web source maps are separate release assets.
 
-Source checkouts use the ordinary TypeScript build and `npm pack` layout for local development.
-The release staging command does not replace the checkout's `dist/` or package manifest.
+Source checkouts keep ordinary TypeScript output in `dist/`. The source-mode daemon stages its
+installed package with the same `bundle.mjs` used for releases; staging does not replace the
+checkout's `dist/` or package manifest. Local rebuilds also generate JavaScript source maps,
+which stay on the machine and are excluded from npm tarballs.
 
 ## Agent-Server Architecture: Six Layers
 
@@ -216,21 +218,37 @@ layer) is detailed in [hooks.md](./hooks.md).
 
 ### Hot Rebuild: Published Progress and the Turn Hold
 
-With `CORTEX_REPO` set, a source change makes the supervisor rebuild the packages, reinstall itself,
-and replace the app process. The build runs as three concurrent lanes. One is an ordered chain —
+With `CORTEX_REPO` pointing at the checkout's `agent-server` directory, a source change makes the
+supervisor rebuild the packages, reinstall itself, and replace the app process. The build runs as three concurrent lanes. One is an ordered chain —
 `server`, then `ui-contract`, then `web-typecheck` — because ui-contract re-exports the server's built
 types and web typechecks against ui-contract's built output. The other two, `web-bundle` and
 `web-depcruise`, read only web sources and start at once beside it. Every lane runs to its end, and
 any failed step stops the rebuild before the install, with a notice naming each step that failed.
-The fast install path copies source-build outputs only into a compatible, unbundled installation.
-A package marked `cortexBundle: true` requires the full source `npm pack` + `npm install -g` path;
-unbundled files are never overlaid onto its chunks. Normal npm self-updates replace the package as
-a whole, so an unbundled installation can receive a bundled release. Neither layout changes
-`CORTEX_HOME` or the restart-trigger contract. Two mechanisms make the rebuild visible and safe.
+After the build, `bundle.mjs` prepares a fresh stage with the release layout and `cortexBundle: true`.
+Build or staging failures leave the installed package and running app intact. When the installed
+package is also bundled and its external dependency declarations match the stage, fast install
+replaces complete `dist`, `web`, `defaults`, `vendor`, and `scripts` trees plus package metadata,
+while retaining `node_modules`. It does not overlay directories, so obsolete hashed chunks disappear.
+A dependency change or an unbundled installation takes the full path: `npm pack --ignore-scripts`
+in the stage, followed by `npm install -g` in the existing prefix.
+
+Local stages contain linked source maps for readable, pre-bundle JavaScript. npm tarballs exclude
+the maps; the local installer copies them from the stage after a full install. The daemon starts
+an app with `--enable-source-maps` when its entry map is present. Release packages have no server
+maps. Daemon-managed installs suppress their own postinstall restart notification and restart the
+app directly; external npm upgrades retain the postinstall notification and idle-aware app restart.
+
+`CORTEX_REBUILD_BUNDLE=0` selects the ordinary unbundled build and source fast-install/pack-install
+path as a recovery option. A bundled installation needs a full replacement to return to that layout.
+The switch is read when the daemon starts: during an idle maintenance window, run
+`CORTEX_REBUILD_BUNDLE=0 cortex daemon restart-self`, then `cortex daemon restart` to request the
+source rebuild. Set the value to `1` in the same commands to return to bundled rebuilds. A source
+rebuild replaces installed files and the app, not the running supervisor; daemon code changes require
+`restart-self` after the updated daemon files have been installed. Both layouts preserve `CORTEX_HOME`.
 
 **Progress lives in a file, not in memory.** Before step one the pipeline writes its whole plan to
 `$STORE_DIR/daemon-rebuild.json` — the steps this checkout will run (the build steps above, then
-`install` and `restart`), which are in flight, and how each ended (`done`, `failed`,
+`bundle` in bundled mode, `install`, and `restart`), which are in flight, and how each ended (`done`, `failed`,
 `skipped`), with the `install` step recording whether it took the fast staged-rename path or
 `npm pack` + `npm install -g`. A file is the only option: the pipeline's last act replaces the very
 process that would have held that state, so nothing in memory can tell the new `app.js` what the
@@ -241,8 +259,9 @@ failed at `web-typecheck`" is still readable after the restart. The terminal sta
 `aborted`, and `deferred`.
 
 **The dangerous half of the pipeline waits for an idle app.** The build steps read the repo and
-write `dist/`; the `install` step overwrites the files the running `app.js` loaded and `restart`
-kills it. So busy/idle is checked twice: once before the build, and again after it, because a build
+write `dist/`, and bundling writes a separate stage; the `install` step replaces the files the running
+`app.js` loaded and `restart` kills it. So busy/idle is checked twice: once before the build, and
+again after preparation, because a build
 takes minutes and a turn can legitimately have started meanwhile. A busy child at the second gate
 parks the trigger in `pendingRebuild`, publishes the record as `deferred`, and the whole pipeline
 runs again on the next idle transition — real work is waited for, not refused, because a refused
