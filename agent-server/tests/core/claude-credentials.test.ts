@@ -5,6 +5,7 @@ import { test } from 'vitest';
 
 import {
   claudeCredentialsPath,
+  claudeKeychainCredential,
   claudeKeychainService,
   claudeOwnsOAuthCredential,
   hasClaudeCredential,
@@ -186,4 +187,35 @@ test('a saved API key or an ambient auth token counts as a Claude credential', (
   assert.equal(hasClaudeCredential({
     ...base, env: { ANTHROPIC_AUTH_TOKEN: 'proxy-token' }, readFile: reader({}),
   }), true);
+});
+
+test('the keychain credential reads the item named for Cortex\'s config dir, as a Bearer token', async () => {
+  const services: string[] = [];
+  const credential = await claudeKeychainCredential({
+    claudeConfigDir: CLAUDE_DIR,
+    platform: 'darwin',
+    now: () => 1_000,
+    readKeychain: async (service) => { services.push(service); return oauthFile({ expiresAt: 4_000_000_000_000 }); },
+  });
+  assert.deepEqual(services, ['Claude Code-credentials-7a2726fb']);
+  assert.equal(credential?.source, 'claude-keychain');
+  assert.equal(credential?.headers.authorization, 'Bearer store-token');
+});
+
+test('an expired, missing or corrupt keychain item is no credential', async () => {
+  const base = { claudeConfigDir: CLAUDE_DIR, platform: 'darwin' as const, now: () => 5_000_000 };
+  for (const raw of [oauthFile({ expiresAt: 1_000 }), null, 'not json']) {
+    assert.equal(await claudeKeychainCredential({ ...base, readKeychain: async () => raw }), null);
+  }
+});
+
+test('off macOS the keychain is never read', async () => {
+  let reads = 0;
+  const credential = await claudeKeychainCredential({
+    claudeConfigDir: CLAUDE_DIR,
+    platform: 'linux',
+    readKeychain: async () => { reads += 1; return oauthFile(); },
+  });
+  assert.equal(credential, null);
+  assert.equal(reads, 0);
 });

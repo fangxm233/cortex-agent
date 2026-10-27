@@ -1,13 +1,13 @@
 //
 // CONVENTION — never make the daemon wait on a human:
-// On macOS the Claude Code credential lives in the login keychain, and DECRYPTING it
-// (`security find-generic-password -w`) can raise an authorization dialog. The daemon runs in the
-// background, where such a dialog is either invisible or refused outright (errSecInteractionNotAllowed),
-// so this module never reads the secret out of the keychain — it only asks whether the ITEM EXISTS,
-// which reads attributes and decrypts nothing. A macOS host whose only credential is the keychain
-// therefore has no daemon-side credential, and every caller here degrades to its static fallback.
+// On macOS the Claude Code credential lives in the login keychain. Every synchronous path here only
+// asks whether the ITEM EXISTS (attributes, nothing decrypted). The one exception is the model list
+// (claudeKeychainCredential): it reads the secret the way Claude Code itself does —
+// `security find-generic-password -w`, so the reader is the same /usr/bin/security that created the
+// item and stays inside its access list — asynchronously and under a timeout, so a locked keychain
+// or a refused read costs a failed fetch, never a blocked daemon.
 
-import { execFileSync } from 'child_process';
+import { execFile, execFileSync } from 'child_process';
 import { createHash } from 'crypto';
 import { readFileSync } from 'fs';
 import * as path from 'path';
@@ -21,9 +21,11 @@ const ANTHROPIC_VERSION = '2023-06-01';
 /** A token this close to expiry is treated as gone: we cannot refresh it, only Claude Code can. */
 const EXPIRY_SKEW_MS = 60_000;
 const KEYCHAIN_PROBE_TIMEOUT_MS = 2_000;
+const KEYCHAIN_READ_TIMEOUT_MS = 5_000;
 
 export type ClaudeCredentialSource =
-  | 'env-api-key' | 'dotenv-api-key' | 'env-oauth-token' | 'dotenv-oauth-token' | 'claude-credentials';
+  | 'env-api-key' | 'dotenv-api-key' | 'env-oauth-token' | 'dotenv-oauth-token' | 'claude-credentials'
+  | 'claude-keychain';
 
 export interface ClaudeCredential {
   /** Everything one Anthropic request needs to authenticate. */
@@ -41,6 +43,8 @@ export interface ClaudeCredentialDeps {
   platform?: NodeJS.Platform;
   /** Runs the keychain existence probe. Returns true when the item is present. */
   probeKeychain?: (service: string) => boolean;
+  /** Reads the keychain item's secret; null when it is absent or unreadable. */
+  readKeychain?: (service: string) => Promise<string | null>;
 }
 
 function readFileOrNull(read: (p: string) => string, filePath: string): string | null {
@@ -152,12 +156,8 @@ function epochField(value: unknown): number | null {
   return Number.isNaN(new Date(value).getTime()) ? null : value;
 }
 
-/** The only reader of Claude Code's plaintext store (`.credentials.json`). null when the file is
- *  missing, unreadable or corrupt, or holds neither an access nor a refresh token. The macOS
- *  keychain is never read here — see the convention at the top. */
-export function readClaudeStore(deps: ClaudeCredentialDeps = {}): ClaudeStoreCredential | null {
-  const raw = readFileOrNull(fileReader(deps), claudeCredentialsPath(deps));
-  if (raw === null) return null;
+/** Claude Code's stored credential JSON — the same shape in the file and the keychain item. */
+function parseClaudeStore(raw: string): ClaudeStoreCredential | null {
   let oauth: unknown;
   try {
     oauth = (JSON.parse(raw) as { claudeAiOauth?: unknown } | null)?.claudeAiOauth;
@@ -175,14 +175,25 @@ export function readClaudeStore(deps: ClaudeCredentialDeps = {}): ClaudeStoreCre
   return store.accessToken || store.refreshToken ? store : null;
 }
 
-/** The access token from Claude's plaintext store, or null when there is none or it has already
- *  expired. */
-function claudeStoreToken(deps: ClaudeCredentialDeps): string | null {
-  const store = readClaudeStore(deps);
+/** The only reader of Claude Code's plaintext store (`.credentials.json`). null when the file is
+ *  missing, unreadable or corrupt, or holds neither an access nor a refresh token. */
+export function readClaudeStore(deps: ClaudeCredentialDeps = {}): ClaudeStoreCredential | null {
+  const raw = readFileOrNull(fileReader(deps), claudeCredentialsPath(deps));
+  return raw === null ? null : parseClaudeStore(raw);
+}
+
+/** The access token, or null when there is none or it has already expired. */
+function liveAccessToken(store: ClaudeStoreCredential | null, deps: ClaudeCredentialDeps): string | null {
   if (!store?.accessToken) return null;
   const now = (deps.now ?? Date.now)();
   if (store.expiresAt !== null && store.expiresAt - EXPIRY_SKEW_MS <= now) return null;
   return store.accessToken;
+}
+
+/** The access token from Claude's plaintext store, or null when there is none or it has already
+ *  expired. */
+function claudeStoreToken(deps: ClaudeCredentialDeps): string | null {
+  return liveAccessToken(readClaudeStore(deps), deps);
 }
 
 /** Request headers for Claude's own OAuth login (`claude login`), the only credential that carries
@@ -261,6 +272,36 @@ function probeKeychainItem(service: string): boolean {
   }
 }
 
+/** The keychain item's secret, read the way Claude Code reads it. Never throws. */
+function readKeychainItem(service: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    try {
+      execFile(
+        'security', ['find-generic-password', '-s', service, '-w'],
+        { encoding: 'utf8', timeout: KEYCHAIN_READ_TIMEOUT_MS },
+        (error, stdout) => resolve(error ? null : stdout.trim() || null),
+      );
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+/**
+ * Claude's macOS keychain login as a credential for the model list — the one daemon caller that
+ * reads the secret (see the convention at the top). The token is only used, never refreshed or
+ * written back: rotating it here would invalidate the copy Claude Code holds. null off macOS, or
+ * when the item is absent, unreadable or expired.
+ */
+export async function claudeKeychainCredential(deps: ClaudeCredentialDeps = {}): Promise<ClaudeCredential | null> {
+  const platform = deps.platform ?? process.platform;
+  if (platform !== 'darwin') return null;
+  const read = deps.readKeychain ?? readKeychainItem;
+  const raw = await read(claudeKeychainService(deps));
+  const token = liveAccessToken(raw === null ? null : parseClaudeStore(raw), deps);
+  return token ? { headers: oauthHeaders(token), source: 'claude-keychain' } : null;
+}
+
 /**
  * Does Claude Code own an OAuth credential here?
  *
@@ -280,7 +321,7 @@ export function claudeOwnsOAuthCredential(deps: ClaudeCredentialDeps = {}): bool
 /**
  * Can a Claude spawn on this host authenticate at all? Any store counts, unlike
  * resolveClaudeCredential: an expired login still refreshes inside Claude Code, a macOS keychain
- * login is never readable here, and ANTHROPIC_AUTH_TOKEN reaches a child only through the env.
+ * login is only probed here, never read, and ANTHROPIC_AUTH_TOKEN reaches a child only through the env.
  */
 export function hasClaudeCredential(deps: ClaudeCredentialDeps = {}): boolean {
   const env = deps.env ?? process.env;

@@ -72,7 +72,7 @@ test('the fetch goes through ANTHROPIC_BASE_URL with the resolved credential', a
 
 test('no credential, a non-2xx answer or a shapeless body all throw, so the backoff applies', async () => {
   const noCredential = fetchAnthropicModels({
-    env: {}, claudeConfigDir: CLAUDE_DIR, readFile: reader({}),
+    env: {}, claudeConfigDir: CLAUDE_DIR, readFile: reader({}), platform: 'linux',
     fetchImpl: (async () => jsonResponse({ data: [] })) as unknown as typeof fetch,
   });
   await assert.rejects(noCredential, /no Anthropic credential/);
@@ -177,4 +177,33 @@ test('a failed fetch is not retried until the backoff expires, and never throws 
   now += 5_000;
   assert.deepEqual(await discovery.ensure(1_000), []);
   assert.equal(fetches, 2, 'the backoff expired, so one more attempt is made');
+});
+
+test('on macOS with no other credential, the keychain login authenticates the models call', async () => {
+  let sent: Record<string, string> = {};
+  await fetchAnthropicModels({
+    env: {},
+    claudeConfigDir: CLAUDE_DIR,
+    readFile: reader({}),
+    platform: 'darwin',
+    readKeychain: async () => JSON.stringify({ claudeAiOauth: { accessToken: 'keychain-token' } }),
+    fetchImpl: (async (_url: string, init: RequestInit) => {
+      sent = init.headers as Record<string, string>;
+      return jsonResponse({ data: [] });
+    }) as unknown as typeof fetch,
+  });
+  assert.equal(sent.authorization, 'Bearer keychain-token');
+});
+
+test('the keychain is not read when another credential already answers', async () => {
+  let reads = 0;
+  await fetchAnthropicModels({
+    env: { ANTHROPIC_API_KEY: 'sk-ant-k' },
+    claudeConfigDir: CLAUDE_DIR,
+    readFile: reader({}),
+    platform: 'darwin',
+    readKeychain: async () => { reads += 1; return null; },
+    fetchImpl: (async () => jsonResponse({ data: [] })) as unknown as typeof fetch,
+  });
+  assert.equal(reads, 0);
 });

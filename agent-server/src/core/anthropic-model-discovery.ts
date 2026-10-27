@@ -1,6 +1,6 @@
 import { ANTHROPIC_MODELS } from './anthropic-models.js';
 import { CachedScan } from './cached-scan.js';
-import { resolveClaudeCredential, type ClaudeCredentialDeps } from './claude-credentials.js';
+import { claudeKeychainCredential, resolveClaudeCredential, type ClaudeCredentialDeps } from './claude-credentials.js';
 import { createLogger } from './log.js';
 
 const log = createLogger('anthropic-models');
@@ -80,7 +80,7 @@ function parseModel(entry: unknown): DiscoveredAnthropicModel | null {
 export async function fetchAnthropicModels(
   options: FetchAnthropicModelsOptions = {},
 ): Promise<DiscoveredAnthropicModel[]> {
-  const credential = resolveClaudeCredential(options);
+  const credential = resolveClaudeCredential(options) ?? await claudeKeychainCredential(options);
   if (!credential) throw new Error('no Anthropic credential available to the daemon');
   const doFetch = options.fetchImpl ?? fetch;
   const url = `${resolveBaseUrl(options)}/v1/models?limit=${PAGE_LIMIT}`;
