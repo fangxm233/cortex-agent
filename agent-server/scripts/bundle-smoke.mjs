@@ -183,7 +183,11 @@ try {
     assert.equal(response.status, 200); const body = await response.json(); assert(body.result); return body;
   });
   await check('Bundled aistatus child health on remapped test port', async () => {
-    const response = await fetch('http://127.0.0.1:17380/health'); assert.equal(response.status, 200); return response.text();
+    for (let i = 0; i < 100; i++) {
+      try { const response = await fetch('http://127.0.0.1:17380/health'); if (response.ok) return await response.text(); } catch {}
+      await delay(100);
+    }
+    throw new Error('Isolated gateway did not become ready');
   });
   await check('TUI WebSocket upgrade', async () => {
     // Node's built-in WebSocket proves the upgrade; auth is exercised separately via HTTP.
