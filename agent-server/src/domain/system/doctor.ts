@@ -109,7 +109,6 @@ export interface FixOutcome {
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
-
 function normalize(v: string | undefined): string | undefined {
   if (typeof v !== 'string') return undefined;
   const t = v.trim();
@@ -436,9 +435,10 @@ function sectionGateway(
   const gwYaml = path.join(deps.aistatusDir, 'gateway.yaml');
   const gwConfigured = deps.fileExists(gwYaml);
   const gatewayAddress = new URL(deps.gatewayUrl ?? GATEWAY_CONFIG.url).host;
+  const missingConfig = GATEWAY_CONFIG.home ? gwYaml : '~/.aistatus/gateway.yaml';
   checks.push(gwConfigured
     ? { id: 'gateway-config', label: 'Gateway config', status: 'pass', detail: gwYaml }
-    : { id: 'gateway-config', label: 'Gateway config', status: 'skip', detail: `not configured (no ${gwYaml})`, hint: 'run `cortex setup-gateway` if you use the gateway' });
+    : { id: 'gateway-config', label: 'Gateway config', status: 'skip', detail: `not configured (no ${missingConfig})`, hint: 'run `cortex setup-gateway` if you use the gateway' });
 
   const gatewayInUse = getEnv('ANTHROPIC_API_KEY') === GATEWAY_MANAGED_KEY_PLACEHOLDER || gwConfigured;
   if (healthy) {

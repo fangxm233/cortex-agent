@@ -323,6 +323,7 @@ describe('runDiagnostics — gateway', () => {
       probeGateway: async () => false,
     })));
     assert.equal(checks['gateway-health'].status, 'skip');
+    assert.equal(checks['gateway-config'].detail, 'not configured (no ~/.aistatus/gateway.yaml)');
   });
 
 });

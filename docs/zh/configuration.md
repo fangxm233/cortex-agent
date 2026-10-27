@@ -129,7 +129,7 @@ CORTEX_UI_PORT=3104
 
 启动该实例及运行其 CLI 时，始终指定 `CORTEX_HOME=/absolute/path/to/cortex-second`。`.env` 中路径须写绝对路径，不展开 `~` 或 `$CORTEX_HOME`。所选端口已有健康网关时会复用它，因此独立网关必须使用不同端口。
 
-为第二实例配置 provider 凭据并运行 `cortex setup-gateway`。网关从自己的 YAML 读取托管 key，或从后端请求接收透传 key，不从独立 home 下的 `~/.claude`、`~/.pi` 读取登录。`CORTEX_GATEWAY_HOME` 只改变网关子进程的 home，不改变 Cortex 的 Claude/PI 凭据位置。不要跨实例复制会轮换的 OAuth token，应使用后端登录流程。网关 usage-sharing 偏好也按 home 隔离，需单独配置。既有网关文件和凭据不会自动复制。
+为第二实例配置 provider 凭据并运行 `cortex setup-gateway`。网关从自己的 YAML 读取托管 key，或从后端请求接收透传 key，不从独立 home 下的 `~/.claude`、`~/.pi` 读取登录。`CORTEX_GATEWAY_HOME` 只改变网关子进程的 home，不改变 Cortex 的 Claude/PI 凭据位置。尤其是 `~/.pi/agent/` 中的 PI 凭据和自定义 provider 目录仍由使用同一 OS home 的 Cortex 实例共享；如需隔离它们，也要为 Cortex 使用独立 OS home。不要跨实例复制会轮换的 OAuth token，应使用后端登录流程。网关 usage-sharing 偏好也按 home 隔离，需单独配置。既有网关文件和凭据不会自动复制。
 
 ### 平台 {#platform}
 

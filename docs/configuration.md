@@ -201,8 +201,10 @@ Configure provider credentials and run `cortex setup-gateway` for the second
 instance. The gateway obtains managed keys from its YAML and passthrough keys
 from incoming backend requests, not from `~/.claude` or `~/.pi` in its private
 home. `CORTEX_GATEWAY_HOME` changes only the gateway child's home, not Cortex's
-Claude or PI credential locations. Do not copy rotating OAuth tokens between
-instances; use the backend's login flow. Gateway usage-sharing preferences are
+Claude or PI credential locations. In particular, PI credentials and custom
+provider catalogs under `~/.pi/agent/` remain shared by Cortex instances using
+the same OS home; use a separate OS home as well if those must be isolated.
+Do not copy rotating OAuth tokens between instances; use the backend's login flow. Gateway usage-sharing preferences are
 also private to that home and need their own configuration. No existing gateway
 files or credentials are copied automatically.
 
