@@ -36,7 +36,7 @@ Choose **Install Cortex** on the first screen and wait for installation to finis
 
 Each desktop installer carries the runtime the local server needs: the official Node.js 24 build for its platform and, on Windows, Git for Windows (PortableGit) with Git Bash. Setup unpacks them into versioned directories under `~/.cortex/runtime`, then uses that npm to install the Cortex server package into the private prefix `~/.cortex/runtime/prefix`. Only the server package, and Claude Code when you choose to install it, come from the npm registry; npm follows your `.npmrc` registry, proxy, and credential settings. Setup does not change global npm settings, and it neither uses nor modifies a Node.js, npm, Git, or `cortex` already installed on the computer. The server adds the `cortex` command to new terminal windows itself, described in [Using cortex in a terminal](#using-cortex-in-a-terminal).
 
-The local server always runs on the bundled runtime. When a runtime directory is missing or damaged, the app unpacks it again during setup, or at launch before it starts the daemon. A saved server installation that no longer runs, or is older than the app requires, is reinstalled into the private prefix. On Windows, Cortex runs shell commands with the bundled Git Bash. On macOS and Linux, Git is optional and setup does not install it; Git-based history and Git-sourced extensions require it.
+The local server always runs on the bundled runtime. When a runtime directory is missing or damaged, the app unpacks it again during setup, or at launch before it starts the daemon. A saved server installation that no longer runs, or is older than the app requires, is reinstalled into the private prefix. When the daemon does not answer at launch and the server installation is gone, the app opens setup, which reinstalls the server and connects to the existing configuration. On Windows, Cortex runs shell commands with the bundled Git Bash. On macOS and Linux, Git is optional and setup does not install it; Git-based history and Git-sourced extensions require it.
 
 The bundled Node.js determines where local installation works: macOS 13.5 or later, Linux x86_64 with glibc 2.28 or later, and Windows 10 or 11 on x86_64. On other systems the app can still connect to an existing server.
 
@@ -250,7 +250,7 @@ With the data kept, installing Cortex again picks up where it left off: setup un
 
 The app itself is removed the way it was installed. The Windows uninstaller deletes the program files once the window closes. macOS moves `Cortex.app` to the Trash. An AppImage deletes its file. A DEB or RPM install is removed by its package manager after a system authorization prompt. A copy that no package owns shows its folder for you to delete. When stopping the server or deleting its files fails, the app stays installed and the window offers **Try again**. A login service the app did not write, such as a `cortex.service` created by `cortex init` on the command line, is reported and left in place.
 
-Windows app updates and silent uninstalls (`/S`, `/P`, `/UPDATE`) do not open the window; they only replace or remove the program files.
+Windows app updates, an installer run over the installed app, and silent uninstalls (`/S`, `/P`, `/UPDATE`) do not open the window; they only replace or remove the program files.
 
 Removing the app any other way, by dragging `Cortex.app` to the Trash, running `apt remove`, or deleting the AppImage, leaves the server and its data in place. To remove the server afterwards, turn off its login service, stop it, and delete the runtime:
 

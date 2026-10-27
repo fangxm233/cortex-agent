@@ -36,7 +36,7 @@ Android APK 面向 arm64 设备，并通过 Play Store 之外的方式分发。�
 
 每个桌面安装包都自带本机服务端所需的运行环境：对应平台的官方 Node.js 24，Windows 安装包另含带 Git Bash 的 Git for Windows（PortableGit）。安装时将它们解压到 `~/.cortex/runtime` 下按版本命名的目录，再用其中的 npm 把 Cortex 服务端包安装到私有 prefix `~/.cortex/runtime/prefix`。只有服务端包，以及你选择安装的 Claude Code，从 npm registry 获取；npm 沿用你 `.npmrc` 中的 registry、代理和凭据设置。安装不修改全局 npm 设置，也不使用、不改动电脑上已有的 Node.js、npm、Git 或 `cortex`。服务端会自行让新开的终端窗口可以使用 `cortex` 命令，详见[在终端中使用 cortex](#using-cortex-in-a-terminal)。
 
-本机服务端始终运行在自带的运行环境上。运行环境目录缺失或损坏时，应用会在安装过程中，或在启动时拉起 daemon 之前重新解压。已保存的服务端安装无法运行或低于应用要求的版本时，会重新安装到私有 prefix。Windows 上 Cortex 用自带的 Git Bash 执行 shell 命令。macOS 与 Linux 上 Git 为可选项，安装流程不会安装它；Git 版本历史与 Git 来源的扩展需要 Git。
+本机服务端始终运行在自带的运行环境上。运行环境目录缺失或损坏时，应用会在安装过程中，或在启动时拉起 daemon 之前重新解压。已保存的服务端安装无法运行或低于应用要求的版本时，会重新安装到私有 prefix。如果启动时 daemon 未响应且服务端安装已不存在，应用会打开安装界面，重新安装服务端并连接到已有配置。Windows 上 Cortex 用自带的 Git Bash 执行 shell 命令。macOS 与 Linux 上 Git 为可选项，安装流程不会安装它；Git 版本历史与 Git 来源的扩展需要 Git。
 
 自带的 Node.js 决定了本机安装支持的系统：macOS 13.5 及以上、glibc 2.28 及以上的 x86_64 Linux，以及 x86_64 的 Windows 10 或 11。其他系统仍可连接已有服务器。
 
@@ -250,7 +250,7 @@ Server release 也可以在 GitHub Release 中携带原生安装包。服务器�
 
 应用本体按安装方式移除。Windows 卸载程序在窗口关闭后删除程序文件；macOS 把 `Cortex.app` 移到废纸篓；AppImage 删除其文件；DEB 或 RPM 安装在系统授权提示后由包管理器移除；不属于任何软件包的副本会显示所在文件夹，由你手动删除。停止服务器或删除其文件失败时，应用保持安装状态，窗口提供**重试**。不是由应用写入的登录服务（例如在命令行运行 `cortex init` 生成的 `cortex.service`）会在结果中注明并保持原样。
 
-Windows 应用更新和静默卸载（`/S`、`/P`、`/UPDATE`）不会打开该窗口，只替换或删除程序文件。
+Windows 应用更新、在已安装应用上运行安装程序，以及静默卸载（`/S`、`/P`、`/UPDATE`）都不会打开该窗口，只替换或删除程序文件。
 
 用其他方式移除应用，例如把 `Cortex.app` 拖进废纸篓、运行 `apt remove` 或删除 AppImage，服务器和数据会保留。之后要移除服务器，依次取消其登录服务、停止服务器并删除运行时：
 
