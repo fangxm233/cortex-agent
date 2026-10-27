@@ -3,6 +3,11 @@
 ;   0  proceed    10  proceed and delete the app's own data    20  cancelled
 ; Any other result (it could not start, it crashed) falls back to the stock confirm page.
 ;
+; Only a real uninstall opens that window. An installer upgrading over this copy runs this uninstaller
+; in place (`uninstall.exe _?=<dir>`, with /UPDATE when silent), so $EXEDIR is the install directory;
+; Windows' uninstall entry and the app's Settings start uninstall.exe without `_?=`, and NSIS then
+; reruns a copy of it from %TEMP%. NSIS strips `_?=` from $CMDLINE, hence the directory check.
+;
 ; This file is included before Tauri's template declares its variables and defines, so nothing here
 ; may reference them at the top level: the binary name is spelled out, and $UpdateMode / $PassiveMode
 ; are re-read from the command line.
@@ -24,6 +29,7 @@ Function un.CortexUninstaller
   ClearErrors
   ${GetOptions} $CMDLINE "/P" $0
   IfErrors 0 cortex_done
+  StrCmp $EXEDIR $INSTDIR cortex_done
   IfFileExists "$INSTDIR\cortex-desktop.exe" 0 cortex_done
   ClearErrors
   ExecWait '"$INSTDIR\cortex-desktop.exe" --uninstall --from-installer' $0
