@@ -34,10 +34,10 @@
  *   process itself does NOT reload — if you edit daemon.ts you must manually
  *   `cortex daemon` restart to pick up the new daemon code.
  *
- *   The install step has two paths (see entry/fast-install.ts). While the manifest's dependency
- *   sets are unchanged — every rebuild that only touched source — the build outputs are copied
- *   straight into the install root through staged renames, which takes seconds. When dependencies
- *   change, it falls back to npm pack → install -g so the vendored closure is rebuilt.
+ *   After the build lanes, a fresh temporary bundle stage is validated before the second idle
+ *   gate. Matching bundled installs receive whole staged directories; other installs use npm
+ *   pack → install -g of the stage, then restore local source maps. CORTEX_REBUILD_BUNDLE=0 at
+ *   daemon startup retains the original source fast-install / lifecycle-pack rollback path.
  *
  *   The build runs as concurrent lanes. One lane is an ordered chain, and its order is
  *   load-bearing: ui-contract re-exports the server's dist types and web typechecks against
@@ -68,7 +68,7 @@
  *   rebuild pipeline; in production mode it just respawns app.js.
  */
 
-import { fork, spawn } from 'child_process';
+import { fork } from 'child_process';
 import {
   watch,
   existsSync,
@@ -84,11 +84,13 @@ import { t, setLocale, normalizeLocale } from '@core/i18n.js';
 import { loadLang } from '@domain/system/preferences.js';
 import { loadRuntimeDotenv } from '@core/runtime-env.js';
 import { createResilientWatchMonitor, type WatchMonitor } from '@core/resilient-watch.js';
-import { isMainModule, moduleDir, withServerNpmPrefix } from '@core/utils.js';
+import { isMainModule, moduleDir } from '@core/utils.js';
 import {
   DATA_DIR, CONFIG_DIR, INSTALL_ROOT, DAEMON_PID_FILE, DAEMON_CHILD_PID_FILE, RESTART_TRIGGER_FILE,
 } from '@core/paths.js';
-import { planFastInstall, applyFastInstall } from './fast-install.js';
+import { runSourceRebuild, type SourceRebuildOptions } from './source-rebuild.js';
+import { planRebuildStepNames, spawnRebuildCommand } from './source-rebuild-build.js';
+export { planRebuildLanes, planRebuildStepNames, type RebuildStep } from './source-rebuild-build.js';
 import { tryAcquireSingletonLock, releaseSingletonLock as releaseLock } from '@core/singleton-lock.js';
 import { ensureOwnBinsOnPath } from '@domain/system/own-bin-path.js';
 import { captureProcessCrash } from '@domain/telemetry/crash.js';
@@ -118,6 +120,7 @@ const MODULE_DIR = moduleDir(import.meta.url);
 const APP_ENTRY = path.join(MODULE_DIR, 'app.js');
 const ENV_FILE = path.join(CONFIG_DIR, '.env');
 const CORTEX_REPO = process.env.CORTEX_REPO ?? '';
+const REBUILD_BUNDLE = process.env.CORTEX_REBUILD_BUNDLE !== '0';
 const SRC_WATCH_PATH = CORTEX_REPO ? path.join(CORTEX_REPO, 'src') : '';
 // Monorepo root is the parent of the agent-server repo (e.g. /srv/cortex).
 // Web SPA lives under MONOREPO_ROOT/web/ and must be built before packing.
@@ -171,7 +174,9 @@ function cancelPendingTimers() {
   if (rebuildTimer) { clearTimeout(rebuildTimer); rebuildTimer = null; }
 }
 
-export function buildChildProcessConfig(restartReason: string | null = null, childExit: string | null = null) {
+export function buildChildProcessConfig(
+  restartReason: string | null = null, childExit: string | null = null, appEntry = APP_ENTRY,
+) {
   const stdio: ('pipe' | 'ignore' | 'ipc')[] = ['pipe', 'ignore', 'ignore', 'ipc'];
   const env = { ...process.env };
   delete env.CORTEX_RESTART_REASON;
@@ -182,7 +187,7 @@ export function buildChildProcessConfig(restartReason: string | null = null, chi
     cwd: DATA_DIR,
     windowsHide: true,
     stdio,
-    execArgv: [],
+    execArgv: existsSync(`${appEntry}.map`) ? ['--enable-source-maps'] : [],
     env,
   };
 }
@@ -515,58 +520,6 @@ function debouncedRebuild(reason: string) {
 }
 
 // --- Rebuild Pipeline ---
-// spawn helper: stream stdout/stderr through daemon logger, resolve with exit code
-function spawnAsync(cmd: string, args: string[], opts: { cwd: string }): Promise<number> {
-  return new Promise((resolve) => {
-    const tag = `[${cmd} ${args.join(' ')}]`;
-    log.info(`${tag} cwd=${opts.cwd}`);
-    const proc = spawn(cmd, args, { cwd: opts.cwd, stdio: ['ignore', 'pipe', 'pipe'] });
-    const onLine = (label: string) => (chunk: Buffer) => {
-      for (const line of chunk.toString('utf8').split('\n')) {
-        if (line.trim()) log.info(`${tag} ${label}: ${line}`);
-      }
-    };
-    proc.stdout?.on('data', onLine('out'));
-    proc.stderr?.on('data', onLine('err'));
-    proc.on('exit', (code) => {
-      log.info(`${tag} exit=${code}`);
-      resolve(code ?? 1);
-    });
-    proc.on('error', (err) => {
-      log.error(`${tag} spawn error: ${err.message}`);
-      resolve(1);
-    });
-  });
-}
-
-export interface RebuildStep {
-  /** The published progress step it runs as; also names it in logs and in the abort notice. */
-  label: RebuildStepName;
-  cmd: string;
-  args: string[];
-  cwd: string;
-}
-
-/** The hot-reload build as lanes that run concurrently, each an ordered list of `npm run` steps,
- *  skipping packages that are absent. The first lane's order is load-bearing: agent-server emits the
- *  dist types, ui-contract re-exports them, web typechecks against ui-contract's dist. Web's bundle
- *  and dependency check read only web sources, so each gets a lane of its own. Together the web
- *  steps are web's `build` script. */
-export function planRebuildLanes(dirs: {
-  repoDir: string;
-  uiContractDir?: string | null;
-  webDir?: string | null;
-}): RebuildStep[][] {
-  const run = (label: RebuildStepName, cwd: string, script: string): RebuildStep => (
-    { label, cmd: 'npm', args: ['run', script], cwd }
-  );
-  const types = [run('server', dirs.repoDir, 'build')];
-  if (dirs.uiContractDir) types.push(run('ui-contract', dirs.uiContractDir, 'build'));
-  if (!dirs.webDir) return [types];
-  types.push(run('web-typecheck', dirs.webDir, 'typecheck'));
-  return [types, [run('web-bundle', dirs.webDir, 'bundle')], [run('web-depcruise', dirs.webDir, 'depcruise')]];
-}
-
 /** The text shown to the operator when the pipeline stops early. Spells out the consequence
  *  explicitly: an aborted rebuild leaves the *previous* build running, so a silent abort looks
  *  exactly like "my restart did nothing". */
@@ -622,21 +575,13 @@ function setRebuildProgress(next: RebuildProgress): void {
   );
 }
 
-/** The steps a checkout will actually run, lane by lane. Derived from `planRebuildLanes` so the
- *  build half cannot drift — a package that is absent is never published as pending — plus the two
- *  phases the build planner does not own. */
-export function planRebuildStepNames(dirs: Parameters<typeof planRebuildLanes>[0]): RebuildStepName[] {
-  const names = planRebuildLanes(dirs).flat().map((step) => step.label);
-  return [...names, 'install', 'restart'];
-}
-
-/** `planRebuildStepNames` for this process's checkout. */
-function plannedProgressSteps(): RebuildStepName[] {
-  return planRebuildStepNames({
+/** Workspace packages present in this process's source checkout. */
+function rebuildDirs(): SourceRebuildOptions['dirs'] {
+  return {
     repoDir: CORTEX_REPO,
     uiContractDir: UI_CONTRACT_DIR && existsSync(UI_CONTRACT_DIR) ? UI_CONTRACT_DIR : null,
     webDir: WEB_DIR && existsSync(WEB_DIR) ? WEB_DIR : null,
-  });
+  };
 }
 
 /** The pipeline's last step, with the progress record closed out according to what restart() did. */
@@ -662,6 +607,7 @@ function updateRebuildProgress(patch: (progress: RebuildProgress) => RebuildProg
  *  phases of the same install step from the reader's point of view. Build steps are already
  *  marked by the lane that ran them. */
 function progressStepFor(label: string): RebuildStepName | null {
+  if (label === 'bundle') return 'bundle';
   if (label === 'install' || label === 'pack' || label === 'tgz cleanup') return 'install';
   return null;
 }
@@ -682,211 +628,69 @@ function abortRebuild(step: string, detail: string, reason: string): void {
   notifyChild({ type: 'rebuild-aborted', text });
 }
 
-/** Run one lane's steps in order, stopping at the first failure. Returns that failure, or null. */
-async function runBuildLane(lane: RebuildStep[]): Promise<{ label: string; detail: string } | null> {
-  for (const step of lane) {
-    updateRebuildProgress((progress) => startRebuildStep(progress, step.label));
-    const code = await spawnAsync(step.cmd, step.args, { cwd: step.cwd });
-    if (code !== 0) {
-      const detail = `exit ${code}`;
-      updateRebuildProgress((progress) => finishRebuildStep(progress, step.label, 'failed', detail));
-      return { label: step.label, detail };
-    }
-    updateRebuildProgress((progress) => finishRebuildStep(progress, step.label, 'done'));
-  }
-  return null;
-}
-
-/** Run the build lanes concurrently and wait for all of them. Returns false when any step failed
- *  (already reported, naming every failed step). */
-async function runBuildSteps(reason: string): Promise<boolean> {
-  const lanes = planRebuildLanes({
-    repoDir: CORTEX_REPO,
-    uiContractDir: UI_CONTRACT_DIR && existsSync(UI_CONTRACT_DIR) ? UI_CONTRACT_DIR : null,
-    webDir: WEB_DIR && existsSync(WEB_DIR) ? WEB_DIR : null,
-  });
-  if (!lanes.flat().some((step) => step.label === 'web-bundle')) {
-    log.warn('WEB_DIR not found — skipping web build, pack will use stale web/dist if present');
-  }
-
-  const failures = (await Promise.all(lanes.map(runBuildLane))).filter((failure) => failure !== null);
-  if (failures.length === 0) return true;
-  abortRebuild(
-    failures.map((failure) => failure.label).join(', '),
-    failures.map((failure) => failure.detail).join(', '),
-    reason,
-  );
-  return false;
-}
-
-/** Newest packed tarball in CORTEX_REPO, or an abort detail explaining why there is none. */
-function findNewestTarball(): { path: string } | { detail: string } {
-  let candidates;
-  try {
-    candidates = readdirSync(CORTEX_REPO)
-      .filter(f => f.startsWith('cortex-agent-server-') && f.endsWith('.tgz'))
-      .map(f => ({ f, mtime: statSync(path.join(CORTEX_REPO, f)).mtimeMs }))
-      .sort((a, b) => b.mtime - a.mtime);
-  } catch (err: any) {
-    return { detail: `failed to enumerate tgz in ${CORTEX_REPO}: ${err?.message ?? err}` };
-  }
-  if (candidates.length === 0) return { detail: 'npm pack succeeded but no cortex-agent-server-*.tgz found' };
-  return { path: path.join(CORTEX_REPO, candidates[0].f) };
-}
-
-/** Clean stale tarballs, pack, and return the freshly packed tgz path (or '' after an abort). */
-async function packTarball(reason: string): Promise<string> {
-  const cleanCode = await spawnAsync('bash', ['-c', 'rm -f cortex-agent-server-*.tgz'], { cwd: CORTEX_REPO });
-  if (cleanCode !== 0) {
-    abortRebuild('tgz cleanup', `exit ${cleanCode}`, reason);
-    return '';
-  }
-  const packCode = await spawnAsync('npm', ['pack'], { cwd: CORTEX_REPO });
-  if (packCode !== 0) {
-    abortRebuild('pack', `exit ${packCode}`, reason);
-    return '';
-  }
-
-  const found = findNewestTarball();
-  if ('detail' in found) {
-    abortRebuild('pack', found.detail, reason);
-    return '';
-  }
-  return found.path;
-}
-
-/**
- * Refresh the install root by copying the build outputs in, skipping pack + `npm install -g`.
- * Only valid while the dependency closure is unchanged, which is every rebuild that did not touch
- * the manifest. Returns the synced entries, or null when the full install path must run.
- */
-function tryFastInstall(): string[] | null {
-  const plan = planFastInstall({
-    repoDir: CORTEX_REPO,
-    monorepoRoot: MONOREPO_ROOT,
-    installRoot: INSTALL_ROOT,
-  });
-  if (plan.blocked) {
-    log.info(`Fast install unavailable (${plan.blocked}) — falling back to pack + install -g`);
-    return null;
-  }
-  try {
-    return applyFastInstall(plan);
-  } catch (err: any) {
-    // A failed sync leaves the previous tree in place (staged rename), so the full path can
-    // still recover the install root.
-    log.warn(`Fast install failed (${err?.message ?? err}) — falling back to pack + install -g`);
-    return null;
-  }
-}
-
-async function runRebuildPipeline(reason: string) {
-  // Defer if app.ts is mid-request: install -g + restart() would interrupt it.
-  // The build/pack/install commands themselves don't touch the running child, but the
-  // final restart() does — to keep the gate simple we defer the whole pipeline.
-  if (childBusy) {
-    log.info(`Rebuild deferred (app.ts busy): ${reason}`);
+/** First idle gate and serialization remain supervisor-owned. */
+function beginRebuild(reason: string): boolean {
+  if (childBusy || rebuilding) {
+    log.info(`Rebuild deferred (${childBusy ? 'app.ts busy' : 'already rebuilding'}): ${reason}`);
     pendingRebuild = reason;
-    return;
+    return false;
   }
-
-  // Serialize: only one rebuild pipeline at a time. Overlapping triggers collapse into pendingRebuild.
-  if (rebuilding) {
-    log.info(`Rebuild deferred (already rebuilding): ${reason}`);
-    pendingRebuild = reason;
-    return;
-  }
-
   if (!CORTEX_REPO) {
     log.error(`Rebuild requested but CORTEX_REPO unset — ignoring: ${reason}`);
-    return;
+    return false;
   }
-
   rebuilding = true;
+  return true;
+}
+
+/** A turn may start during build/staging. Discard the stage and retry on idle, without a hold. */
+function deferRebuildInstall(reason: string): boolean {
+  if (!childBusy) return false;
+  log.info(`Rebuild install deferred (app.ts busy): ${reason} — retrying when app.ts goes idle`);
+  pendingRebuild = reason;
+  updateRebuildProgress((progress) => settleRebuildProgress(
+    progress, 'deferred', 'Build finished; install and restart wait for app.ts to go idle.',
+  ));
+  return true;
+}
+
+function sourceRebuildOptions(reason: string): SourceRebuildOptions {
+  return {
+    dirs: rebuildDirs(), installRoot: INSTALL_ROOT, bundle: REBUILD_BUNDLE, log,
+    run: (cmd, args, opts) => spawnRebuildCommand(cmd, args, opts, log),
+    update: updateRebuildProgress,
+    abort: (step, detail) => abortRebuild(step, detail, reason),
+    deferInstall: () => deferRebuildInstall(reason),
+    restart: () => restartForRebuild(reason),
+  };
+}
+
+async function runRebuildPipeline(reason: string): Promise<void> {
+  if (!beginRebuild(reason)) return;
   let awaitingIdle = false;
   try {
     log.info(`Rebuild pipeline starting: ${reason}`);
-    // Publishing the plan before the first step is what makes the progress honest: the reader gets
-    // the total up front, including the steps that have not started.
     setRebuildProgress(planRebuildProgress({
-      reason,
-      names: plannedProgressSteps(),
-      daemonPid: process.pid,
+      reason, names: planRebuildStepNames(rebuildDirs(), REBUILD_BUNDLE), daemonPid: process.pid,
     }));
-
-    // Step 1: build the workspace packages (server → ui-contract → web typecheck, beside web's
-    // bundle and dependency check).
-    if (!await runBuildSteps(reason)) return;
-
-    // Second busy gate. The build above is minutes long and touches nothing the running child
-    // reads, so a turn can legitimately have started during it — and everything below does touch
-    // it: the install overwrites the files app.js loaded, the restart kills it. Rather than refuse
-    // that turn (a refused waitpoint wake or background-agent result is dropped work, not delayed
-    // work), abandon the install and let the idle transition run the whole pipeline again. The
-    // build outputs stay on disk, so the retry is the incremental cost of a second `npm run build`.
-    if (childBusy) {
-      log.info(`Rebuild install deferred (app.ts busy): ${reason} — retrying when app.ts goes idle`);
-      pendingRebuild = reason;
-      awaitingIdle = true;
-      updateRebuildProgress((progress) => settleRebuildProgress(
-        progress,
-        'deferred',
-        'Build finished; install and restart wait for app.ts to go idle.',
-      ));
-      return;
-    }
-
-    // Step 2: fast install. A src edit changes only the compiled output, so copying it into the
-    // install root is equivalent to reinstalling — and skips rewriting the ~40k-file vendored
-    // closure that `npm install -g` rm -rf's and re-extracts on every rebuild.
-    const started = Date.now();
-    updateRebuildProgress((progress) => startRebuildStep(progress, 'install'));
-    const synced = tryFastInstall();
-    if (synced) {
-      log.info(`Fast install: ${synced.join(', ')} in ${Date.now() - started}ms — restarting app.ts`);
-      updateRebuildProgress((progress) => finishRebuildStep(progress, 'install', 'done', 'fast'));
-      await restartForRebuild(reason);
-      return;
-    }
-
-    // Step 3: pack (clean old tgz first, otherwise readdir picks up a stale one)
-    const tgzPath = await packTarball(reason);
-    if (!tgzPath) return;
-    log.info(`Packed tarball: ${tgzPath}`);
-
-    // Step 4: install -g. Run from /tmp so npm doesn't choke if its CWD lives inside the package
-    // currently being unlinked.
-    const installCode = await spawnAsync('npm', withServerNpmPrefix(['install', '-g', tgzPath]), { cwd: '/tmp' });
-    if (installCode !== 0) {
-      abortRebuild('install', `exit ${installCode}`, reason);
-      return;
-    }
-    updateRebuildProgress((progress) => finishRebuildStep(progress, 'install', 'done', 'pack + install -g'));
-
-    // Step 5: restart app.ts. This reuses the busy/idle gate inside restart() —
-    // if a request snuck in between the busy-check above and now, restart() will
-    // re-defer to pendingRestart. Either way, the new app.js boots from the freshly
-    // installed dist/.
-    log.info(`Rebuild succeeded — restarting app.ts`);
-    await restartForRebuild(reason);
+    awaitingIdle = await runSourceRebuild(sourceRebuildOptions(reason)) === 'deferred';
   } finally {
-    // An aborted pipeline already settled its own record; a run that reached here still `running`
-    // never restarted the child either, so releasing the hold is the honest close.
-    if (rebuildProgress?.status === 'running') {
-      setRebuildProgress(settleRebuildProgress(rebuildProgress, 'aborted', 'pipeline ended without restarting app.ts'));
-    }
-    rebuildProgress = null;
-    rebuilding = false;
-    // If src changed again while we were rebuilding, pick that up now. A pipeline that deferred its
-    // own install is the one exception: its reason stays queued for the idle transition, because
-    // re-triggering here would rebuild every couple of seconds for as long as the turn lasts.
-    if (pendingRebuild && !awaitingIdle) {
-      const next = pendingRebuild;
-      pendingRebuild = null;
-      log.info(`Consuming queued rebuild: ${next}`);
-      // Schedule via debounce so further rapid edits still coalesce.
-      debouncedRebuild(next);
-    }
+    finishTrackedRebuild(awaitingIdle);
+  }
+}
+
+function finishTrackedRebuild(awaitingIdle: boolean): void {
+  if (rebuildProgress?.status === 'running') {
+    setRebuildProgress(settleRebuildProgress(rebuildProgress, 'aborted', 'pipeline ended without restarting app.ts'));
+  }
+  rebuildProgress = null;
+  rebuilding = false;
+  // Preserve the existing queued-trigger loop, except an idle deferral must wait for real work.
+  if (pendingRebuild && !awaitingIdle) {
+    const next = pendingRebuild;
+    pendingRebuild = null;
+    log.info(`Consuming queued rebuild: ${next}`);
+    debouncedRebuild(next);
   }
 }
 

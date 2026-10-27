@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { test } from 'vitest';
 import {
   buildChildProcessConfig,
@@ -70,6 +71,18 @@ test.each([null, 'crash-recovery', 'restart'])('server fork hides the window and
   assert.deepEqual(config.env, expectedEnv);
 });
 
+test('app forks enable source maps only when the entry has a sibling map', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'daemon-app-map-'));
+  const entry = path.join(root, 'app.js');
+  try {
+    assert.deepEqual(buildChildProcessConfig(null, null, entry).execArgv, []);
+    fs.writeFileSync(`${entry}.map`, '{}');
+    assert.deepEqual(buildChildProcessConfig(null, null, entry).execArgv, ['--enable-source-maps']);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 // --- Rebuild lanes ---
 //
 // Regression: web resolves @cortex-agent/ui-contract through that package's BUILT dist, and
@@ -130,19 +143,21 @@ test('web defines every script the rebuild lanes call', () => {
 // pipeline will actually walk. Deriving it from planRebuildLanes is what keeps the two in step; the
 // install and restart phases are appended because the build planner does not own them.
 
-test('planRebuildStepNames publishes the build steps it will run, then install and restart', () => {
+test('planRebuildStepNames publishes bundle before install, with explicit source rollback', () => {
   assert.deepEqual(
     planRebuildStepNames({
       repoDir: '/repo/agent-server',
       uiContractDir: '/repo/packages/ui-contract',
       webDir: '/repo/web',
     }),
-    ['server', 'ui-contract', 'web-typecheck', 'web-bundle', 'web-depcruise', 'install', 'restart'],
+    ['server', 'ui-contract', 'web-typecheck', 'web-bundle', 'web-depcruise', 'bundle', 'install', 'restart'],
   );
   assert.deepEqual(
     planRebuildStepNames({ repoDir: '/repo/agent-server', uiContractDir: null, webDir: null }),
-    ['server', 'install', 'restart'],
+    ['server', 'bundle', 'install', 'restart'],
   );
+  assert.deepEqual(planRebuildStepNames({ repoDir: '/repo/agent-server' }, false),
+    ['server', 'install', 'restart']);
 });
 
 // --- Turn-gate scope ---
@@ -160,6 +175,7 @@ test('the turn gate closes for install and restart, and for nothing before them'
   assert.equal(holds('ui-contract'), false);
   assert.equal(holds('web-typecheck'), false);
   assert.equal(holds('web-bundle'), false);
+  assert.equal(holds('bundle'), false, 'staging is still outside the install/turn hold');
   assert.equal(holds('install'), true, 'the install overwrites the files app.js is running from');
   assert.equal(holds('restart'), true);
   assert.equal(holds(null), false, 'between two steps nothing is in flight');

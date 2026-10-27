@@ -12,7 +12,7 @@ function runHook(skip: string | undefined, initialized = true) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'restart-hook-test-'));
   roots.push(home);
   if (initialized) fs.mkdirSync(path.join(home, 'data'));
-  const env = { ...process.env, CORTEX_HOME: home };
+  const env: NodeJS.ProcessEnv = { ...process.env, CORTEX_HOME: home };
   delete env.CORTEX_SKIP_POSTINSTALL_RESTART;
   if (skip !== undefined) env.CORTEX_SKIP_POSTINSTALL_RESTART = skip;
   const output = execFileSync(process.execPath, [hook], { env, encoding: 'utf8' });

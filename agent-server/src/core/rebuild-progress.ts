@@ -28,6 +28,7 @@ export type RebuildStepName =
   | 'web-typecheck'
   | 'web-bundle'
   | 'web-depcruise'
+  | 'bundle'
   | 'install'
   | 'restart';
 
