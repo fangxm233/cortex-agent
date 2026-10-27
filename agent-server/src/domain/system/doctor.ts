@@ -6,7 +6,7 @@ import { parse as parseDotenvLib } from 'dotenv';
 
 import { isGitAvailable } from '@core/git-availability.js';
 import { GATEWAY_MANAGED_KEY_PLACEHOLDER } from '@core/utils.js';
-import { AISTATUS_DIR, DATA_DIR, CONFIG_DIR, STORE_DIR, DAEMON_PID_FILE } from '@core/paths.js';
+import { AISTATUS_DIR, GATEWAY_CONFIG, DATA_DIR, CONFIG_DIR, STORE_DIR, DAEMON_PID_FILE } from '@core/paths.js';
 import { ensureAuthTokens, CLIENT_TOKEN_ENV, WEBHOOK_TOKEN_ENV } from '@core/auth.js';
 import { generateMcpConfig } from '@core/config-generator.js';
 import { isProcessAlive } from '@core/singleton-lock.js';
@@ -76,6 +76,7 @@ export interface DoctorDeps {
   parseDotenv(text: string): Record<string, string>;
   commandExists(bin: string): boolean;
   pidAlive(pid: number): boolean;
+  gatewayUrl?: string;
   probeGateway(): Promise<boolean>;
   /** Locate the bundled PI SDK without importing it; null when it cannot be resolved. */
   resolvePiSdk(): PiSdkInfo | null;
@@ -108,8 +109,6 @@ export interface FixOutcome {
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
-const GW_HOST = '127.0.0.1';
-const GW_PORT = 9880;
 
 function normalize(v: string | undefined): string | undefined {
   if (typeof v !== 'string') return undefined;
@@ -436,15 +435,16 @@ function sectionGateway(
   const checks: CheckResult[] = [];
   const gwYaml = path.join(deps.aistatusDir, 'gateway.yaml');
   const gwConfigured = deps.fileExists(gwYaml);
+  const gatewayAddress = new URL(deps.gatewayUrl ?? GATEWAY_CONFIG.url).host;
   checks.push(gwConfigured
     ? { id: 'gateway-config', label: 'Gateway config', status: 'pass', detail: gwYaml }
-    : { id: 'gateway-config', label: 'Gateway config', status: 'skip', detail: 'not configured (no ~/.aistatus/gateway.yaml)', hint: 'run `cortex setup-gateway` if you use the gateway' });
+    : { id: 'gateway-config', label: 'Gateway config', status: 'skip', detail: `not configured (no ${gwYaml})`, hint: 'run `cortex setup-gateway` if you use the gateway' });
 
   const gatewayInUse = getEnv('ANTHROPIC_API_KEY') === GATEWAY_MANAGED_KEY_PLACEHOLDER || gwConfigured;
   if (healthy) {
-    checks.push({ id: 'gateway-health', label: 'Gateway health', status: 'pass', detail: `responding at ${GW_HOST}:${GW_PORT}` });
+    checks.push({ id: 'gateway-health', label: 'Gateway health', status: 'pass', detail: `responding at ${gatewayAddress}` });
   } else if (gatewayInUse) {
-    checks.push({ id: 'gateway-health', label: 'Gateway health', status: 'fail', detail: `no response at ${GW_HOST}:${GW_PORT}/status`, hint: 'check gateway.log or restart Cortex (the server auto-starts the gateway)' });
+    checks.push({ id: 'gateway-health', label: 'Gateway health', status: 'fail', detail: `no response at ${gatewayAddress}/status`, hint: 'check gateway.log or restart Cortex (the server auto-starts the gateway)' });
   } else {
     checks.push({ id: 'gateway-health', label: 'Gateway health', status: 'skip', detail: 'not running (not required for current backend)' });
   }
@@ -543,7 +543,7 @@ function resolveBundledPiSdk(): PiSdkInfo | null {
 
 function probeGatewayHttp(): Promise<boolean> {
   return new Promise((resolve) => {
-    const req = http.get(`http://${GW_HOST}:${GW_PORT}/status`, { timeout: 5000 }, (res) => {
+    const req = http.get(`${GATEWAY_CONFIG.url}/status`, { timeout: 5000 }, (res) => {
       res.resume();
       resolve(res.statusCode === 200);
     });
@@ -557,6 +557,7 @@ export function createDefaultDoctorDeps(): DoctorDeps {
     env: process.env,
     paths: { DATA_DIR, CONFIG_DIR, STORE_DIR },
     aistatusDir: AISTATUS_DIR,
+    gatewayUrl: GATEWAY_CONFIG.url,
     nodeVersion: process.version,
     requiredNodeMajor: 20,
     fileExists: (p) => { try { return fs.existsSync(p); } catch { return false; } },

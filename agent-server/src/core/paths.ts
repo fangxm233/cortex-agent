@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { fileURLToPath } from 'url';
+import { loadGatewayConfig } from './gateway-config.js';
 
 // This file lives at dist/core/paths.js when installed (or running from repo via tsx).
 // Two levels up resolves to the install/package root, which contains `dist/` and `defaults/`.
@@ -66,9 +67,11 @@ export function sessionSpawnCwd(session?: { workspaceDir?: string | null } | nul
   return resolveSpawnCwd(session?.workspaceDir ?? undefined);
 }
 
-/** aistatus's own home (gateway.yaml, config.yaml, usage/). Always under the user's home, not
- *  DATA_DIR: aistatus reads it from there regardless of CORTEX_HOME. */
-export const AISTATUS_DIR = path.join(os.homedir(), '.aistatus');
+/** Startup-only gateway settings, shared by the CLI, server and gateway child. */
+export const GATEWAY_CONFIG = loadGatewayConfig(path.join(DATA_DIR, 'config'));
+
+/** aistatus state (gateway.yaml, config.yaml, usage/), under the gateway's OS home. */
+export const AISTATUS_DIR = GATEWAY_CONFIG.aistatusDir;
 
 /** Configuration files — .env, budget, models, environments, etc. (DATA_DIR/config/). */
 export const CONFIG_DIR = path.join(DATA_DIR, 'config');

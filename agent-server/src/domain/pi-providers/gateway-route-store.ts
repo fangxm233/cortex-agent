@@ -1,9 +1,9 @@
 import { copyFileSync, existsSync } from 'fs';
-import * as path from 'path';
 
 import { atomicWriteSync } from '@core/atomic-write.js';
 import { createLogger } from '@core/log.js';
-import { AISTATUS_DIR } from '@core/paths.js';
+import { GATEWAY_CONFIG } from '@core/paths.js';
+import { gatewayYamlPort } from '@core/gateway-config.js';
 import {
   readGatewayYaml, serializeGatewayYaml, type EndpointMap,
 } from '@core/gateway-generator.js';
@@ -11,7 +11,7 @@ import {
 const log = createLogger('pi-custom-providers');
 
 /** The config file the running gateway watches; edits are hot-reloaded within ~1s. */
-export const GATEWAY_CONFIG_PATH = path.join(AISTATUS_DIR, 'gateway.yaml');
+export const GATEWAY_CONFIG_PATH = GATEWAY_CONFIG.configPath;
 
 export interface GatewayRouteSpec {
   /** Endpoint section (URL segment after the mode): `/m/<mode>/<endpoint>`. */
@@ -78,7 +78,7 @@ export function upsertGatewayRoute(gatewayPath: string, route: GatewayRouteSpec)
   if (route.keys.length > 0) config.keys = [...route.keys];
 
   doc.endpoints[route.endpoint] = { ...doc.endpoints[route.endpoint], [route.mode]: config };
-  doc.top.port ??= 9880;
+  doc.top.port = gatewayYamlPort(GATEWAY_CONFIG, doc.top.port);
   doc.top.status_check ??= true;
   // Never steal the active billing mode from an existing config; only seed it on a fresh file.
   if (typeof doc.top.mode !== 'string' || doc.top.mode === '') doc.top.mode = route.mode;

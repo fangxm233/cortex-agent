@@ -3,15 +3,13 @@ import { createWriteStream, mkdirSync, existsSync } from 'fs';
 import * as path from 'path';
 import * as http from 'http';
 import { createRequire } from 'module';
-import { AISTATUS_DIR, DATA_DIR } from '@core/paths.js';
+import { GATEWAY_CONFIG, DATA_DIR } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 
 const log = createLogger('gateway-mgr');
 
 // --- Config ---
-const GATEWAY_HOST = '127.0.0.1';
-const GATEWAY_PORT = 9880;
-const GATEWAY_URL = `http://${GATEWAY_HOST}:${GATEWAY_PORT}`;
+const GATEWAY_URL = GATEWAY_CONFIG.url;
 // Resolve gateway CLI from the aistatus npm package (bin entry: ./dist/gateway-cli.js)
 const require = createRequire(import.meta.url);
 const aistatusDir = path.dirname(require.resolve('aistatus'));
@@ -118,22 +116,28 @@ async function spawnGateway() {
     return;
   }
 
+  launchGateway();
+}
+
+function gatewayChildEnv(): NodeJS.ProcessEnv {
+  if (!GATEWAY_CONFIG.home) return { ...process.env };
+  mkdirSync(GATEWAY_CONFIG.home, { recursive: true });
+  return { ...process.env, HOME: GATEWAY_CONFIG.home, USERPROFILE: GATEWAY_CONFIG.home };
+}
+
+function launchGateway() {
   gwLog('Starting aistatus gateway (TS)...');
   childStartedAt = Date.now();
   healthy = false;
 
   const gatewayLogStream = getLogStream();
 
-  // API dumps are OFF by default: the gateway writes one full request/response JSON per call with
-  // no retention, which grew to 66 GB / 111k files in three months and filled the disk (ENOSPC
-  // killed running threads). The env spread below still honours an explicitly exported
-  // GATEWAY_DUMP_DIR, so debugging remains one `export` away — it is just never on by accident.
-  const GATEWAY_CONFIG_PATH = path.join(AISTATUS_DIR, 'gateway.yaml');
-  child = spawnProcess(process.execPath, [GATEWAY_CLI_PATH, 'start', '-c', GATEWAY_CONFIG_PATH, '-p', String(GATEWAY_PORT)], {
+  // API dumps remain opt-in via GATEWAY_DUMP_DIR.
+  child = spawnProcess(process.execPath, [GATEWAY_CLI_PATH, 'start', '-c', GATEWAY_CONFIG.configPath, '-p', String(GATEWAY_CONFIG.port)], {
     cwd: DATA_DIR,
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
-    env: { ...process.env },
+    env: gatewayChildEnv(),
   });
 
   // Pipe gateway stdout/stderr to log file
@@ -146,45 +150,42 @@ async function spawnGateway() {
 
   gwLog(`Gateway started — PID ${child.pid}`);
 
-  child.on('exit', (code, signal) => {
-    const pid = child?.pid;
-    child = null;
-    healthy = false;
+  child.on('exit', onGatewayExit);
+  setTimeout(checkInitialHealth, 2000);
+}
 
-    if (shuttingDown) {
-      gwLog(`Gateway exited (shutdown) — PID ${pid}`);
-      return;
-    }
+function onGatewayExit(code: number | null, signal: NodeJS.Signals | null) {
+  const pid = child?.pid;
+  child = null;
+  healthy = false;
 
-    // Unexpected crash — schedule restart with backoff
-    const alive = Date.now() - childStartedAt;
-    if (alive > HEALTHY_THRESHOLD_MS) backoff = BACKOFF_INITIAL_MS;
+  if (shuttingDown) {
+    gwLog(`Gateway exited (shutdown) — PID ${pid}`);
+    return;
+  }
 
-    if (signal) {
-      gwLog(`Gateway killed by signal ${signal} — PID ${pid}`);
-    } else {
-      gwLog(`Gateway exited with code ${code} — PID ${pid}`);
-    }
+  // Unexpected crash — schedule restart with backoff
+  const alive = Date.now() - childStartedAt;
+  if (alive > HEALTHY_THRESHOLD_MS) backoff = BACKOFF_INITIAL_MS;
 
-    gwLog(`Restarting gateway in ${backoff}ms...`);
-    crashRestartTimer = setTimeout(() => {
-      crashRestartTimer = null;
-      spawnGateway();
-    }, backoff);
-    backoff = Math.min(backoff * 2, BACKOFF_MAX_MS);
-  });
+  if (signal) {
+    gwLog(`Gateway killed by signal ${signal} — PID ${pid}`);
+  } else {
+    gwLog(`Gateway exited with code ${code} — PID ${pid}`);
+  }
 
-  // Initial health check after a short delay to let gateway bind the port
-  setTimeout(async () => {
-    if (child) {
-      healthy = await checkHealth();
-      if (healthy) {
-        gwLog('Gateway is healthy after startup');
-      } else {
-        gwLog('Gateway not yet healthy after startup (will retry via periodic check)');
-      }
-    }
-  }, 2000);
+  gwLog(`Restarting gateway in ${backoff}ms...`);
+  crashRestartTimer = setTimeout(() => {
+    crashRestartTimer = null;
+    spawnGateway();
+  }, backoff);
+  backoff = Math.min(backoff * 2, BACKOFF_MAX_MS);
+}
+
+async function checkInitialHealth() {
+  if (!child) return;
+  healthy = await checkHealth();
+  gwLog(healthy ? 'Gateway is healthy after startup' : 'Gateway not yet healthy after startup (will retry via periodic check)');
 }
 
 function killGateway(): Promise<void> {
