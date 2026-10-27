@@ -47,7 +47,7 @@ export function setupErrorText(error: string, L: Vocab): string {
 
 // Shown first on the setup page, in this order; every other provider follows under "More".
 export const POPULAR_PROVIDERS = [
-  'openai', 'xai', 'opencode-go', 'opencode', 'openrouter', 'moonshotai', 'zai', 'deepseek',
+  'openai', 'openai-codex', 'xai', 'opencode-go', 'opencode', 'openrouter', 'moonshotai', 'zai', 'deepseek',
 ];
 export function splitPopular<T extends { provider: string }>(providers: T[]): { popular: T[]; more: T[] } {
   const rank = (provider: string) => POPULAR_PROVIDERS.indexOf(provider);

@@ -213,11 +213,11 @@ it('opens the login target for the tapped provider row', async () => {
   let view!: ReturnType<typeof create>;
   await act(async () => { await controller.load(); view = create(<ProviderSetupView controller={controller} leave={vi.fn()} />); });
   const rows = view.root.findAll(node => node.type === 'div' && node.props['data-account-row'] !== undefined);
-  expect(rows.map(row => row.props['data-account-row'])).toEqual(['openai', 'deepseek', 'anthropic', 'custom-provider', 'openai-codex']);
+  expect(rows.map(row => row.props['data-account-row'])).toEqual(['openai', 'openai-codex', 'deepseek', 'anthropic', 'custom-provider']);
   const group = (name: string) => view.root.findByProps({ 'data-setup-providers': name })
     .findAll(node => node.type === 'div' && node.props['data-account-row'] !== undefined).map(node => node.props['data-account-row']);
-  expect(group('popular')).toEqual(['openai', 'deepseek']);
-  expect(group('more')).toEqual(['anthropic', 'custom-provider', 'openai-codex']);
+  expect(group('popular')).toEqual(['openai', 'openai-codex', 'deepseek']);
+  expect(group('more')).toEqual(['anthropic', 'custom-provider']);
   const headings = view.root.findAllByType('h2').map(node => node.children.filter(child => typeof child === 'string').join(''));
   expect(headings.indexOf('Claude Code')).toBeLessThan(headings.indexOf(en.setupProviders));
   expect(headings.indexOf('Claude Code')).toBeGreaterThanOrEqual(0);
