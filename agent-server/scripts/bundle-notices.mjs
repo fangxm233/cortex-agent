@@ -8,6 +8,10 @@ const readmeName = /^readme(?:$|[._-])/i;
 const workspace = name => name?.startsWith('@cortex-agent/');
 const compare = (a, b) => a < b ? -1 : Number(a > b);
 const readJson = file => JSON.parse(fs.readFileSync(file, 'utf8'));
+// Verbatim texts from spdx/license-list-data main/text/{MIT,Apache-2.0}.txt;
+// QuickJS-NG from https://github.com/quickjs-ng/quickjs/blob/master/LICENSE.
+const standardLicenses = new Set(['MIT', 'Apache-2.0']);
+const licenseText = name => fs.readFileSync(new URL(`./licenses/${name}.txt`, import.meta.url), 'utf8');
 
 function inferredName(root) {
   const parent = path.basename(path.dirname(root));
@@ -167,7 +171,20 @@ function noticeFiles(items) {
   return [...unique.values()].sort((a, b) => compare(a.name, b.name) || compare(a.text, b.text));
 }
 
-function renderPackage(roots) {
+function fallbackNotice(items, licenses, standards) {
+  const lines = ['WARNING: No LICENSE/LICENCE/COPYING file found; declared metadata and any README license information follow.'];
+  for (const id of licenses.filter(id => standardLicenses.has(id))) {
+    standards.add(id); lines.push(`The standard ${id} license text is included below; published attribution follows.`);
+  }
+  for (const item of items) {
+    for (const key of ['author', 'contributors', 'copyright']) {
+      if (item.metadata[key]) lines.push(`${key}: ${JSON.stringify(item.metadata[key])}`);
+    }
+  }
+  return lines;
+}
+
+function renderPackage(roots, standards) {
   const items = [...roots.values()];
   const { name, version } = items[0];
   const licenses = [...new Set(items.map(item => declaredLicense(item.metadata)))].sort(compare);
@@ -175,7 +192,7 @@ function renderPackage(roots) {
   const files = noticeFiles(items);
   const lines = [`Package: ${name}@${version}`, ...licenses.map(license => `Declared license: ${license}`)];
   if (missing.length) lines.push(`Missing metadata: ${['name', 'version', 'license'].filter(key => missing.includes(key)).join(', ')}`);
-  if (!files.some(file => file.name.split('/').some(part => licenseName.test(part)))) lines.push('WARNING: No LICENSE/LICENCE/COPYING file found; declared metadata and any README license information follow.');
+  if (!files.some(file => file.name.split('/').some(part => licenseName.test(part)))) lines.push(...fallbackNotice(items, licenses, standards));
   for (const file of files) lines.push(`\n--- ${file.name} ---\n${file.text}`);
   return lines.join('\n');
 }
@@ -192,7 +209,11 @@ export function thirdPartyNotices({ cwd, inputFiles = [], packageJsons = [] }) {
   const warnings = new Set();
   for (const input of inputFiles) addPackage(records, inputPackage(cwd, input));
   addClosures(cwd, packageJsons, records, warnings);
-  const packages = [...records.values()].map(renderPackage).sort(compare);
-  const header = 'THIRD-PARTY NOTICES\n\nSupplement to retained bundled legal comments.\n';
-  return [header, ...[...warnings].sort(compare), ...packages].join('\n\n' + '='.repeat(72) + '\n\n') + '\n';
+  const standards = new Set();
+  const packages = [...records.values()].map(roots => renderPackage(roots, standards)).sort(compare);
+  const texts = [...standards].sort(compare).map(id => `SPDX standard license text: ${id}\n\n${licenseText(id)}`);
+  const hasQuickJS = [...records.values()].some(roots => [...roots.values()].some(item => item.name === 'quickjs-wasi'));
+  if (hasQuickJS) texts.push(`QuickJS-NG embedded engine\nSource: https://github.com/quickjs-ng/quickjs/blob/master/LICENSE\n\n${licenseText('QuickJS-NG')}`);
+  const header = 'THIRD-PARTY NOTICES\n\nSupplement to retained bundled legal comments. Standard license templates retain their placeholders; package attribution is listed above them where published.\n';
+  return [header, ...[...warnings].sort(compare), ...packages, ...texts].join('\n\n' + '='.repeat(72) + '\n\n') + '\n';
 }

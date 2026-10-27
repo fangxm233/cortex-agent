@@ -100,6 +100,24 @@ test('preserves complete setext README license sections, including paragraphs wi
   assert.doesNotMatch(result, /Unrelated usage|Unrelated API/);
 });
 
+test('supplies one standard SPDX text plus published attribution for missing license files', t => {
+  const cwd = fixture(t);
+  const one = pkg(cwd, 'node_modules/one', { name: 'one', version: '1', license: 'MIT', author: 'Fixture Author', copyright: 'Copyright 2025 Fixture' }, {});
+  const two = pkg(cwd, 'node_modules/two', { name: 'two', version: '1', license: 'MIT', contributors: [{ name: 'Contributor' }] }, {});
+  const three = pkg(cwd, 'node_modules/three', { name: 'three', version: '1', license: 'Apache-2.0' }, {});
+  const result = notices(cwd, [one, two, three]);
+  assert.equal(result.split('SPDX standard license text: MIT').length, 2);
+  assert.match(result, /Fixture Author/); assert.match(result, /Copyright 2025 Fixture/); assert.match(result, /Contributor/);
+  assert.match(result, /Permission is hereby granted/); assert.match(result, /Grant of Patent License/);
+});
+
+test('adds the embedded QuickJS-NG engine license when shipping QuickJS WASM', t => {
+  const cwd = fixture(t);
+  const input = pkg(cwd, 'node_modules/quickjs-wasi', { name: 'quickjs-wasi', version: '3', license: 'MIT' });
+  const result = notices(cwd, [input]);
+  assert.match(result, /QuickJS-NG embedded engine/); assert.match(result, /Fabrice Bellard/); assert.match(result, /Saúl Ibarra Corretgé/);
+});
+
 test('walks production dependencies, installed optional dependencies and peers, excluding dev and workspaces', t => {
   const cwd = fixture(t);
   pkg(cwd, 'web', { dependencies: { direct: '*', '@cortex-agent/ui-contract': 'workspace:*' }, devDependencies: { dev: '*' } });
