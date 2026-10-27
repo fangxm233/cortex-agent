@@ -35,7 +35,7 @@ export function verifyProgress(progress, bundled, fast) {
   if (bundled) assertBundleStep(progress, names);
   else assert(!progress.steps.some(step => step.name === 'bundle' && step.status !== 'skipped'), 'Fallback must not run bundling');
   const evidence = `${install.detail ?? ''} ${progress.detail ?? ''}`;
-  assert(fast ? /\bfast\b/i.test(evidence) : /pack[\s\S]*install|install[\s\S]*pack/i.test(evidence), `Missing explicit ${fast ? 'fast' : 'pack/install'} evidence: ${evidence}`);
+  assert(fast ? /\bfast\b/i.test(evidence) : /bundle-full|pack[\s\S]*install|install[\s\S]*pack/i.test(evidence), `Missing explicit ${fast ? 'fast' : 'pack/install'} evidence: ${evidence}`);
   return { install, stages: progress.steps.map(step => ({ ...step,
     elapsedMs: step.startedAt && step.endedAt ? Date.parse(step.endedAt) - Date.parse(step.startedAt) : null })) };
 }

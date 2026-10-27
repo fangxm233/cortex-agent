@@ -5,7 +5,7 @@
  *
  * Callable API (run only after parent approval):
  *   import { runHarness } from './agent-server/scripts/bundle-daemon-harness.mjs';
- *   await runHarness({ scenario: 'rebuild', worktree: '/home/fangxin/Cortex-wt-bundle-server',
+ *   await runHarness({ scenario: 'rebuild', worktree: '/srv/cortex-worktree',
  *     testroot: '/tmp/cortex-bundle-rebuild-001', sourceTgz: '/tmp/source.tgz',
  *     bundleTgz: '/tmp/bundle.tgz' });
  * Scenarios: rebuild = source→bundled full→three fast samples→fallback full;
@@ -88,6 +88,13 @@ async function install(ctx, artifact, label) {
     '--foreground-scripts', artifact], label);
 }
 
+async function initialize(ctx) {
+  await command(ctx.runner, path.join(ctx.env.CORTEX_NPM_PREFIX, 'bin/cortex'), ['init'], 'initialize-home');
+  saveJson(path.join(ctx.env.CORTEX_HOME, 'config/settings.json'), { serverAutoUpdate: false, telemetryEnabled: false });
+  // Initial npm installation wrote a trigger before any daemon existed; it is not a test rebuild.
+  fs.rmSync(path.join(ctx.env.CORTEX_HOME, 'data/.restart'), { force: true });
+}
+
 async function startDaemon(ctx, label, overrides = {}) {
   const started = now();
   const daemon = ctx.runner.start(process.execPath, [path.join(ctx.packageRoot, 'dist/entry/daemon.js')], label, overrides);
@@ -103,7 +110,8 @@ async function startDaemon(ctx, label, overrides = {}) {
 async function trigger(ctx, label) {
   const result = await command(ctx.runner, path.join(ctx.env.CORTEX_NPM_PREFIX, 'bin/cortex'),
     ['daemon', 'restart'], `${label}-trigger`, 30000);
-  assert(fs.existsSync(path.join(ctx.env.CORTEX_HOME, 'data/.restart')), 'Installed CLI did not write fixture trigger');
+  // The watcher can consume/unlink .restart before the CLI exits; assert its acknowledgement instead.
+  assert(fs.readFileSync(result.logfile, 'utf8').includes('Restart signal sent to daemon'), 'Missing CLI restart acknowledgement');
   return result;
 }
 
@@ -155,6 +163,7 @@ async function rebuildOnce(ctx, daemon, label, bundled, fast) {
 
 async function rebuildScenario(ctx) {
   await install(ctx, ctx.options.sourceTgz, 'install-source');
+  await initialize(ctx);
   assert.notEqual(readJson(path.join(ctx.packageRoot, 'package.json')).cortexBundle, true, 'sourceTgz must be new-code SOURCE, not bundled');
   const initial = await startDaemon(ctx, 'source-daemon');
   saveSample(ctx, { label: 'initial-source', app: initial.app, daemon: initial.daemon.identity, readiness: initial.readiness });
@@ -186,6 +195,7 @@ async function fastSample(ctx, daemon, index) {
 async function registryScenario(ctx) {
   assert(!('CORTEX_REPO' in ctx.env), 'Registry scenario must not have CORTEX_REPO');
   await install(ctx, '@cortex-agent/server@2026.10.21', 'install-registry');
+  await initialize(ctx);
   const initial = await startDaemon(ctx, 'registry-old-daemon');
   assert.equal(readJson(path.join(ctx.packageRoot, 'package.json')).version, '2026.10.21');
   const beforeProgress = readProgress(ctx.env);
@@ -205,6 +215,7 @@ async function registryScenario(ctx) {
 
 async function startupMapsScenario(ctx) {
   await install(ctx, ctx.options.bundleTgz, 'install-mapped-bundle');
+  await initialize(ctx);
   const appFile = path.join(ctx.packageRoot, 'dist/entry/app.js');
   assert.deepEqual(publishedMaps(ctx.packageRoot), [], 'npm tarball must exclude maps before fixture restoration');
   const mapCount = restoreMatchingMaps(ctx.options.mappedStage, ctx.packageRoot);

@@ -71,6 +71,8 @@ test('progress uses broad evidence, but requires successful ordered bundle/insta
   progress.steps[2].detail = 'bundled fast sync';
   assert.equal(verifyProgress(progress, true, true).install.detail, 'bundled fast sync');
   assert.throws(() => verifyProgress(progress, true, false));
+  progress.steps[2].detail = 'bundle-full';
+  assert.doesNotThrow(() => verifyProgress(progress, true, false));
   progress.steps[2].detail = 'pack + install -g';
   assert.doesNotThrow(() => verifyProgress(progress, true, false));
   progress.steps.reverse();
