@@ -208,6 +208,11 @@ mod tests {
         let (program, args) = launcher(&installed, exe);
         assert_eq!(program, PathBuf::from(r"C:\Users\me\AppData\Local\Cortex").join("uninstall.exe"));
         assert!(args.is_empty());
+        let canonical = InstallSite::WindowsNsis {
+            exe_dir: PathBuf::from(r"\\?\C:\Users\me\AppData\Local\Cortex"),
+            registry_dir: Some(PathBuf::from(r"C:\Users\me\AppData\Local\Cortex")),
+        };
+        assert!(launcher(&canonical, exe).0.ends_with("uninstall.exe"));
         let appimage = InstallSite::LinuxAppImage { path: PathBuf::from("/home/me/Cortex.AppImage") };
         assert_eq!(launcher(&appimage, exe), (PathBuf::from("/home/me/Cortex.AppImage"), vec!["--uninstall"]));
         let deb = InstallSite::LinuxManaged { manager: PkgManager::Apt };

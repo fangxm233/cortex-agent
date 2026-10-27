@@ -196,15 +196,27 @@ pub fn should_apply_silently(
     matches!(apply, Apply::Auto)
 }
 
-/// Path equality for install directories: trailing separators are noise, and Windows paths are
-/// case-insensitive. Kept as a runtime `cfg!` (not `#[cfg]`) so both branches stay unit-testable.
+/// Path equality for install directories: trailing separators are noise, Windows paths are
+/// case-insensitive, and the verbatim prefix `canonicalize` adds on Windows (`\\?\C:\…`,
+/// `\\?\UNC\server\…`) names the same directory as the plain form the registry records. Kept as a
+/// runtime `cfg!` (not `#[cfg]`) so both branches stay unit-testable.
 pub fn same_dir(a: &Path, b: &Path) -> bool {
     same_dir_with(cfg!(target_os = "windows"), a, b)
 }
 
+fn strip_verbatim(path: &str) -> String {
+    match path.strip_prefix("//?/") {
+        Some(rest) if rest.get(..4).is_some_and(|unc| unc.eq_ignore_ascii_case("UNC/")) => {
+            format!("//{}", &rest[4..])
+        }
+        Some(rest) => rest.to_string(),
+        None => path.to_string(),
+    }
+}
+
 pub fn same_dir_with(case_insensitive: bool, a: &Path, b: &Path) -> bool {
     let norm = |p: &Path| -> String {
-        let s = p.to_string_lossy().replace('\\', "/");
+        let s = strip_verbatim(&p.to_string_lossy().replace('\\', "/"));
         let trimmed = s.trim_end_matches('/').to_string();
         if case_insensitive {
             trimmed.to_lowercase()
@@ -437,6 +449,22 @@ mod tests {
         assert!(!same_dir_with(false, a, b));
         assert!(same_dir_with(false, Path::new("/opt/cortex/"), Path::new("/opt/cortex")));
         assert!(!same_dir_with(false, Path::new("/opt/cortex"), Path::new("/opt/cortex2")));
+    }
+
+    #[test]
+    fn same_dir_ignores_the_verbatim_prefix_canonicalize_adds_on_windows() {
+        let registry = Path::new(r"C:\Users\me\AppData\Local\Cortex");
+        let canonical = Path::new(r"\\?\C:\Users\me\AppData\Local\Cortex");
+        assert!(same_dir_with(true, canonical, registry));
+        assert!(same_dir_with(true, registry, canonical));
+        let share = Path::new(r"\\server\apps\Cortex");
+        assert!(same_dir_with(true, Path::new(r"\\?\UNC\server\apps\Cortex"), share));
+        assert!(!same_dir_with(true, canonical, Path::new(r"D:\portable\Cortex")));
+        let installed = InstallSite::WindowsNsis {
+            exe_dir: canonical.to_path_buf(),
+            registry_dir: Some(registry.to_path_buf()),
+        };
+        assert_eq!(silent_capability(&installed), Apply::Auto);
     }
 
     #[test]
