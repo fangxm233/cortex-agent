@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { execFileSync } from 'node:child_process';
 import { build } from 'esbuild';
+import { verifyTarget } from './sea-target.mjs';
 
 const { values } = parseArgs({ options: {
   package: { type: 'string' }, output: { type: 'string' }, executable: { type: 'string' },
@@ -20,6 +21,7 @@ if (values.help || !values.package || !values.output) {
 const source = path.resolve(values.package), out = path.resolve(values.output);
 if (fs.existsSync(out)) throw new Error(`Output exists; choose a fresh directory: ${out}`);
 const scripts = fileURLToPath(new URL('.', import.meta.url));
+const target = verifyTarget(path.resolve(values.executable || process.execPath), values.platform, values.arch, values['code-cache']);
 const hostBrowser = `agent-browser-${values.platform}-${values.arch}${values.platform === 'win32' ? '.exe' : ''}`;
 function include(name) {
   if (name.startsWith('node_modules/agent-browser/bin/agent-browser-')) return name.endsWith('/' + hostBrowser);
@@ -54,7 +56,7 @@ const config = { main: path.join(out, 'launcher.cjs'), output: executable,
 fs.writeFileSync(path.join(out, 'sea-config.json'), JSON.stringify(config, null, 2));
 execFileSync(process.execPath, ['--build-sea', path.join(out, 'sea-config.json')], { stdio: 'inherit' });
 fs.chmodSync(executable, 0o755);
-const manifest = { id, node: process.version, platform: values.platform, arch: values.arch,
+const manifest = { id, node: target.version, platform: target.platform, arch: target.arch,
   codeCache: values['code-cache'], files: files.length, extractedBytes: files.reduce((sum, file) => sum + file[2].length, 0),
   payloadBytes: payload.length, binaryBytes: fs.statSync(executable).size };
 fs.writeFileSync(path.join(out, 'build.json'), JSON.stringify(manifest, null, 2));

@@ -27,6 +27,9 @@ const candidates = [
   ...(values.cached ? [{ name: 'sea-code-cache', command: values.cached }] : []),
   ...(values.current ? [{ name: 'current-npm', command: values['current-node'], root: values.current }] : []),
 ];
+function candidateEnv(candidate) {
+  return { ...env, CORTEX_SEA_CACHE: path.join(out, `${candidate.name}-cache`) };
+}
 function args(candidate, entry, rest = []) {
   return [candidate.root ? path.join(candidate.root, entry) : '--entry=' + entry, ...rest];
 }
@@ -36,7 +39,7 @@ function summary(samples) {
 function help(candidate, extra = {}) {
   const start = performance.now();
   const child = spawnSync(candidate.command, args(candidate, 'dist/entry/cortex-cli.js', ['--help']), {
-    env: { ...env, ...extra }, cwd: home, encoding: 'utf8', timeout: 30000,
+    env: { ...candidateEnv(candidate), ...extra }, cwd: home, encoding: 'utf8', timeout: 30000,
   });
   assert.equal(child.status, 0, child.stderr);
   return Math.round((performance.now() - start) * 10) / 10;
@@ -66,14 +69,17 @@ async function stop(child) {
   if (process.platform === 'win32') spawnSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { encoding: 'utf8' });
   else child.kill('SIGTERM');
   for (let i = 0; i < 100 && child.exitCode === null && child.signalCode === null; i++) await delay(100);
+  if (process.platform !== 'win32' && child.exitCode === null && child.signalCode === null) process.kill(-child.pid, 'SIGKILL');
+  await delay(300);
   assert(child.exitCode !== null || child.signalCode !== null, 'Owned daemon failed to stop');
-  await delay(200); await freePorts();
+  await freePorts();
 }
 async function daemon(candidate, iteration) {
   await freePorts();
   const start = performance.now();
   const child = spawn(candidate.command, args(candidate, 'dist/entry/daemon.js'), {
-    env: { ...env, NODE_OPTIONS: `--import=${pathToFileURL(preload).href}` }, cwd: home, stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...candidateEnv(candidate), NODE_OPTIONS: `--import=${pathToFileURL(preload).href}` },
+    detached: process.platform !== 'win32', cwd: home, stdio: ['ignore', 'pipe', 'pipe'],
   });
   const log = fs.createWriteStream(path.join(out, `${candidate.name}-${iteration}.log`));
   child.stdout.pipe(log, { end: false }); child.stderr.pipe(log, { end: false });
@@ -82,12 +88,13 @@ async function daemon(candidate, iteration) {
     await delay(2500);
     const appPid = fs.readFileSync(path.join(home, 'data/daemon-child.pid'), 'utf8').trim();
     return { readyMs, appRssBytes: rss(appPid), daemonRssBytes: rss(child.pid) };
-  } finally { await stop(child); log.end(); }
+  } finally { try { await stop(child); } finally { log.end(); } }
 }
 const results = Object.fromEntries(candidates.map(candidate => [candidate.name, { helpMs: [], readyMs: [], appRssBytes: [], daemonRssBytes: [] }]));
 const freshCache = path.join(out, 'fresh-cache');
 assert(!fs.existsSync(freshCache), 'First-extraction measurement requires an unused cache');
 const firstExtractionHelpMs = help(candidates[1], { CORTEX_SEA_CACHE: freshCache });
+for (const candidate of candidates) help(candidate);
 for (let i = 0; i < 9; i++) {
   for (const candidate of i % 2 ? [...candidates].reverse() : candidates) results[candidate.name].helpMs.push(help(candidate));
 }

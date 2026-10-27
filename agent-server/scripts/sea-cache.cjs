@@ -16,6 +16,7 @@ function unpack(payload, directory) {
 }
 
 function ensureCache(parent, id, payload) {
+  parent = path.resolve(parent);
   const target = path.join(parent, id);
   if (fs.existsSync(path.join(target, '.complete'))) return target;
   fs.mkdirSync(parent, { recursive: true, mode: 0o700 });

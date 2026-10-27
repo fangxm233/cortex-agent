@@ -1,5 +1,5 @@
 const path = require('node:path');
-const { createRequire } = require('node:module');
+const { createRequire, registerHooks } = require('node:module');
 const { pathToFileURL } = require('node:url');
 
 // Node's ParseNodeOptionsEnvVar: spaces separate, double quotes group, backslash
@@ -21,14 +21,23 @@ function preloads(args) {
   return result;
 }
 
+let importId = 0;
+async function importFromCwd(name) {
+  const marker = `cortex:preload/${importId++}`;
+  const parentURL = pathToFileURL(path.join(process.cwd(), '__sea_preload.mjs')).href;
+  const hook = registerHooks({ resolve(specifier, context, nextResolve) {
+    return specifier === marker
+      ? nextResolve(name, { ...context, parentURL })
+      : nextResolve(specifier, context);
+  } });
+  try { await import(marker); } finally { hook.deregister(); }
+}
+
 async function loadPreloads(options) {
   const selected = preloads(envArgs(options));
   const requireFromCwd = createRequire(path.join(process.cwd(), '__sea_preload.cjs'));
   for (const name of selected.require) requireFromCwd(name);
-  for (const name of selected.import) {
-    const url = /^(?:node|data|file):/.test(name) ? name : pathToFileURL(requireFromCwd.resolve(name)).href;
-    await import(url);
-  }
+  for (const name of selected.import) await importFromCwd(name);
 }
 
 module.exports = { envArgs, preloads, loadPreloads };

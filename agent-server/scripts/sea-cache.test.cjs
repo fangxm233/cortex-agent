@@ -39,3 +39,9 @@ test('reject paths outside the extraction directory', t => {
   assert.throws(() => ensureCache(parent, 'v1', () => archive([['../escape', 0o644, '']])), /Invalid SEA asset/);
   assert.deepEqual(fs.readdirSync(parent), []);
 });
+
+test('relative cache roots are normalized before extraction and reuse', t => {
+  const parent = fixture(t);
+  const target = ensureCache(path.relative(process.cwd(), parent), 'v1', () => archive([]));
+  assert.equal(target, path.join(parent, 'v1'));
+});
