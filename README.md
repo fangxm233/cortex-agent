@@ -25,11 +25,11 @@ keeps every result in plain files that outlast any session, and asks you only wh
 
 | Platform | Installer |
 |---|---|
-| macOS · Apple Silicon | [Cortex-2026.10.25-macOS-aarch64.dmg](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.25/Cortex-2026.10.25-macOS-aarch64.dmg) |
-| macOS · Intel | [Cortex-2026.10.25-macOS-x86_64.dmg](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.25/Cortex-2026.10.25-macOS-x86_64.dmg) |
-| Windows · x64 | [Cortex-2026.10.25-Windows-x86_64-setup.exe](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.25/Cortex-2026.10.25-Windows-x86_64-setup.exe) |
-| Linux · x86_64 | [AppImage](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.25/Cortex-2026.10.25-Linux-x86_64.AppImage) · [deb](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.25/Cortex-2026.10.25-Linux-amd64.deb) · [rpm](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.25/Cortex-2026.10.25-Linux-x86_64.rpm) |
-| Android · arm64 | [Cortex-2026.10.25-Android-arm64.apk](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.25/Cortex-2026.10.25-Android-arm64.apk) |
+| macOS · Apple Silicon | [Cortex-2026.10.25-macOS-aarch64.dmg](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.27/Cortex-2026.10.27-macOS-aarch64.dmg) |
+| macOS · Intel | [Cortex-2026.10.25-macOS-x86_64.dmg](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.27/Cortex-2026.10.27-macOS-x86_64.dmg) |
+| Windows · x64 | [Cortex-2026.10.25-Windows-x86_64-setup.exe](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.27/Cortex-2026.10.27-Windows-x86_64-setup.exe) |
+| Linux · x86_64 | [AppImage](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.27/Cortex-2026.10.27-Linux-x86_64.AppImage) · [deb](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.27/Cortex-2026.10.27-Linux-amd64.deb) · [rpm](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.27/Cortex-2026.10.27-Linux-x86_64.rpm) |
+| Android · arm64 | [Cortex-2026.10.25-Android-arm64.apk](https://github.com/fangxm233/cortex-agent/releases/download/server-v2026.10.27/Cortex-2026.10.27-Android-arm64.apk) |
 
 The desktop app installs and starts a Cortex server on the same computer in one click, with no
 terminal and no Node.js to set up, or connects to a server you already run. The Android app connects
