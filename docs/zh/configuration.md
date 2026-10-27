@@ -53,7 +53,7 @@ $CORTEX_HOME/
 └── workspaces/                   # 干净模式工作区，每个干净会话或子智能体一个文件夹
 ```
 
-网关配置 `~/.aistatus/gateway.yaml` 位于 `$CORTEX_HOME` 之外；`cortex setup-gateway` 和 provider 登录会写入它。
+网关配置默认为 `~/.aistatus/gateway.yaml`，由 `cortex setup-gateway` 和 provider 登录写入。设置 `CORTEX_GATEWAY_HOME` 的实例使用 `<CORTEX_GATEWAY_HOME>/.aistatus/gateway.yaml`，见[本地模型网关](#local-model-gateway)。
 
 ## 加载顺序和优先级 {#loading-order-and-precedence}
 
@@ -104,6 +104,32 @@ $CORTEX_HOME/
 | `CORTEX_WEBHOOK_TOKEN` | 自动生成 | 回环 webhook（钩子回调、`cortex-hook ask`）的 Bearer token。生成方式相同 |
 
 全新 Windows 本机 App 安装会在 `config/.env` 中写入 `CORTEX_CLIENT_HOST=127.0.0.1`。已有安装、普通 CLI 初始化和其他平台保留各自的默认值与配置。需要有意启用局域网直连客户端时，须显式将此变量设为合适的绑定地址（例如 `0.0.0.0` 表示所有 IPv4 接口），并重启服务器。Cortex 不自动配置防火墙策略。此设置不影响 Web UI、TUI 或其他服务器监听端口。
+
+### 本地模型网关 {#local-model-gateway}
+
+| 变量 | 默认值 | 用途 |
+|---|---|---|
+| `CORTEX_GATEWAY_PORT` | `9880` | 本地模型网关端口，`1`–`65535` 的整数 |
+| `CORTEX_GATEWAY_HOME` | OS 用户 home | 网关子进程的独立 home，必须是绝对路径；配置、usage、quota、pricing cache 位于其下 `.aistatus/` |
+
+这两项属于 `$CORTEX_HOME/config/.env` 中的启动设置，不热更新。启动环境优先于文件，CLI 也读取同一文件。空值或非法值会阻止启动；修改后须重启该实例的 daemon。网关启动、健康检查、Claude/PI 路由、usage 查询和 `cortex doctor` 共用这个端口。显式端口也写入生成或更新的 YAML；只改 YAML 的 `port:` 不会改变 Cortex 使用的端口。未显式设置端口时，YAML 合并保留既有字段，Cortex 在 `9880` 启动网关。
+
+同机第二个实例使用不同的 `CORTEX_HOME`，并在配置 provider 或启动前**同时设置**两个网关变量。仅更换 `CORTEX_HOME` 不会隔离网关。所有启用的监听端口都须错开，例如第二实例的 `config/.env`：
+
+```dotenv
+CORTEX_GATEWAY_PORT=9881
+CORTEX_GATEWAY_HOME=/absolute/path/to/cortex-second/data/gateway-home
+WEBHOOK_PORT=3101
+CORTEX_CLIENT_PORT=3102
+CORTEX_CLIENT_HOST=127.0.0.1
+CORTEX_TUI_PORT=3103
+CORTEX_UI_HTTP=1
+CORTEX_UI_PORT=3104
+```
+
+启动该实例及运行其 CLI 时，始终指定 `CORTEX_HOME=/absolute/path/to/cortex-second`。`.env` 中路径须写绝对路径，不展开 `~` 或 `$CORTEX_HOME`。所选端口已有健康网关时会复用它，因此独立网关必须使用不同端口。
+
+为第二实例配置 provider 凭据并运行 `cortex setup-gateway`。网关从自己的 YAML 读取托管 key，或从后端请求接收透传 key，不从独立 home 下的 `~/.claude`、`~/.pi` 读取登录。`CORTEX_GATEWAY_HOME` 只改变网关子进程的 home，不改变 Cortex 的 Claude/PI 凭据位置。不要跨实例复制会轮换的 OAuth token，应使用后端登录流程。网关 usage-sharing 偏好也按 home 隔离，需单独配置。既有网关文件和凭据不会自动复制。
 
 ### 平台 {#platform}
 

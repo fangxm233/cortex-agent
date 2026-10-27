@@ -146,7 +146,7 @@ client 的 `CORTEX_HOME` 取自 `clientCommand` 中的 bundle 路径，默认是
 - 运行时与进程——Node 版本、PATH 上的 `git`（Windows 上缺失为失败，其他平台为警告）、PATH 上的 `claude` 可执行文件（缺失为警告；PI 始终通过，因为它在进程内由内置 SDK 运行），以及守护进程是否在运行。
 - 后端安装 / 登录——数据目录存在且可写、`.env` 存在、客户端与 webhook token 已设置、`ANTHROPIC_API_KEY` 状态，以及 `agent-state.json`、`models.json` 和 `mcp-config.json` 存在且有效。缺少 `models.json` 为警告；JSON 无效、默认引擎选择无效、收藏数组缺失或无效为失败。它还会对已安装的 PI 运行时及其 `login` 导出做烟测，再从不含凭据的后端认证快照中汇总使用中但已过期或未登录的 provider。这两项检查只产生警告，不会失败。API 模式下，若 gateway 健康但本地没有 key，会报告为由 gateway 托管的说明信息，而不是误报未登录警告。
 - 消息平台——解析 `CORTEX_PLATFORM`，并校验每个已启用平台的凭据（Slack `xoxb-`/signing/`xapp-`，飞书 app id/secret）。
-- 网关——`~/.aistatus/gateway.yaml` 是否存在，以及对 `http://127.0.0.1:9880/status` 的健康探测。只有在网关实际被使用时，探测才会报告为失败；否则跳过。
+- 网关——所配置的 gateway YAML 是否存在，以及对 `http://127.0.0.1:<CORTEX_GATEWAY_PORT>/status` 的健康探测（默认端口 `9880`）。目录由 `CORTEX_GATEWAY_HOME` 决定，默认为 `~/.aistatus/`。只有在网关实际被使用时，探测才会报告为失败；否则跳过。
 
 每项检查打印 `[OK]`、`[WARN]`、`[FAIL]` 或 `[--]`（跳过），附简短说明，有问题时附修复提示。任一检查失败时命令以 `1` 退出，否则以 `0` 退出；警告不会让运行失败。
 
@@ -219,11 +219,11 @@ cortex auth provider remove --name my-vllm --dry-run
 
 **`cortex setup-gateway [--dry-run] [--output-dir <path>]`**
 
-从本地配置文件自动检测 Claude Code 和 PI 配置，生成 `~/.aistatus/gateway.yaml`（备份已有文件），并写入 `$CORTEX_HOME/config/models.json`。每当你添加新的 API key 或更换模型时运行此命令。
+从本地配置文件自动检测 Claude Code 和 PI 配置，生成 gateway YAML（备份已有文件），并写入 `$CORTEX_HOME/config/models.json`。每当你添加新的 API key 或更换模型时运行此命令。默认写入 `~/.aistatus/gateway.yaml`；`CORTEX_GATEWAY_HOME` 将其设为 `<CORTEX_GATEWAY_HOME>/.aistatus/gateway.yaml`，`CORTEX_GATEWAY_PORT` 指定其端口。两项均可保存在 `$CORTEX_HOME/config/.env`，多实例设置见[本地模型网关](./configuration.md#local-model-gateway)。
 
 选项：
 - `--dry-run` — 将生成的 gateway.yaml 打印到 stdout 而不写入
-- `--output-dir <path>` — 在 `<path>` 下写入 gateway.yaml 和 models.json，而不是默认位置
+- `--output-dir <path>` — 在 `<path>` 下写入 gateway.yaml 和 models.json，而不是默认位置；仅导出文件，不改变运行中网关的位置
 
 设置保留已有默认选择并合并收藏，摘要显示默认模型与收藏；修改默认值可用**设置 → 模型**。登录后的同步也保留已有选择，补齐缺失的默认值，并为尚无收藏的新接通 backend/provider 组合添加一个推荐收藏。同步结果包含 `defaultSet` 和 `favorites`。
 

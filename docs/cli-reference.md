@@ -254,8 +254,10 @@ The default run is read-only and safe at any time. It inspects four areas:
 - Messaging platform — resolves `CORTEX_PLATFORM` and validates the
   credentials for each enabled platform (Slack `xoxb-`/signing/`xapp-`,
   Feishu app id/secret).
-- Gateway — `~/.aistatus/gateway.yaml` presence and a health probe of
-  `http://127.0.0.1:9880/status`. The probe is reported as a failure only
+- Gateway — the configured gateway YAML's presence and a health probe of
+  `http://127.0.0.1:<CORTEX_GATEWAY_PORT>/status` (default port `9880`).
+  Its directory follows `CORTEX_GATEWAY_HOME`, defaulting to `~/.aistatus/`.
+  The probe is reported as a failure only
   when the gateway is actually in use; otherwise it is skipped.
 
 Each check prints `[OK]`, `[WARN]`, `[FAIL]`, or `[--]` (skipped) with a
@@ -358,13 +360,17 @@ two writes contain and how a definition reaches an agent.
 **`cortex setup-gateway [--dry-run] [--output-dir <path>]`**
 
 Auto-detect Claude Code and PI configurations from their local config
-files, generate `~/.aistatus/gateway.yaml` (with backup of existing),
+files, generate the gateway YAML (with backup of existing),
 and write `$CORTEX_HOME/config/models.json`. Run this whenever you add
-a new API key or change models.
+a new API key or change models. The default output is
+`~/.aistatus/gateway.yaml`; `CORTEX_GATEWAY_HOME` selects
+`<CORTEX_GATEWAY_HOME>/.aistatus/gateway.yaml`, and `CORTEX_GATEWAY_PORT`
+sets its port. Both settings may be saved in `$CORTEX_HOME/config/.env`; see
+[Local model gateway](./configuration.md#local-model-gateway) for multi-instance setup.
 
 Options:
 - `--dry-run` — print the generated gateway.yaml to stdout without writing
-- `--output-dir <path>` — write gateway.yaml and models.json under `<path>` instead of defaults
+- `--output-dir <path>` — write gateway.yaml and models.json under `<path>` instead of defaults; this exports files and does not change the running gateway location
 
 Setup preserves an existing default selection and merges favorites. Its summary
 shows the default model and favorites; use **Settings → Models** to change the

@@ -55,8 +55,10 @@ $CORTEX_HOME/
 └── workspaces/                   # Clean-mode workspaces, one folder per clean session or subagent
 ```
 
-The gateway configuration, `~/.aistatus/gateway.yaml`, lives outside
-`$CORTEX_HOME`; `cortex setup-gateway` and provider logins write it.
+The gateway configuration defaults to `~/.aistatus/gateway.yaml`;
+`cortex setup-gateway` and provider logins write it. An instance with
+`CORTEX_GATEWAY_HOME` uses `<CORTEX_GATEWAY_HOME>/.aistatus/gateway.yaml`
+(see [Local model gateway](#local-model-gateway)).
 
 ## Loading order and precedence
 
@@ -157,6 +159,52 @@ explicitly set this variable to an appropriate bind address (for example,
 `0.0.0.0` for all IPv4 interfaces) and restart the server. Cortex does not
 configure firewall policy automatically. This setting does not affect Web UI,
 TUI, or other server listeners.
+
+### Local model gateway
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `CORTEX_GATEWAY_PORT` | `9880` | Local model gateway port, an integer from `1` through `65535` |
+| `CORTEX_GATEWAY_HOME` | OS user home | Absolute private home for the gateway child; its config, usage, quota and pricing cache live in `.aistatus/` beneath it |
+
+These are startup settings in `$CORTEX_HOME/config/.env`, not hot-reloaded
+settings. Launcher environment variables take precedence; the CLI reads the same
+file. Invalid or empty values stop startup. Restart the instance's daemon after
+changing them. Cortex uses this port for gateway startup, health checks, Claude
+and PI routing, usage queries and `cortex doctor`. An explicit port is also written
+into generated and updated gateway YAML. Editing only the YAML `port:` does not
+change the port Cortex uses. With no port override, YAML merges preserve existing
+fields and Cortex starts the gateway on `9880`.
+
+For a second instance, use a different `CORTEX_HOME` and set **both** gateway
+variables before provider setup or startup. Merely changing `CORTEX_HOME` does not
+isolate the gateway. Choose unused ports for every enabled listener, for example
+in the second instance's `config/.env`:
+
+```dotenv
+CORTEX_GATEWAY_PORT=9881
+CORTEX_GATEWAY_HOME=/absolute/path/to/cortex-second/data/gateway-home
+WEBHOOK_PORT=3101
+CORTEX_CLIENT_PORT=3102
+CORTEX_CLIENT_HOST=127.0.0.1
+CORTEX_TUI_PORT=3103
+CORTEX_UI_HTTP=1
+CORTEX_UI_PORT=3104
+```
+
+Always launch that instance and its CLI commands with
+`CORTEX_HOME=/absolute/path/to/cortex-second`. Paths in `.env` must be absolute;
+`~` and `$CORTEX_HOME` are not expanded there. A healthy gateway already on the
+selected port is reused, so distinct ports are required for distinct gateways.
+
+Configure provider credentials and run `cortex setup-gateway` for the second
+instance. The gateway obtains managed keys from its YAML and passthrough keys
+from incoming backend requests, not from `~/.claude` or `~/.pi` in its private
+home. `CORTEX_GATEWAY_HOME` changes only the gateway child's home, not Cortex's
+Claude or PI credential locations. Do not copy rotating OAuth tokens between
+instances; use the backend's login flow. Gateway usage-sharing preferences are
+also private to that home and need their own configuration. No existing gateway
+files or credentials are copied automatically.
 
 ### Platform
 
