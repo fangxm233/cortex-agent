@@ -10,14 +10,25 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const prefix = path.resolve(process.argv[2]);
-const root = path.join(prefix, 'lib/node_modules/@cortex-agent/server');
+const windows = process.platform === 'win32';
+const root = path.join(prefix, windows ? 'node_modules/@cortex-agent/server' : 'lib/node_modules/@cortex-agent/server');
 const home = process.env.CORTEX_HOME;
-assert(home?.startsWith('/tmp/') && process.env.HOME?.startsWith('/tmp/'), 'Use isolated /tmp homes');
-assert(prefix.startsWith('/tmp/'), 'Use an isolated /tmp prefix');
+const testRoot = path.dirname(prefix);
+assert(path.basename(testRoot).startsWith('cortex-bundle-'), 'Use a named isolated cortex-bundle-* directory');
+for (const dir of [home, process.env.HOME]) {
+  const relative = path.relative(testRoot, path.resolve(dir ?? '.'));
+  assert(relative && !relative.startsWith('..') && !path.isAbsolute(relative), 'Homes must be inside the isolated test root');
+}
 const output = path.join(path.dirname(home), 'smoke');
 fs.mkdirSync(output, { recursive: true });
 const env = {
   PATH: process.env.PATH, HOME: process.env.HOME, CORTEX_HOME: home,
+  ...(windows ? {
+    SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR, COMSPEC: process.env.COMSPEC,
+    PATHEXT: process.env.PATHEXT, USERPROFILE: process.env.HOME,
+    APPDATA: path.join(process.env.HOME, 'AppData/Roaming'), LOCALAPPDATA: path.join(process.env.HOME, 'AppData/Local'),
+    TEMP: testRoot, TMP: testRoot,
+  } : {}),
   CORTEX_TELEMETRY: '0', CORTEX_UI_HTTP: '1', CORTEX_PORT_FORWARD: '0',
   WEBHOOK_PORT: '17301', CORTEX_CLIENT_PORT: '17302', CORTEX_TUI_PORT: '17303',
   CORTEX_UI_PORT: '17304', CORTEX_CLIENT_HOST: '127.0.0.1',
@@ -32,10 +43,14 @@ async function check(name, fn) {
 }
 const load = rel => import(pathToFileURL(path.join(root, rel)).href);
 function bin(name, args, expected = 0, options = {}) {
-  const result = spawnSync(path.join(prefix, 'bin', name), args, { env, encoding: 'utf8', timeout: 30000, ...options });
-  fs.writeFileSync(path.join(output, `${name}-${args.join('_').replaceAll('/', '-')}.log`), result.stdout + result.stderr);
+  const result = runBin(name, args, { timeout: 30000, ...options });
+  fs.writeFileSync(path.join(output, `${name}-${args.join('_').replace(/[<>:"/\\|?*]/g, '-')}.log`), result.stdout + result.stderr);
   assert.equal(result.status, expected, result.stderr);
   return result.stdout.trim();
+}
+function runBin(name, args, options = {}) {
+  const executable = windows ? path.join(prefix, `${name}.cmd`) : path.join(prefix, 'bin', name);
+  return spawnSync(executable, args, { env, encoding: 'utf8', shell: windows, ...options });
 }
 for (const name of ['cortex', 'cortex-browser', 'cortex-evidence-export', 'cortex-hook', 'cortex-signal']) {
   await check(`${name} --help`, () => bin(name, ['--help']));
@@ -107,7 +122,10 @@ await check('hook-cli list', () => bin('cortex-hook', ['list']));
 const owned = new Set();
 async function stop(child) {
   if (child.exitCode !== null || child.signalCode !== null) return;
-  child.kill('SIGTERM');
+  if (windows) {
+    const killed = spawnSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { env, encoding: 'utf8' });
+    assert.equal(killed.status, 0, killed.stderr);
+  } else child.kill('SIGTERM');
   for (let i = 0; i < 100 && child.exitCode === null && child.signalCode === null; i++) await delay(100);
   if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
   await delay(100);
@@ -136,7 +154,7 @@ try {
     await new Promise((resolve, reject) => { const server = net.createServer(); server.once('error', reject); server.listen(port, '127.0.0.1', () => server.close(resolve)); });
   }
   const preload = fileURLToPath(new URL('./bundle-smoke-preload.mjs', import.meta.url));
-  const daemon = start('dist/entry/daemon.js', [], { NODE_OPTIONS: `--import=${preload}`, CORTEX_BUNDLE_SMOKE_GATEWAY_PORT: '17380' });
+  const daemon = start('dist/entry/daemon.js', [], { NODE_OPTIONS: `--import=${pathToFileURL(preload).href}`, CORTEX_BUNDLE_SMOKE_GATEWAY_PORT: '17380' });
   await check('Daemon forks app; web SPA served', async () => {
     for (let i = 0; i < 200; i++) {
       try { const response = await fetch('http://127.0.0.1:17304/'); const body = await response.text(); if (response.ok && body.includes('<html')) return { status: response.status, bytes: body.length }; } catch {}
@@ -173,7 +191,7 @@ try {
     });
   });
   await check('signal-cli rejects unknown waitpoint through isolated HTTP endpoint', () => {
-    const result = spawnSync(path.join(prefix, 'bin/cortex-signal'), ['--id', 'bundle-smoke-missing', '--secret', 'not-a-secret', '--status', 'ok', '--url', 'http://127.0.0.1:17301/webhook/signal', '--no-spool'], { env, encoding: 'utf8', timeout: 10000 });
+    const result = runBin('cortex-signal', ['--id', 'bundle-smoke-missing', '--secret', 'not-a-secret', '--status', 'ok', '--url', 'http://127.0.0.1:17301/webhook/signal', '--no-spool'], { env, encoding: 'utf8', timeout: 10000 });
     assert.notEqual(result.status, 0); assert(!/ECONNREFUSED|Cannot find|not defined/.test(result.stderr));
     return { exit: result.status, stdout: result.stdout, stderr: result.stderr };
   });

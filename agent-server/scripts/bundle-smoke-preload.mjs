@@ -2,7 +2,7 @@
 // Production fixes its gateway port at 9880; never adopt the user's live gateway in a smoke run.
 import http from 'node:http';
 import { spawn } from 'node:child_process';
-import { isAbsolute } from 'node:path';
+import { isAbsolute, basename } from 'node:path';
 const port = Number(process.env.CORTEX_BUNDLE_SMOKE_GATEWAY_PORT);
 if (!isAbsolute(process.env.CORTEX_HOME ?? '') || !Number.isInteger(port) || port < 1024 || port === 9880) {
   throw new Error('Bundle smoke preload requires an explicit isolated home and gateway port');
@@ -14,7 +14,7 @@ globalThis.__mockHttpGet = (url, ...args) => {
   return http.get(target, ...args);
 };
 globalThis.__mockChildProcessSpawn = (command, args, options) => {
-  if (!args[0].endsWith('/gateway-cli.js') || args.at(-2) !== '-p' || args.at(-1) !== '9880') {
+  if (basename(args[0]) !== 'gateway-cli.js' || args.at(-2) !== '-p' || args.at(-1) !== '9880') {
     throw new Error('Unexpected gateway spawn');
   }
   return spawn(command, [...args.slice(0, -1), String(port)], options);
