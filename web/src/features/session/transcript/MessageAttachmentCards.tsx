@@ -17,8 +17,8 @@ import { HtmlBody } from '@/features/media/HtmlBody';
 import { useDockIntake } from '@/design/dock-intake';
 import { IconButton } from '@/design/IconButton';
 import type { AttachmentMeta, AttachmentMeta as Attachment } from '@/features/attachments/types';
-import { attachmentKindLabel, formatAttachmentSize } from '@/features/attachments/attachment-presentation';
-import { EventIcon, eventRowStyle } from './EventRow';
+import { attachmentFileExt, attachmentKindLabel, attachmentTypeColor, formatAttachmentSize } from '@/features/attachments/attachment-presentation';
+import { EventIcon } from './EventRow';
 import { viewGroupBox, widestViewWidth } from './view-width';
 
 // A file name is a label, not code: every name, size and type word here is in the UI face. The full
@@ -65,10 +65,9 @@ function MediaThumb({ a, group, width, height }: {
   );
 }
 
-// ── Files: one quiet row ──────────────────────────────────────────────────────────────────────
-// A file is a line of record, not a card: the transcript's row grammar (16px glyph column, the name,
-// a muted "CSV · 4.1 KB") with its actions as plain text and a borderless icon. No type chip: the
-// glyph says "file" and the meta says which kind.
+// ── Files ────────────────────────────────────────────────────────────────────────────────────
+// Shared pieces: the name in the UI face and a muted "CSV · 4.1 KB". A user upload is a compact
+// capsule; an agent's file is a card (below).
 
 const ICON_COL: CSSProperties = { width: 16, height: 16, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--proto-faint)' };
 const fileNameStyle: CSSProperties = {
@@ -157,6 +156,32 @@ function ActionBtn({ title, onClick, children }: {
   return <IconButton size={24} label={title} onClick={onClick} style={{ fontSize: 11 }}>{children}</IconButton>;
 }
 
+// An agent's file is a deliverable, so it stands out as a card: a type badge, the name over a muted
+// "CSV · 4.1 KB", and the download key and an outlined "Open" on the right.
+const agentFileStyle: CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 10, minWidth: 'min(280px, 100%)', maxWidth: '100%', boxSizing: 'border-box',
+  padding: '9px 10px 9px 9px', borderRadius: 'var(--r-card)', background: 'var(--material-card-bg)',
+  boxShadow: 'var(--material-card-shadow), 0 0 0 1px var(--proto-line-2)',
+};
+
+function FileBadge({ a }: { a: Attachment }): JSX.Element {
+  const colors = attachmentTypeColor(a.type);
+  return (
+    <span style={{ width: 28, height: 34, flex: 'none', borderRadius: 'var(--r-chip)', background: colors.bg, color: colors.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', font: '700 10px var(--font-ui)', letterSpacing: '.02em' }}>
+      {attachmentFileExt(a.name)}
+    </span>
+  );
+}
+
+function OpenButton({ onClick, children }: { onClick: () => void; children: ReactNode }): JSX.Element {
+  return (
+    <button type="button" className={MENU_FOCUS} onClick={onClick}
+      style={{ border: 0, height: 26, padding: '0 10px', borderRadius: 'var(--r-chip)', background: 'var(--material-control-bg)', boxShadow: 'var(--material-control-shadow), 0 0 0 1px var(--proto-accent-border)', font: '500 12.5px var(--font-ui)', color: 'var(--proto-accent)', cursor: 'pointer', flex: 'none' }}>
+      {children}
+    </button>
+  );
+}
+
 function AgentFileCard({ a }: { a: Attachment }): JSX.Element {
   const L = useVocab();
   const dl = useDownloadFile();
@@ -167,13 +192,16 @@ function AgentFileCard({ a }: { a: Attachment }): JSX.Element {
     : undefined;
   return (
     <div role={preview ? 'button' : undefined} data-attachment-file="agent" title={a.path} onClick={preview}
-      className={preview ? 'hover:bg-[var(--proto-gray)]' : undefined}
-      style={eventRowStyle(false, !!preview)}>
-      <FileRowContent a={a} />
-      <span style={{ marginLeft: 'auto', paddingLeft: 12, display: 'flex', alignItems: 'center', gap: 4, flex: 'none' }}
+      style={{ ...agentFileStyle, cursor: preview ? 'pointer' : 'default' }}>
+      <FileBadge a={a} />
+      <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
+        <span style={fileNameStyle}>{a.name}</span>
+        <span style={fileMetaStyle}>{useFileMeta(a)}</span>
+      </span>
+      <span style={{ paddingLeft: 8, display: 'flex', alignItems: 'center', gap: 4, flex: 'none' }}
         onClick={(event) => event.stopPropagation()}>
         <ActionBtn title={L.wbFileDownload} onClick={() => dl(a.path, a.name)}><DownloadGlyph /></ActionBtn>
-        {preview && <TextAction onClick={preview}>{L.wbFileOpen}</TextAction>}
+        {preview && <OpenButton onClick={preview}>{L.wbFileOpen}</OpenButton>}
       </span>
     </div>
   );

@@ -27,17 +27,19 @@ function render(content: JSX.Element): ReactTestRenderer {
 }
 
 describe('attachment file rows', () => {
-  it('draws an agent file as a quiet row: name, type word and size, a text action', () => {
+  it('draws an agent file as a card: type badge, name, type word and size, an outlined Open', () => {
     const view = render(<AgentFileGroup attachments={[csv]} />);
     const row = view.root.findByProps({ 'data-attachment-file': 'agent' });
-    // The path lives only in the tooltip; the row reads name, then "CSV · 4.1 KB".
+    // The path lives only in the tooltip; the card reads badge, name, then "CSV · 4.1 KB".
     expect(row.props.title).toBe(csv.path);
     expect(text(row)).not.toContain('workspace/');
     expect(text(row)).toContain('sweep-results.csv');
     expect(text(row)).toContain('CSV · 4.1 KB');
     expect(fonts(row).some((font) => font.includes('Mono'))).toBe(false);
     const open = row.findAllByType('button').find((b) => text(b) === 'Open')!;
-    expect(open.props.style).toMatchObject({ background: 'transparent', color: 'var(--proto-accent)' });
+    expect(row.props.style).toMatchObject({ background: 'var(--material-card-bg)' });
+    expect(open.props.style).toMatchObject({ color: 'var(--proto-accent)' });
+    expect(open.props.style.boxShadow).toContain('--proto-accent-border');
     expect(text(row)).not.toContain('↗');
     act(() => open.props.onClick());
     expect(openDoc).toHaveBeenCalledWith(expect.objectContaining({ name: csv.name, path: csv.path }));
