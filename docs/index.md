@@ -16,6 +16,22 @@ Cortex runs coding agents (Claude Code, or PI with the provider you already pay 
 - **Agents manage model training across your machines** — they check which GPUs are free, launch training and evaluation runs on any connected machine, and wait on them without polling ([Cross-Machine](cross-machine.md), [Waitpoints](waitpoints.md)).
 - **The setup itself can improve** — skills, rules, hooks, and Cortex's own source are files the agents can change, inside a safety boundary you write. Cortex itself is developed entirely inside Cortex.
 
+## How Cortex compares
+
+Cortex does not replace Claude Code, Codex, or PI. It runs them as a long-lived service: work that lasts for days, GPU servers across machines, and fewer tokens spent along the way. Claude Code and PI are its backends and run on the subscriptions you already have, including a ChatGPT plan through PI.
+
+| | Terminal coding agents<br>(Claude Code, Codex CLI, PI) | Chat assistants | Cortex |
+|---|---|---|---|
+| **Shape of work** | One session on one machine, sized for hour-scale tasks | One conversation; results stay in the chat | A long-lived service; one piece of work spans sessions and days |
+| **GPUs and servers** | You SSH in, find a free GPU, and check on the run yourself | Usually no access to your machines | Connected servers report live GPU load; agents pick free GPUs, launch runs, and wake when they finish |
+| **Tokens on long tasks** | Context piles up and is compacted again and again | A long task lives in one growing conversation | Subtasks start from a clean context, state lives on disk, and waits don't poll: about 20% fewer tokens on similar tasks |
+| **Models** | Claude Code and Codex center on their vendor's models; PI is multi-provider | Set by the platform | Claude Code, or PI with dozens of providers, including DeepSeek, Qwen, Kimi, and GLM |
+| **Multiple agents** | Mostly one agent; some add subagents | Mostly one agent | A lead runs up to 8 workers at once, plus one-shot subagents, with a live board |
+| **What is kept** | The session transcript and a notes file such as `CLAUDE.md` or `AGENTS.md` | The chat history | Experiments, findings, and decisions as plain files in the project |
+| **Where you use it** | Terminal or IDE | Web or app | Web, desktop, Android, Slack, Feishu, and terminal, all on one server |
+
+The comparison reflects each product's public positioning; check their own docs for current details.
+
 ## Features
 
 - **Plans and approvals** — non-trivial work starts from a plan you approve; questions, decisions, and operations that need sign-off arrive as cards you answer in place ([Safety & Approvals](safety-and-approvals.md)).

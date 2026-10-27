@@ -73,7 +73,7 @@ are its backends and run on the subscriptions you already have, including a Chat
 |---|---|---|---|
 | **Shape of work** | One session on one machine, sized for hour-scale tasks | One conversation; results stay in the chat | A long-lived service; one piece of work spans sessions and days |
 | **GPUs and servers** | You SSH in, find a free GPU, and check on the run yourself | Usually no access to your machines | Connected servers report live GPU load; agents pick free GPUs, launch runs, and wake when they finish |
-| **Tokens on long tasks** | Context piles up and is compacted again and again | A long task lives in one growing conversation | Subtasks start from a clean context, state lives on disk, and waits don't poll |
+| **Tokens on long tasks** | Context piles up and is compacted again and again | A long task lives in one growing conversation | Subtasks start from a clean context, state lives on disk, and waits don't poll: about 20% fewer tokens on similar tasks |
 | **Models** | Claude Code and Codex center on their vendor's models; PI is multi-provider | Set by the platform | Claude Code, or PI with dozens of providers, including DeepSeek, Qwen, Kimi, and GLM |
 | **Multiple agents** | Mostly one agent; some add subagents | Mostly one agent | A lead runs up to 8 workers at once, plus one-shot subagents, with a live board |
 | **What is kept** | The session transcript and a notes file such as `CLAUDE.md` or `AGENTS.md` | The chat history | Experiments, findings, and decisions as plain files in the project |
