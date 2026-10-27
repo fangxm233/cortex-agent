@@ -186,12 +186,31 @@ test('PI OAuth capability detection delegates storage and returns the credential
     ok: true, provider: 'future-oauth', authType: 'oauth',
     expiresAt: '2031-02-03T04:05:06.000Z',
   });
-  assert.deepEqual(login.mock.calls[0], ['future-oauth', 'oauth', auth]);
+  assert.deepEqual(login.mock.calls[0]?.slice(0, 3), ['future-oauth', 'oauth', auth]);
   assert.equal(refreshProviders.mock.calls.length, 1);
   assert.deepEqual(recovered.map(event => event.type), ['auth.recovered']);
   assert.equal(JSON.stringify({ result, recovered }).includes(SECRET), false);
   assert.equal(writeFileSyncMock.mock.calls.length, 0);
   assert.equal(writeFileMock.mock.calls.length, 0);
+});
+
+test('PI OAuth hands the login a stable device ID without creating it up front', async () => {
+  const deviceId = '0b7c5c1e-3f7a-4d6e-9a59-2f1f3a7b9c11';
+  const getDeviceId = vi.fn(() => deviceId);
+  const seen: string[] = [];
+  const login = vi.fn(async (_id, _type, _auth, options): Promise<PiCredential> => {
+    seen.push(options?.getDeviceId?.() ?? 'missing', options?.getDeviceId?.() ?? 'missing');
+    return credential();
+  });
+  const deps = { ...dependencies(available(runtime([provider('openai-chatgpt')], login))), getDeviceId };
+
+  const result = await loginPiOAuth('openai-chatgpt', interaction(), deps);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(seen, [deviceId, deviceId]);
+  const inert = vi.fn(async (): Promise<PiCredential> => credential());
+  await loginPiOAuth('other', interaction(), { ...dependencies(available(runtime([provider('other')], inert))), getDeviceId });
+  assert.equal(getDeviceId.mock.calls.length, 2);
 });
 
 async function assertFailure(

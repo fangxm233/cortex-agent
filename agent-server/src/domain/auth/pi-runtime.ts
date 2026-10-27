@@ -26,6 +26,11 @@ export interface PiProviderAuthStatus {
   label?: string;
 }
 
+/** App context for login flows; PI calls `getDeviceId` only for providers that need one. */
+export interface PiLoginOptions {
+  getDeviceId?: () => string;
+}
+
 export interface PiModelRuntime {
   getProviders(): readonly PiProvider[];
   getProviderAuthStatus(providerId: string): PiProviderAuthStatus;
@@ -33,6 +38,7 @@ export interface PiModelRuntime {
     providerId: string,
     type: 'api_key' | 'oauth',
     interaction: AuthInteraction,
+    options?: PiLoginOptions,
   ): Promise<PiCredential>;
   logout(providerId: string): Promise<void>;
   /** Request auth for a provider; refreshes and persists an OAuth token that is about to expire. */

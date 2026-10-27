@@ -8,6 +8,7 @@ import {
   type AuthInteraction,
   type LoginFlowConsumer,
 } from './login-flow.js';
+import { getPiDeviceId } from './pi-device-id.js';
 import {
   loadPiRuntime,
   type PiCredential,
@@ -50,6 +51,7 @@ const log = createLogger('pi-oauth');
 export interface PiOAuthLoginDependencies {
   loadRuntime?: () => Promise<PiRuntimeLoadResult>;
   refreshProviders?: () => void;
+  getDeviceId?: () => string;
 }
 
 function failed(
@@ -132,7 +134,8 @@ export async function loginPiOAuth(
   }
   if ('failure' in target) return target.failure;
   try {
-    const credential = await target.runtime.login(providerId, 'oauth', interaction);
+    const getDeviceId = dependencies.getDeviceId ?? (() => getPiDeviceId());
+    const credential = await target.runtime.login(providerId, 'oauth', interaction, { getDeviceId });
     return finishLogin(providerId, credentialExpiresAt(credential), dependencies);
   } catch (error) {
     return loginFailed(providerId, target.label, error);
