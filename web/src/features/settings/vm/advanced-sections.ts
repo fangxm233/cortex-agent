@@ -1,6 +1,7 @@
 import type { ConfigEnvEntry } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';
 import {
+  MAX_CACHE_KEEP_WARM_HOURS,
   MAX_MAX_CONTEXT_TOKENS,
   MAX_PI_COMPACT_RESERVE_TOKENS,
   MAX_SESSION_RETENTION_DAYS,
@@ -68,6 +69,15 @@ const PI_RESERVE: NumberSettingDescriptor = {
   max: MAX_PI_COMPACT_RESERVE_TOKENS,
 };
 
+const CACHE_KEEP_WARM: NumberSettingDescriptor = {
+  setting: 'cacheKeepWarmHours',
+  titleKey: 'stAdvCacheKeepWarmTitle',
+  descKey: 'stAdvCacheKeepWarmDesc',
+  invalidKey: 'stAdvCacheKeepWarmInvalid',
+  min: 0,
+  max: MAX_CACHE_KEEP_WARM_HOURS,
+};
+
 const RETENTION: NumberSettingDescriptor = {
   setting: 'sessionRetentionDays',
   titleKey: 'stAdvRetentionTitle',
@@ -94,6 +104,13 @@ export const ADVANCED_SECTIONS: AdvancedSection[] = [
         setting: 'claudeWindowWarmupEnabled',
         titleKey: 'stAdvClaudeWarmupTitle',
         descKey: 'stAdvClaudeWarmupDesc',
+      },
+      { kind: 'number', descriptor: CACHE_KEEP_WARM },
+      {
+        kind: 'toggle',
+        setting: 'coldResumeClearToolResults',
+        titleKey: 'stAdvColdResumeClearTitle',
+        descKey: 'stAdvColdResumeClearDesc',
       },
       { kind: 'number', descriptor: MAX_CONTEXT },
       { kind: 'number', descriptor: PI_RESERVE },

@@ -8,6 +8,8 @@ export const MAX_PI_COMPACT_RESERVE_TOKENS = 131_072;
 /** Cortex-wide context cap bounds, in tokens. Mirrors settings-spec. */
 export const MIN_MAX_CONTEXT_TOKENS = 100_000;
 export const MAX_MAX_CONTEXT_TOKENS = 1_000_000;
+/** Claude prompt-cache keep-warm bound, in hours. Mirrors settings-spec. */
+export const MAX_CACHE_KEEP_WARM_HOURS = 24;
 
 // Pure helpers for the redacted .env view and runtime settings (Notifications / Advanced panels).
 // SECURITY: config.get NEVER returns a .env value — only { key, present, masked }.
@@ -53,6 +55,7 @@ export const WRITABLE_BOOLEAN_SETTING_KEYS = [
   'serverAutoUpdate',
   'teamEnabled',
   'claudeWindowWarmupEnabled',
+  'coldResumeClearToolResults',
   'memoryIndexRegenEnabled',
   'telemetryEnabled',
 ] as const;
@@ -60,7 +63,7 @@ export const WRITABLE_INTERVAL_SETTING_KEYS = [
   'memoryIndexRegenIntervalMs',
 ] as const;
 export const WRITABLE_NUMBER_SETTING_KEYS = [
-  'sessionRetentionDays', 'maxContextTokens', 'piCompactReserveTokens',
+  'sessionRetentionDays', 'maxContextTokens', 'piCompactReserveTokens', 'cacheKeepWarmHours',
 ] as const;
 export const WRITABLE_SETTING_KEYS = [
   ...WRITABLE_BOOLEAN_SETTING_KEYS,
