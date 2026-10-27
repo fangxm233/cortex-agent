@@ -88,7 +88,7 @@ function verifyTurn(selection, sessionId, events) {
   const toolResults = backendToolResults(sessionId, selection.backend);
   assert(toolResults.some(text => text.includes('BUNDLE_TOOL_OK')), 'Missing shell result');
   assert(toolResults.some(text => text.includes('unix_ms')), 'Missing Cortex time result');
-  return { selection, sessionId, status: 'pass', streamedDeltas: deltas.length, tools: tools.map(event => event.toolName), toolResults, reply: text }; 
+  return { selection, sessionId, status: 'pass', streamedDeltas: deltas.length, tools: tools.map(event => event.toolName), toolResults, reply: text };
 }
 function jsonlFiles(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
