@@ -175,7 +175,7 @@ function cancelPendingTimers() {
 }
 
 export function buildChildProcessConfig(
-  restartReason: string | null = null, childExit: string | null = null, appEntry = APP_ENTRY,
+  restartReason: string | null = null, childExit: string | null = null,
 ) {
   const stdio: ('pipe' | 'ignore' | 'ipc')[] = ['pipe', 'ignore', 'ignore', 'ipc'];
   const env = { ...process.env };
@@ -187,7 +187,8 @@ export function buildChildProcessConfig(
     cwd: DATA_DIR,
     windowsHide: true,
     stdio,
-    execArgv: existsSync(`${appEntry}.map`) ? ['--enable-source-maps'] : [],
+    // Local maps remain available, but startup measurements favor opt-in via inherited NODE_OPTIONS.
+    execArgv: [],
     env,
   };
 }

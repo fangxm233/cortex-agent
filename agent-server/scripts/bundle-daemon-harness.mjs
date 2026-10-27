@@ -151,8 +151,7 @@ async function rebuildOnce(ctx, daemon, label, bundled, fast) {
   const detail = verifyProgress(progress, bundled, fast);
   const { app, readiness } = await awaitReplacement(ctx, daemon, oldApp, started);
   const artifact = verifyArtifact(ctx.packageRoot, bundled);
-  assert.equal(readiness.process.sourceMaps, fs.existsSync(path.join(ctx.packageRoot, 'dist/entry/app.js.map')),
-    'Daemon must enable source maps iff app.js.map exists');
+  assert.equal(readiness.process.sourceMaps, false, 'Runtime source maps must remain opt-in after the startup comparison');
   const totalMs = readiness.healthyMs;
   const stability = await stable(ctx.env, daemon.identity, app, progress.startedAt);
   const sample = { label, totalMs, cli, before: { daemon: daemon.identity, app: oldApp },

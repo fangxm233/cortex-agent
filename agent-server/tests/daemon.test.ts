@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import { test } from 'vitest';
 import {
   buildChildProcessConfig,
@@ -71,15 +70,18 @@ test.each([null, 'crash-recovery', 'restart'])('server fork hides the window and
   assert.deepEqual(config.env, expectedEnv);
 });
 
-test('app forks enable source maps only when the entry has a sibling map', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'daemon-app-map-'));
-  const entry = path.join(root, 'app.js');
+test('app forks keep runtime source maps opt-in through inherited NODE_OPTIONS', () => {
+  const original = process.env.NODE_OPTIONS;
   try {
-    assert.deepEqual(buildChildProcessConfig(null, null, entry).execArgv, []);
-    fs.writeFileSync(`${entry}.map`, '{}');
-    assert.deepEqual(buildChildProcessConfig(null, null, entry).execArgv, ['--enable-source-maps']);
+    delete process.env.NODE_OPTIONS;
+    assert.deepEqual(buildChildProcessConfig().execArgv, []);
+    process.env.NODE_OPTIONS = '--enable-source-maps';
+    const config = buildChildProcessConfig();
+    assert.deepEqual(config.execArgv, []);
+    assert.equal(config.env.NODE_OPTIONS, '--enable-source-maps');
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    if (original === undefined) delete process.env.NODE_OPTIONS;
+    else process.env.NODE_OPTIONS = original;
   }
 });
 

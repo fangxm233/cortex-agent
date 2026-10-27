@@ -233,9 +233,11 @@ A dependency change or an unbundled installation takes the full path: `npm pack 
 in the stage, followed by `npm install -g` in the existing prefix.
 
 Local stages contain linked source maps for readable, pre-bundle JavaScript. npm tarballs exclude
-the maps; the local installer copies them from the stage after a full install. The daemon starts
-an app with `--enable-source-maps` when its entry map is present. Release packages have no server
-maps. Daemon-managed installs suppress their own postinstall restart notification and restart the
+the maps; the local installer copies them from the stage after a full install. Runtime mapping is
+opt-in because it adds measurable startup cost. During an idle maintenance window, use
+`NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--enable-source-maps" cortex daemon restart-self`
+to enable it for the daemon and its app; restart the daemon without that Node option to disable it.
+Release packages have no server maps. Daemon-managed installs suppress their own postinstall restart notification and restart the
 app directly; external npm upgrades retain the postinstall notification and idle-aware app restart.
 
 `CORTEX_REBUILD_BUNDLE=0` selects the ordinary unbundled build and source fast-install/pack-install

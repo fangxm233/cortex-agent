@@ -226,8 +226,11 @@ fast install 整体替换 `dist`、`web`、`defaults`、`vendor`、`scripts` 目
 在 stage 内执行 `npm pack --ignore-scripts`，再向原 prefix 执行 `npm install -g`。
 
 本地 stage 包含映射到打包前可读 JavaScript 的 linked source maps。npm tarball 排除这些文件；
-完整安装成功后，本地安装器从 stage 补复制 maps。daemon 发现 app 入口的 map 时，
-以 `--enable-source-maps` 启动 app；发布包不带 server maps。daemon 自己发起的安装跳过 postinstall
+完整安装成功后，本地安装器从 stage 补复制 maps。运行时映射有可测的启动开销，因此需要手动启用。
+在空闲维护窗口执行
+`NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--enable-source-maps" cortex daemon restart-self`，
+即可让 daemon 和 app 启用映射；不带该 Node 选项重启 daemon 可关闭映射。
+发布包不带 server maps。daemon 自己发起的安装跳过 postinstall
 重启通知，由 daemon 直接重启 app；外部 npm 升级仍通过 postinstall 通知 daemon，在空闲时重启 app。
 
 `CORTEX_REBUILD_BUNDLE=0` 是恢复选项，选择普通未打包 build 和源码 fast install / pack-install 路径。
