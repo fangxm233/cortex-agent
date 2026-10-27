@@ -330,7 +330,7 @@ export const SETTINGS_SPEC = {
   },
   sessionRetentionDays: {
     type: 'number',
-    default: 30,
+    default: 90,
     validate: validateSessionRetentionDays,
   },
   // PI only: PI's own compaction headroom, mirrored into its private settings.json. PI compacts —

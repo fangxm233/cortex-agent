@@ -324,7 +324,8 @@ describe.sequential('core settings', () => {
     assert.deepEqual(snapshot.find((entry) => entry.key === 'turnNotify'), { key: 'turnNotify', value: false, source: 'file' });
   });
 
-  test('sessionRetentionDays defaults to 30 and enforces safe integer day bounds', () => {
+  test('sessionRetentionDays defaults to 90 and enforces safe integer day bounds', () => {
+    assert.equal(resolveSettingsSnapshot({}).find((entry) => entry.key === 'sessionRetentionDays')?.value, 90);
     const maxDays = Math.floor(Number.MAX_SAFE_INTEGER / 86_400_000);
     assert.doesNotThrow(() => resolveSettingsSnapshot({ sessionRetentionDays: 1 }));
     assert.doesNotThrow(() => resolveSettingsSnapshot({ sessionRetentionDays: maxDays }));
