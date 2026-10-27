@@ -243,7 +243,7 @@ export class ChunkedOutputStream implements OutputStream {
     if (updateResult.delivered) {
       this.currentContent = combined;
     } else {
-      this.config.log.error(`Update permanently failed in channel ${this._logChannel}; falling back to new post`);
+      this.config.log.error(`Update permanently failed in channel ${this._logChannel}; falling back to new post: ${updateResult.reason}`);
       await this._postNew(text);
       if (updateResult.walId && this.config.afterSentOnFailedUpdate) {
         await this.durable?.afterSent(updateResult.walId).catch(() => {});
@@ -274,7 +274,7 @@ export class ChunkedOutputStream implements OutputStream {
     if (updateResult.delivered) {
       this.mutableTail = text;
     } else {
-      this.config.log.error(`Update failed in openMutable (channel ${this._logChannel}); falling back to new post`);
+      this.config.log.error(`Update failed in openMutable (channel ${this._logChannel}); falling back to new post: ${updateResult.reason}`);
       await this._postNew(text);
       this.currentContent = '';
       this.mutableTail = text;
@@ -308,7 +308,7 @@ export class ChunkedOutputStream implements OutputStream {
     if (updateResult.delivered) {
       this.mutableTail = text;
     } else {
-      this.config.log.error(`Update failed in mutable-tail edit (channel ${this._logChannel}); falling back to new post`);
+      this.config.log.error(`Update failed in mutable-tail edit (channel ${this._logChannel}); falling back to new post: ${updateResult.reason}`);
       this._sealMutableTailNow();
       await this._postNew(text);
       this.currentContent = '';
@@ -403,8 +403,8 @@ export class ChunkedOutputStream implements OutputStream {
     }
   }
 
-  /** Update the current message with the combined content. A failed update carries its WAL id. */
-  private async _updateCurrent(content: string): Promise<{ delivered: boolean; walId?: string }> {
+  /** Update the current message with the combined content. A failed update carries its WAL id and error reason. */
+  private async _updateCurrent(content: string): Promise<{ delivered: boolean; walId?: string; reason?: string }> {
     if (!this.currentRef) return { delivered: true };
     const ref = this.currentRef;
     const richBlocks: RichBlock[] = [{ type: 'markdown', text: content }];
@@ -432,8 +432,8 @@ export class ChunkedOutputStream implements OutputStream {
         });
       }
       return { delivered: true };
-    } catch {
-      return { delivered: false, ...(walId ? { walId } : {}) };
+    } catch (e) {
+      return { delivered: false, reason: e instanceof Error ? e.message : String(e), ...(walId ? { walId } : {}) };
     }
   }
 }
