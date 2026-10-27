@@ -30,23 +30,27 @@ const session = (over: Partial<AgentBrowserSession> = {}): AgentBrowserSession =
 });
 
 describe('geometry', () => {
-  it('letterboxes a wide page in a tall box, centred', () => {
-    expect(fitRect(640, 720, 1280, 720)).toEqual({ x: 0, y: 180, width: 640, height: 360 });
+  it('holds a wide page to the top of a tall box', () => {
+    expect(fitRect(640, 720, 1280, 720)).toEqual({ x: 0, y: 0, width: 640, height: 360 });
     expect(fitRect(0, 100, 1280, 720)).toEqual({ x: 0, y: 0, width: 0, height: 0 });
+  });
+
+  it('centres a tall page across a wide box', () => {
+    expect(fitRect(1000, 400, 400, 800)).toEqual({ x: 400, y: 0, width: 200, height: 400 });
   });
 
   it('maps through the page size, not the frame pixels', () => {
     const fit = fitRect(640, 720, 1280, 720);
     // A frame capped at 640px wide still describes a 1280×720 page.
     const meta = { deviceWidth: 1280, deviceHeight: 720 };
-    expect(toPagePoint(320, 360, fit, meta)).toEqual({ x: 640, y: 360 });
-    expect(toPagePoint(0, 180, fit, meta)).toEqual({ x: 0, y: 0 });
-    expect(toPagePoint(640, 540, fit, meta)).toEqual({ x: 1280, y: 720 });
+    expect(toPagePoint(320, 180, fit, meta)).toEqual({ x: 640, y: 360 });
+    expect(toPagePoint(0, 0, fit, meta)).toEqual({ x: 0, y: 0 });
+    expect(toPagePoint(640, 360, fit, meta)).toEqual({ x: 1280, y: 720 });
   });
 
-  it('ignores a point on the letterbox', () => {
+  it('ignores a point below the page', () => {
     const fit = fitRect(640, 720, 1280, 720);
-    expect(toPagePoint(320, 100, fit, { deviceWidth: 1280, deviceHeight: 720 })).toBeNull();
+    expect(toPagePoint(320, 500, fit, { deviceWidth: 1280, deviceHeight: 720 })).toBeNull();
   });
 });
 

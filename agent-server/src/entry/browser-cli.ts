@@ -5,7 +5,7 @@ import { AUTH_HEADER } from '@core/auth.js';
 import { isMainModule } from '@core/utils.js';
 import {
   agentBrowserArgs, agentBrowserBaseEnv, agentBrowserCallEnv, isTabGone, resolveAgentBrowserBin,
-  AgentBrowserMissingError,
+  AgentBrowserMissingError, SESSION_VIEWPORT_ARGS,
 } from '@platform/browser/agent-browser.js';
 
 /**
@@ -315,6 +315,7 @@ export async function runBrowserCli(argv: string[], options: BrowserCliOptions =
       // The command never ran, so binding a fresh tab and running it once more is safe.
       const rebound = await exec(data.bin, agentBrowserArgs(data.cdpEndpoint, data.abSession, ['tab', 'new']), callEnv, cwd, true);
       if (rebound.code === 0) {
+        await exec(data.bin, agentBrowserArgs(data.cdpEndpoint, data.abSession, SESSION_VIEWPORT_ARGS), callEnv, cwd, true);
         writeErr('cortex-browser: this session\'s previous tab is gone (closed after 10 idle minutes, or the browser restarted); continuing in a new blank tab\n');
         run = await exec(data.bin, agentBrowserArgs(data.cdpEndpoint, data.abSession, args), callEnv, cwd);
       }

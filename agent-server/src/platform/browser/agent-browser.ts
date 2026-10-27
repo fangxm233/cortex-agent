@@ -114,6 +114,15 @@ export function agentBrowserArgs(cdpEndpoint: string, abSession: string, args: s
   return ['--cdp', cdpEndpoint, '--session', abSession, '--pin-tab', ...args];
 }
 
+/**
+ * The viewport every tab a session binds starts with. Attached to a Chrome it did not launch,
+ * agent-browser leaves the page at the size of the window — one window all sessions share, which
+ * any session's `set viewport` resizes and the profile remembers — while its stream still reports
+ * its own 1280×720, so the app would draw a narrow page stretched wide. A set viewport is per tab;
+ * the agent can still change its own.
+ */
+export const SESSION_VIEWPORT_ARGS = ['set', 'viewport', '1280', '800'];
+
 /** The bound tab no longer exists (the Chrome behind it was replaced or the tab was closed). */
 export function isTabGone(stderr: string): boolean {
   return /(^|\s)tab_gone[:\s]/.test(stderr) || stderr.includes('"code":"tab_gone"');

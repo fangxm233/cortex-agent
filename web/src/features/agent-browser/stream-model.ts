@@ -25,13 +25,14 @@ export interface Rect {
   height: number;
 }
 
-/** Where a page of `pageW × pageH` lands when scaled to fit inside the box, centred and letterboxed. */
+/** Where a frame of `pageW × pageH` lands when scaled to fit inside the box: centred across and
+ *  held to the top, so spare height falls below the page as it would in a browser window. */
 export function fitRect(boxW: number, boxH: number, pageW: number, pageH: number): Rect {
   if (boxW <= 0 || boxH <= 0 || pageW <= 0 || pageH <= 0) return { x: 0, y: 0, width: 0, height: 0 };
   const scale = Math.min(boxW / pageW, boxH / pageH);
   const width = pageW * scale;
   const height = pageH * scale;
-  return { x: (boxW - width) / 2, y: (boxH - height) / 2, width, height };
+  return { x: (boxW - width) / 2, y: 0, width, height };
 }
 
 /**
