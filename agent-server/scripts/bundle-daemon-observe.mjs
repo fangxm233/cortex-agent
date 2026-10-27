@@ -33,6 +33,7 @@ export function verifyProgress(progress, bundled, fast) {
   assert.equal(restart?.status, 'done');
   assert(names.indexOf('install') < names.indexOf('restart'));
   if (bundled) assertBundleStep(progress, names);
+  else assert(!progress.steps.some(step => step.name === 'bundle' && step.status !== 'skipped'), 'Fallback must not run bundling');
   const evidence = `${install.detail ?? ''} ${progress.detail ?? ''}`;
   assert(fast ? /\bfast\b/i.test(evidence) : /pack[\s\S]*install|install[\s\S]*pack/i.test(evidence), `Missing explicit ${fast ? 'fast' : 'pack/install'} evidence: ${evidence}`);
   return { install, stages: progress.steps.map(step => ({ ...step,
@@ -122,6 +123,7 @@ export async function stable(env, daemon, app, progressStartedAt, durationMs = 1
 export function verifyArtifact(packageRoot, bundled) {
   const pkg = readJson(path.join(packageRoot, 'package.json'));
   assert.equal(pkg.cortexBundle === true, bundled, 'Unexpected installed bundle marker');
+  if (!bundled) assert(!Object.hasOwn(pkg, 'cortexBundle'), 'Fallback must remove the bundle marker');
   const chunks = path.join(packageRoot, 'dist/chunks');
   assert.equal(fs.existsSync(chunks), bundled, 'Unexpected chunk directory');
   if (bundled) assert(fs.existsSync(path.join(packageRoot, 'dist/entry/app.js.map')), 'Daemon must restore app map');
@@ -129,8 +131,14 @@ export function verifyArtifact(packageRoot, bundled) {
     dependencies: pkg.dependencies, optionalDependencies: pkg.optionalDependencies };
 }
 
+export function publishedMaps(packageRoot) {
+  return fs.readdirSync(packageRoot, { withFileTypes: true }).filter(entry => entry.name !== 'node_modules')
+    .flatMap(entry => entry.isDirectory() ? filesBelow(path.join(packageRoot, entry.name)) : [path.join(packageRoot, entry.name)])
+    .filter(file => file.endsWith('.map'));
+}
+
 export function restoreMatchingMaps(stage, packageRoot) {
-  const maps = filesBelow(stage).filter(file => file.endsWith('.js.map') && !file.includes('/node_modules/'));
+  const maps = publishedMaps(stage).filter(file => file.endsWith('.js.map'));
   assert(maps.length > 0, 'mappedStage has no JS maps; produce bundle.mjs <stage> --sourcemap first');
   for (const map of maps) {
     const relative = path.relative(stage, map);

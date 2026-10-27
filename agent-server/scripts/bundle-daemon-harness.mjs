@@ -24,7 +24,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { validateOptions, claimRoot, isolatedEnv, preflight, createRunner, command,
   identity, sameProcess, now, readJson, saveJson, waitFor } from './bundle-daemon-runtime.mjs';
 import { events, readProgress, appIdentity, verifyProgress, dependencySnapshot, digest,
-  ready, stable, verifyArtifact, restoreMatchingMaps, filesBelow } from './bundle-daemon-observe.mjs';
+  ready, stable, verifyArtifact, restoreMatchingMaps, publishedMaps } from './bundle-daemon-observe.mjs';
 
 function context(options) {
   claimRoot(options.testroot);
@@ -33,7 +33,8 @@ function context(options) {
   const packageRoot = path.join(env.CORTEX_NPM_PREFIX, 'lib/node_modules/@cortex-agent/server');
   const runner = createRunner(options.testroot, env);
   return { options, env, packageRoot, runner, results: { ok: false, scenario: options.scenario,
-    startedAt: new Date().toISOString(), options, samples: [] }, start: now() };
+    startedAt: new Date().toISOString(), options, samples: [],
+    tarballHashes: { source: digest(options.sourceTgz), bundle: digest(options.bundleTgz) } }, start: now() };
 }
 
 function persist(ctx) {
@@ -144,7 +145,7 @@ async function rebuildOnce(ctx, daemon, label, bundled, fast) {
   const artifact = verifyArtifact(ctx.packageRoot, bundled);
   assert.equal(readiness.process.sourceMaps, fs.existsSync(path.join(ctx.packageRoot, 'dist/entry/app.js.map')),
     'Daemon must enable source maps iff app.js.map exists');
-  const totalMs = now() - started;
+  const totalMs = readiness.healthyMs;
   const stability = await stable(ctx.env, daemon.identity, app, progress.startedAt);
   const sample = { label, totalMs, cli, before: { daemon: daemon.identity, app: oldApp },
     after: { daemon: identity(daemon.child.pid), app }, readiness, artifact, progress, ...detail, stability };
@@ -195,8 +196,8 @@ async function registryScenario(ctx) {
   const pkg = readJson(path.join(ctx.packageRoot, 'package.json'));
   assert.equal(pkg.cortexBundle, true);
   assert(fs.existsSync(path.join(ctx.packageRoot, 'dist/chunks')));
-  assert.equal(filesBelow(path.join(ctx.packageRoot, 'dist')).filter(file => file.endsWith('.map')).length, 0, 'npm bundle files must exclude maps');
-  const totalMs = now() - started;
+  assert.deepEqual(publishedMaps(ctx.packageRoot), [], 'npm bundle files must exclude maps (including vendor maps)');
+  const totalMs = readiness.healthyMs;
   const stability = await stable(ctx.env, initial.daemon.identity, app, beforeProgress?.startedAt);
   saveSample(ctx, { label: 'registry-postinstall-upgrade', npm, totalMs, readiness, stability,
     before: { daemon: initial.daemon.identity, app: initial.app }, after: { daemon: identity(initial.daemon.child.pid), app } });
@@ -205,7 +206,7 @@ async function registryScenario(ctx) {
 async function startupMapsScenario(ctx) {
   await install(ctx, ctx.options.bundleTgz, 'install-mapped-bundle');
   const appFile = path.join(ctx.packageRoot, 'dist/entry/app.js');
-  assert(!fs.existsSync(`${appFile}.map`), 'npm tarball must exclude maps');
+  assert.deepEqual(publishedMaps(ctx.packageRoot), [], 'npm tarball must exclude maps before fixture restoration');
   const mapCount = restoreMatchingMaps(ctx.options.mappedStage, ctx.packageRoot);
   ctx.results.mappedArtifact = { appHash: digest(appFile), mapHash: digest(`${appFile}.map`), mapCount };
   for (let pair = 0; pair < 5; pair++) {
@@ -225,7 +226,7 @@ async function startupSample(ctx, appFile, pair, maps) {
   const app = ctx.runner.start(process.execPath, args, label);
   const readiness = await ready(ctx.env, app.identity, started);
   assert.equal(readiness.process.sourceMaps, maps);
-  saveSample(ctx, { label, pair: pair + 1, maps, totalMs: now() - started, app: app.identity, readiness });
+  saveSample(ctx, { label, pair: pair + 1, maps, totalMs: readiness.healthyMs, app: app.identity, readiness });
   await ctx.runner.stop(app);
   await delay(250);
 }

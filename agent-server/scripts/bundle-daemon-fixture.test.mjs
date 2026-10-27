@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { remapGateway, guardedPort } from './bundle-daemon-guards.mjs';
 import { isolatedEnv, validateOptions, claimRoot, createRunner, identity, sameProcess, waitFor } from './bundle-daemon-runtime.mjs';
-import { verifyProgress, dependencySnapshot, restoreMatchingMaps, events } from './bundle-daemon-observe.mjs';
+import { verifyProgress, dependencySnapshot, restoreMatchingMaps, events, verifyArtifact, publishedMaps } from './bundle-daemon-observe.mjs';
 import { runHarness } from './bundle-daemon-harness.mjs';
 
 const sourceUrl = 'file:///fixture/dist/domain/costs/gateway-manager.js';
@@ -129,6 +129,20 @@ test('maps may only be restored alongside byte-identical installed JS', () => {
   assert.equal(restoreMatchingMaps(stage, installed), 1);
   fs.writeFileSync(path.join(installed, 'dist/entry/app.js'), 'export default 2;');
   assert.throws(() => restoreMatchingMaps(stage, installed), /mismatch/);
+});
+
+test('fallback requires absent marker, and published-map checks include vendor but exclude dependencies', () => {
+  const root = fixture();
+  fs.writeFileSync(path.join(root, 'package.json'), '{"cortexBundle":false}');
+  assert.throws(() => verifyArtifact(root, false), /remove the bundle marker/);
+  fs.writeFileSync(path.join(root, 'package.json'), '{}');
+  assert.doesNotThrow(() => verifyArtifact(root, false));
+  for (const relative of ['vendor/pi/app.js.map', 'node_modules/dep/app.js.map']) {
+    const file = path.join(root, relative);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, '{}');
+  }
+  assert.deepEqual(publishedMaps(root), [path.join(root, 'vendor/pi/app.js.map')]);
 });
 
 test('callable dry run validates but never creates root or starts subprocesses', async () => {
