@@ -246,6 +246,8 @@ pub fn run() {
             setup::autostart::setup_enable_autostart,
             setup::autostart::autostart_status,
             setup::autostart::autostart_set,
+            setup::local_server::local_server_status,
+            setup::local_server::local_server_stop,
             setup::setup_terminal_cli,
             setup::telemetry::setup_telemetry_lang,
             telemetry::telemetry_take_native_crash,

@@ -8,6 +8,7 @@ mod answers;
 pub use answers::{answers_document, SetupAnswers};
 pub mod autostart;
 pub mod claude;
+pub mod local_server;
 #[cfg(any(target_os = "windows", test))]
 mod login_entry;
 mod package;

@@ -22,7 +22,9 @@ import { AppUpdateRow, useAppUpdateController } from './AppUpdateCard';
 import { AutostartRow } from './AutostartCard';
 import { UninstallRow, useUninstallController } from './UninstallCard';
 import { UiSignOutRow } from './UiSignOutCard';
+import { StopServerRow } from './StopServerCard';
 import { useAutostartController } from '@/features/settings/controllers/useAutostartController';
+import { useLocalServerController } from '@/features/settings/controllers/useLocalServerController';
 import { useUiSignOut } from '@/features/settings/controllers/useUiSignOut';
 import {
   ADVANCED_SECTIONS,
@@ -479,8 +481,10 @@ function DeviceSection() {
   const autostart = useAutostartController();
   const signOut = useUiSignOut();
   const uninstall = useUninstallController();
+  const server = useLocalServerController();
   const rows = [
     { key: 'autostart', shown: autostart.state !== null, node: <AutostartRow controller={autostart} /> },
+    { key: 'stop-server', shown: server.offered, node: <StopServerRow controller={server} /> },
     { key: 'sign-out', shown: signOut.offered, node: <UiSignOutRow controller={signOut} /> },
     { key: 'uninstall', shown: uninstall.offered, node: <UninstallRow controller={uninstall} /> },
   ].filter((row) => row.shown);

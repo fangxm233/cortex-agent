@@ -3,6 +3,7 @@ import { Button, IconButton } from '@/design';
 import { useDaemonResource } from '@/features/daemon/useDaemonResource';
 import { useVocab } from '@/i18n';
 import { isNativeShell } from '@/lib/desktop-config';
+import { useLocalServerController, type LocalServerController } from '@/features/settings/controllers/useLocalServerController';
 import { disconnectShell } from '@/lib/shell-connection';
 import { BUILD_STAMP } from '@/lib/build-info';
 import { ActionRow, ProcessSection, RebuildSection, RecentSection, RestartSection } from './daemon-sections';
@@ -78,14 +79,36 @@ function LoadState({ loading, failed }: { loading: boolean; failed: boolean }) {
   );
 }
 
-/** Clears the saved server + token and returns to the connect screen. Native shell only: in the
- *  browser auth is same-origin / Cloudflare Access, with no local creds and no connect screen. */
-function DisconnectRow() {
+/** Stops the local server and quits the app (desktop, local install only); the confirmation
+ *  replaces the row's button, and the next launch starts the server again. */
+function StopServerRow({ server }: { server: LocalServerController }) {
   const L = useVocab();
+  return (
+    <ActionRow title={L.dmnStopServer} desc={server.failed ? L.dmnStopServerFailed : L.dmnStopServerDesc} danger first>
+      {server.armed ? (
+        <>
+          <Button size="sm" data-action="stop-server-cancel" onClick={server.cancel}>{L.dmConfirmCancel}</Button>
+          <Button size="sm" variant="danger" data-action="stop-server-confirm" disabled={server.pending} onClick={server.stop}>
+            {server.pending ? '...' : L.dmnStopServerConfirm}
+          </Button>
+        </>
+      ) : (
+        <Button size="sm" variant="danger-outline" data-action="stop-server" onClick={server.arm}>{L.dmnStopServer}</Button>
+      )}
+    </ActionRow>
+  );
+}
+
+/** Native shell only: in the browser auth is same-origin / Cloudflare Access, with no local creds,
+ *  no connect screen and no server of its own. Disconnect clears the saved server + token. */
+function ShellActions() {
+  const L = useVocab();
+  const server = useLocalServerController();
   if (!isNativeShell()) return null;
   return (
     <div style={{ marginTop: 16, borderTop: '1px solid var(--proto-line-3)' }}>
-      <ActionRow title={L.dmDisconnect} desc={L.dmDisconnectDesc} first>
+      {server.offered && <StopServerRow server={server} />}
+      <ActionRow title={L.dmDisconnect} desc={L.dmDisconnectDesc} first={!server.offered}>
         <Button size="sm" data-action="disconnect" onClick={() => void disconnectShell()}>{L.dmDisconnect}</Button>
       </ActionRow>
     </div>
@@ -122,7 +145,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
             onCancelHard={() => setConfirmHard(false)}
             onHard={() => daemon.restart('hard')}
           />
-          <DisconnectRow />
+          <ShellActions />
         </div>
       </div>
     </>
