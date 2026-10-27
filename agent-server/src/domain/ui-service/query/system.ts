@@ -2,6 +2,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { DAEMON_PID_FILE, DAEMON_CHILD_PID_FILE, RESTART_TRIGGER_FILE } from '@core/paths.js';
 import { readRebuildProgress } from '@core/rebuild-progress.js';
 import { formatDuration } from '@core/format-duration.js';
+import { CORTEX_VERSION } from '@core/version.js';
 import { isProcessAlive, readPidFile } from '@core/singleton-lock.js';
 import { getThrottleState } from '@domain/costs/rate-limit-throttle.js';
 import { getResumeCountsByProvider } from '@domain/costs/resume-registry.js';
@@ -16,6 +17,7 @@ import type {
   SystemUsageStatus,
   SystemNotices,
   SystemUpdateStatus,
+  SystemVersion,
   QueryParams,
 } from '../types.js';
 
@@ -146,4 +148,10 @@ export async function handleSystemUpdateStatus(
   _params: QueryParams<'system.updateStatus'>,
 ): Promise<SystemUpdateStatus> {
   return getServerUpdateStatus();
+}
+
+export async function handleSystemVersion(
+  _params: QueryParams<'system.version'>,
+): Promise<SystemVersion> {
+  return { version: CORTEX_VERSION };
 }

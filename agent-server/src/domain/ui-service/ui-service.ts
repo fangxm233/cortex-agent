@@ -44,6 +44,7 @@ import {
   handleSystemDaemonStatus,
   handleSystemRateLimitStatus,
   handleSystemUsageStatus,
+  handleSystemVersion,
   handleSystemNotices,
   handleSystemUpdateStatus,
 } from './query/system.js';
@@ -181,6 +182,7 @@ export const queryHandlers = {
   'system.usageStatus': (_deps, params) => handleSystemUsageStatus(params),
   'system.notices': (_deps, params) => handleSystemNotices(params),
   'system.updateStatus': (_deps, params) => handleSystemUpdateStatus(params),
+  'system.version': (_deps, params) => handleSystemVersion(params),
 } satisfies QueryHandlerMap;
 
 export const mutateHandlers = {

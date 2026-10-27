@@ -1488,6 +1488,13 @@ export interface SystemUpdateDecisionReturn {
   status: SystemUpdateStatus;
 }
 
+// ── system.version DTO ────────────────────────────────────────────
+
+export interface SystemVersion {
+  /** Version of the running server (CalVer from its package.json). */
+  version: string;
+}
+
 // ── system.clearRateLimit DTO ────────────────────────────────────
 
 export interface SystemClearRateLimitReturn {
@@ -1652,6 +1659,7 @@ export interface QueryReturnMap {
   'system.usageStatus': SystemUsageStatus;
   'system.notices': SystemNotices;
   'system.updateStatus': SystemUpdateStatus;
+  'system.version': SystemVersion;
 }
 
 /** Mutate args are exactly what the op's zod schema parses to. */

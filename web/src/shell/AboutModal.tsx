@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Modal, ModalClose } from '@/design/Modal';
 import { defineModal, type ModalActions } from '@/design/modal-registry';
 import { useVocab } from '@/i18n';
 import { BUILD_STAMP } from '@/lib/build-info';
 import { openExternalUrl } from '@/lib/external-navigation';
 import { safeInvoke, type NativeInvokeResult } from '@/lib/native-bridge';
+import { useServerVersion } from './useServerVersion';
 import './about-modal.css';
 
 export const DOCS_URL = 'https://fangxm233.github.io/cortex-agent/';
@@ -34,24 +35,54 @@ function AboutBrand(): JSX.Element {
   );
 }
 
-// The frontend hot-updates independently of the native shell; retain both identities.
-function AboutVersions(): JSX.Element {
+interface VersionText {
+  text: string;
+  ok: boolean;
+  busy: boolean;
+}
+
+function useShellVersionText(): VersionText {
   const L = useVocab();
   const version = useShellVersion();
-  const fallback = { unavailable: L.aboutShellBrowser, failed: L.aboutShellFailed };
-  const shell = version?.ok ? version.value : version ? fallback[version.reason] : L.aboutShellLoading;
+  if (version?.ok) return { text: version.value, ok: true, busy: false };
+  if (!version) return { text: L.aboutVersionLoading, ok: false, busy: true };
+  const fallback = { unavailable: L.aboutShellBrowser, failed: L.aboutVersionFailed };
+  return { text: fallback[version.reason], ok: false, busy: false };
+}
+
+function useServerVersionText(): VersionText {
+  const L = useVocab();
+  const { version, failed } = useServerVersion();
+  if (version) return { text: version, ok: true, busy: false };
+  if (failed) return { text: L.aboutVersionFailed, ok: false, busy: false };
+  return { text: L.aboutVersionLoading, ok: false, busy: true };
+}
+
+function VersionRow({ label, children, ok = true }: { label: string; children: ReactNode; ok?: boolean }): JSX.Element {
+  return (
+    <div className="about-version-row">
+      <dt>{label}</dt>
+      <dd className={ok ? 'about-version-value' : 'about-version-status'}>{children}</dd>
+    </div>
+  );
+}
+
+function AsyncVersionRow({ label, version }: { label: string; version: VersionText }): JSX.Element {
+  return (
+    <VersionRow label={label} ok={version.ok}>
+      <span role="status" aria-busy={version.busy}>{version.text}</span>
+    </VersionRow>
+  );
+}
+
+// Server, frontend and native shell each update on their own; retain all three identities.
+function AboutVersions(): JSX.Element {
+  const L = useVocab();
   return (
     <dl className="about-versions">
-      <div className="about-version-row">
-        <dt>{L.aboutFrontend}</dt>
-        <dd className="about-version-value">{BUILD_STAMP}</dd>
-      </div>
-      <div className="about-version-row">
-        <dt>{L.aboutShell}</dt>
-        <dd className={version?.ok ? 'about-version-value' : 'about-version-status'}>
-          <span role="status" aria-busy={!version}>{shell}</span>
-        </dd>
-      </div>
+      <AsyncVersionRow label={L.aboutServer} version={useServerVersionText()} />
+      <VersionRow label={L.aboutFrontend}>{BUILD_STAMP}</VersionRow>
+      <AsyncVersionRow label={L.aboutShell} version={useShellVersionText()} />
     </dl>
   );
 }

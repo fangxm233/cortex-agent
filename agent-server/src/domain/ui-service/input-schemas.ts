@@ -120,6 +120,8 @@ export const systemNoticesInput = z.object({ limit: z.number().int().positive().
 
 export const systemUpdateStatusInput = z.object({});
 
+export const systemVersionInput = z.object({});
+
 // ── Mutate input schemas ──────────────────────────────────────────
 
 export const authStartLoginInput = z.object({
@@ -803,6 +805,7 @@ export const queryInputSchemas = {
   'system.usageStatus': systemUsageStatusInput,
   'system.notices': systemNoticesInput,
   'system.updateStatus': systemUpdateStatusInput,
+  'system.version': systemVersionInput,
 } satisfies Record<string, z.ZodType>;
 
 export const mutateInputSchemas = {
