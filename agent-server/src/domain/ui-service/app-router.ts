@@ -108,6 +108,7 @@ import {
   systemDaemonStatusInput,
   systemRateLimitStatusInput,
   systemUsageStatusInput,
+  systemVersionInput,
   systemNoticesInput,
   systemRestartInput,
   systemClearRateLimitInput,
@@ -375,6 +376,7 @@ function systemRouter(service: UiService) {
     checkUpdate: makeMutation(service, 'system.checkUpdate', systemCheckUpdateInput),
     applyUpdate: makeMutation(service, 'system.applyUpdate', systemApplyUpdateInput),
     skipUpdate: makeMutation(service, 'system.skipUpdate', systemSkipUpdateInput),
+    version: makeQuery(service, 'system.version', systemVersionInput),
   });
 }
 
