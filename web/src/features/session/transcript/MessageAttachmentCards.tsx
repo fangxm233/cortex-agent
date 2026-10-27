@@ -159,7 +159,7 @@ function ActionBtn({ title, onClick, children }: {
 // An agent's file is a deliverable, so it stands out as a card: a type badge, the name over a muted
 // "CSV · 4.1 KB", and the download key and an outlined "Open" on the right.
 const agentFileStyle: CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 10, minWidth: 'min(280px, 100%)', maxWidth: '100%', boxSizing: 'border-box',
+  display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, boxSizing: 'border-box',
   padding: '9px 10px 9px 9px', borderRadius: 'var(--r-card)', background: 'var(--material-card-bg)',
   boxShadow: 'var(--material-card-shadow), 0 0 0 1px var(--proto-line-2)',
 };
@@ -303,7 +303,8 @@ export function AgentFileGroup({ attachments }: { attachments: Attachment[] }): 
     <div style={{ ...box, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, marginTop: 10 }}>
       {media.length > 0 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{media.map((a, i) => <AgentMediaPreview key={`media-${i}`} a={a} group={group} />)}</div>}
       {views.map((a, i) => <AgentViewCard key={`view-${i}`} a={a} />)}
-      {files.map((a, i) => <AgentFileCard key={`file-${i}`} a={a} />)}
+      {/* One grid column, as wide as the widest card: a message's files line up at one width. */}
+      {files.length > 0 && <div style={{ display: 'grid', gap: 6, minWidth: 'min(280px, 100%)', maxWidth: '100%' }}>{files.map((a, i) => <AgentFileCard key={`file-${i}`} a={a} />)}</div>}
       {attachments.length >= 3 && (
         <div style={{ font: '400 12px var(--font-ui)', fontVariantNumeric: 'tabular-nums', color: 'var(--proto-muted)', padding: '2px 0 0' }}>
           {attachments.length} {L.wbFileFiles} ·{' '}
