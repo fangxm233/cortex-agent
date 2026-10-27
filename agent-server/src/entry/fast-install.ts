@@ -10,7 +10,8 @@ import * as path from 'path';
  *
  * A src rebuild only ever changes the compiled output: dist/, web/dist/, defaults/ (14MB).
  * The dependency closure is byte-identical unless the manifest's dependency sets changed. So when
- * the manifests agree, copy the build outputs in directly and skip pack + install entirely.
+ * the manifests agree and the installed package is unbundled, copy the build outputs in directly
+ * and skip pack + install entirely.
  */
 
 /** package.json `files` entries this fast path is written against. `bundled-dependencies/` and the
@@ -139,24 +140,46 @@ function dependencyReachable(from: string, name: string): boolean {
  * slow thing forever.
  */
 export function planFastInstall(dirs: FastInstallDirs): FastInstallPlan {
-  const { repoDir, monorepoRoot, installRoot } = dirs;
-  if (!repoDir || !installRoot) return blockedPlan('repo or install root unset');
-  if (path.resolve(repoDir) === path.resolve(installRoot)) {
-    return blockedPlan('install root is the source checkout');
-  }
-
-  const repoManifestPath = path.join(repoDir, 'package.json');
-  const installedManifestPath = path.join(installRoot, 'package.json');
+  const rootError = checkInstallRoots(dirs);
+  if (rootError) return blockedPlan(rootError);
+  const repoManifestPath = path.join(dirs.repoDir, 'package.json');
   const repoManifest = readManifest(repoManifestPath);
   if (!repoManifest) return blockedPlan(`unreadable manifest: ${repoManifestPath}`);
-  const installedManifest = readManifest(installedManifestPath);
+  const installedManifest = readManifest(path.join(dirs.installRoot, 'package.json'));
   if (!installedManifest) return blockedPlan('no installed manifest — package was never installed');
+  return planCompatibleOutputs(dirs, repoManifest, installedManifest);
+}
 
+function checkInstallRoots({ repoDir, installRoot }: FastInstallDirs): string | null {
+  if (!repoDir || !installRoot) return 'repo or install root unset';
+  if (path.resolve(repoDir) === path.resolve(installRoot)) return 'install root is the source checkout';
+  return null;
+}
+
+function planCompatibleOutputs(
+  dirs: FastInstallDirs,
+  repoManifest: Record<string, unknown>,
+  installedManifest: Record<string, unknown>,
+): FastInstallPlan {
+  // Matching dependencies do not make bundled output compatible with a source build. Let npm
+  // replace the whole package, including its runtime layout and install scripts.
+  if (installedManifest.cortexBundle === true) {
+    return blockedPlan('installed package is bundled — full install required');
+  }
   const files = checkFilesEntries(repoManifest.files);
   if (files.blocked) return blockedPlan(files.blocked);
+  const closureError = checkDependencyClosure(dirs.installRoot, repoManifest, installedManifest);
+  if (closureError) return blockedPlan(closureError);
+  return planOutputTargets(dirs, files.excluded);
+}
 
+function checkDependencyClosure(
+  installRoot: string,
+  repoManifest: Record<string, unknown>,
+  installedManifest: Record<string, unknown>,
+): string | null {
   if (dependencyFingerprint(repoManifest) !== dependencyFingerprint(installedManifest)) {
-    return blockedPlan('dependency closure changed');
+    return 'dependency closure changed';
   }
 
   // Dependencies arrive from the installer, never from the tarball extraction alone. If an install
@@ -164,12 +187,15 @@ export function planFastInstall(dirs: FastInstallDirs): FastInstallPlan {
   // force the full path to rebuild it.
   //
   // The test is not whether a *package-local* node_modules exists: only a tarball that bundles its
-  // own closure produces one, and the published package is thin, so its dependencies are hoisted
-  // into the installer's tree instead. Ask the question Node will ask at require time.
+  // own closure produces one. An unbundled package can have its dependencies hoisted into the
+  // installer's tree instead. Ask the question Node will ask at require time.
   const declared = Object.keys((installedManifest.dependencies ?? {}) as Record<string, string>);
   const missing = declared.find((name) => !dependencyReachable(installRoot, name));
-  if (missing) return blockedPlan(`installed dependency missing: ${missing}`);
+  return missing ? `installed dependency missing: ${missing}` : null;
+}
 
+function planOutputTargets(dirs: FastInstallDirs, excluded: string[]): FastInstallPlan {
+  const { repoDir, monorepoRoot, installRoot } = dirs;
   const candidates: Omit<SyncTarget, 'exclude'>[] = [
     { name: 'dist', source: path.join(repoDir, 'dist'), destination: path.join(installRoot, 'dist') },
     { name: 'defaults', source: path.join(repoDir, 'defaults'), destination: path.join(installRoot, 'defaults') },
@@ -182,12 +208,15 @@ export function planFastInstall(dirs: FastInstallDirs): FastInstallPlan {
 
   const targets = candidates
     .filter((t) => fs.existsSync(t.source))
-    .map((t) => ({ ...t, exclude: excludedUnder(t, files.excluded) }));
+    .map((t) => ({ ...t, exclude: excludedUnder(t, excluded) }));
   if (!targets.some((t) => t.name === 'dist')) {
     return blockedPlan(`no build output at ${path.join(repoDir, 'dist')}`);
   }
 
-  return { blocked: null, targets, manifestSource: repoManifestPath, manifestDestination: installedManifestPath };
+  return {
+    blocked: null, targets,
+    manifestSource: path.join(repoDir, 'package.json'), manifestDestination: path.join(installRoot, 'package.json'),
+  };
 }
 
 /**

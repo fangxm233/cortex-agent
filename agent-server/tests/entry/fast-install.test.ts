@@ -100,6 +100,36 @@ test('applyFastInstall copies the manifest so the next parity check sees the new
   assert.equal(installed.version, '2026.9.9');
 });
 
+function snapshotTree(root: string) {
+  return fs.readdirSync(root, { recursive: true }).map((entry) => {
+    const name = String(entry);
+    const file = path.join(root, name);
+    return [name, fs.statSync(file).isDirectory() ? null : fs.readFileSync(file)];
+  });
+}
+
+test.each([{ ws: '^8.0.0' }, {}])('bundled install refuses source sync with matching dependencies %j', (dependencies) => {
+  const dirs = makeTrees({
+    repoManifest: { dependencies },
+    installManifest: { dependencies, cortexBundle: true },
+  });
+  const before = snapshotTree(dirs.installRoot);
+
+  const plan = planFastInstall(dirs);
+
+  assert.equal(plan.blocked, 'installed package is bundled — full install required');
+  assert.deepEqual(plan.targets, []);
+  assert.deepEqual(snapshotTree(dirs.installRoot), before);
+  assert.throws(() => applyFastInstall(plan), /fast install blocked/);
+  assert.deepEqual(snapshotTree(dirs.installRoot), before);
+});
+
+test('an explicit false bundle marker still permits an unbundled source sync', () => {
+  const dirs = makeTrees({ installManifest: { cortexBundle: false } });
+
+  assert.equal(planFastInstall(dirs).blocked, null);
+});
+
 test('planFastInstall refuses when the dependency closure changed', () => {
   const dirs = makeTrees({ repoManifest: { dependencies: { ws: '^8.0.0', yaml: '^2.0.0' } } });
 
@@ -123,9 +153,10 @@ test('planFastInstall refuses when package.json files grew an entry it cannot sy
 
 // A drift here does not fail anything visible: the daemon quietly falls back to pack + install -g,
 // which costs ~14s on every rebuild. So the real manifest is checked, not a fixture of it.
-test('the agent-server manifest passes the fast path\'s `files` check', () => {
+test('the source manifest stays unbundled and passes the fast path\'s `files` check', () => {
   const manifest = JSON.parse(fs.readFileSync(REPO_MANIFEST, 'utf8'));
 
+  assert.notEqual(manifest.cortexBundle, true);
   assert.equal(checkFilesEntries(manifest.files).blocked, null);
 });
 

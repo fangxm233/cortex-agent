@@ -1,4 +1,7 @@
-import { describe, test, beforeAll, afterAll, vi } from 'vitest';
+import { describe, test, beforeAll, afterAll, afterEach, vi } from 'vitest';
+import { spawn, type ChildProcess } from 'node:child_process';
+import { EventEmitter } from 'node:events';
+import { releaseNewTurnHold } from '../src/domain/system/rebuild-hold.js';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -9,6 +12,16 @@ import { importFresh } from './helpers/fresh-module.js';
 vi.mock('../src/core/settings.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/core/settings.js')>();
   return { ...actual, getSettings: () => ({ ...actual.getSettings(), serverAutoUpdate: false }) };
+});
+
+const installFixture = vi.hoisted(() => ({ root: '' }));
+vi.mock('../src/core/paths.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/core/paths.js')>();
+  return { ...actual, get INSTALL_ROOT() { return installFixture.root || actual.INSTALL_ROOT; } };
+});
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:child_process')>();
+  return { ...actual, spawn: vi.fn(() => { throw new Error('Unexpected subprocess in update test'); }) };
 });
 
 // ── Helpers ─────────────────────────────────────────────────────
@@ -22,6 +35,26 @@ function freshModule() {
 
 function mockPrompt(result: 'apply' | 'skip' | 'cancel' | null) {
   return { ask: async () => result };
+}
+
+function unbundledGlobalInstall() {
+  const prefix = fs.mkdtempSync(path.join(os.tmpdir(), 'server-update-prefix-'));
+  const modules = process.platform === 'win32' ? 'node_modules' : 'lib/node_modules';
+  installFixture.root = path.join(prefix, modules, '@cortex-agent/server');
+  fs.mkdirSync(installFixture.root, { recursive: true });
+  fs.writeFileSync(path.join(installFixture.root, 'package.json'), JSON.stringify({
+    name: '@cortex-agent/server', version: '2026.1.1',
+    scripts: { postinstall: 'node scripts/postinstall-restart-trigger.mjs' },
+  }));
+  return prefix;
+}
+
+function mockNpmChild() {
+  const child = Object.assign(new EventEmitter(), {
+    stderr: Object.assign(new EventEmitter(), { unref: vi.fn() }), unref: vi.fn(),
+  });
+  vi.mocked(spawn).mockReturnValue(child as unknown as ChildProcess);
+  return child;
 }
 
 // ============================================================
@@ -185,4 +218,55 @@ describe('checkServerUpdate (non-dev mode)', () => {
     assert.equal(savedState.skippedVersion, '2025.1.1', 'skippedVersion unchanged');
   });
 
+});
+
+describe('self-update from an unbundled install to a bundled release', () => {
+  let prefix: string;
+  afterEach(() => {
+    releaseNewTurnHold();
+    vi.unstubAllEnvs();
+    installFixture.root = '';
+    if (prefix) fs.rmSync(prefix, { recursive: true, force: true });
+  });
+
+  test('uses full npm replacement in the existing prefix with restart lifecycle enabled', async () => {
+    prefix = unbundledGlobalInstall();
+    vi.stubEnv('CORTEX_REPO', '');
+    vi.stubEnv('CORTEX_NPM_PREFIX', '');
+    const child = mockNpmChild();
+    const mod = await freshModule();
+    // The updater selects a version; npm owns the incoming manifest and layout, not fast sync.
+    const published = { name: '@cortex-agent/server', version: '9999.1.1', cortexBundle: true };
+    const result = await mod.checkServerUpdate({
+      prompt: mockPrompt('apply'), getLatest: () => published.version,
+      loadState: () => null, saveState: () => {},
+    });
+    try {
+      assert.equal(result.action, 'apply');
+      assert.equal(vi.mocked(spawn).mock.calls.length, 1);
+      const [command, args, options] = vi.mocked(spawn).mock.calls[0];
+      const { npmInvocation } = await import('../src/core/utils.js');
+      const expected = npmInvocation(['install', '-g', `${published.name}@${published.version}`, '--prefix', prefix]);
+      assert.equal(command, expected.command);
+      assert.deepEqual(args, expected.args); // No --ignore-scripts: npm runs the package's restart hook.
+      assert.deepEqual(options, {
+        shell: expected.shell, detached: true, stdio: ['ignore', 'ignore', 'pipe'], cwd: os.tmpdir(),
+      });
+      assert.equal(child.unref.mock.calls.length, 1);
+      assert.equal(child.stderr.unref.mock.calls.length, 1);
+    } finally { child.emit('exit', 0, null); }
+  });
+
+  test('the existing postinstall restart hook uses the isolated home, not the package layout', async () => {
+    prefix = unbundledGlobalInstall();
+    const home = path.join(prefix, 'test-home');
+    vi.stubEnv('CORTEX_HOME', home);
+    fs.mkdirSync(path.join(home, 'data'), { recursive: true });
+
+    // Exercise the hook itself, not npm or a daemon; no watcher runs in this temporary home.
+    await importFresh(new URL('../scripts/postinstall-restart-trigger.mjs', import.meta.url));
+
+    assert.equal(fs.readFileSync(path.join(home, 'data', '.restart'), 'utf8'), '');
+    assert.equal(fs.existsSync(path.join(installFixture.root, '.restart')), false);
+  });
 });
