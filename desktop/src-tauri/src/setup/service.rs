@@ -481,6 +481,31 @@ pub(super) fn withdraw_user_service() -> Result<(), String> {
     withdraw_for(std::env::consts::OS, &home, &mut quiet)
 }
 
+/// Stop the job this app's registration runs now, leaving it registered: launchd's KeepAlive would
+/// otherwise bring back a daemon stopped any other way. The next login starts it again.
+/// Best-effort: no owned registration means nothing to stop.
+pub(super) fn stop_user_service() {
+    let Some(home) = login_home() else {
+        return;
+    };
+    stop_for(std::env::consts::OS, &home, &mut quiet);
+}
+
+fn stop_for(os: &str, home: &Path, runner: &mut Runner<'_>) {
+    if !matches!(owned_registration(os, home), Ok(Some(_))) {
+        return;
+    }
+    let args: Vec<OsString> = match os {
+        "linux" => vec!["--user".into(), "stop".into(), UNIT.into()],
+        _ => match launchd_target(runner) {
+            Ok((_, target)) => vec!["bootout".into(), target.into()],
+            Err(_) => return,
+        },
+    };
+    let program = if os == "linux" { SYSTEMCTL } else { LAUNCHCTL };
+    let _ = runner(program, &args, false);
+}
+
 /// Point an owned registration at `launch`, then switch it back on. Ok(false) = there is none, so
 /// a first registration is needed. Our own file may name an older runtime (the bundled Node.js is
 /// versioned), and a loaded job is this app's own; the first-registration checks do not apply.
@@ -658,4 +683,49 @@ fn unregister_launchd(path: &Path, runner: &mut Runner<'_>) -> Result<bool, Stri
     let _ = runner("/bin/launchctl", &["bootout".into(), target.into()], false);
     fs::remove_file(path).map_err(|e| format!("cannot remove {}: {e}", path.display()))?;
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn record(os: &str, home: &Path) -> Vec<String> {
+        let mut calls = Vec::new();
+        let mut runner = |program: &str, args: &[OsString], _private: bool| {
+            let line = std::iter::once(program.to_string())
+                .chain(args.iter().map(|arg| arg.to_string_lossy().into_owned()))
+                .collect::<Vec<_>>()
+                .join(" ");
+            calls.push(line);
+            Ok(Output { ok: true, stdout: "501\n".into() })
+        };
+        stop_for(os, home, &mut runner);
+        calls
+    }
+
+    fn register(home: &Path, relative: &str, content: &str) {
+        let path = home.join(relative);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, content).unwrap();
+    }
+
+    #[test]
+    fn stopping_runs_the_owned_service_down_without_unregistering_it() {
+        let home = tempfile::tempdir().unwrap();
+        register(home.path(), ".config/systemd/user/cortex.service", OWNER);
+        assert_eq!(record("linux", home.path()), vec![format!("{SYSTEMCTL} --user stop {UNIT}")]);
+
+        register(home.path(), &format!("Library/LaunchAgents/{LABEL}.plist"), OWNER);
+        let calls = record("macos", home.path());
+        assert_eq!(calls.last().unwrap(), &format!("{LAUNCHCTL} bootout gui/501/{LABEL}"));
+        assert!(home.path().join(format!("Library/LaunchAgents/{LABEL}.plist")).is_file());
+    }
+
+    #[test]
+    fn stopping_leaves_missing_or_foreign_registrations_alone() {
+        let home = tempfile::tempdir().unwrap();
+        assert!(record("linux", home.path()).is_empty());
+        register(home.path(), ".config/systemd/user/cortex.service", "[Unit]\n");
+        assert!(record("linux", home.path()).is_empty());
+    }
 }

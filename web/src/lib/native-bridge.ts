@@ -178,6 +178,9 @@ interface NativeCommandMap {
   // Start at login for a local install; both reject on a remote connection and on Android.
   autostart_status: { args: undefined; result: NativeAutostartState };
   autostart_set: { args: { enabled: boolean }; result: NativeAutostartState };
+  // Stop a local install's server, then quit; both reject on a remote connection.
+  local_server_status: { args: undefined; result: null };
+  local_server_stop: { args: undefined; result: null };
   setup_terminal_cli: { args: { run: string; bin: string; enabled: boolean }; result: null };
   // Uninstaller (desktop only). `uninstall_open` hands over to it from the workbench and quits;
   // the rest run in the uninstaller's own window (`cortex-desktop --uninstall`).

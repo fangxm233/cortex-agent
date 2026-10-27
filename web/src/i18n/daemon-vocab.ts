@@ -27,6 +27,10 @@ export const daemonEn = {
   dmnHoldHint: 'Keep holding…',
   dmnFooterNote: 'Soft restart waits for idle agents · Force kill: hold 2s, interrupts running agents',
   dmnDisconnectNote: 'Clears the saved login and returns to sign-in',
+  dmnStopServer: 'Stop server',
+  dmnStopServerDesc: 'Stops the local server and quits the app; reopening the app starts it again. Running agents are interrupted.',
+  dmnStopServerConfirm: 'Stop and quit',
+  dmnStopServerFailed: "Couldn't stop the server.",
 };
 export const daemonZh: Record<keyof typeof daemonEn, string> = {
   dmnTitle: 'Daemon',
@@ -55,4 +59,8 @@ export const daemonZh: Record<keyof typeof daemonEn, string> = {
   dmnHoldHint: '继续按住…',
   dmnFooterNote: '软重启等 Agent 空闲后执行 · 强制终止需长按 2s，会打断运行中的 Agent',
   dmnDisconnectNote: '清除已保存的登录信息并返回登录页',
+  dmnStopServer: '停止服务器',
+  dmnStopServerDesc: '停止本机服务器并退出应用，再次打开应用会重新启动。运行中的 Agent 会被打断。',
+  dmnStopServerConfirm: '停止并退出',
+  dmnStopServerFailed: '无法停止服务器。',
 };
