@@ -13,6 +13,8 @@ import * as path from 'path';
 import * as os from 'os';
 
 function main() {
+  // The daemon's own install already restarts immediately; external upgrades still signal it.
+  if (process.env.CORTEX_SKIP_POSTINSTALL_RESTART === '1') return;
   // npm runs install scripts with CWD set to the package dir. Don't rely on
   // anything in the package — only on env / homedir.
   const dataDir = process.env.CORTEX_HOME
@@ -24,7 +26,10 @@ function main() {
   // If the user hasn't initialized CORTEX_HOME yet (no data/ dir), there's no
   // daemon to nudge. Skip — `cortex init` + `cortex daemon` are the next steps.
   if (!existsSync(storeDir)) return;
+  touchRestartTrigger(trigger);
+}
 
+function touchRestartTrigger(trigger) {
   try {
     if (existsSync(trigger)) {
       const now = new Date();
