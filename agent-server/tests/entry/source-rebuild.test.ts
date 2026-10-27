@@ -178,13 +178,14 @@ test('bundle fast-copy failure does not fall back to installing the original sou
   assert.equal(fs.existsSync(path.dirname(f.stage())), false);
 });
 
-test('map restoration failure aborts before restart and releases the owned stage', async () => {
+test('map restoration failure warns but restarts the already replaced installation', async () => {
   const f = fixture();
   bundle.planBundleInstall.mockReturnValue({ blocked: 'unbundled install' } as any);
   bundle.copyBundleSourceMaps.mockImplementation(() => { throw new Error('map copy failed'); });
   await runSourceRebuild(f.options);
-  assert.deepEqual(vi.mocked(f.options.abort).mock.calls, [['install', 'map copy failed']]);
-  assert.equal(vi.mocked(f.options.restart).mock.calls.length, 0);
+  assert.equal(vi.mocked(f.options.abort).mock.calls.length, 0);
+  assert.equal(vi.mocked(f.options.restart).mock.calls.length, 1);
+  assert.match(String(vi.mocked(f.options.log.warn).mock.calls), /map copy failed/);
   assert.equal(fs.existsSync(path.dirname(f.stage())), false);
 });
 

@@ -109,6 +109,8 @@ test('dependency and allowlist ordering are irrelevant; optional dependencies ne
 test.each([
   { dependencies: { 'agent-browser': 'changed' } }, { optionalDependencies: { sharp: 'changed' } },
   { peerDependencies: { peer: '1' } }, { bundleDependencies: ['other'] },
+  { bundleDependencies: true }, { bundledDependencies: ['agent-browser'] },
+  { peerDependenciesMeta: { peer: { optional: true } } },
   { cortexBundle: false }, { name: 'other-package' },
 ])('incompatible installed manifest blocks full-directory sync: %j', (installed) => {
   const dirs = makeTrees(installed);
@@ -220,6 +222,19 @@ test('a failed rename restores earlier replacements and the current entry', () =
   });
   assert.throws(() => applyBundleInstall(planBundleInstall(dirs)), /rename failure/);
   assert.deepEqual(snapshot(dirs.installRoot), before);
+});
+
+test('backup cleanup failure warns without failing a committed installation', () => {
+  const dirs = makeTrees();
+  const remove = fs.rmSync.bind(fs);
+  const warnings: string[] = [];
+  vi.spyOn(fs, 'rmSync').mockImplementation((file, options) => {
+    if (path.basename(String(file)).startsWith('.cortex-bundle-')) throw new Error('backup cleanup failed');
+    return remove(file, options);
+  });
+  assert.doesNotThrow(() => applyBundleInstall(planBundleInstall(dirs), message => warnings.push(message)));
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dirs.installRoot, 'package.json'), 'utf8')).version, '2');
+  assert.match(warnings.join('\n'), /backup cleanup failed/);
 });
 
 test('map restoration copies only maps across owned directories after npm installation', () => {

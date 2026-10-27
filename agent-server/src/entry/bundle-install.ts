@@ -25,7 +25,10 @@ const REQUIRED_DIRECTORIES = [
   'vendor/pi/schemas', 'vendor/pi/dist/modes/interactive/theme', 'vendor/pi/dist/modes/interactive/assets',
   'vendor/pi/dist/core/export-html',
 ];
-const DEPENDENCY_FIELDS = ['dependencies', 'optionalDependencies', 'peerDependencies', 'bundleDependencies'];
+const DEPENDENCY_FIELDS = [
+  'dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta',
+  'bundleDependencies', 'bundledDependencies',
+];
 type Manifest = Record<string, unknown>;
 
 export interface BundleInstallDirs {
@@ -128,7 +131,7 @@ function separateRoots(dirs: BundleInstallDirs): BundleInstallDirs {
   return { stageDir, installRoot };
 }
 
-// Deliberately matches fast-install.ts closure normalization, including peer/bundle declarations.
+// Compare npm dependency declarations, including optional peers and both bundling spellings.
 function dependencyFingerprint(manifest: Manifest): string {
   return JSON.stringify(DEPENDENCY_FIELDS.map((field) => {
     const value = manifest[field];
@@ -136,7 +139,7 @@ function dependencyFingerprint(manifest: Manifest): string {
     if (value && typeof value === 'object') {
       return [field, Object.entries(value).sort(([a], [b]) => a.localeCompare(b))];
     }
-    return [field, null];
+    return [field, value ?? null];
   }));
 }
 
@@ -239,7 +242,7 @@ function restoreEntries(entries: Replacement[]): unknown[] {
   return failures;
 }
 
-function installPrepared(entries: Replacement[], workspace: string): void {
+function installPrepared(entries: Replacement[], workspace: string, warn: (message: string) => void): void {
   try {
     for (const entry of entries) replaceEntry(entry);
   } catch (error) {
@@ -251,11 +254,16 @@ function installPrepared(entries: Replacement[], workspace: string): void {
     fs.rmSync(workspace, { recursive: true, force: true });
     throw error;
   }
-  fs.rmSync(workspace, { recursive: true, force: true });
+  try {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  } catch (error) {
+    // Replacement is committed: cleanup must not prevent the caller from restarting the old app.
+    warn(`Bundle installed; backup cleanup failed at ${workspace}: ${error}`);
+  }
 }
 
 /** Replace entire owned directories, never node_modules; metadata are files and package.json is last. */
-export function applyBundleInstall(plan: BundleInstallPlan): string[] {
+export function applyBundleInstall(plan: BundleInstallPlan, warn: (message: string) => void = console.warn): string[] {
   if (plan.blocked) throw new Error(`bundle install blocked: ${plan.blocked}`);
   const current = planBundleInstall(plan); // Revalidate in case the stage changed after planning.
   if (current.blocked) throw new Error(`bundle install blocked: ${current.blocked}`);
@@ -267,7 +275,7 @@ export function applyBundleInstall(plan: BundleInstallPlan): string[] {
     fs.rmSync(workspace, { recursive: true, force: true });
     throw error;
   }
-  installPrepared(entries, workspace);
+  installPrepared(entries, workspace, warn);
   return current.targets.map((entry) => entry.name);
 }
 

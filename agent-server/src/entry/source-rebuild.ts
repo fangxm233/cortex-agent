@@ -85,7 +85,7 @@ async function installRebuild(options: SourceRebuildOptions, stageDir: string | 
   const plan = planBundleInstall({ stageDir, installRoot: options.installRoot });
   const mode = selectRebuildInstallPlan({ bundle: options.bundle, bundleBlocked: plan.blocked });
   if (mode === 'bundle-fast') {
-    const synced = applyBundleInstall(plan);
+    const synced = applyBundleInstall(plan, message => options.log.warn(message));
     options.log.info(`Bundle fast install: ${synced.join(', ')}`);
     return mode;
   }
@@ -93,7 +93,12 @@ async function installRebuild(options: SourceRebuildOptions, stageDir: string | 
   const tarball = await packBundle(options, stageDir);
   await installTarball(options, tarball);
   // npm excludes local maps; keep the stage until they are restored and restart has been requested.
-  copyBundleSourceMaps(stageDir, options.installRoot);
+  try {
+    copyBundleSourceMaps(stageDir, options.installRoot);
+  } catch (error) {
+    // npm already replaced the package; resuming the old app would mix code generations.
+    options.log.warn(`Bundle installed without complete local source maps: ${errorDetail(error)} — restarting app.ts`);
+  }
   return 'bundle-full';
 }
 
