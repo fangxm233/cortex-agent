@@ -39,7 +39,7 @@ export function isolatedEnv(root, worktree, slot = 0) {
   for (const dir of [prefix, home, osHome, path.join(root, 'tmp'), path.join(home, 'config'), path.join(home, 'data')]) fs.mkdirSync(dir, { recursive: true });
   const npmrc = path.join(root, 'npmrc');
   fs.writeFileSync(npmrc, '');
-  const env = { PATH: `${prefix}/bin:${process.env.PATH}`, HOME: osHome, CORTEX_HOME: home,
+  const env = { PATH: `${prefix}/bin:${process.env.PATH}`, HOME: osHome, CORTEX_GATEWAY_HOME: osHome, CORTEX_HOME: home,
     CORTEX_NPM_PREFIX: prefix, npm_config_prefix: prefix, npm_config_cache: path.join(root, 'npm-cache'),
     npm_config_userconfig: npmrc, npm_config_globalconfig: path.join(root, 'global-npmrc'),
     npm_config_update_notifier: 'false', npm_config_audit: 'false', npm_config_fund: 'false',
@@ -49,19 +49,19 @@ export function isolatedEnv(root, worktree, slot = 0) {
     WEBHOOK_PORT: String(17401 + slot * 10), CORTEX_CLIENT_PORT: String(17402 + slot * 10),
     CORTEX_TUI_PORT: String(17403 + slot * 10), CORTEX_UI_PORT: String(17404 + slot * 10),
     CORTEX_CLIENT_HOST: '127.0.0.1', CORTEX_CLIENT_TOKEN: 'bundle-daemon-fixture-token',
-    CORTEX_WEBHOOK_TOKEN: 'bundle-daemon-fixture-webhook', CORTEX_BUNDLE_GATEWAY_PORT: String(9781 + slot),
+    CORTEX_WEBHOOK_TOKEN: 'bundle-daemon-fixture-webhook', CORTEX_GATEWAY_PORT: String(9781 + slot),
     CORTEX_BUNDLE_TESTROOT: root, CORTEX_BUNDLE_EVENTS: path.join(root, 'events.jsonl'),
     NODE_OPTIONS: `--import=${pathToFileURL(path.join(import.meta.dirname, 'bundle-daemon-preload.mjs')).href}` };
   fs.writeFileSync(env.npm_config_globalconfig, '');
   saveJson(path.join(home, 'config/settings.json'), { serverAutoUpdate: false, telemetryEnabled: false });
   fs.mkdirSync(path.join(osHome, '.aistatus'), { recursive: true });
-  fs.writeFileSync(path.join(osHome, '.aistatus/gateway.yaml'), `host: 127.0.0.1\nport: ${env.CORTEX_BUNDLE_GATEWAY_PORT}\n`);
+  fs.writeFileSync(path.join(osHome, '.aistatus/gateway.yaml'), `host: 127.0.0.1\nport: ${env.CORTEX_GATEWAY_PORT}\n`);
   if (worktree) env.CORTEX_REPO = path.join(worktree, 'agent-server');
   return env;
 }
 
 export async function preflight(env) {
-  const keys = ['WEBHOOK_PORT', 'CORTEX_CLIENT_PORT', 'CORTEX_TUI_PORT', 'CORTEX_UI_PORT', 'CORTEX_BUNDLE_GATEWAY_PORT'];
+  const keys = ['WEBHOOK_PORT', 'CORTEX_CLIENT_PORT', 'CORTEX_TUI_PORT', 'CORTEX_UI_PORT', 'CORTEX_GATEWAY_PORT'];
   for (const key of keys) await checkPort(Number(env[key]));
 }
 

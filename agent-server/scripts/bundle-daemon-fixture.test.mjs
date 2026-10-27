@@ -6,36 +6,10 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { remapGateway, guardedPort } from './bundle-daemon-guards.mjs';
+import { guardedPort } from './bundle-daemon-guards.mjs';
 import { isolatedEnv, validateOptions, claimRoot, createRunner, identity, sameProcess, waitFor } from './bundle-daemon-runtime.mjs';
 import { verifyProgress, dependencySnapshot, restoreMatchingMaps, events, verifyArtifact, publishedMaps } from './bundle-daemon-observe.mjs';
 import { runHarness } from './bundle-daemon-harness.mjs';
-
-const sourceUrl = 'file:///fixture/dist/domain/costs/gateway-manager.js';
-const chunkUrl = 'file:///fixture/dist/chunks/chunk-ABC.js';
-
-test('both supported gateway layouts preserve source map columns', () => {
-  const inputs = [
-    [sourceUrl, "const log = createLogger('gateway-mgr');\nconst GATEWAY_PORT = 9880;"],
-    [chunkUrl, 'var l=x("gateway-mgr");var a="127.0.0.1",b=9880,c=`http://${a}:${b}`;'],
-    [chunkUrl, 'const log = x("gateway-mgr");\nvar GATEWAY_PORT = 9880;'],
-  ];
-  for (const [url, text] of inputs) {
-    const mapped = remapGateway(url, text, 9781);
-    assert.equal(mapped.length, text.length);
-    assert.equal(mapped.indexOf('9781'), text.indexOf('9880'));
-    assert.equal(mapped.split('\n').length, text.split('\n').length);
-  }
-});
-
-test('unknown, duplicate or missing gateway constants fail closed', () => {
-  assert.throws(() => remapGateway(sourceUrl, 'const GATEWAY_PORT = 9880;', 9781));
-  assert.throws(() => remapGateway(chunkUrl, 'x("gateway-mgr");const port = 9880;', 9781));
-  assert.throws(() => remapGateway(sourceUrl, 'x("gateway-mgr");const GATEWAY_PORT = 9880;const GATEWAY_PORT = 9880;', 9781));
-  assert.throws(() => remapGateway('file:///fixture/dist/unknown.js', 'x("gateway-mgr");', 9781));
-  assert.throws(() => remapGateway(sourceUrl, 'x("gateway-mgr")', 17380));
-  assert.equal(remapGateway(chunkUrl, 'export const unrelated = 9880;', 9781), null);
-});
 
 test('builtin argument normalization finds forbidden TCP/UDP forms', () => {
   for (const args of [[9880], ['9880', 'localhost'], [{ port: 9880 }], [[{ port: '9880' }]]]) {
@@ -103,19 +77,24 @@ test('real Node preload blocks builtin 9880 calls before networking and records 
   assert.equal(events.filter(event => event.type === 'blocked-network').length, 3);
 });
 
-test('actual loader rewrites both fixture module layouts and records app timing', () => {
-  for (const relative of ['dist/domain/costs/gateway-manager.js', 'dist/chunks/chunk-TEST.js']) {
-    const root = fixture();
-    const env = isolatedEnv(root, null);
-    const file = path.join(root, relative);
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(path.join(root, 'package.json'), '{"type":"module"}');
-    fs.writeFileSync(file, `const log='gateway-mgr';const GATEWAY_PORT = 9880;\nif(GATEWAY_PORT!==9781)throw Error('not remapped');console.log('boot 11ms (imports 7ms)');`);
-    const result = spawnSync(process.execPath, [file], { env, encoding: 'utf8', timeout: 5000 });
-    assert.equal(result.status, 0, result.stderr);
-    const records = events(env);
-    assert.equal(records.find(event => event.type === 'gateway-remap').port, 9781);
-    assert.equal(records.find(event => event.type === 'app-ready').importsMs, 7);
+test('preload records configured gateway settings and boot timing without rewriting source', () => {
+  const root = fixture();
+  const env = isolatedEnv(root, null);
+  const script = `if(process.env.CORTEX_GATEWAY_PORT!=='9781')throw Error('wrong port');console.log('boot 11ms (imports 7ms)');`;
+  const result = spawnSync(process.execPath, ['-e', script], { env, encoding: 'utf8', timeout: 5000 });
+  assert.equal(result.status, 0, result.stderr);
+  const records = events(env);
+  assert.equal(records.find(event => event.type === 'process-start').gatewayPort, 9781);
+  assert.equal(records.find(event => event.type === 'app-ready').importsMs, 7);
+});
+
+test('smoke and turn guards refuse unsafe ports and block direct live-port access', () => {
+  const env = isolatedEnv(fixture(), null);
+  env.NODE_OPTIONS = `--import=${pathToFileURL(path.join(import.meta.dirname, 'bundle-smoke-preload.mjs')).href}`;
+  const script = `require('node:assert/strict').throws(()=>require('node:net').connect(9880), /9880/);`;
+  assert.equal(spawnSync(process.execPath, ['-e', script], { env }).status, 0);
+  for (const port of ['9880', '0', 'NaN']) {
+    assert.notEqual(spawnSync(process.execPath, ['-e', ''], { env: { ...env, CORTEX_GATEWAY_PORT: port } }).status, 0);
   }
 });
 

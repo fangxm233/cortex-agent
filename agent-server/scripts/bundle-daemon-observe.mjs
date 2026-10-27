@@ -82,7 +82,7 @@ export async function health(env) {
   assert.equal((await get(url)).status, 401, 'API must reject missing authentication');
   const api = await get(url, { 'x-cortex-token': env.CORTEX_CLIENT_TOKEN });
   assert.equal(api.status, 200); assert(JSON.parse(api.text).result);
-  const gateway = await get(`http://127.0.0.1:${env.CORTEX_BUNDLE_GATEWAY_PORT}/health`);
+  const gateway = await get(`http://127.0.0.1:${env.CORTEX_GATEWAY_PORT}/health`);
   assert.equal(gateway.status, 200);
   return { spa: spa.status, session: session.status, api: api.status, gateway: gateway.status, at: new Date().toISOString() };
 }
@@ -90,7 +90,8 @@ export async function health(env) {
 export function assertGuardEvidence(env, app) {
   const records = events(env);
   assert(!records.some(event => event.type === 'blocked-network'), 'Forbidden port access attempted; inspect events.jsonl');
-  assert(records.some(event => event.type === 'gateway-remap' && event.pid === app.pid), 'Missing gateway remap marker for app');
+  assert(records.some(event => event.type === 'process-start' && event.pid === app.pid
+    && event.gatewayPort === Number(env.CORTEX_GATEWAY_PORT)), 'Missing configured gateway port evidence for app');
   return records.findLast(event => event.type === 'process-start' && event.pid === app.pid);
 }
 

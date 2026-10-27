@@ -14,10 +14,11 @@ const output = path.join(path.dirname(home), 'turns');
 fs.mkdirSync(output, { recursive: true });
 const env = {
   PATH: process.env.PATH, HOME: process.env.HOME, CORTEX_HOME: home,
+  CORTEX_GATEWAY_HOME: process.env.HOME,
   CORTEX_TELEMETRY: '0', CORTEX_UI_HTTP: '1', CORTEX_PORT_FORWARD: '0',
   WEBHOOK_PORT: '17301', CORTEX_CLIENT_PORT: '17302', CORTEX_TUI_PORT: '17303', CORTEX_UI_PORT: '17304',
   CORTEX_CLIENT_HOST: '127.0.0.1', CORTEX_CLIENT_TOKEN: 'bundle-smoke-client-token',
-  CORTEX_WEBHOOK_TOKEN: 'bundle-smoke-webhook-token', CORTEX_BUNDLE_SMOKE_GATEWAY_PORT: '17380',
+  CORTEX_WEBHOOK_TOKEN: 'bundle-smoke-webhook-token', CORTEX_GATEWAY_PORT: '17380',
   NODE_OPTIONS: `--import=${fileURLToPath(new URL('./bundle-turn-preload.mjs', import.meta.url))}`,
 };
 const base = 'http://127.0.0.1:17304/trpc/';

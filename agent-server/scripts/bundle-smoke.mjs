@@ -31,6 +31,7 @@ const env = {
   } : {}),
   CORTEX_TELEMETRY: '0', CORTEX_UI_HTTP: '1', CORTEX_PORT_FORWARD: '0',
   WEBHOOK_PORT: '17301', CORTEX_CLIENT_PORT: '17302', CORTEX_TUI_PORT: '17303',
+  CORTEX_GATEWAY_PORT: '17380', CORTEX_GATEWAY_HOME: process.env.HOME,
   CORTEX_UI_PORT: '17304', CORTEX_CLIENT_HOST: '127.0.0.1',
   CORTEX_CLIENT_TOKEN: 'bundle-smoke-client-token', CORTEX_WEBHOOK_TOKEN: 'bundle-smoke-webhook-token',
 };
@@ -176,7 +177,7 @@ try {
     await new Promise((resolve, reject) => { const server = net.createServer(); server.once('error', reject); server.listen(port, '127.0.0.1', () => server.close(resolve)); });
   }
   const preload = fileURLToPath(new URL('./bundle-smoke-preload.mjs', import.meta.url));
-  const daemon = start('dist/entry/daemon.js', [], { NODE_OPTIONS: `--import=${pathToFileURL(preload).href}`, CORTEX_BUNDLE_SMOKE_GATEWAY_PORT: '17380' });
+  const daemon = start('dist/entry/daemon.js', [], { NODE_OPTIONS: `--import=${pathToFileURL(preload).href}` });
   await check('Daemon forks app; web SPA served', async () => {
     for (let i = 0; i < 200; i++) {
       try { const response = await fetch('http://127.0.0.1:17304/'); const body = await response.text(); if (response.ok && body.includes('<html')) return { status: response.status, bytes: body.length }; } catch {}
@@ -200,7 +201,7 @@ try {
     const response = await fetch(url, { headers: { 'x-cortex-token': env.CORTEX_CLIENT_TOKEN } });
     assert.equal(response.status, 200); const body = await response.json(); assert(body.result); return body;
   });
-  await check('Bundled aistatus child health on remapped test port', async () => {
+  await check('Bundled aistatus child health on configured test port', async () => {
     for (let i = 0; i < 100; i++) {
       try { const response = await fetch('http://127.0.0.1:17380/health'); if (response.ok) return await response.text(); } catch {}
       await delay(100);

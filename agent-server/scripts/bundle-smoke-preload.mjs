@@ -1,3 +1,2 @@
-// All gateway traffic, including usage reads, must stay inside the isolated smoke instance.
-// Reuse the real-turn loader so the exported URL and spawned child's port agree.
+// Share the fail-closed live-port guard with the real-turn harness.
 import './bundle-turn-preload.mjs';
