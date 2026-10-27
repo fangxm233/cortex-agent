@@ -392,6 +392,27 @@ mod tests {
     }
 
     #[test]
+    fn repair_reconnect_replaces_a_removed_cli_and_keeps_onboarding_finished() {
+        let mut current = local_config(false);
+        let reinstalled = "/opt/cortex/runtime/prefix/bin/cortex";
+        let install = LocalInstall {
+            cortex_bin: reinstalled.into(),
+            provider_setup_pending: false,
+        };
+        connect_with_saver(
+            &mut current,
+            LOCAL_URL.into(),
+            TEST_TOKEN.into(),
+            Some(install),
+            |_| Ok(()),
+        )
+        .unwrap();
+        assert_eq!(current.cortex_bin.as_deref(), Some(reinstalled));
+        assert_eq!(current.mode, ConnectionMode::Local);
+        assert!(!current.provider_setup_pending);
+    }
+
+    #[test]
     fn remote_connect_resets_pending_and_keeps_best_effort_persistence() {
         let mut current = local_config(true);
         let page = connect_with_saver(

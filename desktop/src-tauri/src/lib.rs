@@ -325,7 +325,8 @@ pub fn run() {
             }
             let mut runtime_repair = false;
             if let Some(ready) = start_local_daemon(app.handle(), &initial_config) {
-                runtime_repair = !ready && setup::local_runtime_needs_repair();
+                let bin = initial_config.cortex_bin.as_deref().unwrap_or_default();
+                runtime_repair = !ready && setup::local_runtime_needs_repair(bin);
                 shell_log!("[cortex-desktop] local daemon ready={ready}");
                 setup::autostart::refresh_in_background();
             }

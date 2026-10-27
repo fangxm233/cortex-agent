@@ -57,12 +57,11 @@ fn windows_commands_lookup_and_repair_use_saved_selection() {
     }
     let repair = section(
         SETUP,
-        "pub fn local_runtime_needs_repair()",
+        "pub fn local_runtime_needs_repair(",
         "/// Bring the local daemon",
     );
     assert!(repair.contains(DESKTOP));
-    assert!(repair.contains("process::selected_runtime()"));
-    assert!(repair.contains("!server.bin.is_file()"));
+    assert!(repair.contains("local_server::needs_repair(process::selected_runtime()"));
 }
 
 #[test]

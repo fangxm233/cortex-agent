@@ -188,6 +188,24 @@ fn a_removed_runtime_directory_is_restored_without_touching_the_server() {
 }
 
 #[test]
+fn a_runtime_removed_with_its_server_is_restored_and_setup_reinstalls_the_server() {
+    let root = tempfile::tempdir().unwrap();
+    let bundle = bundle(root.path());
+    let home = root.path().join("home");
+    install(&home, &bundle).unwrap();
+    std::fs::create_dir_all(home.join("config")).unwrap();
+    std::fs::write(home.join("config/machines.json"), "{}").unwrap();
+    std::fs::remove_dir_all(home.join("runtime")).unwrap();
+    let restored = ensure_runtime(&home, &bundle, &CancelToken::default(), &|_| {}).unwrap();
+    assert_eq!(restored.server, None, "launch restores the tools, not the server");
+    let repaired = install(&home, &bundle).unwrap();
+    assert!(repaired.server.as_ref().unwrap().bin.is_file());
+    assert_eq!(Selection::load(&home).unwrap().unwrap(), repaired);
+    assert_eq!(installs(&home), 2);
+    assert_eq!(std::fs::read_to_string(home.join("config/machines.json")).unwrap(), "{}");
+}
+
+#[test]
 fn a_saved_server_that_fails_is_reinstalled_privately_once() {
     let root = tempfile::tempdir().unwrap();
     let bundle = bundle(root.path());

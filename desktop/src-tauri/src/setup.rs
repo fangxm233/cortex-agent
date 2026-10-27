@@ -502,18 +502,16 @@ fn terminal_cli(app: &AppHandle, run: &str, bin: &str, enabled: bool) -> Result<
     Ok(())
 }
 
-/// Whether a local install that did not come up needs the setup screen: its runtime record is
-/// unusable or its saved server entry is gone. Setup restores both.
-pub fn local_runtime_needs_repair() -> bool {
+/// Whether a local install that did not come up needs the setup screen, which restores the
+/// runtime and the server (see `local_server::needs_repair`).
+pub fn local_runtime_needs_repair(cortex_bin: &str) -> bool {
     #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
-    return match process::selected_runtime() {
-        Ok(selected) => selected
-            .and_then(|s| s.server)
-            .is_some_and(|server| !server.bin.is_file()),
-        Err(_) => true,
-    };
+    return local_server::needs_repair(process::selected_runtime(), std::path::Path::new(cortex_bin));
     #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
-    false
+    {
+        let _ = cortex_bin;
+        false
+    }
 }
 
 /// Unpack whatever part of the bundled runtime is missing and move an older record onto it,
