@@ -10,5 +10,10 @@
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r run test"
+  },
+  "pnpm": {
+    "overrides": {
+      "undici@8": "^8.12.2"
+    }
   }
 }
