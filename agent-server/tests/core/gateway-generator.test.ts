@@ -123,6 +123,29 @@ test('loadPiDefaultModels: reads the provider default table shipped with the pin
     'PI moved or renamed defaultModelPerProvider — update loadPiDefaultModels');
 });
 
+async function loadFakeDefaultTable(table: Record<string, string>): Promise<Readonly<Record<string, string>>> {
+  const dir = fs.mkdtempSync(nodePath.join(os.tmpdir(), 'cortex-pi-default-table-'));
+  try {
+    fs.mkdirSync(nodePath.join(dir, 'core'));
+    fs.writeFileSync(nodePath.join(dir, 'index.js'), 'export {};\n');
+    fs.writeFileSync(nodePath.join(dir, 'core', 'model-resolver.js'),
+      `export const defaultModelPerProvider = ${JSON.stringify(table)};\n`);
+    return await loadPiDefaultModels(pathToFileURL(nodePath.join(dir, 'index.js')).href);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test('loadPiDefaultModels: replaces the stale openai default gpt-5.5 with gpt-6.1-sol', async () => {
+  const defaults = await loadFakeDefaultTable({ openai: 'gpt-5.5', 'openai-codex': 'gpt-6.1-sol' });
+  assert.deepEqual(defaults, { openai: 'gpt-6.1-sol', 'openai-codex': 'gpt-6.1-sol' });
+});
+
+test('loadPiDefaultModels: keeps any other openai default PI ships', async () => {
+  const defaults = await loadFakeDefaultTable({ openai: 'gpt-7-sol', azure: 'gpt-5.5' });
+  assert.deepEqual(defaults, { openai: 'gpt-7-sol', azure: 'gpt-5.5' });
+});
+
 test('loadPiDefaultModels: an unloadable table yields no defaults', async () => {
   assert.deepEqual(await loadPiDefaultModels('file:///nonexistent/pi/dist/index.js'), {});
 });

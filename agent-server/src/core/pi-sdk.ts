@@ -26,6 +26,19 @@ export function loadPiSdk(): Promise<PiSdkModule> {
   return loading;
 }
 
+/**
+ * PI 1.4.0 still defaults the `openai` provider to gpt-5.5, which Sign in with ChatGPT rejects
+ * (`model_not_found`), so a ChatGPT login landed on a model it cannot run. PI main moved the
+ * default to gpt-6.1-sol (earendil-works/pi f049787d9); until that ships, replace only this stale
+ * value and leave any other default PI picks untouched.
+ */
+const STALE_OPENAI_DEFAULT = 'gpt-5.5';
+const CURRENT_OPENAI_DEFAULT = 'gpt-6.1-sol';
+
+function withCurrentOpenAiDefault(table: Record<string, string>): Record<string, string> {
+  return table.openai === STALE_OPENAI_DEFAULT ? { ...table, openai: CURRENT_OPENAI_DEFAULT } : table;
+}
+
 function isStringRecord(value: unknown): value is Record<string, string> {
   return typeof value === 'object' && value !== null
     && Object.values(value).every(item => typeof item === 'string');
@@ -43,7 +56,7 @@ export async function loadPiDefaultModels(entryUrl?: string): Promise<Readonly<R
   try {
     const entry = entryUrl ?? import.meta.resolve(PI_SDK_PACKAGE);
     const resolver = await import(new URL(PI_MODEL_RESOLVER, entry).href) as { defaultModelPerProvider?: unknown };
-    if (isStringRecord(resolver.defaultModelPerProvider)) return resolver.defaultModelPerProvider;
+    if (isStringRecord(resolver.defaultModelPerProvider)) return withCurrentOpenAiDefault(resolver.defaultModelPerProvider);
     log.warn('PI default model table has an unexpected shape; using PI model order');
   } catch (error) {
     log.warn(`PI default model table unavailable; using PI model order: ${(error as Error).message}`);
