@@ -127,7 +127,7 @@ Cortex 驱动编程智能体，而不是自己调用模型 API。PI 随服务端
   <tr><th colspan="2">GPT-6.1 Sol · xhigh effort</th></tr>
   <tr><td align="center">Cortex</td><td align="center">Codex</td></tr>
   <tr>
-    <td><img width="400" alt="Cortex + GPT-6.1 Sol：标题为“More coast. Less rush.”的 Pelican Pedal Club 页面，戴红围巾的鹈鹕在海边骑绿色自行车，带“Pause ride”按钮" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-sol-cortex.png"></td>
+    <td><img width="400" alt="Cortex + GPT-6.1 Sol：标题为“A little coastin’.”的 Slow Coast Club 页面，戴绿帽子和红围巾的鹈鹕在海边骑橙色自行车，远处有灯塔，带“Pause ride”按钮" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-sol-cortex.png"></td>
     <td><img width="400" alt="Codex + GPT-6.1 Sol：标题为“Taking the scenic route.”的页面，戴绿围巾的鹈鹕在海边骑绿色自行车" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-sol-codex.png"></td>
   </tr>
   <tr><th colspan="2">GPT-6 Astra · xhigh effort</th></tr>
