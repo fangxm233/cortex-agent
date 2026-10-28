@@ -32,8 +32,10 @@ DPR 3 (1170×2532). All images are palette-compressed PNGs.
 | `mobile-board.png` | Mobile board: live strip, head card, stages and the results table. | Boards work on mobile too. |
 | `mobile-ask.png` | Mobile agent question card with options, a default and a countdown before defaults apply. | Answer an agent's question from your phone. |
 | `mobile-strip.png` | Three phones side by side (sessions, chat, plan approval) on a transparent background. | Cortex on mobile: sessions, chat and approvals. |
-| `pelican-cortex.png` | The rendered HTML from Cortex for "Generate an HTML of a pelican riding a bicycle" (Claude Opus 5.5, xhigh effort), with its speed, brake and bell controls. Not from the demo instance. | The pelican test in Cortex. |
-| `pelican-claude-app.png` | The Claude app's result for the same prompt and model, for comparison. | The pelican test in the Claude app. |
+| `pelican-opus-cortex.png` | Cortex's result for "Generate an HTML of a pelican riding a bicycle" with Claude Opus 5.5 at xhigh effort, including its speed, brake and bell controls. Not from the demo instance. | The pelican test in Cortex, Claude Opus 5.5. |
+| `pelican-opus-claude-app.png` | The Claude app's result for the same prompt, model and effort. | The pelican test in the Claude app. |
+| `pelican-gpt-cortex.png` | Cortex's result for the same prompt with GPT-6.1 Sol at xhigh effort. | The pelican test in Cortex, GPT-6.1 Sol. |
+| `pelican-gpt-codex.png` | Codex's result for the same prompt, model and effort. | The pelican test in Codex. |
 
 Notes for reuse:
 

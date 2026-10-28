@@ -172,14 +172,21 @@ session and per provider. [Backends →](https://fangxm233.github.io/cortex-agen
 
 ### The pelican test
 
-The classic prompt, "Generate an HTML of a pelican riding a bicycle", with the same model,
-Claude Opus 5.5 at xhigh effort, in Cortex and in the Claude app.
+The classic prompt, "Generate an HTML of a pelican riding a bicycle", run with the same model and
+effort in Cortex and in that model's own app.
 
 <table>
-  <tr><th>Cortex</th><th>Claude app</th></tr>
+  <tr><th colspan="2">Claude Opus 5.5 · xhigh effort</th></tr>
+  <tr><td align="center">Cortex</td><td align="center">Claude app</td></tr>
   <tr>
-    <td><img width="400" alt="Cortex's result: a pelican with a red scarf riding a teal bicycle with a fish basket along a road, with speed, brake and bell controls below the scene" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-cortex.png"></td>
-    <td><img width="400" alt="The Claude app's result: a pelican riding a red bicycle along a road under a sun and clouds" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-claude-app.png"></td>
+    <td><img width="400" alt="Cortex with Claude Opus 5.5: a pelican with a red scarf riding a teal bicycle with a fish basket along a road, with speed, brake and bell controls below the scene" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-opus-cortex.png"></td>
+    <td><img width="400" alt="The Claude app with Claude Opus 5.5: a pelican riding a red bicycle along a road under a sun and clouds" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-opus-claude-app.png"></td>
+  </tr>
+  <tr><th colspan="2">GPT-6.1 Sol · xhigh effort</th></tr>
+  <tr><td align="center">Cortex</td><td align="center">Codex</td></tr>
+  <tr>
+    <td><img width="400" alt="Cortex with GPT-6.1 Sol: a 'Pelican Pedal Club' page headed 'More coast. Less rush.', a pelican in a red scarf riding a green bicycle by the sea, with a Pause ride button" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-gpt-cortex.png"></td>
+    <td><img width="400" alt="Codex with GPT-6.1 Sol: a page headed 'Taking the scenic route.', a pelican in a green scarf riding a green bicycle by the sea" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-gpt-codex.png"></td>
   </tr>
 </table>
 

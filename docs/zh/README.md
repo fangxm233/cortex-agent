@@ -115,13 +115,20 @@ Cortex 驱动编程智能体，而不是自己调用模型 API。PI 随服务端
 
 ### 鹈鹕测试
 
-经典提示词“Generate an HTML of a pelican riding a bicycle”，同样使用 Claude Opus 5.5（xhigh effort），分别在 Cortex 和 Claude app 里运行。
+经典提示词“Generate an HTML of a pelican riding a bicycle”，用同一个模型和同样的 effort，分别在 Cortex 和该模型自家的应用里运行。
 
 <table>
-  <tr><th>Cortex</th><th>Claude app</th></tr>
+  <tr><th colspan="2">Claude Opus 5.5 · xhigh effort</th></tr>
+  <tr><td align="center">Cortex</td><td align="center">Claude app</td></tr>
   <tr>
-    <td><img width="400" alt="Cortex 的结果：戴红围巾的鹈鹕骑着带鱼篮的青绿色自行车在路上行驶，画面下方有速度、刹车和车铃控件" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-cortex.png"></td>
-    <td><img width="400" alt="Claude app 的结果：鹈鹕在太阳和云朵下骑着红色自行车在路上行驶" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-claude-app.png"></td>
+    <td><img width="400" alt="Cortex + Claude Opus 5.5：戴红围巾的鹈鹕骑着带鱼篮的青绿色自行车在路上行驶，画面下方有速度、刹车和车铃控件" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-opus-cortex.png"></td>
+    <td><img width="400" alt="Claude app + Claude Opus 5.5：鹈鹕在太阳和云朵下骑着红色自行车在路上行驶" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-opus-claude-app.png"></td>
+  </tr>
+  <tr><th colspan="2">GPT-6.1 Sol · xhigh effort</th></tr>
+  <tr><td align="center">Cortex</td><td align="center">Codex</td></tr>
+  <tr>
+    <td><img width="400" alt="Cortex + GPT-6.1 Sol：标题为“More coast. Less rush.”的 Pelican Pedal Club 页面，戴红围巾的鹈鹕在海边骑绿色自行车，带“Pause ride”按钮" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-gpt-cortex.png"></td>
+    <td><img width="400" alt="Codex + GPT-6.1 Sol：标题为“Taking the scenic route.”的页面，戴绿围巾的鹈鹕在海边骑绿色自行车" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-gpt-codex.png"></td>
   </tr>
 </table>
 
