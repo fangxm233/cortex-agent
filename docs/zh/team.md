@@ -66,9 +66,9 @@ worker 的一轮结束时，网页、桌面应用和 Android 都不会弹出完�
 开头有一个 `[Worker]` 块，告诉它主会话是谁、它的回复会怎样被使用。
 
 **闲置 worker。** worker 没有在运行的轮次、没有待回答的提问或计划、没有未关闭的 waitpoint，并且三小时内
-没有活动，就算作闲置。worker 不会被删除，闲置的只是收起来：`[Team]` 块只计数不逐个列出，`worker_list`
+没有活动，就算作闲置。闲置不会删除 worker，只是把它收起来：`[Team]` 块只计数不逐个列出，`worker_list`
 把它们的名字放在一行「Inactive」里，工作台把它们排在最后。`worker_send` 照常能发给闲置的 worker，新的
-一轮开始后它就重新在岗。
+一轮开始后它就重新在岗。从会话菜单删除 lead 时，它的 worker 会一并删除。
 
 **轨迹。** 每个会话的第一轮都会告知所有会话 transcript 的存放目录（`<sessionId>.jsonl`）。汇报不够用时，
 主会话可以按 `worker_list` 给出的 session id 到这里读 worker 的完整轨迹。

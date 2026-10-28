@@ -86,10 +86,11 @@ not idle. A worker's first turn opens with a `[Worker]` block telling it who its
 replies are used.
 
 **Inactive workers.** A worker counts as inactive once it has nothing running, no question or plan
-waiting, no open waitpoint, and no activity for three hours. Workers are never deleted; an inactive
+waiting, no open waitpoint, and no activity for three hours. Inactivity never deletes a worker; an inactive
 one simply folds out of view. The `[Team]` block counts it instead of listing it, `worker_list` names
 it on a single *Inactive* line, and the workbench lists it last. `worker_send` reaches an inactive
-worker like any other, and the new turn makes it active again.
+worker like any other, and the new turn makes it active again. Deleting a lead from its session menu
+deletes its workers with it.
 
 **Transcripts.** Every session's first turn names the directory holding all session transcripts
 (`<sessionId>.jsonl`). When a report is not enough, the lead can read a worker's full transcript

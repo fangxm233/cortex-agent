@@ -185,6 +185,7 @@ L5  entry/         → everything (composition root)
 | `subagent-*.ts`、`team-*.ts` | 把后台子代理结果和团队 worker 报告投递到其父会话或 lead 会话 |
 | `waitpoint-*.ts` | Waitpoint 信号接入、周期性清扫、从已连接设备排空暂存的信号，以及唤醒通知 |
 | `session-retention-controller.ts` | 在启动时、每 6 小时以及保留期设置变更时运行会话保留清理 |
+| `session-deletion.ts` | 把用户删除会话或项目的操作接到运行中的 run、交互、恢复队列与 team 状态上，并与保留清理共用每个会话的文件路径 |
 | `resume-dispatcher.ts` | 限流恢复队列：窗口重置后继续被用量限制中断的会话 |
 | `busy-tracker.ts` | 追踪活跃 LLM 数量，向父守护进程发送 IPC `busy`/`idle` |
 | `human-answer-backstop.ts` | 等待人工自由文本回复的频道的叶子注册表，每个进入会话的入口都会查询它，使回复被消费而不是开启新回合 |
@@ -402,6 +403,8 @@ Cortex 把所有状态存放在 `~/.cortex/` 下的文件系统中。没有数�
 session registry 是一个仅追加的日志，而非可变的 JSON 文件。`session-registry-journal.ts` 持有一个仅追加 JSONL 文件，其中 `put` 和 `delete-intent` 事件携带完整的会话记录，最后以 `delete-commit` 完成删除。delete intent 还会固化通过校验的 Claude turn-backup 清理 manifest，因此之后的重试不依赖一份可能已被先前部分清理删掉的账本。启动时先把任何遗留的 `session-registry.json` 文件迁移进日志、为该遗留文件写一份备份、截断任何未结束的尾部，然后逐行流式回放日志，恢复内存中的 `live` 和 `pending` map。日志过大时，压缩会重写一份最小快照：每个 live 会话一条完整记录事件，加上每个待删除项一条 `delete-intent` 事件。
 
 会话保留与注册表变更分开协调。`session-retention-controller.ts` 在 app 启动时于后台启动一轮 `session-retention.ts` 清理——启动流程不等待它，session registry 自身的锁把它与其他会话变更串行化——之后每 6 小时运行一次，`sessionRetentionDays` 热重载时还会经去抖立即重跑。启动时的这一轮在任何已就绪的提供商恢复分派之后开始，排队中的直接恢复会保留其稳定的追踪 id 作为存活保护。协调器会重试待处理的 delete commit，用一次追加为所有过期的空闲会话写入注册表 delete intent，然后按每批 100 个处理：每批用一次追加释放它们的频道绑定与对话，删除它们的文件，再用一次追加提交清理成功的会话。停止控制器会在批次之间中止清理，未提交的删除保持 pending，留待下一轮。它还会清理孤儿 `conversation-history`、清理孤儿 PI transcript bundle、清理不活跃的 Claude capture 日志、清理孤儿 `tmp/tool-images/` 会话目录，并同步 Claude 用户的 `cleanupPeriodDays`。
+
+用户在 Web UI 中删除的会话走同样的 intent、释放、清理、提交步骤（`domain/sessions/session-delete.ts`），会话或它的某个 worker 正在使用时拒绝删除。删除项目（`domain/projects/project-delete.ts`）先移除它的定时任务和频道绑定，再删除它的会话、看板与机器目录记录、预算覆盖，最后删除 context 目录。两者都会发布不带内容的 `session.deleted` / `project.deleted` 事件，让所有打开的客户端重新拉取列表。
 
 ## 命名约定 {#naming-conventions}
 

@@ -466,6 +466,8 @@ Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`aut
 
 这个保留时钟覆盖六类 housekeeping surface：live session-registry 过期删除（先写 `delete-intent`，再写 `delete-commit`）、孤儿 `data/conversation-history/*.jsonl`、`logs/sessions-pi/` 下的孤儿 PI transcript bundle、`logs/sessions/` 下的孤儿 Claude capture 文件、`tmp/tool-images/` 下按会话存放的孤儿图片目录，以及同步 Claude 用户 `cleanupPeriodDays` 的 helper。当会话既不在用、也不在待删除状态，且目录内在保留窗口内没有任何变动时，其图片目录会被删除。孤儿 history 与 PI 文件采用两轮确认后才删除。活跃直接会话、运行中的 execution、待响应 interaction/bg-held 会话、仍在使用的 PI backend session id，以及活跃 Claude capture pair 都受保护。
 
+会话无论是过期删除还是从会话菜单删除，都会带走它的文件：对话历史、PI transcript 或 Claude transcript 及其旁边的 sidecar 目录、turn 备份，以及 `tmp/outputs/`、`tmp/attachments/`、`tmp/tool-images/` 下属于它的目录。排队待注入的消息和发给它的 team 邮件也会一并丢弃。
+
 registry 过期删除会把所有过期会话的 delete intent 写成一次 journal 追加，再以每批 100 个会话清理并提交；每批无论包含多少会话都只需三次 registry 追加。daemon 关闭时，正在进行的清理会在批次之间停下。尚未提交删除的会话保持 pending，由下一轮清理优先完成。
 
 ### 热更新 {#hot-reload}

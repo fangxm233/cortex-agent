@@ -755,6 +755,11 @@ use a two-sweep confirmation before deletion. Active direct sessions, running
 executions, pending interaction/bg-held sessions, live PI
 backend session ids, and active Claude capture pairs are protected.
 
+A session deleted by expiry or from the session menu takes its files with it: its conversation
+history, its PI transcript or its Claude transcript with the sidecar directory beside it, its turn
+backups, and its directories under `tmp/outputs/`, `tmp/attachments/`, and `tmp/tool-images/`.
+Queued injections and team mail addressed to it are dropped too.
+
 Registry expiry writes the delete intents for every expired session in one
 journal append, then cleans up and commits them in batches of 100 sessions;
 each batch costs three registry appends however many sessions it holds. A
