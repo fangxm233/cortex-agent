@@ -1,4 +1,4 @@
-import { test, beforeAll, afterAll, beforeEach } from 'vitest';
+import { test, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -100,7 +100,7 @@ test('a device signal is applied, wakes the session, and is then cleared from th
   h.deviceFiles.set('123.json', JSON.stringify({ id: waitpoint.id, secret, status: 'ok', message: 'exit=0' }));
 
   assert.equal(await drainDeviceSpools(h.deps), 1);
-  await new Promise((r) => setTimeout(r, 5));
+  await vi.waitFor(() => assert.ok(h.sent.length > 0, 'the wake is delivered'));
 
   assert.equal(h.sent.length, 1);
   assert.match(h.sent[0], /exit=0/);
@@ -127,6 +127,7 @@ test('read happens before remove, so a crash between them replays instead of los
     },
   };
   assert.equal(await drainDeviceSpools(noRemove), 1);
+  await vi.waitFor(() => assert.ok(h.sent.length > 0, 'the wake is delivered'));
   assert.equal(h.deviceFiles.size, 1);
 
   // Next tick re-reads it; the filename is the dedupe key, so nothing is applied twice.

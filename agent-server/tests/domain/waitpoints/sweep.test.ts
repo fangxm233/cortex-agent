@@ -1,4 +1,4 @@
-import { test, beforeAll, afterAll, beforeEach } from 'vitest';
+import { test, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -205,7 +205,7 @@ test('the sweep picks up a spool file written while nothing was listening', asyn
   await fs.rename(tmp, path.join(h.spoolDir, 'from-the-box.json'));
 
   const result = await sweepWaitpoints(h.sweep);
-  await new Promise((r) => setTimeout(r, 5));
+  await vi.waitFor(() => assert.ok(h.sent.length > 0, 'the wake is delivered'));
 
   assert.equal(result.spooled, 1);
   // The wake is sent by the ingest path as the file is applied, so the sweep's pending pass finds

@@ -1,4 +1,4 @@
-import { test, beforeAll, afterAll, beforeEach } from 'vitest';
+import { test, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -75,7 +75,7 @@ test('an accepted signal that fires is handed straight to the notifier', async (
 
   const outcome = await ingestSignal({ id: waitpoint.id, secret, message: 'done', source: 'http' }, h.deps);
   assert.equal(outcome.kind, 'accepted');
-  await new Promise((r) => setTimeout(r, 5));
+  await vi.waitFor(() => assert.ok(h.sent.length > 0, 'the wake is delivered'));
   assert.equal(h.sent.length, 1);
   assert.match(h.sent[0], /\[Signal\]/);
 });
@@ -123,7 +123,7 @@ test('a spool file is applied, wakes the session, and is then removed', async ()
   await writeSpool(h.spoolDir, 'a.json', { id: waitpoint.id, secret, status: 'ok', message: 'from the box' });
 
   assert.equal(await drainLocalSpool(h.deps, h.spoolDir), 1);
-  await new Promise((r) => setTimeout(r, 5));
+  await vi.waitFor(() => assert.ok(h.sent.length > 0, 'the wake is delivered'));
   assert.equal(h.sent.length, 1);
   assert.match(h.sent[0], /from the box/);
   assert.deepEqual((await fs.readdir(h.spoolDir)).filter((f) => f.endsWith('.json')), []);
