@@ -26,5 +26,7 @@ if (!fs.existsSync(srcDir)) {
 
 fs.rmSync(destDir, { recursive: true, force: true });
 fs.mkdirSync(path.dirname(destDir), { recursive: true });
-fs.cpSync(srcDir, destDir, { recursive: true });
+// Source maps stay in <repo-root>/web/dist (the release workflow archives them from there); the
+// package and the OTA bundle it serves don't need them.
+fs.cpSync(srcDir, destDir, { recursive: true, filter: (src) => !src.endsWith('.map') });
 console.log(`[copy-web-dist] staged SPA: ${srcDir} -> ${destDir}`);

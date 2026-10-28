@@ -99,6 +99,14 @@ test('version changes when a file changes', async () => {
   assert.notEqual(m1.version, m2.version, 'changed content must change the version');
 });
 
+test('source maps are left out of the bundle', async () => {
+  const files = { 'index.html': '<html>hi</html>', 'assets/app.js': 'a=1' };
+  const plain = (await callRoute(createOtaRoutes(makeSpa(files)), 'GET', UI_OTA_MANIFEST_PATH)).json();
+  const withMap = makeSpa({ ...files, 'assets/app.js.map': '{"version":3,"mappings":""}' });
+  const mapped = (await callRoute(createOtaRoutes(withMap), 'GET', UI_OTA_MANIFEST_PATH)).json();
+  assert.deepEqual(mapped, plain);
+});
+
 test('method guard: a non-GET request is rejected 405', async () => {
   const dir = makeSpa({ 'index.html': '<html>hi</html>' });
   const routes = createOtaRoutes(dir);

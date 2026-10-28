@@ -29,7 +29,8 @@ interface OtaBundle {
   zip: Buffer;
 }
 
-/** Recursively collect files under `dir` as ZIP entries with POSIX-relative names, sorted by name. */
+/** Recursively collect files under `dir` as ZIP entries with POSIX-relative names, sorted by name.
+ *  Source maps are skipped: the shells never load them, and they would more than double the download. */
 function collectEntries(dir: string): ZipEntry[] {
   const entries: ZipEntry[] = [];
   const walk = (abs: string, rel: string): void => {
@@ -38,7 +39,7 @@ function collectEntries(dir: string): ZipEntry[] {
       const childRel = rel ? `${rel}/${dirent.name}` : dirent.name;
       if (dirent.isDirectory()) {
         walk(childAbs, childRel);
-      } else if (dirent.isFile()) {
+      } else if (dirent.isFile() && !dirent.name.endsWith('.map')) {
         entries.push({ name: childRel, data: fs.readFileSync(childAbs) });
       }
     }
