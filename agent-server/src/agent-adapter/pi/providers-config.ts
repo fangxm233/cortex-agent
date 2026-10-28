@@ -19,6 +19,11 @@ export interface ProviderOverride {
   /** Catalog-wide model metadata defaults. Never put per-session benchmark caps here. */
   modelOverrides?: Record<string, { maxTokens: number }>;
   /**
+   * Provider-level compat flags that depend on how the provider is signed in, layered over the
+   * fixed `PROVIDER_COMPAT_OVERRIDES` (see chatgpt-signin.ts).
+   */
+  compat?: Record<string, unknown>;
+  /**
    * Complete provider block for a user-defined provider, written verbatim. PI knows nothing about
    * such a provider, so a `baseUrl`-only override would strip the protocol (`api`) and the model
    * list and leave PI unable to call it. When set, `basePath` is ignored — the definition
@@ -73,7 +78,7 @@ export function writeProvidersConfig(
       modelOverrides?: Record<string, { maxTokens: number }>;
     } = { baseUrl: `${gatewayUrl}${basePath}` };
     // Re-assert compat flags PI can no longer auto-detect now that baseUrl is the gateway.
-    const compat = { ...PROVIDER_COMPAT_OVERRIDES[p.name] };
+    const compat = { ...PROVIDER_COMPAT_OVERRIDES[p.name], ...p.compat };
     if (Object.keys(compat).length > 0) entry.compat = compat;
     if (p.modelOverrides) entry.modelOverrides = p.modelOverrides;
     providersBlock[p.name] = entry;

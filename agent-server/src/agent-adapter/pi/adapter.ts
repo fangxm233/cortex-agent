@@ -1,5 +1,6 @@
 import type { SubagentModelEnvGetter } from '@core/agents/subagent/catalog.js';
 import { existsSync, mkdirSync } from 'fs';
+import * as path from 'path';
 import { resolveSpawnCwd } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
@@ -14,6 +15,7 @@ import {
   type ProviderOverride,
 } from './providers-config.js';
 import { readCustomProviderEntries } from './custom-catalog.js';
+import { readOAuthProviders, withChatgptSignInCompat } from './chatgpt-signin.js';
 import { findPISessionFilePath } from './session-files.js';
 import { reportCodexQuota, resolveQuotaSource, type CodexQuotaSinkDeps } from './quota-sink.js';
 import type { PiSubagentBridge } from './subagent-bridge.js';
@@ -213,13 +215,16 @@ export class PIAdapter implements EngineAdapter {
     agentDir: string,
     gatewayBaseUrl: string,
   ): void {
-    const overrides = withCustomEntries(
-      this.gatewayOverrides(
-        this.providerDiscovery.getProviders(),
-        spec.model.provider ?? null,
-        spec.route.gatewayPath ?? null,
+    const overrides = withChatgptSignInCompat(
+      withCustomEntries(
+        this.gatewayOverrides(
+          this.providerDiscovery.getProviders(),
+          spec.model.provider ?? null,
+          spec.route.gatewayPath ?? null,
+        ),
+        this.userModelsPath ? readCustomProviderEntries(this.userModelsPath) : {},
       ),
-      this.userModelsPath ? readCustomProviderEntries(this.userModelsPath) : {},
+      readOAuthProviders(path.join(agentDir, 'auth.json')),
     );
     if (overrides.length === 0) {
       log.warn('No PI providers to route (empty discovery and no selected provider); the PI session may fail to authenticate');
