@@ -129,6 +129,8 @@ async function tryAcquireLock(lockPath: string): Promise<(() => Promise<void>) |
   } catch (error: any) {
     await fs.rm(candidate, { recursive: true, force: true });
     if (error?.code === 'EEXIST' || error?.code === 'ENOTEMPTY') return null;
+    // Windows reports renaming onto an existing directory as EPERM.
+    if (error?.code === 'EPERM' && await fs.stat(lockPath).then(() => true, () => false)) return null;
     throw error;
   }
 }

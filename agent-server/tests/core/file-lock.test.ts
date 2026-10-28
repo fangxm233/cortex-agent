@@ -1,4 +1,4 @@
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
@@ -31,6 +31,20 @@ async function lockExists(file: string): Promise<boolean> {
 test('a lock left by a dead process is reclaimed', async (t) => {
   const file = await tempFile(t);
   await plantLock(file, { pid: deadPid(), acquiredAt: Date.now() });
+
+  assert.equal(await withFileLock(file, async () => 'ran', { timeoutMs: 2_000 }), 'ran');
+  assert.equal(await lockExists(file), false, 'released after use');
+});
+
+test('a dead holder is reclaimed when renaming onto the lock fails with EPERM, as on Windows', async (t) => {
+  const file = await tempFile(t);
+  await plantLock(file, { pid: deadPid(), acquiredAt: Date.now() });
+  const rename = fs.rename.bind(fs);
+  const spy = vi.spyOn(fs, 'rename').mockImplementation(async (from, to) => {
+    if (to === fileLockPath(file) && await lockExists(file)) throw Object.assign(new Error('EPERM'), { code: 'EPERM' });
+    return rename(from, to);
+  });
+  t.onTestFinished(() => spy.mockRestore());
 
   assert.equal(await withFileLock(file, async () => 'ran', { timeoutMs: 2_000 }), 'ran');
   assert.equal(await lockExists(file), false, 'released after use');
