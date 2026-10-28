@@ -15,7 +15,7 @@ export function useDeleteProject(): (projectId: string, sessionCount: number) =>
   return useCallback(async (projectId: string, sessionCount: number) => {
     const confirmed = await confirmDialog({
       title: fmt(L.projDeleteTitle, { name: projectId }),
-      description: fmt(L.projDeleteBody, { sessions: sessionCount }),
+      description: fmt(sessionCount === 1 ? L.projDeleteBodyOne : L.projDeleteBodyMany, { sessions: sessionCount }),
       confirmLabel: L.delete, tone: 'danger',
     });
     if (!confirmed) return false;

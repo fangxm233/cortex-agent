@@ -59,6 +59,8 @@ export async function deleteSessions(deps: SessionDeleteDeps, ids: Iterable<stri
   const committed = await commitDeletes(deps, pending, errors);
   if (errors.length > 0) {
     log.warn(`Deleted ${committed}/${pending.length} session(s); the rest finish at the next sweep: ${errors.join('; ')}`);
+  } else {
+    log.info(`Deleted ${committed} session(s): ${pending.map(entry => entry.session.sessionId).join(', ')}`);
   }
   return { ok: true, deletedIds: pending.map(entry => entry.session.sessionId) };
 }
