@@ -1,6 +1,7 @@
 import { getSettings } from '@core/settings.js';
 import type { RunEvent } from '../../agent-adapter/run-events.js';
 import { classifyAuthError } from '@domain/auth/auth-events.js';
+import { readDaemonOAuthProviders, subscriptionModesFor } from '@domain/costs/subscription-modes.js';
 import { isApiRateLimitError, isRetryableError } from '@domain/runs/retryable-errors.js';
 import type { RunObserver, RunRequest } from '@domain/runs/request.js';
 import { recordFunnelStep } from './funnel.js';
@@ -41,8 +42,10 @@ export function classifyTurnFailure(message: string): FailureClass {
 function billingOf(request: RunRequest): 'plan' | 'api' {
   const { backend, mode } = request.selection;
   const settings = getSettings();
-  const planModes = backend === 'claude' ? settings.anthropicSubscriptionModes : settings.subscriptionBillingModes;
-  return planModes.includes(mode) ? 'plan' : 'api';
+  const planModes = backend === 'claude'
+    ? new Set(settings.anthropicSubscriptionModes)
+    : subscriptionModesFor(settings.subscriptionBillingModes, readDaemonOAuthProviders());
+  return planModes.has(mode) ? 'plan' : 'api';
 }
 
 function tool(stats: RunStats, name: string): { calls: number; errors: number } {

@@ -8,6 +8,7 @@ import { providerStateRepo } from '@store/provider-state-repo.js';
 import { GATEWAY_URL } from './gateway-manager.js';
 import { claudeAccountClient } from './claude-account.js';
 import { codexAccountClient } from './codex-account.js';
+import { readDaemonOAuthProviders, subscriptionModesFor } from './subscription-modes.js';
 import { releaseRecoveredQuota, type QuotaReading } from './rate-limit-throttle.js';
 import type { AccountReading, ResetAccount } from './reset-account.js';
 import {
@@ -63,6 +64,8 @@ export interface UsageServiceDependencies {
   signOuts?: SubscriptionSignOuts;
   getAdapter?: AdapterResolver;
   getSettings?: SettingsReader;
+  /** PI providers signed in with OAuth; their gateway modes are subscriptions. Absent, none are. */
+  getOAuthProviders?: () => ReadonlySet<string>;
   fetch?: typeof globalThis.fetch;
   gatewayUrl?: string;
   now?: () => Date;
@@ -537,6 +540,7 @@ export class UsageService {
   private readonly signOuts: SubscriptionSignOuts;
   private readonly getAdapter: AdapterResolver;
   private readonly getSettings: SettingsReader;
+  private readonly getOAuthProviders: () => ReadonlySet<string>;
   private readonly fetch: typeof globalThis.fetch;
   private readonly gatewayUrl: string;
   private readonly now: () => Date;
@@ -551,6 +555,7 @@ export class UsageService {
     this.signOuts = dependencies.signOuts ?? memorySignOuts();
     this.getAdapter = dependencies.getAdapter ?? (() => getPiEngineAdapter());
     this.getSettings = dependencies.getSettings ?? readSettings;
+    this.getOAuthProviders = dependencies.getOAuthProviders ?? (() => new Set());
     this.fetch = dependencies.fetch ?? globalThis.fetch;
     this.gatewayUrl = dependencies.gatewayUrl ?? GATEWAY_URL;
     this.now = dependencies.now ?? (() => new Date());
@@ -581,7 +586,10 @@ export class UsageService {
   async collect(): Promise<ProviderUsage[]> {
     const settings = this.getSettings();
     const anthropicModes = normalizeModes(settings.anthropicSubscriptionModes);
-    const subscriptionModes = new Set(normalizeModes(settings.subscriptionBillingModes));
+    const subscriptionModes = subscriptionModesFor(
+      normalizeModes(settings.subscriptionBillingModes),
+      this.getOAuthProviders(),
+    );
     const prior = await this.signedIn(await this.store.list());
 
     const [today, month, all, quota, codex] = await Promise.allSettled([
@@ -825,6 +833,7 @@ export const usageService = new UsageService({
     list: () => providerStateRepo.getSubscriptionSignOuts(),
     set: (provider, at) => providerStateRepo.setSubscriptionSignOut(provider, at),
   },
+  getOAuthProviders: readDaemonOAuthProviders,
   codexAccount: codexAccountClient,
   claudeAccount: claudeAccountClient,
   releaseThrottle: releaseRecoveredQuota,

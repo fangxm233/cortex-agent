@@ -218,6 +218,26 @@ describe('UsageService', () => {
     );
   });
 
+  test('an OAuth sign-in makes its provider mode a subscription', async () => {
+    const rows = [spend('openai', 'openai', 3)];
+    const service = (oauth: string[]) => new UsageService({
+      store: new MemoryUsageStore(),
+      getAdapter: () => fakeAdapter('pi', async () => []),
+      getSettings: () => ({ anthropicSubscriptionModes: [], subscriptionBillingModes: ['plan'] }),
+      getOAuthProviders: () => new Set(oauth),
+      fetch: gatewayFetch(rows, rows),
+      gatewayUrl: 'http://gateway.test',
+    });
+
+    const signedIn = (await service(['openai']).collect()).find((record) => record.provider === 'openai');
+    const keyed = (await service([]).collect()).find((record) => record.provider === 'openai');
+
+    assert.equal(signedIn?.billing, 'subscription');
+    assert.equal(signedIn?.spend, undefined);
+    assert.equal(keyed?.billing, 'api');
+    assert.deepEqual(keyed?.spend, { today: 3, month: 3 });
+  });
+
   test('quota rows and spend rows survive the same collection cycle', async () => {
     const pi = fakeAdapter('pi', async () => [usage('openai-codex', 'stale', {
       displayName: 'OpenAI Codex',
