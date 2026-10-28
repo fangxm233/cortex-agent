@@ -1,0 +1,2382 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Agent workbench for auto research, self-improvement loops, and long-running work">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/zh/architecture/">
+      
+      
+        <link rel="prev" href="../backends/">
+      
+      
+        <link rel="next" href="../team/">
+      
+      
+        
+          <link rel="alternate" href="../../architecture/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>架构 - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cortex-architecture" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../" title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              架构
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="选择当前语言">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../architecture/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../" title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    快速入门
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    桌面应用
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    浏览器访问
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack 设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    配置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 参考
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    后端
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    架构
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#packages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        软件包
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="软件包">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#server-package-and-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Server 软件包与发布
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#agent-server-architecture-six-layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent-Server 架构：六层结构
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Agent-Server 架构：六层结构">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#layer-0-core-shared-kernel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        第 0 层：core/ — 共享内核
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-1-store-persistence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        第 1 层：store/ — 持久化
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-2-events-event-bus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        第 2 层：events/ — 事件总线
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-3-domain-business-logic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        第 3 层：domain/ — 业务逻辑
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-4-orchestration-message-routing-and-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        第 4 层：orchestration/ — 消息路由和执行
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-5-entry-composition-root" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        第 5 层：entry/ — 组合根
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hot-rebuild-published-progress-and-the-turn-hold" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        热重建：发布的进度与回合闸门
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#llm-backend-adapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLM 后端适配器
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#platform-adapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        平台适配器
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#websocket-protocol-server-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WebSocket 协议（服务器 ↔ 客户端）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="WebSocket 协议（服务器 ↔ 客户端）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#message-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        消息流
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#command-actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        命令动作
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#client-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        客户端架构
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#web-ui-protocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Web UI 协议
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#event-bus-topology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        事件总线拓扑
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#state-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        状态存储
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#naming-conventions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        命名约定
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../team/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    团队模式
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    记忆
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    技能与插件
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    调度
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    安全与审批
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../telemetry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    遥测
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    钩子
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../waitpoints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    等待点
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    跨机器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent-browser/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent 浏览器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#packages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        软件包
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="软件包">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#server-package-and-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Server 软件包与发布
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#agent-server-architecture-six-layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent-Server 架构：六层结构
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Agent-Server 架构：六层结构">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#layer-0-core-shared-kernel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        第 0 层：core/ — 共享内核
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-1-store-persistence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        第 1 层：store/ — 持久化
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-2-events-event-bus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        第 2 层：events/ — 事件总线
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-3-domain-business-logic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        第 3 层：domain/ — 业务逻辑
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-4-orchestration-message-routing-and-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        第 4 层：orchestration/ — 消息路由和执行
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-5-entry-composition-root" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        第 5 层：entry/ — 组合根
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hot-rebuild-published-progress-and-the-turn-hold" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        热重建：发布的进度与回合闸门
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#llm-backend-adapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLM 后端适配器
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#platform-adapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        平台适配器
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#websocket-protocol-server-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WebSocket 协议（服务器 ↔ 客户端）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="WebSocket 协议（服务器 ↔ 客户端）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#message-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        消息流
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#command-actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        命令动作
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#client-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        客户端架构
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#web-ui-protocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Web UI 协议
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#event-bus-topology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        事件总线拓扑
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#state-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        状态存储
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#naming-conventions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        命名约定
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="cortex-architecture">Cortex 架构<a class="headerlink" href="#cortex-architecture" title="Permanent link">&para;</a></h1>
+<p>Cortex 是一个面向机器人学与 AI/ML 的自主研究智能体系统。它采用服务器-客户端架构：<strong>agent-server</strong> 编排工作——对话及其智能体运行、定时任务、聊天平台集成、Web UI 和 MCP 工具——而远程 <strong>agent clients</strong> 通过 WebSocket 连接，在远程机器上执行命令。关于这些子系统的深入说明，参见 <a href="../memory/">memory.md</a>、<a href="../scheduling/">scheduling.md</a> 和 <a href="../mcp/">mcp.md</a>。</p>
+<h2 id="packages">软件包<a class="headerlink" href="#packages" title="Permanent link">&para;</a></h2>
+<p>仓库是一个 pnpm workspace。其中两个包发布到 npm；其余的包要么被构建进这两个包，要么单独部署。</p>
+<table>
+<thead>
+<tr>
+<th>包</th>
+<th>路径</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>@cortex-agent/server</code></td>
+<td><code>agent-server/</code></td>
+<td>主服务器：Slack 与飞书适配器、Web UI 宿主、TUI 网关、LLM 编排、定时任务、MCP 工具。提供五个 CLI 可执行文件：<code>cortex</code>、<code>cortex-browser</code>、<code>cortex-hook</code>、<code>cortex-evidence-export</code>、<code>cortex-signal</code>。发布的包还携带构建好的 web 应用和客户端 bundle</td>
+</tr>
+<tr>
+<td><code>@cortex-agent/client</code></td>
+<td><code>client/</code></td>
+<td>轻量级远程智能体守护进程（<code>cortex-client</code>）。通过 WebSocket 连接，在本地执行 shell/文件命令</td>
+</tr>
+<tr>
+<td><code>@cortex-agent/web</code></td>
+<td><code>web/</code></td>
+<td>基于 Vite + React 的浏览器应用，含桌面与移动端布局。构建到 <code>web/dist</code>，由服务器的 Web UI 宿主提供</td>
+</tr>
+<tr>
+<td><code>@cortex-agent/desktop</code></td>
+<td><code>desktop/</code></td>
+<td>Tauri v2 桌面与 Android 外壳。通过 <code>cortexui://</code> scheme 提供 web 应用，来源是自带的副本，或从服务器下载的更新 bundle</td>
+</tr>
+<tr>
+<td><code>@cortex-agent/ui-contract</code></td>
+<td><code>packages/ui-contract/</code></td>
+<td>仅类型的重新导出，导出服务器的 Web UI router 和 DTO 类型，web 应用基于它编译</td>
+</tr>
+<tr>
+<td><code>@cortex-agent/deepseek-relay-worker</code></td>
+<td><code>packages/deepseek-relay-worker/</code></td>
+<td>Cloudflare Worker，为无法直连 DeepSeek 的主机做中转</td>
+</tr>
+<tr>
+<td>插件</td>
+<td><code>agent-server/defaults/plugins/</code></td>
+<td>包含技能的内置插件包（<code>cortex-system</code>、<code>cortex-board</code>、<code>cortex-feishu</code>）。不是 npm 包——运行时作为目录原地读取</td>
+</tr>
+</tbody>
+</table>
+<h3 id="server-package-and-release">Server 软件包与发布<a class="headerlink" href="#server-package-and-release" title="Permanent link">&para;</a></h3>
+<p>npm server 包包含拆分 chunk 的 JavaScript bundle、PI 运行时及资源文件、Web SPA、client bundle、
+默认配置和许可证声明，运行时仍为 Node.js。npm 另行安装 <code>agent-browser</code>、Photon WASM 和可选的
+<code>sharp</code>；大部分 JavaScript 库已在 bundle 内。桌面安装器通过自带的 Node 安装同一个 npm 包。</p>
+<p>postinstall 按 agent-browser launcher 的规则保留当前主机的二进制，包括 Linux libc 区分和
+Windows ARM64 fallback；遇到未知包布局则保留原样。这减少的是安装后磁盘占用，不是包含全部平台
+二进制的 browser tarball 下载量。Node、Chrome 和用户数据不计入 server 包。postinstall 还会在已初始化
+的 Cortex home 写入重启触发文件，让运行中的 daemon 在空闲时加载安装好的更新。</p>
+<p><code>publish-server.yml</code> 构建 workspace，通过
+<code>node agent-server/scripts/bundle.mjs &lt;全新暂存目录&gt;</code> 生成发布包，再将该目录打成 tarball。
+CI 把 tarball 安装到临时 prefix，用无凭据的 home 和隔离端口运行 <code>bundle-smoke.mjs</code>；
+冒烟成功才发布同一个 tarball。包中保留 Cortex 的 <code>LICENSE</code>、esbuild legal comments，
+并携带收录第三方声明及许可证全文的 <code>THIRD_PARTY_NOTICES.txt</code>。缺独立许可证文件的包使用共享 SPDX 标准全文，
+附包内已有的作者/版权元数据；嵌入的 QuickJS-NG 引擎另附上游声明。notices 生成完全离线。
+Web source maps 单独作为 release 资产。</p>
+<p>源码 checkout 的 <code>dist/</code> 保留普通 TypeScript 构建产物。源码模式 daemon 通过发布所用的同一个
+<code>bundle.mjs</code> 暂存待安装的包，不替换 checkout 的 <code>dist/</code> 或 package manifest。
+本地重建另生成 JavaScript source maps，仅保留在本机，不进入 npm tarball。</p>
+<h2 id="agent-server-architecture-six-layers">Agent-Server 架构：六层结构<a class="headerlink" href="#agent-server-architecture-six-layers" title="Permanent link">&para;</a></h2>
+<p><code>agent-server/src/</code> 下的 agent-server 代码组织为六层（L0 到 L5），另有两个各自有规则的适配器目录。运行时每层只能从其下方的层导入；仅类型导入可以跨层。这些规则由 <code>agent-server/.dependency-cruiser.cjs</code> <strong>在测试时强制执行</strong>——<code>npm test</code> 会运行 <code>depcruise</code>，出现任何运行时违规即失败（<code>npm run test:quick</code> 跳过这一步）。</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>L0  core/          → (no runtime dependencies)
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>L1  store/         → core
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>L2  events/        → core
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>L3  domain/        → core, store, events, platform, agent-adapter
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>L4  orchestration/ → core, store, events, domain, platform, agent-adapter
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>L5  entry/         → everything (composition root)
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    platform/      → core, events
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    agent-adapter/ → core, store, events
+</code></pre></div>
+<p><code>orchestration/</code> 还必须没有导入环。</p>
+<ul>
+<li><strong><code>agent-adapter/</code></strong> —— 两个 LLM 后端的抽象（Claude Code 和 PI）。<code>domain/runs/adapters.ts</code> 是组装这些适配器的唯一位置。</li>
+<li><strong><code>platform/</code></strong> —— 消息与传输层：Slack 和飞书适配器、TUI 网关、同时运行多个平台的组合适配器（<code>adapters/</code>）、Web UI HTTP 宿主（<code>ui-http/</code>），以及服务器上的 Chrome 和 agent-browser 进程调用（<code>browser/</code>）。</li>
+</ul>
+<p>另一个目录 <strong><code>tui/</code></strong> 是 <code>cortex tui</code> 运行的 Ink 终端客户端。它只通过 TUI 网关的 WebSocket 与服务器通信，共用网关的协议类型和 i18n 字符串，没有自己的分层规则。</p>
+<h3 id="layer-0-core-shared-kernel">第 0 层：<code>core/</code> — 共享内核<a class="headerlink" href="#layer-0-core-shared-kernel" title="Permanent link">&para;</a></h3>
+<p>其他各层共同依赖的共享内核：类型、路径常量、设置，以及内存中的运行与会话状态。它在运行时不导入其他层；可以导入它们的类型，hook bus 条目、环境定义这类 core 类型就是这样引用归属别处的结构。</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>paths.ts</code></td>
+<td>规范路径常量：<code>INSTALL_ROOT</code>、<code>DEFAULTS_DIR</code>、<code>DATA_DIR</code>（<code>~/.cortex/</code>）、<code>CONFIG_DIR</code>、<code>STORE_DIR</code>（<code>data/</code>）、<code>CONTEXT_DIR</code>、<code>PROJECTS_DIR</code>、<code>WORKSPACE_DIR</code>（<code>tmp/</code>）、<code>PLUGINS_DIR</code>、<code>PROMPTS_DIR</code>、<code>HOOKS_DIR</code>、<code>LOGS_DIR</code>、<code>AGENT_CWD</code>、<code>CLAUDE_CONFIG_HOME</code>，以及守护进程 PID 文件和重启触发文件</td>
+</tr>
+<tr>
+<td><code>settings.ts</code>、<code>settings-spec.ts</code></td>
+<td><code>config/settings.json</code> 中的运行时设置：带默认值和旧变量的键 schema、校验、缓存快照和热重载（参见 <a href="../configuration/#configsettingsjson">configuration.md</a>）</td>
+</tr>
+<tr>
+<td><code>utils.ts</code></td>
+<td>工具函数：<code>chunkText</code>、<code>formatDurationCompact</code>、<code>todayISO</code>、<code>listProjectDirs</code>、<code>readableTimestamp</code>、npm prefix 解析</td>
+</tr>
+<tr>
+<td><code>atomic-write.ts</code></td>
+<td><code>atomicWrite(filePath, data)</code> / <code>atomicWriteSync</code> —— 写入 <code>.tmp.&lt;pid&gt;.&lt;ts&gt;.&lt;rand&gt;</code> 后 <code>fs.rename</code>；<code>mutateFileAtomically</code> 用于读-改-写</td>
+</tr>
+<tr>
+<td><code>json-repository.ts</code></td>
+<td>通用 <code>JsonRepository&lt;T&gt;</code> 基类：<code>read()</code>、<code>write()</code>、<code>mutate(fn)</code>、<code>flush()</code>。首次 I/O 时惰性清理孤立的 <code>.tmp.*</code> 文件。损坏 JSON 备份机制</td>
+</tr>
+<tr>
+<td><code>async-mutex.ts</code></td>
+<td><code>AsyncMutex</code> 类——基于 Promise 的互斥锁，用于串行化异步磁盘写入。在整个存储层中使用，防止并发写坏文件</td>
+</tr>
+<tr>
+<td><code>log.ts</code></td>
+<td><code>createLogger(tag)</code> —— 控制台 + 按日滚动的文件输出，保留 14 天</td>
+</tr>
+<tr>
+<td><code>i18n.ts</code>、<code>locales/</code></td>
+<td>系统生成消息的英文与中文字符串；由 <code>CORTEX_LANG</code> 或 <code>!lang</code> 偏好选择语言</td>
+</tr>
+<tr>
+<td><code>cli-utils.ts</code></td>
+<td><code>formatHelp</code>、<code>formatError</code>、<code>readStdinSync</code>、<code>readStdinBufferSync</code>、<code>cliError</code> —— 共享 CLI 格式化</td>
+</tr>
+<tr>
+<td><code>status-format.ts</code></td>
+<td>纯格式化：<code>computeElapsed</code>、<code>formatMetricsSuffix</code>、<code>buildSessionTag</code>、<code>buildUserProcessingMessage</code>、<code>renderTurnStatus</code></td>
+</tr>
+<tr>
+<td><code>rebuild-progress.ts</code></td>
+<td>监督器发布到 <code>daemon-rebuild.json</code> 的热重建进度记录：纯步骤状态迁移（<code>planRebuildProgress</code>、<code>startRebuildStep</code>、<code>finishRebuildStep</code>、<code>settleRebuildProgress</code>），以及一个永不抛异常的读取</td>
+</tr>
+<tr>
+<td><code>run-registry.ts</code></td>
+<td><code>RunRegistry</code> —— 当前存活执行的唯一内存索引，以 executionId 为键、按频道建索引。向 EventBus 发布 <code>agent.*</code> 生命周期事件</td>
+</tr>
+<tr>
+<td><code>session-holds.ts</code></td>
+<td><code>SessionHolds</code> —— "会话是否忙"的另一半：回合已结束但后台工作仍在继续，带按所有者区分的句柄、替代与停止</td>
+</tr>
+<tr>
+<td><code>session-state.ts</code></td>
+<td><code>sessionState(sessionId)</code> / <code>channelEngineBusy()</code> —— 存活执行与 hold 的唯一汇合点，也是判断会话是否忙的唯一位置</td>
+</tr>
+<tr>
+<td><code>agents/</code></td>
+<td>子代理角色加载（<code>roles.ts</code>），以及两个后端共用的委托 schema、模型选择和编排（<code>subagent/</code>）</td>
+</tr>
+<tr>
+<td><code>types/agent-types.ts</code></td>
+<td><code>Backend</code>、<code>AgentResult</code>、<code>AgentProgress</code>、<code>AskUserQuestionInfo</code>，以及 todo、上下文用量、附件和通知的结构</td>
+</tr>
+<tr>
+<td><code>types/environment-types.ts</code></td>
+<td>执行环境类型：<code>AgentDefinition</code>（对应一个 <code>config/environments/*.json</code> 文件），以及一次运行打开时使用的 <code>ResolvedEnvironment</code></td>
+</tr>
+<tr>
+<td><code>config-generator.ts</code></td>
+<td>新安装的配置文件初始化，以及每次启动时写入的 MCP 配置</td>
+</tr>
+<tr>
+<td><code>gateway-generator.ts</code></td>
+<td>API 网关 YAML 生成</td>
+</tr>
+<tr>
+<td><code>models-generator.ts</code></td>
+<td>默认模型与收藏 JSON 生成</td>
+</tr>
+</tbody>
+</table>
+<h3 id="layer-1-store-persistence">第 1 层：<code>store/</code> — 持久化<a class="headerlink" href="#layer-1-store-persistence" title="Permanent link">&para;</a></h3>
+<p>所有写操作都经 <code>AsyncMutex</code> 串行化，防止并发写入造成损坏。该层使用两种仓库模式：</p>
+<ul>
+<li><strong>模式 A（JsonRepository 委托）</strong>：<code>JsonRepository&lt;T&gt;</code> 的简单 CRUD 包装。用于 schedule-repo、cost-repo、board-repo、waitpoint-repo、provider-state-repo 以及大多数其他仓库。所有写入都经过 <code>atomicWrite()</code>。</li>
+<li><strong>模式 B（内存 Map + 即发即忘持久化）</strong>：读走同步的内存 <code>Map</code>，写走异步持久化链。用于 execution-repo，那里读延迟很重要，崩溃后数据陈旧可以接受。</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>outbound-queue.ts</code></td>
+<td>基于 WAL 的持久化出站消息队列。30 分钟 TTL，200 条压缩，5 秒排空循环。合并对同一条消息的连续更新</td>
+</tr>
+<tr>
+<td><code>conversation-ledger-repo.ts</code></td>
+<td><code>session-registry-repo.ts</code> 的外观层——提供相同的按频道回合 API（<code>initConversation</code>、<code>beginTurn</code>、<code>addResponseTs</code>、<code>completeTurn</code>、<code>rollbackTo</code>），自身没有文件</td>
+</tr>
+<tr>
+<td><code>session-registry-repo.ts</code></td>
+<td>基于 JSONL 的 UUID 会话注册表，也是会话记录、频道→会话绑定以及按频道的对话头与回合的唯一所有者。回放仅追加日志（<code>put</code>/<code>patch</code>/<code>delete-intent</code>/<code>delete-commit</code>/<code>bind</code>/<code>unbind</code>/<code>turn</code>/<code>conversation</code>）、接纳会话，并在日志增长后压缩快照</td>
+</tr>
+<tr>
+<td><code>conversation-history-repo.ts</code></td>
+<td><code>data/conversation-history/</code> 下按会话的 transcript JSONL，Web UI 据此渲染对话</td>
+</tr>
+<tr>
+<td><code>execution-repo.ts</code></td>
+<td>模式 B 仓库：<code>startLocalExecution</code>、<code>completeExecution</code>、<code>failExecution</code>、<code>cancelExecution</code>。启动时 <code>markMissingRunningExecutionsStale</code> 把已不存活的运行标为陈旧；超过七天的终态记录归档到 <code>data/archive/</code></td>
+</tr>
+<tr>
+<td><code>project-dir-repo.ts</code></td>
+<td><code>projectName → machineName → dirPath</code>，支持反向频道查找</td>
+</tr>
+<tr>
+<td><code>schedule-repo.ts</code></td>
+<td>定时任务持久化。<code>ScheduleTask</code> 接口；<code>schedules.json</code> 与进程外的写入方共用</td>
+</tr>
+<tr>
+<td><code>cost-repo.ts</code></td>
+<td>费用存为 JSONL（仅追加），预算存为 JSON。启动时修剪超过 90 天的记录</td>
+</tr>
+<tr>
+<td><code>models-repo.ts</code></td>
+<td>同步缓存读取器。<code>startModelsWatcher()</code> 用于热重载</td>
+</tr>
+<tr>
+<td><code>waitpoint-repo.ts</code>、<code>provider-state-repo.ts</code>、<code>board-repo.ts</code></td>
+<td>Waitpoint、提供商限流状态与恢复队列，以及看板注册表</td>
+</tr>
+<tr>
+<td><code>team-inbox-repo.ts</code>、<code>team-outbox-repo.ts</code></td>
+<td>团队 lead 与其 worker 之间的消息，跨重启保留</td>
+</tr>
+<tr>
+<td><code>hook-registry.ts</code>、<code>hook-writer.ts</code></td>
+<td>钩子注册表：内置声明之上叠加 <code>config/hooks/</code>，以及钩子开关背后的写入器</td>
+</tr>
+<tr>
+<td><code>version-migrations.ts</code></td>
+<td><code>$CORTEX_HOME</code> 的一次性升级迁移，启动时运行</td>
+</tr>
+</tbody>
+</table>
+<h3 id="layer-2-events-event-bus">第 2 层：<code>events/</code> — 事件总线<a class="headerlink" href="#layer-2-events-event-bus" title="Permanent link">&para;</a></h3>
+<p>同步、类型安全的事件总线，带 JSONL 日志。</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>event-types.ts</code></td>
+<td><code>CortexEvent</code> 可区分联合，分组见下文，另加两个元事件（<code>event-bus.handler-failed</code>、<code>event-logger.dropped</code>）</td>
+</tr>
+<tr>
+<td><code>event-bus.ts</code></td>
+<td><code>EventBus</code> 类 —— <code>subscribe(type, handler)</code> / <code>publish(event)</code>。同步扇出。异步处理器即发即忘。对 <code>event-bus.handler-failed</code> 有重入保护。提供用于 SIGTERM 排空的关闭钩子</td>
+</tr>
+<tr>
+<td><code>event-logger.ts</code></td>
+<td>订阅 <code>'*'</code>，1024 条环形缓冲区，100ms 刷新间隔，<code>logs/events/</code> 下按日滚动的 JSONL，保留 14 天。由 <a href="../configuration/#configsettingsjson"><code>config/settings.json</code></a> 中的 <code>eventLog</code> 设置控制（旧环境变量 <code>CORTEX_EVENT_LOG=off</code> 作为已弃用的回退读取）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>事件类别：</strong></p>
+<ul>
+<li><strong>Session</strong>：<code>session.message</code>、<code>session.message.delta</code>、<code>session.message.delivered</code>、<code>session.status</code>、<code>session.turn</code>、<code>session.turn.completed</code>、<code>session.todos</code>、<code>session.context-usage</code>、<code>session.context-compacted</code>、<code>session.rewound</code>、<code>session.decision</code>、<code>session.board</code>、<code>session.interaction</code>、<code>session.tool-images</code>、<code>session.debug.updated</code></li>
+<li><strong>Interaction</strong>：<code>plan.submitted</code>、<code>plan.approved</code>、<code>ask-user.requested</code>、<code>ask-user.answered</code></li>
+<li><strong>Agent lifecycle</strong>：<code>agent.started</code>、<code>agent.completed</code>、<code>agent.failed</code>、<code>agent.superseded</code></li>
+<li><strong>Auth</strong>：<code>auth.required</code>、<code>auth.recovered</code></li>
+<li><strong>Board</strong>：<code>board.updated</code>、<code>board.style-updated</code></li>
+<li><strong>System</strong>：<code>system.notice</code>、<code>config.changed</code>、<code>llm.active-count-delta</code>、<code>rate-limit.changed</code> 和 <code>ui.mutate-invoked</code></li>
+</ul>
+<h3 id="layer-3-domain-business-logic">第 3 层：<code>domain/</code> — 业务逻辑<a class="headerlink" href="#layer-3-domain-business-logic" title="Permanent link">&para;</a></h3>
+<p>最厚的一层。每个领域关注点一个子目录。</p>
+<table>
+<thead>
+<tr>
+<th>子目录</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agents/</code></td>
+<td>引擎选择、收藏、模型记忆、执行环境（<code>agents/environments/</code>）、子代理运行器和凭据：一次运行可以配置成什么。启动运行属于 <code>runs/</code></td>
+</tr>
+<tr>
+<td><code>runs/</code></td>
+<td>运行层：<code>startRun</code> 与 <code>AgentRun</code> 所有权对象、<code>RunRequest</code> 的引擎选择/spec/提示解析及其共享构建器（<code>builders.ts</code>）、后端中立的 <code>RunEvent</code> 流，以及 <code>SessionEngines</code> 池</td>
+</tr>
+<tr>
+<td><code>sessions/</code></td>
+<td>会话生命周期与记录、会话钩子管道（<code>onNew</code>、<code>onMessageEnd</code>、关闭前）及可选的智能体注入、团队会话，以及保留期清理</td>
+</tr>
+<tr>
+<td><code>executions/</code></td>
+<td>基于 <code>store/execution-repo.ts</code> 的执行注册表访问，以及存活执行的清理与停止</td>
+</tr>
+<tr>
+<td><code>auth/</code></td>
+<td>Claude Code、PI 和 Codex 的凭据与登录流程、认证状态与过期监视，以及登录后的网关同步</td>
+</tr>
+<tr>
+<td><code>pi-providers/</code></td>
+<td>自定义 PI 提供商：<code>cortex auth provider</code> 背后的模型目录条目和网关路由</td>
+</tr>
+<tr>
+<td><code>costs/</code></td>
+<td>费用追踪、网关管理、用量采集、账户读数与 banked reset、按提供商感知的速率限制</td>
+</tr>
+<tr>
+<td><code>scheduling/</code></td>
+<td>持久化调度引擎，加上由设置驱动的内置作业控制器。<code>Scheduler</code> 热重载用户定时任务，每次触发都新开一个会话；记忆索引重建等内置作业拥有自己的守护进程计时器</td>
+</tr>
+<tr>
+<td><code>waitpoints/</code></td>
+<td>Waitpoint 服务：布设、信号解析、过期，以及唤醒会话的通知（参见 <a href="../waitpoints/">waitpoints.md</a>）</td>
+</tr>
+<tr>
+<td><code>boards/</code></td>
+<td>看板服务、路径与 slug、重新渲染已打开看板的文件监视器，以及把决策投射到看板上</td>
+</tr>
+<tr>
+<td><code>plugins/</code></td>
+<td>插件目录、内置与用户插件加载、技能投射，以及插件 MCP 服务器</td>
+</tr>
+<tr>
+<td><code>projects/</code></td>
+<td>项目注册表：脚手架、扫描 <code>context/projects/</code>，以及项目元数据</td>
+</tr>
+<tr>
+<td><code>memory/</code></td>
+<td>记忆/索引管理。<code>index-regen.ts</code> 从 YAML frontmatter 和访问日志重建生成的 index.md 文件（CLI：<code>cortex memory regen</code>）。上下文变更的文件监视器。AGENTS.md 扫描与注入，以及规则加载器</td>
+</tr>
+<tr>
+<td><code>hooks/</code></td>
+<td>供 Web UI 使用的钩子注册表只读视图</td>
+</tr>
+<tr>
+<td><code>monitor/</code></td>
+<td>GPU 和磁盘资源监控</td>
+</tr>
+<tr>
+<td><code>system/</code></td>
+<td>主机层面的事务：doctor 检查、更新状态与提示、系统通知及其历史，以及 <code>rebuild-hold.ts</code> —— 由监督器下推、供准入判断读取的"不开新回合"状态</td>
+</tr>
+<tr>
+<td><code>browser/</code></td>
+<td>Agent 浏览器的 broker（<code>broker.ts</code>）：每个会话一个租约，把会话绑定到服务器或设备上 Chrome 里它自己的 tab，空闲 10 分钟后关掉这个 tab，并记录用户的接管状态（见 <a href="../agent-browser/">agent-browser.md</a>）</td>
+</tr>
+<tr>
+<td><code>remote/</code></td>
+<td>通过 WebSocket 的远程设备管理。基于 SSH 的客户端引导；客户端根据服务器推送的 bundle 自我更新</td>
+</tr>
+<tr>
+<td><code>mcp/</code></td>
+<td>内置的 Cortex MCP 服务器及其工具模块（参见 <a href="../mcp/">mcp.md</a>）</td>
+</tr>
+<tr>
+<td><code>ui-service/</code></td>
+<td>Web UI 的后端：tRPC <code>AppRouter</code>（<code>app-router.ts</code>）、其 query 与 mutation 处理器，以及把实时事件流式推送给 UI 的事件总线订阅（<code>subscribe.ts</code>）</td>
+</tr>
+<tr>
+<td><code>tui-session/</code></td>
+<td>TUI 网关的会话握手与切换</td>
+</tr>
+<tr>
+<td><code>benchmark/</code></td>
+<td>生产基准证据：attempt 身份与日志，以及 <code>cortex-evidence-export</code> 背后的导出</td>
+</tr>
+</tbody>
+</table>
+<h3 id="layer-4-orchestration-message-routing-and-execution">第 4 层：<code>orchestration/</code> — 消息路由和执行<a class="headerlink" href="#layer-4-orchestration-message-routing-and-execution" title="Permanent link">&para;</a></h3>
+<p>将平台消息连接到领域逻辑。hook-bridge（本层的一部分）详见 <a href="../hooks/">hooks.md</a>。</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>conduit-queue.ts</code></td>
+<td>按 conduit 的串行 Promise 队列。确保每个对话同一时刻只运行一个回合，并允许 <code>!cancel</code> 丢弃排队中的尾部</td>
+</tr>
+<tr>
+<td><code>orchestrator.ts</code></td>
+<td>把每条入站消息交给 <code>AgentRunner</code></td>
+</tr>
+<tr>
+<td><code>agent-runner.ts</code></td>
+<td>默认智能体路径的准入：路由、回合中注入、排队，以及一个回合所需的会话与租约解析。回合本体属于 <code>turn/turn.ts</code></td>
+</tr>
+<tr>
+<td><code>session-gateway.ts</code></td>
+<td><code>deliverToSession()</code> —— 除入站平台消息外，所有进入对话回合的事物（web 发送、定时触发、智能体结果、恢复、waitpoint 唤醒）的唯一入口</td>
+</tr>
+<tr>
+<td><code>session-events.ts</code></td>
+<td>发布 Web UI 和 TUI 渲染的 <code>session.*</code> 事件：消息、增量、状态、回合、todo、上下文用量</td>
+</tr>
+<tr>
+<td><code>runtime.ts</code></td>
+<td><code>PlatformAdapter</code> + <code>EventBus</code> 的编排持有者，由组合根注入一次</td>
+</tr>
+<tr>
+<td><code>conversation-request.ts</code></td>
+<td><code>prepareConversationRequest()</code> —— 为普通聊天回合组装 <code>RunRequest</code>：智能体 spec 加首回合的环境信息块</td>
+</tr>
+<tr>
+<td><code>turn/turn.ts</code></td>
+<td><code>Turn</code> / <code>openTurn()</code> —— 一个对话回合的唯一所有者：状态消息、账本回合追踪、会话租约、<code>startRun</code>、观察者扇出、终态渲染、<code>running:true/false</code> 括号</td>
+</tr>
+<tr>
+<td><code>turn/turn-prep.ts</code></td>
+<td>调用方在 <code>openTurn</code> 之前要解析的内容：回合的文件、会话记录与使用租约</td>
+</tr>
+<tr>
+<td><code>turn/terminal.ts</code></td>
+<td>回合的终态渲染：状态封存、账本的回合完成、错误正文、错误会话持久化</td>
+</tr>
+<tr>
+<td><code>turn/turn-tracking.ts</code></td>
+<td>回合簿记中账本的那一半：开始、快照、接受，以及等待期间的替代窗口</td>
+</tr>
+<tr>
+<td><code>turn/active-turns.ts</code></td>
+<td>按频道的回合状态：回合注册的流式回调、编辑替代标记</td>
+</tr>
+<tr>
+<td><code>turn/background-hold.ts</code></td>
+<td>"回合已结束但会话未结束"的统一 hold 生命周期：忙碌括号、<code>SessionHolds</code> 注册、运行订阅、六种终态判定</td>
+</tr>
+<tr>
+<td><code>turn/hold-render-platform.ts</code></td>
+<td>被 hold 回合在 Slack/飞书上的渲染——后台阶段运行期间的状态行及其封存</td>
+</tr>
+<tr>
+<td><code>turn/hold-render-web.ts</code></td>
+<td>被 hold 回合在 web 上的渲染——续写的正文、工具和通知，发送到会话事件流上</td>
+</tr>
+<tr>
+<td><code>mid-turn-inject.ts</code>、<code>session-compact.ts</code>、<code>session-rewind.ts</code></td>
+<td>把消息引导进正在运行的回合、按请求压缩，以及把对话回退到更早的回合</td>
+</tr>
+<tr>
+<td><code>subagent-*.ts</code>、<code>team-*.ts</code></td>
+<td>把后台子代理结果和团队 worker 报告投递到其父会话或 lead 会话</td>
+</tr>
+<tr>
+<td><code>waitpoint-*.ts</code></td>
+<td>Waitpoint 信号接入、周期性清扫、从已连接设备排空暂存的信号，以及唤醒通知</td>
+</tr>
+<tr>
+<td><code>session-retention-controller.ts</code></td>
+<td>在启动时、每 6 小时以及保留期设置变更时运行会话保留清理</td>
+</tr>
+<tr>
+<td><code>resume-dispatcher.ts</code></td>
+<td>限流恢复队列：窗口重置后继续被用量限制中断的会话</td>
+</tr>
+<tr>
+<td><code>busy-tracker.ts</code></td>
+<td>追踪活跃 LLM 数量，向父守护进程发送 IPC <code>busy</code>/<code>idle</code></td>
+</tr>
+<tr>
+<td><code>human-answer-backstop.ts</code></td>
+<td>等待人工自由文本回复的频道的叶子注册表，每个进入会话的入口都会查询它，使回复被消费而不是开启新回合</td>
+</tr>
+<tr>
+<td><code>routing/message-router.ts</code></td>
+<td>平台消息入口：在适配器上注册入站消息处理器，并委托给 orchestrator</td>
+</tr>
+<tr>
+<td><code>routing/commands/</code></td>
+<td><code>!command</code> 处理器，每个命令族一个模块：<code>cancel</code>、<code>channel</code>、<code>compact</code>、<code>cost</code>、<code>device</code>、<code>lang</code>、<code>login</code>（含 <code>login-custom</code>）、<code>mode</code>、<code>nvtop</code>、<code>orient</code>、<code>restart</code>、<code>schedule</code>、<code>sendfile</code>、<code>session</code>、<code>status</code>、<code>tail</code>、<code>usage</code>（含 <code>usage-reset</code>）。<code>index.ts</code> 把命令词——<code>!agent</code>、<code>!backend</code>、<code>!model</code>、<code>!thinking</code>、<code>!new</code>、<code>!resume</code>、<code>!usage</code> 等——映射到这些模块</td>
+</tr>
+<tr>
+<td><code>routing/webhook.ts</code></td>
+<td>回环 webhook 服务器（<code>WEBHOOK_PORT</code>，默认 3001）：钩子回调、<code>cortex-signal</code>、<code>cortex-browser</code> 租约（<code>browser-webhook.ts</code>）、子代理、团队和看板回调</td>
+</tr>
+<tr>
+<td><code>routing/hook-bridge.ts</code></td>
+<td>PreToolUse 钩子 → EventBus 桥接。发布 <code>plan.submitted</code> 和 <code>ask-user.requested</code></td>
+</tr>
+<tr>
+<td><code>routing/hook-bridge-subscribers.ts</code></td>
+<td>把问题或提交的计划转为交互记录的订阅者，各个界面将其渲染为卡片</td>
+</tr>
+<tr>
+<td><code>interactions/</code></td>
+<td>AskUserQuestion 流程、计划审批状态机、按钮/模态框动作路由</td>
+</tr>
+</tbody>
+</table>
+<h3 id="layer-5-entry-composition-root">第 5 层：<code>entry/</code> — 组合根<a class="headerlink" href="#layer-5-entry-composition-root" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>app.ts</code></td>
+<td><strong>组合根</strong>。加载 <code>.env</code> 并迁移旧设置，然后依次连接 EventBus → event logger → hook bridge → RunRegistry/plan approvals/busy tracker → platform adapters → outbound queue → auth watch → scheduler → commands → interactions → message handler → Web UI host → platform connect → client manager → webhook → memory watcher</td>
+</tr>
+<tr>
+<td><code>shutdown.ts</code></td>
+<td>SIGTERM 处理：一个有序的关闭步骤列表，前一步失败后续步骤照样执行，最后退出</td>
+</tr>
+<tr>
+<td><code>daemon.ts</code></td>
+<td>进程监督器。Fork <code>app.js</code>，监视 <code>$CORTEX_REPO/src</code> 以自动重建（设置了 <code>CORTEX_REPO</code> 时），监视 <code>.restart</code> 触发文件，带指数退避的崩溃恢复（1s→30s 上限）。发布逐步骤的重建进度，在 install/restart 之前等待 app 空闲，并在这段窗口内拦住新回合（见下文）</td>
+</tr>
+<tr>
+<td><code>daemon-notice.ts</code></td>
+<td>下行 IPC 的 app 侧：把 <code>rebuild-aborted</code> 变成系统通知、把 <code>rebuild-hold</code> 变成准入侧的闸门，并在监督器断开连接时解除闸门</td>
+</tr>
+<tr>
+<td><code>cortex-cli.ts</code>、<code>cli.ts</code></td>
+<td><code>cortex</code> CLI 入口。分派到 <code>init</code>、<code>config</code>、<code>auth</code>、<code>doctor</code>、<code>feishu</code>、<code>restart</code>、<code>setup-gateway</code>、<code>ui</code>、<code>client</code>、<code>install</code>、<code>schedule</code>、<code>memory</code>、<code>start</code>、<code>daemon</code>、<code>tui</code>，各自在独立的 <code>*-cli.ts</code> 模块中实现（参见 <a href="../cli-reference/">cli-reference.md</a>）</td>
+</tr>
+<tr>
+<td><code>browser-cli.ts</code>、<code>hook-cli.ts</code>、<code>signal-cli.ts</code>、<code>production-evidence-export-cli.ts</code></td>
+<td><code>cortex-browser</code>、<code>cortex-hook</code>、<code>cortex-signal</code> 和 <code>cortex-evidence-export</code> 可执行文件</td>
+</tr>
+<tr>
+<td><code>init.ts</code></td>
+<td>交互式首次初始化</td>
+</tr>
+<tr>
+<td><code>start-ui-http.ts</code>、<code>ui-http-gate.ts</code>、<code>ui-service-wiring.ts</code></td>
+<td>在 <code>CORTEX_UI_HTTP</code> 开启时启动 Web UI 宿主，并连接它所提供的 <code>UiService</code></td>
+</tr>
+<tr>
+<td><code>startup-helpers.ts</code></td>
+<td>清理日志、确保 MCP 配置</td>
+</tr>
+<tr>
+<td><code>startup-notify.ts</code></td>
+<td>向管理频道发送启动私信</td>
+</tr>
+<tr>
+<td><code>platform-connect.ts</code></td>
+<td>启动各平台适配器。TUI 网关绑定完成后启动流程才继续；Slack 和飞书在后台连接，启动从不等待网络握手（出站消息走它们的 HTTP API，不走长连接）。连接失败会在 5 秒、30 秒、2 分钟后重试，之后报告为错误通知；60 秒后仍在连接的平台报告为警告</td>
+</tr>
+</tbody>
+</table>
+<h3 id="hot-rebuild-published-progress-and-the-turn-hold">热重建：发布的进度与回合闸门<a class="headerlink" href="#hot-rebuild-published-progress-and-the-turn-hold" title="Permanent link">&para;</a></h3>
+<p><code>CORTEX_REPO</code> 指向 checkout 的 <code>agent-server</code> 目录时，源码改动会让监督器重新构建各软件包、
+重新安装自身，并替换 app 进程。构建分三条并发 lane 进行。其中一条是有序链——
+先 <code>server</code>，再 <code>ui-contract</code>，最后 <code>web-typecheck</code>——因为 ui-contract 重新导出 server 构建出的
+类型，而 web 的类型检查依赖 ui-contract 的构建产物。另外两条 <code>web-bundle</code> 和
+<code>web-depcruise</code> 只读 web 源码，一开始就与它并行。每条 lane 都会跑到底，
+任何一步失败都会在安装之前终止这次重建，并发出一条点名每个失败步骤的通知。
+构建成功后，<code>bundle.mjs</code> 在全新 stage 中生成发布布局，带 <code>cortexBundle: true</code> 标记。
+构建或 stage 失败时，现有安装和 app 保持不变。已装包同样为打包版，且外部依赖声明与 stage 一致时，
+fast install 整体替换 <code>dist</code>、<code>web</code>、<code>defaults</code>、<code>vendor</code>、<code>scripts</code> 目录及包元数据，保留 <code>node_modules</code>。
+它不是叠加覆盖，因此过时的 hash chunk 会被清除。依赖改变或已装包为未打包版时，
+在 stage 内执行 <code>npm pack --ignore-scripts</code>，再向原 prefix 执行 <code>npm install -g</code>。</p>
+<p>daemon 启动时先加载 <code>$CORTEX_HOME/config/.env</code>（默认 <code>~/.cortex/config/.env</code>），再读取重建设置。
+<code>loadRuntimeDotenv</code> 只补充缺失变量，不覆盖已有值，已有空值也不例外：shell 或服务启动器的环境优先。
+<code>cortex daemon restart-self</code> 从 CLI 当前环境 fork，不继承旧 daemon 的环境。
+需要持久化的设置应写入 <code>config/.env</code>，并移除或统一启动环境中的冲突变量；
+命令前的环境变量前缀只影响本次启动，不能保证以后通过其他启动器启动时仍生效。</p>
+<p>本地 stage 包含映射到打包前可读 JavaScript 的 linked source maps。npm tarball 排除这些文件；
+完整安装成功后，本地安装器从 stage 补复制 maps。运行时映射有可测的启动开销，因此需要手动启用。
+要为 app 持久启用映射，在 <code>config/.env</code> 中设置 <code>NODE_OPTIONS=--enable-source-maps</code>
+（已有其他 Node 选项时在原值后追加此标志），再在空闲维护窗口执行 <code>cortex daemon restart-self</code>。
+daemon 会把加载后的环境（含 <code>NODE_OPTIONS</code>）传给 app 的新 Node 进程。
+从 <code>.env</code> 加载该值发生在 daemon 自身的 Node 启动之后，因此不会追溯启用监督器自身的映射。
+关闭 app 映射时，从文件及启动环境中移除该标志，再重启 daemon。发布包不带 server maps。
+daemon 自己发起的安装跳过 postinstall 重启通知，由 daemon 直接重启 app；
+外部 npm 升级仍通过 postinstall 通知 daemon，在空闲时重启 app。</p>
+<p>打包重建是默认行为，激活时无需 <code>CORTEX_REBUILD_BUNDLE=1</code> 前缀。
+要持久回退，在 <code>config/.env</code> 中设置 <code>CORTEX_REBUILD_BUNDLE=0</code>，选择普通未打包 build 和源码
+fast install / pack-install 路径。在空闲维护窗口执行 <code>cortex daemon restart-self</code>，
+等 daemon 和 app 恢复，再执行 <code>cortex daemon restart</code> 请求源码重建。从打包版退回该布局需要完整替换。
+恢复打包重建时，删除文件中的该项或改为 <code>1</code>，检查启动环境没有冲突值，再重复这两条命令。
+开关在 daemon 启动时读取，仅编辑文件不会让监督器重新加载它。
+源码重建替换的是安装文件和 app，不是运行中的监督器；daemon 代码变更须在新版 daemon 文件安装后，
+通过 <code>cortex daemon restart-self</code> 生效。配置文件也应在空闲维护窗口编辑：<code>.env</code> watcher 本身可能请求
+重启 app。两种布局都保留 <code>CORTEX_HOME</code>。</p>
+<p><strong>进度写在文件里，不在内存里。</strong> 流水线在第一步之前就把完整计划写入
+<code>$STORE_DIR/daemon-rebuild.json</code>——这个 checkout 会跑的步骤（上述构建步骤，随后是打包模式下的
+<code>bundle</code>、<code>install</code> 和 <code>restart</code>）、哪些正在进行、每一步如何结束（<code>done</code>、<code>failed</code>、
+<code>skipped</code>），其中 <code>install</code> 步骤还记录它走的是快速 staged-rename 路径还是
+<code>npm pack</code> + <code>npm install -g</code>。只能用文件：流水线的最后一个动作就是替换掉本该保存这份
+状态的进程，所以内存里的任何东西都无法告诉新的 <code>app.js</code>，催生它的那次
+重建做了什么。<code>system.daemonStatus</code> 读取这条记录，daemon 页面渲染它，
+重建进行时每秒轮询一次。<code>daemonPid</code> 不是当前存活监督器的 <code>running</code> 记录会被丢弃，
+而不是永远显示下去；终态记录则会保留，这样"上次重建在 <code>web-typecheck</code> 失败"
+在重启之后依然可读。终态有 <code>succeeded</code>、
+<code>aborted</code> 和 <code>deferred</code>。</p>
+<p><strong>流水线中危险的那一半会等待 app 空闲。</strong> 构建步骤读取仓库、
+写入 <code>dist/</code>，打包写入独立 stage；<code>install</code> 步骤替换运行中 <code>app.js</code> 加载的文件，<code>restart</code>
+则杀掉它。因此 busy/idle 会检查两次：构建之前一次，准备完成后再一次，因为构建
+要花数分钟，这期间完全可能有回合正当地开始。第二道门发现子进程忙碌时，
+会把触发暂存到 <code>pendingRebuild</code>、把记录发布为 <code>deferred</code>，并在下一次转为空闲时
+重跑整条流水线——真实工作会被等待而不是被拒绝，因为被拒绝的回合不等于被延迟的
+回合（waitpoint 唤醒或后台智能体的结果会被直接丢掉）。</p>
+<p><strong>在进程被替换的那几秒里不开新回合。</strong> 进入 <code>install</code> 或 <code>restart</code>——或
+排队一次重启——会让监督器通过 fork IPC 下发 <code>rebuild-hold</code>，准入侧
+（<code>agent-runner.ts</code>）会在追踪、入队或回合中注入之前就拒绝：
+此刻开始的回合会被片刻之后的 SIGTERM 变成孤儿，它的后端 CLI 还在往
+无人读取的管道里写。范围刻意收窄——绝不包括构建阶段——因此它能拦到的只有
+落在空闲检查与 SIGTERM 之间那个 tick 级竞争窗口里的消息。正在打字的人
+会在频道内收到一条点明当前阶段的回复；没人等待的回调或系统消息
+则变成一条 warning 级系统通知，点明丢掉的是什么。闸门带一个
+五分钟租约，由每条阶段消息续期，因此中途死掉的监督器无法永久让 app
+静音，而 IPC <code>disconnect</code> 会立即解除闸门。</p>
+<h2 id="llm-backend-adapter">LLM 后端适配器<a class="headerlink" href="#llm-backend-adapter" title="Permanent link">&para;</a></h2>
+<p><code>agent-adapter/</code> 目录在统一接口之后抽象两个 LLM 后端：</p>
+<table>
+<thead>
+<tr>
+<th>后端</th>
+<th>适配器</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Claude Code</td>
+<td><code>claude/adapter.ts</code></td>
+<td>无状态引擎适配器：打开一个 Claude 进程会话（print 模式）、spawn-args 构建器、事件解析器与转换器</td>
+</tr>
+<tr>
+<td>PI</td>
+<td><code>pi/adapter.ts</code></td>
+<td>无状态引擎适配器：打开一个进程内 PI 会话、MCP 桥接、钩子桥接、工具垫片</td>
+</tr>
+</tbody>
+</table>
+<p>会话池位于 <code>domain/runs/engines.ts</code>（<code>SessionEngines</code>），不在任何一个适配器里。</p>
+<p>每个适配器把各自后端的事件转换为统一的 <code>NormalizedEvent</code> 结构（<code>normalize/</code>）和 <code>RunEvent</code> 流（<code>run-events.ts</code>）。<code>capabilities.ts</code> 文件声明 <code>Capability</code> 枚举，以及 Claude 和 PI 的能力集。运行、会话与引擎如何组合，参见 <a href="../backends/">backends.md</a>。</p>
+<h2 id="platform-adapter">平台适配器<a class="headerlink" href="#platform-adapter" title="Permanent link">&para;</a></h2>
+<p><code>platform/adapter.ts</code> 定义 <code>PlatformAdapter</code> 接口。Slack（<code>adapters/slack.ts</code>）、飞书（<code>adapters/feishu.ts</code>）和 TUI 网关（<code>adapters/tui/</code>）实现它，<code>adapters/composite-adapter.ts</code> 把在线的平台合并为一个适配器，将每次出站调用路由到拥有该 conduit 的平台（<code>slack:</code>、<code>feishu:</code>、<code>tui-</code>）。Web UI 不经过这个接口；它通过 <code>domain/ui-service/</code> 读取和驱动会话（参见 <a href="#web-ui-protocol">Web UI 协议</a>）。</p>
+<table>
+<thead>
+<tr>
+<th>成员</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code> / <code>capabilities</code></td>
+<td>身份标识与平台支持的能力</td>
+</tr>
+<tr>
+<td><code>start</code> / <code>stop</code></td>
+<td>生命周期</td>
+</tr>
+<tr>
+<td><code>onMessage</code> / <code>onMessageEdit</code> / <code>onAction</code> / <code>onModalSubmit</code></td>
+<td>事件注册</td>
+</tr>
+<tr>
+<td><code>postMessage</code> / <code>updateMessage</code> / <code>deleteMessage</code></td>
+<td>出站消息</td>
+</tr>
+<tr>
+<td><code>postInteractive</code></td>
+<td>带按钮的交互式消息</td>
+</tr>
+<tr>
+<td><code>openModal</code></td>
+<td>模态框</td>
+</tr>
+<tr>
+<td><code>markQueued</code> / <code>unmarkQueued</code></td>
+<td>排在运行中回合之后的消息上的排队标记</td>
+</tr>
+<tr>
+<td><code>uploadFile</code> / <code>downloadFile</code></td>
+<td>文件操作</td>
+</tr>
+<tr>
+<td><code>openOutputStream</code></td>
+<td>在智能体输出到达时即时渲染的流</td>
+</tr>
+<tr>
+<td><code>bindProjectConduit</code> / <code>unbindProjectConduit</code> / <code>getProjectConduits</code> / <code>resolveInboundProject</code></td>
+<td>项目 ↔ 频道绑定</td>
+</tr>
+<tr>
+<td><code>ownsConduit</code></td>
+<td>某个 conduit id 是否属于本平台</td>
+</tr>
+<tr>
+<td><code>getPermalink</code> / <code>adminChannelKey</code> / <code>setAdminChannel</code></td>
+<td>工具方法，以及用于系统通知的管理频道</td>
+</tr>
+</tbody>
+</table>
+<p><code>OutputStream</code>（<code>platform/output-stream.ts</code>，Slack、飞书和分块实现位于 <code>adapters/</code> 下）把回合的输出送到聊天平台：已提交的文本、可变区域（如状态行，后续编辑会原地更新），以及交互式消息；内容被切分为平台接受的块，并排队以保证更新按序到达。</p>
+<h2 id="websocket-protocol-server-client">WebSocket 协议（服务器 ↔ 客户端）<a class="headerlink" href="#websocket-protocol-server-client" title="Permanent link">&para;</a></h2>
+<p>WebSocket 协议用于<strong>远程设备命令执行</strong>，不承载聊天或 UI 流量。服务器通过 <code>startClientManager()</code> 运行 WebSocket 服务器（默认端口 3002，<code>CORTEX_CLIENT_PORT</code>）。每个连接都在 <code>x-cortex-token</code> 头中出示客户端 token。完整的跨机器方案——部署、网络拓扑和安全——参见 <a href="../cross-machine/">cross-machine.md</a>。</p>
+<h3 id="message-flow">消息流<a class="headerlink" href="#message-flow" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>客户端连接</strong> → 发送 <code>{ type: 'hello', device, platform, capabilities, gpuCount, bundleHash, pid? }</code></li>
+<li><strong>服务器校验</strong> → 缺少设备名时以 <code>4001</code> 关闭，<code>machines.json</code> 未列出该设备时以 <code>4005</code> 关闭，该设备已连接时以 <code>4002</code> 关闭</li>
+<li><strong>心跳</strong> → 客户端每 5 秒发送 <code>{ type: 'heartbeat', device, timestamp }</code>。设备静默 15 秒后服务器关闭连接（代码 <code>4003</code>）</li>
+<li><strong>命令分发</strong> → 服务器发送 <code>{ type: 'command', commandId, action, params }</code>。客户端执行并以 <code>{ type: 'result', commandId, success, data, error }</code> 回复</li>
+<li><strong>更新</strong> → <code>bundleHash</code> 与服务器的客户端 bundle 不一致时，服务器发送 <code>{ type: 'update', hash, files }</code>；客户端安装后回复 <code>update-result</code>，并以新 bundle 重启</li>
+<li><strong>流</strong> → <code>open-stream</code>（TCP 端口转发）和 <code>open-file-stream</code>（文件传输）要求客户端回拨一条单独的 WebSocket 传输字节；回调中指定了未知流的连接以 <code>4004</code> 关闭</li>
+</ol>
+<h3 id="command-actions">命令动作<a class="headerlink" href="#command-actions" title="Permanent link">&para;</a></h3>
+<p>客户端支持这些远程动作：<code>bash</code>（带超时/后台的 shell 执行）、<code>read</code>（支持文本/图像/PDF 的文件读取）、<code>write</code>（带 CRLF 检测的文件写入）、<code>edit</code>（支持 replace_all 的文本替换）、<code>glob</code>（排除 VCS 目录的文件 glob）、<code>grep</code>（带分页的 ripgrep）、<code>file.stat</code>（传输前的元数据探测）。</p>
+<h3 id="client-architecture">客户端架构<a class="headerlink" href="#client-architecture" title="Permanent link">&para;</a></h3>
+<p>客户端（<code>client/src/client.ts</code>）是一个轻量级 WebSocket 守护进程，维护持久连接。它支持带指数退避的自动重连（1s→30s 上限）。它不启动也不托管长时间运行的任务：那类任务独立运行，并通过 <a href="../waitpoints/">waitpoint</a> 回报。</p>
+<h2 id="web-ui-protocol">Web UI 协议<a class="headerlink" href="#web-ui-protocol" title="Permanent link">&para;</a></h2>
+<p>浏览器工作台、桌面应用和移动应用都通过同一个 HTTP 宿主（<code>platform/ui-http/</code>）与服务器通信，它在 <code>CORTEX_UI_HTTP</code> 开启时启动。它监听 <code>127.0.0.1:3004</code>（<code>CORTEX_UI_PORT</code>）；远程访问经由隧道或局域网代理（参见 <a href="../browser-access/">browser-access.md</a> 和 <a href="../desktop-app/">desktop-app.md</a>）。</p>
+<ul>
+<li><strong>tRPC</strong> 位于 <code>/trpc/</code> 下。query 和 mutation 是针对 <code>domain/ui-service/app-router.ts</code> 中 <code>AppRouter</code> 的普通 HTTP 请求；web 应用从 <code>packages/ui-contract</code> 获取类型。</li>
+<li><strong>实时事件</strong>通过 Server-Sent Events 上的单个 <code>subscribe</code> 订阅传递。客户端指定想要的事件类型，可限定到某个项目或会话，服务器经有界队列转发总线上匹配的 <code>CortexEvent</code>，客户端跟不上时发送 <code>ui-subscribe.dropped</code>。订阅流式文本的客户端会先收到一份进行中的助手消息快照。</li>
+<li><strong>认证</strong>按顺序检查：携带客户端 token 或已配对应用自己设备 token 的 <code>x-cortex-token</code> 头（桌面和移动应用）、token 登录得到的 <code>cortex_ui</code> 会话 cookie（<code>/api/ui/login</code>、<code>/api/ui/logout</code>、<code>/api/ui/session</code>），或 Cloudflare Access JWT。应用和浏览器用一次性配对码接入（<code>/api/ui/pair</code>、<code>/api/ui/pairing-code</code>）；已配对的应用通过 <code>/api/ui/devices</code> 与 <code>/api/ui/devices/revoke</code> 查看和撤销。非同源的浏览器来源需要在 <code>uiCorsOrigins</code> 设置中添加条目。</li>
+<li><strong>其他路由</strong>：文件下载与附件上传（<code>/api/files/download</code>、<code>/api/attachments/upload</code>）、看板资源（<code>/api/boards/asset</code>）、桌面应用下载的 web bundle 更新（<code>/api/ui-ota/manifest.json</code>、<code>/api/ui-ota/bundle.zip</code>）、原生应用更新清单（<code>/api/app-update/manifest.json</code>）、到远程机器的端口转发（<code>/api/forward/*</code>，配合 <code>/forward</code> WebSocket），以及 agent 浏览器：会话列表、接管和输入文本（<code>/api/browser/*</code>），实时画面走 <code>/api/browser/stream</code> WebSocket。</li>
+<li>同一个宿主还提供构建好的 web 应用，因此浏览器从同一个源加载 UI 及其 API。</li>
+</ul>
+<p>TUI 使用端口 3003（<code>CORTEX_TUI_PORT</code>）上单独的 WebSocket 网关，钩子和信号则通过端口 3001 上的回环 webhook 到达服务器。</p>
+<h2 id="event-bus-topology">事件总线拓扑<a class="headerlink" href="#event-bus-topology" title="Permanent link">&para;</a></h2>
+<p>EventBus 在 <code>app.ts</code> 中创建。<code>runRegistry</code>、<code>planApprovals</code> 和 <code>busyTracker</code> 构造时没有依赖，再通过 <code>setBus(bus)</code> 连接；其他组件都以参数形式接收总线。</p>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>发布</th>
+<th>订阅</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>runRegistry</code></td>
+<td><code>agent.started/completed/failed/superseded</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>eventLogger</code></td>
+<td><code>event-logger.dropped</code></td>
+<td><code>'*'</code>（所有事件 → JSONL）</td>
+</tr>
+<tr>
+<td><code>hookBridge</code></td>
+<td><code>plan.submitted</code>、<code>ask-user.requested</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>routing/hook-bridge-subscribers.ts</code></td>
+<td>—</td>
+<td><code>plan.submitted</code>、<code>ask-user.requested</code></td>
+</tr>
+<tr>
+<td><code>planApprovals</code></td>
+<td><code>plan.approved</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>interactionHandlers</code></td>
+<td><code>ask-user.answered</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>busyTracker</code></td>
+<td><code>llm.active-count-delta</code>（待处理的后台任务）</td>
+<td><code>llm.active-count-delta</code>，计数后发送 IPC <code>busy</code>/<code>idle</code></td>
+</tr>
+<tr>
+<td><code>orchestration/session-events.ts</code></td>
+<td><code>session.*</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>domain/auth/</code></td>
+<td><code>auth.required</code>、<code>auth.recovered</code></td>
+<td><code>auth.*</code>（认证监视）</td>
+</tr>
+<tr>
+<td><code>domain/boards/</code></td>
+<td><code>board.updated</code></td>
+<td><code>board.updated</code>（看板监视器）</td>
+</tr>
+<tr>
+<td><code>domain/system/system-notice.ts</code></td>
+<td><code>system.notice</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>app.ts</code></td>
+<td><code>config.changed</code>、<code>rate-limit.changed</code></td>
+<td><code>session.status</code>（会话 hold）</td>
+</tr>
+<tr>
+<td><code>resume-dispatcher.ts</code></td>
+<td>—</td>
+<td><code>agent.completed/failed/superseded</code></td>
+</tr>
+<tr>
+<td><code>team-delivery.ts</code>、<code>subagent-delivery.ts</code></td>
+<td>—</td>
+<td><code>session.turn.completed</code>、<code>session.status</code></td>
+</tr>
+<tr>
+<td><code>domain/ui-service/</code></td>
+<td><code>ui.mutate-invoked</code></td>
+<td>每个 UI 订阅请求的事件类型</td>
+</tr>
+</tbody>
+</table>
+<h2 id="state-storage">状态存储<a class="headerlink" href="#state-storage" title="Permanent link">&para;</a></h2>
+<p>Cortex 把所有状态存放在 <code>~/.cortex/</code> 下的文件系统中。没有数据库——所有内容都是磁盘上的 JSON 或 JSONL，其中 session registry 和 history 路径刻意采用面向追加的设计。下表路径相对于 <code>~/.cortex/</code>；完整目录树见 <a href="../configuration/#file-hierarchy">configuration.md</a>。</p>
+<table>
+<thead>
+<tr>
+<th>路径</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data/agent-state.json</code></td>
+<td>频道引擎选择、模型记忆、新会话选择与默认智能体</td>
+</tr>
+<tr>
+<td><code>config/models.json</code></td>
+<td>默认引擎选择与收藏模型列表</td>
+</tr>
+<tr>
+<td><code>config/budget.json</code></td>
+<td>每日和每月预算上限</td>
+</tr>
+<tr>
+<td><code>config/environments/</code></td>
+<td>执行环境——每个环境一个 JSON 文件</td>
+</tr>
+<tr>
+<td><code>data/schedules.json</code></td>
+<td>持久化定时任务列表</td>
+</tr>
+<tr>
+<td><code>data/boards.json</code></td>
+<td>看板注册表：每个看板的所属项目、slug、标题、创建时间和最近使用时间（新建、有会话接入或文件变化）。页面本身在项目上下文的 <code>boards/&lt;slug&gt;/</code> 下</td>
+</tr>
+<tr>
+<td><code>data/session-registry.jsonl</code></td>
+<td>仅追加的 JSONL 日志，也是会话记录、频道→会话绑定以及按频道的对话头与回合的唯一所有者。事件：<code>put</code>/<code>patch</code>/<code>delete-intent</code>/<code>delete-commit</code>/<code>bind</code>/<code>unbind</code>/<code>turn</code>/<code>conversation</code>；启动时流式回放以重建 live 和 pending 状态。压缩保留 live 记录 + 绑定 + live 回合；当日志事件数超过 <code>max(512, live×4, 2×compacted)</code>——其中 <code>compacted</code> 是一次压缩会写出的事件数——或文件同时超过 16 MB 与上次压缩后大小的两倍时运行。一次性升级迁移会导入已退役的 <code>sessions.json</code> 和 <code>conversation-ledger.json</code>，并将它们重命名为 <code>*.pre-2026.9.14.bak</code></td>
+</tr>
+<tr>
+<td><code>data/retention-candidates.json</code></td>
+<td>history 与 PI 清理用的两轮确认孤儿候选</td>
+</tr>
+<tr>
+<td><code>data/conversation-history/</code></td>
+<td>以稳定 Cortex session id 为键的按会话 transcript/history JSONL</td>
+</tr>
+<tr>
+<td><code>data/executions.json</code></td>
+<td>统一执行注册表</td>
+</tr>
+<tr>
+<td><code>data/archive/</code></td>
+<td>超过一周的终态执行记录，从 <code>executions.json</code> 中移出</td>
+</tr>
+<tr>
+<td><code>data/provider-state.json</code></td>
+<td>提供商用量、限流窗口，以及按提供商归属的恢复队列</td>
+</tr>
+<tr>
+<td><code>data/waitpoints.json</code></td>
+<td>Waitpoint 及其信号</td>
+</tr>
+<tr>
+<td><code>data/team-inbox.json</code>、<code>data/team-outbox.json</code></td>
+<td>团队 lead 与 worker 之间的消息</td>
+</tr>
+<tr>
+<td><code>data/ui-sessions.json</code></td>
+<td>Web UI 的浏览器登录会话</td>
+</tr>
+<tr>
+<td><code>browser/profile/</code></td>
+<td>服务器上 agent 浏览器的 profile：cookie 和登录状态</td>
+</tr>
+<tr>
+<td><code>data/daemon-rebuild.json</code></td>
+<td>监督器发布的热重建记录：计划、逐步骤状态与耗时，以及上次重建的终态结果</td>
+</tr>
+<tr>
+<td><code>data/costs.jsonl</code></td>
+<td>每次调用的费用记录（90 天滚动）</td>
+</tr>
+<tr>
+<td><code>logs/sessions/</code></td>
+<td>用于保留保护/清理的 Claude capture 日志</td>
+</tr>
+<tr>
+<td><code>logs/sessions-pi/</code></td>
+<td>以后端 session id 为键的 PI transcript bundle</td>
+</tr>
+<tr>
+<td><code>logs/</code></td>
+<td>守护进程和后端日志，以及 <code>logs/events/</code> 下的每日事件日志</td>
+</tr>
+</tbody>
+</table>
+<p>session registry 是一个仅追加的日志，而非可变的 JSON 文件。<code>session-registry-journal.ts</code> 持有一个仅追加 JSONL 文件，其中 <code>put</code> 和 <code>delete-intent</code> 事件携带完整的会话记录，最后以 <code>delete-commit</code> 完成删除。delete intent 还会固化通过校验的 Claude turn-backup 清理 manifest，因此之后的重试不依赖一份可能已被先前部分清理删掉的账本。启动时先把任何遗留的 <code>session-registry.json</code> 文件迁移进日志、为该遗留文件写一份备份、截断任何未结束的尾部，然后逐行流式回放日志，恢复内存中的 <code>live</code> 和 <code>pending</code> map。日志过大时，压缩会重写一份最小快照：每个 live 会话一条完整记录事件，加上每个待删除项一条 <code>delete-intent</code> 事件。</p>
+<p>会话保留与注册表变更分开协调。<code>session-retention-controller.ts</code> 在 app 启动时于后台启动一轮 <code>session-retention.ts</code> 清理——启动流程不等待它，session registry 自身的锁把它与其他会话变更串行化——之后每 6 小时运行一次，<code>sessionRetentionDays</code> 热重载时还会经去抖立即重跑。启动时的这一轮在任何已就绪的提供商恢复分派之后开始，排队中的直接恢复会保留其稳定的追踪 id 作为存活保护。协调器会重试待处理的 delete commit，用一次追加为所有过期的空闲会话写入注册表 delete intent，然后按每批 100 个处理：每批用一次追加释放它们的频道绑定与对话，删除它们的文件，再用一次追加提交清理成功的会话。停止控制器会在批次之间中止清理，未提交的删除保持 pending，留待下一轮。它还会清理孤儿 <code>conversation-history</code>、清理孤儿 PI transcript bundle、清理不活跃的 Claude capture 日志、清理孤儿 <code>tmp/tool-images/</code> 会话目录，并同步 Claude 用户的 <code>cleanupPeriodDays</code>。</p>
+<h2 id="naming-conventions">命名约定<a class="headerlink" href="#naming-conventions" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>执行 ID</strong>：<code>exec_&lt;kind&gt;_&lt;base36-ts&gt;_&lt;4-rand&gt;</code>（如 <code>exec_local_1a2b3c_xyzw</code>）</li>
+<li><strong>定时任务 ID</strong>：8 位十六进制字符（来自 <code>randomBytes(4)</code>）</li>
+<li><strong>会话 ID</strong>：UUID 在注册表和 UI 中标识会话。未设置标签的会话显示 UUID 的前 8 个字符。<code>/resume</code> 接受完整 UUID 或至少 6 个字符且唯一的前缀。</li>
+<li><strong>看板 ID</strong>：8 位十六进制字符（来自 <code>randomBytes(4)</code>）。看板目录名是其标题的 slug，slug 被占用时加数字后缀；标题中没有可用于 slug 的字符时用 <code>board-&lt;id&gt;</code>。</li>
+<li><strong>Waitpoint ID</strong>：<code>wp_</code> 后接 12 位十六进制字符（来自 <code>randomBytes(6)</code>）；每个 waitpoint 还带有供 <code>cortex-signal</code> 使用的专属 secret。</li>
+<li><strong>文件格式</strong>：所有 TypeScript 使用 <code>.ts</code> 和 ESM 导入风格（<code>import { X } from './foo.js'</code>）</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

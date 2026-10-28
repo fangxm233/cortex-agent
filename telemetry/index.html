@@ -1,0 +1,1723 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Agent workbench for auto research, self-improvement loops, and long-running work">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/telemetry/">
+      
+      
+        <link rel="prev" href="../safety-and-approvals/">
+      
+      
+        <link rel="next" href="../hooks/">
+      
+      
+        
+          <link rel="alternate" href="./" hreflang="en">
+        
+          <link rel="alternate" href="../zh/telemetry/" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Telemetry - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#telemetry" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Telemetry
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../zh/telemetry/" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Desktop App
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../team/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Team Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills & Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Safety & Approvals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Telemetry
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Telemetry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-is-sent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it is sent
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-sent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is sent
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What is sent">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#crashes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Crashes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#errors-that-did-not-crash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Errors that did not crash
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#daily-heartbeat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Daily heartbeat
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upgrades-and-migrations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrades and migrations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#onboarding-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Onboarding steps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#daily-usage-rollup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Daily usage rollup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-never-sent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is never sent
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-names-are-normalized" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How names are normalized
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-text-is-redacted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How text is redacted
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-nothing-is-sent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When nothing is sent
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspecting-what-is-queued" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspecting what is queued
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#turning-it-off" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Turning it off
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#retention-and-deletion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Retention and deletion
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#claude-codes-own-telemetry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Claude Code's own telemetry
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../waitpoints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Waitpoints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cross-machine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent-browser/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Browser
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-is-sent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it is sent
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-sent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is sent
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What is sent">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#crashes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Crashes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#errors-that-did-not-crash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Errors that did not crash
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#daily-heartbeat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Daily heartbeat
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upgrades-and-migrations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrades and migrations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#onboarding-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Onboarding steps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#daily-usage-rollup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Daily usage rollup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-never-sent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is never sent
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-names-are-normalized" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How names are normalized
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-text-is-redacted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How text is redacted
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-nothing-is-sent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When nothing is sent
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspecting-what-is-queued" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspecting what is queued
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#turning-it-off" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Turning it off
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#retention-and-deletion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Retention and deletion
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#claude-codes-own-telemetry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Claude Code's own telemetry
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="telemetry">Telemetry<a class="headerlink" href="#telemetry" title="Permanent link">&para;</a></h1>
+<p>Cortex sends anonymous crash reports and usage statistics so that crashes get fixed and work goes
+where it helps. Telemetry never contains your conversations, prompts, files, project names or
+machine names. Each install is identified only by a random install ID. Telemetry is on by default.
+<code>cortex init</code> asks about it, the desktop app offers the choice on the first page after install,
+and you can turn it off at any time in <strong>Settings → Privacy</strong>.</p>
+<p>This page lists everything that is sent, what is left out, and how to inspect, stop or delete it.
+The wire format is defined in one file,
+<a href="https://github.com/fangxm233/cortex-agent/blob/main/agent-server/src/domain/telemetry/schema.ts"><code>agent-server/src/domain/telemetry/schema.ts</code></a>,
+which the server, the collector and this page all follow.</p>
+<h2 id="how-it-is-sent">How it is sent<a class="headerlink" href="#how-it-is-sent" title="Permanent link">&para;</a></h2>
+<p>The server queues events in <code>&lt;CORTEX_HOME&gt;/data/telemetry/</code> and posts them in batches over HTTPS
+to a collector run on Cloudflare Workers. Crashes go out within seconds. Other queued events go
+out 30 seconds after the server starts, and every five minutes once it has been running for ten
+minutes. The heartbeat goes out at most once every 24 hours, the first one about ten minutes after
+the server starts. The day's usage rollup is sent once the UTC day has ended.</p>
+<p>Uploads time out after ten seconds and never block or slow down your work. A failed upload is
+retried with a backoff that starts at one minute and grows to six hours. A batch the collector
+rejects is dropped.</p>
+<p>Every batch starts with an envelope that describes the install:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>installId</code></td>
+<td>Random UUID created once per install. The desktop app creates it during setup and passes it to the server it installs, so setup and later use share one ID</td>
+</tr>
+<tr>
+<td><code>version</code></td>
+<td>Cortex version</td>
+</tr>
+<tr>
+<td><code>channel</code></td>
+<td><code>release</code>, or <code>dev</code> for a source checkout or debug build that has opted in</td>
+</tr>
+<tr>
+<td><code>installForm</code></td>
+<td><code>desktop</code> (installed by the desktop app), <code>npm</code> (global npm install) or <code>other</code></td>
+</tr>
+<tr>
+<td><code>os</code>, <code>osRelease</code>, <code>arch</code></td>
+<td>Operating system, its major release number only (such as <code>6</code> or <code>10</code>), and CPU architecture</td>
+</tr>
+<tr>
+<td><code>nodeMajor</code></td>
+<td>Node.js major version. Empty for steps the desktop app sends during setup</td>
+</tr>
+<tr>
+<td><code>uiLang</code></td>
+<td>Interface language: <code>en</code>, <code>zh</code> or <code>other</code></td>
+</tr>
+<tr>
+<td><code>schema</code>, <code>sentAt</code></td>
+<td>Format version and send time</td>
+</tr>
+</tbody>
+</table>
+<p>The collector adds the two-letter country code that Cloudflare attaches to each request. It does
+not store IP addresses.</p>
+<h2 id="what-is-sent">What is sent<a class="headerlink" href="#what-is-sent" title="Permanent link">&para;</a></h2>
+<h3 id="crashes">Crashes<a class="headerlink" href="#crashes" title="Permanent link">&para;</a></h3>
+<p>A crash report is sent when the server, the daemon, the Web UI, or the desktop or Android app
+crashes. The server records its own crashes, and the daemon's restart of a crashed server process
+is recorded too. The Web UI reports render and window errors through the server. When the desktop
+or Android app panics, it saves the panic and the Web UI forwards it through the server the next
+time the app starts.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>component</code></td>
+<td><code>server</code>, <code>daemon</code>, <code>web</code>, <code>desktop</code> or <code>android</code></td>
+</tr>
+<tr>
+<td><code>kind</code></td>
+<td><code>uncaughtException</code>, <code>unhandledRejection</code>, <code>childExit</code> (the server process exited and the daemon restarted it), <code>renderError</code> and <code>windowError</code> (Web UI), or <code>panic</code> (desktop and Android app)</td>
+</tr>
+<tr>
+<td><code>errorName</code>, <code>message</code>, <code>stack</code></td>
+<td>Error type, plus the message and stack trace after <a href="#how-text-is-redacted">redaction</a>. Messages are cut to 300 characters and stacks to 30 frames</td>
+</tr>
+<tr>
+<td><code>groupKey</code></td>
+<td>Groups reports of the same crash: the error type plus the first frame in Cortex's own code (<code>TypeError@dist/domain/x.js#run</code>), the Web UI asset file, or the panic location (<code>panic@src/setup.rs:123</code>)</td>
+</tr>
+<tr>
+<td><code>uptimeS</code></td>
+<td>Seconds the process had been running</td>
+</tr>
+<tr>
+<td><code>route</code></td>
+<td>Web UI only: the route pattern, such as <code>/m/session/:sessionId</code>. A concrete path is never sent</td>
+</tr>
+<tr>
+<td><code>buildStamp</code></td>
+<td>Web UI build stamp or app version</td>
+</tr>
+<tr>
+<td><code>client</code></td>
+<td>Which app the Web UI ran in: <code>desktop</code>, <code>android</code> or <code>browser</code></td>
+</tr>
+<tr>
+<td><code>exit</code></td>
+<td>Child exits only: exit code or signal, and the restart delay</td>
+</tr>
+<tr>
+<td><code>suppressed</code></td>
+<td>Reports of the same group that were held back by the rate limit</td>
+</tr>
+</tbody>
+</table>
+<p>Each crash group is sent at most once per hour, and each install sends at most 20 crash reports
+per day.</p>
+<h3 id="errors-that-did-not-crash">Errors that did not crash<a class="headerlink" href="#errors-that-did-not-crash" title="Permanent link">&para;</a></h3>
+<p>Errors that Cortex logs without crashing are summarized in the daily rollup instead of being sent
+one by one. <code>errors.byModule</code> counts the errors each internal logger module (such as <code>lifecycle</code>)
+reported that day. <code>errors.samples</code> keeps up to five distinct errors, each with its module, a
+group key, the redacted message and how many times it occurred.</p>
+<h3 id="daily-heartbeat">Daily heartbeat<a class="headerlink" href="#daily-heartbeat" title="Permanent link">&para;</a></h3>
+<p>The heartbeat describes how the install is set up:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>backends</code></td>
+<td>Backends with working sign-in: <code>claude</code>, <code>pi</code></td>
+</tr>
+<tr>
+<td><code>claudeBilling</code></td>
+<td>How Claude is paid for: <code>plan</code> (subscription), <code>api</code> or <code>none</code></td>
+</tr>
+<tr>
+<td><code>piProviders</code></td>
+<td>PI providers with usable credentials, <a href="#how-names-are-normalized">normalized</a></td>
+</tr>
+<tr>
+<td><code>projects</code></td>
+<td>Number of projects</td>
+</tr>
+<tr>
+<td><code>onlineClients</code>, <code>clientPlatforms</code></td>
+<td>Number of connected remote machines, and a count of them by operating system</td>
+</tr>
+<tr>
+<td><code>activeSessions24h</code></td>
+<td>Number of sessions active in the last 24 hours</td>
+</tr>
+<tr>
+<td><code>uptimeH</code></td>
+<td>Hours the server has been running</td>
+</tr>
+<tr>
+<td><code>settings</code></td>
+<td>On or off for a fixed list of settings: <code>teamEnabled</code>, <code>serverAutoUpdate</code>, <code>serverUpdateDisable</code>, <code>autoResume</code>, <code>bgContinuation</code>, <code>streamDeltas</code>, <code>clientHotReloadEnabled</code>, <code>storeArchiveEnabled</code>, <code>providerUsageCollectionEnabled</code>, <code>claudeWindowWarmupEnabled</code>, <code>feishuSkillsInWeb</code>, <code>memoryIndexRegenEnabled</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="upgrades-and-migrations">Upgrades and migrations<a class="headerlink" href="#upgrades-and-migrations" title="Permanent link">&para;</a></h3>
+<p>Each server upgrade is reported with <code>from</code> and <code>to</code> versions, the <code>method</code> (<code>auto</code>, <code>prompt</code> or
+<code>manual</code>), the <code>stage</code> and <code>durationS</code>. The stage is <code>installed</code> or <code>failed</code> for the npm step,
+<code>confirmed</code> or <code>unconfirmed</code> depending on whether the next start runs the new version, or
+<code>version-changed</code> when a start finds a different version and no recorded upgrade. A failure
+includes a class (<code>network</code>, <code>permission</code>, <code>npm</code>, <code>disk</code>, <code>timeout</code> or <code>other</code>) and the redacted
+message.</p>
+<p>When one of the data migrations that run at startup fails, the report names the migration (its
+version and the built-in file it changes, such as <code>2026.6.22:config/profiles.json</code>). It also
+includes an error class (<code>io</code>, <code>parse</code>, <code>permission</code> or <code>other</code>) and the redacted message.</p>
+<h3 id="onboarding-steps">Onboarding steps<a class="headerlink" href="#onboarding-steps" title="Permanent link">&para;</a></h3>
+<p>Each onboarding step is sent once per install, so the reports show where new users get stuck. The
+server reports these steps:</p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>server_init_completed</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>provider_authed</code></td>
+<td>The backend (<code>claude</code> or <code>pi</code>) of the first completed turn</td>
+</tr>
+<tr>
+<td><code>first_session</code>, <code>first_turn_completed</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>first_remote_client</code>, <code>first_worker</code>, <code>first_schedule</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>Before a server exists, nothing else can report how setup went, so the desktop app sends its own
+setup steps directly to the collector. These steps are <code>setup_started</code>, <code>server_installed</code> or
+<code>server_install_failed</code>, <code>init_completed</code> or <code>init_failed</code>, and <code>daemon_started</code> or
+<code>daemon_start_failed</code>. A failed step includes only a class (<code>network</code>, <code>permission</code>, <code>disk</code>,
+<code>timeout</code>, <code>cancelled</code> or <code>other</code>), never the error text.</p>
+<h3 id="daily-usage-rollup">Daily usage rollup<a class="headerlink" href="#daily-usage-rollup" title="Permanent link">&para;</a></h3>
+<p>One rollup per UTC day holds counts, never individual events. Durations and percentages are
+reported as counts in fixed buckets (for example, turns that took up to 5 s, up to 15 s, and so on
+up to more than an hour), never as individual values.</p>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>What it counts</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Turn health</td>
+<td>One row per backend, provider, model and billing type (up to 100 rows). Each row has completed, failed, cancelled and rate-limited turns; failure classes (<code>auth</code>, <code>rate_limit</code>, <code>network</code>, <code>adapter_crash</code>, <code>timeout</code>, <code>other</code>); retries; model fallbacks; time to first output for completed turns; turn duration; context use at the end of the turn; automatic and manual compactions; and input, output, cache-read and cache-write tokens. <code>customApi</code> gives the API type of a custom provider, such as <code>openai-completions</code></td>
+</tr>
+<tr>
+<td>Features</td>
+<td>How often sessions were created, workers spawned, subagents run, boards opened, schedules created and fired, waitpoints created and signaled, and browser sessions used. Also how often plans were submitted, approved and rejected, questions were asked and answered, and remote machines connected</td>
+</tr>
+<tr>
+<td>Tools</td>
+<td>Calls and errors per <a href="#how-names-are-normalized">normalized</a> tool name (up to 200 tools)</td>
+</tr>
+<tr>
+<td>Entry points</td>
+<td>Messages per channel (<code>desktop</code>, <code>android</code>, <code>browser</code>, <code>feishu</code>, <code>slack</code>, <code>tui</code>, <code>other</code>), and calls per Web UI operation (such as <code>sessions.send</code>)</td>
+</tr>
+<tr>
+<td>Agent activity</td>
+<td>Turns you interrupted, turns replaced by a newer message, a histogram of turns per session (session IDs are not sent), and completed, failed and cancelled worker and subagent runs</td>
+</tr>
+<tr>
+<td>Performance</td>
+<td>For each server start that day (up to ten), the time each startup phase took. Also event-loop lag (the median and maximum of the per-minute 99th percentile), Web UI load times (time to first byte, first render and interactive), live-update reconnects, and remote machine disconnects</td>
+</tr>
+<tr>
+<td>Errors</td>
+<td>The error summary described above</td>
+</tr>
+</tbody>
+</table>
+<h2 id="what-is-never-sent">What is never sent<a class="headerlink" href="#what-is-never-sent" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Conversations, prompts, model output, or the contents of any file</li>
+<li>Commands, tool inputs or tool results</li>
+<li>File names, paths, project names, session titles or session IDs</li>
+<li>Machine names, hostnames, user names or email addresses</li>
+<li>IP addresses. The collector keeps only the country that Cloudflare derives from the request</li>
+<li>Names you made up: custom providers, custom models and third-party MCP tools are replaced as
+  described below</li>
+</ul>
+<h2 id="how-names-are-normalized">How names are normalized<a class="headerlink" href="#how-names-are-normalized" title="Permanent link">&para;</a></h2>
+<p>Names that come from your configuration are checked against public lists before upload.</p>
+<ul>
+<li><strong>Providers and models.</strong> The Claude backend is always reported as provider <code>anthropic</code>. Claude
+  model names are kept when they appear in Cortex's built-in Anthropic model list or in the model
+  catalog that ships with the PI SDK. PI providers and models are kept when they appear in that
+  bundled catalog. A provider you define in <code>~/.pi/agent/models.json</code> is reported as <code>custom</code>
+  along with its API type, and its models as <code>custom</code>. Everything else becomes <code>other</code>.</li>
+<li><strong>Tools.</strong> The built-in tools of Claude Code and PI keep their names, as do Cortex's own MCP
+  tools (<code>mcp__cortex-…</code>). Any other MCP tool becomes <code>mcp_other</code>, and any other tool becomes
+  <code>other</code>.</li>
+</ul>
+<p>Web UI operation names, logger module names, migration names and setting names come from
+Cortex's own code. The local rollup file holds the raw names until the day is uploaded, and they
+are normalized at that point.</p>
+<h2 id="how-text-is-redacted">How text is redacted<a class="headerlink" href="#how-text-is-redacted" title="Permanent link">&para;</a></h2>
+<p>Crash messages, stack traces and error samples are redacted before they are queued:</p>
+<ul>
+<li>Paths inside the Cortex installation become paths relative to it. Every other file path, on any
+  platform, becomes <code>&lt;path&gt;</code>.</li>
+<li>URLs keep their scheme and path. The host becomes <code>&lt;host&gt;</code> (except loopback addresses), and the
+  query string, fragment and credentials are removed.</li>
+<li>Email addresses become <code>&lt;email&gt;</code>. API keys, long hexadecimal or base64 strings and similar
+  secrets become <code>&lt;secret&gt;</code>, and IPv4 addresses become <code>&lt;ip&gt;</code>.</li>
+<li>Your home directory, your machine's hostname and your user name become <code>&lt;home&gt;</code>, <code>&lt;host&gt;</code> and
+  <code>&lt;user&gt;</code> wherever they still appear.</li>
+</ul>
+<h2 id="when-nothing-is-sent">When nothing is sent<a class="headerlink" href="#when-nothing-is-sent" title="Permanent link">&para;</a></h2>
+<p>The server records and sends nothing when any of these holds:</p>
+<ul>
+<li>Telemetry is turned off in <strong>Settings → Privacy</strong> (the <code>telemetryEnabled</code> setting).</li>
+<li><code>CORTEX_TELEMETRY=0</code> is set in the server's environment or in <code>$CORTEX_HOME/config/.env</code>. It
+  overrides the setting.</li>
+<li><code>DO_NOT_TRACK</code> is set to any value other than empty, <code>0</code>, <code>false</code>, <code>no</code> or <code>off</code>.</li>
+<li>The server runs from a source checkout (its directory still has <code>src/</code>, or <code>CORTEX_REPO</code> is
+  set). Setting <code>CORTEX_TELEMETRY=1</code> opts a checkout in, and its reports are marked <code>dev</code>.</li>
+<li>The Cortex home is sealed for benchmark runs (<code>CORTEX_CONFIG_IMMUTABLE=1</code>).</li>
+<li>The build has no collector address. Release builds contain one, and
+  <code>CORTEX_TELEMETRY_ENDPOINT</code> overrides it. You can point it at your own HTTP endpoint to see
+  exactly what would be posted.</li>
+</ul>
+<p>While any of these holds, the server also deletes its queued events and daily counts. The
+<strong>Settings → Privacy</strong> page tells you when one of these conditions, rather than the switch,
+keeps telemetry off. The desktop app's setup steps are sent unless <code>CORTEX_TELEMETRY=0</code> or
+<code>DO_NOT_TRACK</code> is set in the desktop app's environment.</p>
+<h2 id="inspecting-what-is-queued">Inspecting what is queued<a class="headerlink" href="#inspecting-what-is-queued" title="Permanent link">&para;</a></h2>
+<p>Everything waiting to be sent lives in <code>&lt;CORTEX_HOME&gt;/data/telemetry/</code> (<code>~/.cortex/data/telemetry/</code>
+by default):</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Contents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>install-id</code></td>
+<td>The install ID</td>
+</tr>
+<tr>
+<td><code>outbox.jsonl</code></td>
+<td>Events waiting to be sent, one JSON object per line, exactly as they will be posted. Capped at 2 MB, with the oldest events dropped first</td>
+</tr>
+<tr>
+<td><code>outbox.sending.jsonl</code></td>
+<td>Events from an upload that is in progress or waiting to be retried</td>
+</tr>
+<tr>
+<td><code>rollup-YYYY-MM-DD.json</code></td>
+<td>Running counts for one UTC day, saved every five minutes and at shutdown. Unsent days older than seven days are dropped</td>
+</tr>
+<tr>
+<td><code>state.json</code></td>
+<td>Time of the last heartbeat, the last version seen, onboarding steps already sent, and an upgrade waiting to be confirmed</td>
+</tr>
+<tr>
+<td><code>crash-limits.json</code></td>
+<td>Crash rate-limit counters</td>
+</tr>
+</tbody>
+</table>
+<p>The desktop app keeps its own files in the <code>telemetry</code> folder of its app data directory:
+<code>install-id</code>, <code>setup.json</code> (the setup language and the setup steps already sent), and
+<code>native-crash.json</code> (a panic waiting to be forwarded).</p>
+<h2 id="turning-it-off">Turning it off<a class="headerlink" href="#turning-it-off" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Settings → Privacy</strong> in the desktop app, the Android app or the browser workbench has a
+  <strong>Help improve Cortex</strong> switch. Turning it off stops recording immediately and deletes the
+  queued events and daily counts. The install ID stays, so you can still ask for your data to be
+  deleted.</li>
+<li><code>cortex init</code> asks whether to send anonymous statistics (the default is yes). Scripted
+  installs set it with the <code>telemetry</code> field of the answers file:
+  <code>{"telemetry": {"enabled": false}}</code>.</li>
+<li>In the desktop app, the first page after install (provider setup) has the same <strong>Help improve
+  Cortex</strong> switch, so you can choose as soon as the server is ready.</li>
+<li><code>"telemetryEnabled": false</code> in <code>$CORTEX_HOME/config/settings.json</code> is the same setting as the
+  switch.</li>
+<li><code>CORTEX_TELEMETRY=0</code> or <code>DO_NOT_TRACK=1</code> in the server's environment or in
+  <code>$CORTEX_HOME/config/.env</code> turns telemetry off whatever the setting says.</li>
+</ul>
+<h2 id="retention-and-deletion">Retention and deletion<a class="headerlink" href="#retention-and-deletion" title="Permanent link">&para;</a></h2>
+<p>The collector keeps what it receives with no expiry, so version adoption and crash trends can be
+compared across releases. Crashes are stored per group with only the latest sample, so a crash that
+keeps recurring adds to a count rather than to new rows. The data is readable only by the project's
+maintainers.</p>
+<p>To have your data deleted, email <a href="mailto:privacy@fangxm.me">privacy@fangxm.me</a> with your install
+ID. You can copy the ID from <strong>Settings → Privacy</strong>. The ID is random and tied to nothing else, so
+the email is the only thing that links it to you, and it is not kept after the deletion.</p>
+<h2 id="claude-codes-own-telemetry">Claude Code's own telemetry<a class="headerlink" href="#claude-codes-own-telemetry" title="Permanent link">&para;</a></h2>
+<p>When Cortex runs the Claude Code backend, Claude Code may send its own telemetry to Anthropic.
+That telemetry follows Claude Code's settings and environment variables, not this switch.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

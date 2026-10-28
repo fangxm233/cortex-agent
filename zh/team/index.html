@@ -1,0 +1,1317 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Agent workbench for auto research, self-improvement loops, and long-running work">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/zh/team/">
+      
+      
+        <link rel="prev" href="../architecture/">
+      
+      
+        <link rel="next" href="../memory/">
+      
+      
+        
+          <link rel="alternate" href="../../team/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>团队模式 - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#team-mode" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../" title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              团队模式
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="选择当前语言">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../team/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../" title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    快速入门
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    桌面应用
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    浏览器访问
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack 设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    配置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 参考
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    后端
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    团队模式
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    团队模式
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#leads-and-workers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        主会话与 worker
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-work-flows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        工作如何流转
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        工具
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#in-the-workbench" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        工作台中的呈现
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#boards" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        看板
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        限制
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    记忆
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    技能与插件
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    调度
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    安全与审批
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../telemetry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    遥测
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    钩子
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../waitpoints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    等待点
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    跨机器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent-browser/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent 浏览器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#leads-and-workers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        主会话与 worker
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-work-flows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        工作如何流转
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        工具
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#in-the-workbench" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        工作台中的呈现
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#boards" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        看板
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        限制
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="team-mode">团队模式<a class="headerlink" href="#team-mode" title="Permanent link">&para;</a></h1>
+<p>团队模式让一个对话就能带一支团队。你只和一个会话对话，即<strong>主会话（lead）</strong>。它把工作交给若干持久的
+<strong>worker</strong> 会话，之后可以让它们接着干，替你回答它们的问题，并告诉你结果。你不用为了给某件事一份独立
+的上下文去新开会话，也不用操心哪个对话该接着做什么；这些由主会话负责。</p>
+<p>团队模式是实验性功能，默认开启。可在 <strong>设置 → 高级 → 团队（实验性）</strong> 中关闭，或在 <code>settings.json</code>
+里把 <code>teamEnabled</code> 设为 <code>false</code>（<code>CORTEX_TEAM_ENABLED=0</code>）。</p>
+<h2 id="leads-and-workers">主会话与 worker<a class="headerlink" href="#leads-and-workers" title="Permanent link">&para;</a></h2>
+<p>团队模式开启后，每个网页会话都能当主会话。在真正创建 worker 之前，会话本身没有任何变化：没有 worker
+的会话看起来、用起来都和普通会话一样，唯一的区别是工具列表里多了一组 <code>worker_*</code> 工具。</p>
+<p>worker 是隶属于某个主会话的普通会话。它有自己的 transcript、上下文和续跑历史，和其他会话一样可以跑在
+Claude 或 PI 上，拥有完整的工具面，包括一次性的 <code>agent</code> 工具。它不能再创建自己的 worker，所以团队只有
+一层。worker 继承主会话的项目，并复制其完整引擎选择：backend、provider、model、thinking 和 route。
+主会话可以传 <code>backend</code> 和 <code>model</code>，格式与 <code>agent</code> 工具相同（PI 用 <code>provider/model[:thinking]</code>，Claude 用
+裸模型 id）。同一后端只替换写出的部分；换后端时，如果 <code>models.json</code> 的默认选择属于目标后端，就使用它，
+否则使用目标后端的第一个收藏及其记住的设置。两者都没有时创建失败，并提示先收藏该后端的模型。
+显式改变 PI provider 时使用该 provider 的路由。Claude 主会话可以带 PI worker，反之亦然。
+创建 worker 不会改变用户新对话的引擎选择。</p>
+<p>主会话只在有多个任务（或可拆成多个任务）、或用户切换到新任务时才用 worker；单一任务留在主会话里做。
+交出去的工作按后续需要来选 worker 还是一次性 <code>agent</code>：可能需要后续接续、运行时间长、或可能要来回沟通的
+工作交给 worker；有边界的侦察或验证、结果马上就用的，交给 <code>agent</code>。工作分给多个 worker 或要持续很多小时
+时，主会话还会开一个<a href="#boards">看板</a>，让你一眼看清进展。</p>
+<h2 id="how-work-flows">工作如何流转<a class="headerlink" href="#how-work-flows" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>你 ⇄ 主会话 ── worker_spawn / worker_send ───────────▶ worker
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>       ▲  ◀── worker 每一轮结束时的汇报 ─────────────┤
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>       │  ◀── 提问 / 计划审批通知 ───────────────────┤
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>       └──── worker_answer ─────────────────────────▶（挂起的请求被解决）
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>你 ──────────── 直接打开 worker 与它对话 ────────────▶ worker
+</code></pre></div>
+<p><strong>派活从不阻塞。</strong> <code>worker_spawn</code> 和 <code>worker_send</code> 立即返回。主会话结束本轮，worker 的汇报稍后会唤醒
+它。发给正在运行的 worker 的消息会并入它当前这一轮；发给空闲的 worker 则开启新的一轮。服务器即将重启
+时，这两个工具会返回错误而不派活，主会话在重启后再试。</p>
+<p><strong>汇报。</strong> 除非 worker 把这一轮标记为例行（见下），它的每一轮结束时都会汇报：这一轮的最终回复作为一条
+消息送达主会话并唤醒它，开头是 <code>[Worker &lt;名字&gt; · completed|failed|stopped]</code> 加一行状态。主会话正在运行
+时到达的汇报会并入它当前这一轮。你自己在 worker 里输入而开启的轮次不汇报；主会话的名单会把这个 worker
+标记为你直接对话过。服务器重启不会丢失汇报：在重启等待期间结束的轮次，会在服务器恢复后送达主会话。
+worker 的一轮结束时，网页、桌面应用和 Android 都不会弹出完成通知；主会话自己的一轮结束时你才会收到提醒。</p>
+<p><strong>例行动态。</strong> 对主会话没有新内容的一轮，例如过时或重复的信号、一切如常的例行检查、仍在运行且没有变化
+的工作，不应唤醒主会话。worker 会在最终回复之前调用 <code>mark_routine</code> 把这样的一轮标记为例行。这条回复
+随后作为例行动态显示在主会话的对话里，也能在 <code>worker_list</code> 中看到，并进入主会话的未读动态收件箱，而不唤醒
+它。失败或被停止的一轮总会汇报，无论是否标记。主会话在下一次收到任何消息时读到这些未读动态：它们以
+<code>[Unread routine updates]</code> 为标题，作为最后一节附在它收到的下一份汇报或提问通知之后，或加入它下一轮的
+<code>[Team]</code> 块，以先到者为准。每条动态占一行，是回复的第一行加上时间，按 worker 分组。主会话的聊天页
+不显示这一节，因为其中每条动态都已有自己的一行。交给主会话之后，动态即视为已读，不再重复。收件箱在重启
+后仍然保留，每个 worker 只留最近五条，并注明省略了多少条更早的。</p>
+<p><strong>提问与计划。</strong> worker 调用 <code>cortex_ask_user</code> 或用 <code>cortex_plan_exit</code> 提交计划时，请求会同时以卡片
+出现在 worker 的会话里，并以通知出现在主会话的对话中。主会话用 <code>worker_answer</code> 作答，它可
+以自行回答问题、批准计划，拿不准你的意思时会用 <code>cortex_ask_user</code> 问你。你也可以直接在 worker 的卡片上
+作答；先到的答案就是 worker 收到的答案。</p>
+<p><strong>名单。</strong> 主会话有在岗 worker 或未读动态时，它的每一轮开头都有一个简短的 <code>[Team]</code> 块：几条工作规则、
+每个在岗 worker 一行（状态、职责、上次汇报，以及你是否直接和它对话过）、一行闲置 worker 的数量，以及所有
+未读动态。没有轮次在运行、但还有未关闭 waitpoint 的 worker 显示为等待外部事件，而不是空闲。worker 的第一轮
+开头有一个 <code>[Worker]</code> 块，告诉它主会话是谁、它的回复会怎样被使用。</p>
+<p><strong>闲置 worker。</strong> worker 没有在运行的轮次、没有待回答的提问或计划、没有未关闭的 waitpoint，并且三小时内
+没有活动，就算作闲置。worker 不会被删除，闲置的只是收起来：<code>[Team]</code> 块只计数不逐个列出，<code>worker_list</code>
+把它们的名字放在一行「Inactive」里，工作台把它们排在最后。<code>worker_send</code> 照常能发给闲置的 worker，新的
+一轮开始后它就重新在岗。</p>
+<p><strong>轨迹。</strong> 每个会话的第一轮都会告知所有会话 transcript 的存放目录（<code>&lt;sessionId&gt;.jsonl</code>）。汇报不够用时，
+主会话可以按 <code>worker_list</code> 给出的 session id 到这里读 worker 的完整轨迹。</p>
+<h2 id="tools">工具<a class="headerlink" href="#tools" title="Permanent link">&para;</a></h2>
+<p>主会话的工具来自 <code>cortex-workers</code> MCP bundle（见 <a href="../mcp/">MCP</a>）。</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>参数</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>worker_spawn</code></td>
+<td><code>name</code>, <code>prompt</code>, <code>backend?</code>, <code>model?</code></td>
+<td>用一个短名启动 worker 并交给它第一个任务</td>
+</tr>
+<tr>
+<td><code>worker_send</code></td>
+<td><code>worker</code>, <code>message</code></td>
+<td>让 worker 接着干、改变方向或补充信息，闲置的 worker 也可以</td>
+</tr>
+<tr>
+<td><code>worker_list</code></td>
+<td><code>worker?</code></td>
+<td>名单；或某个 worker 的详情，含其模型和完整的上一份汇报</td>
+</tr>
+<tr>
+<td><code>worker_stop</code></td>
+<td><code>worker</code></td>
+<td>停止 worker 当前这一轮</td>
+</tr>
+<tr>
+<td><code>worker_answer</code></td>
+<td><code>request_id</code>, <code>answers?</code> 或 <code>approved?</code> + <code>feedback?</code></td>
+<td>回答 worker 的问题，或批准、驳回它的计划</td>
+</tr>
+</tbody>
+</table>
+<p>worker 自己只有一个来自 <code>cortex-worker-report</code> 能力组的工具：<code>mark_routine</code>，不带参数，把当前这一轮标记
+为例行动态（见上文）。</p>
+<h2 id="in-the-workbench">工作台中的呈现<a class="headerlink" href="#in-the-workbench" title="Permanent link">&para;</a></h2>
+<p><img alt="展开团队列表的主会话、已批准的 worker 计划，以及两张 worker 汇报卡片" src="../../images/ui/team.png" /></p>
+<ul>
+<li>侧栏把主会话的 worker 嵌套在它下面，用展开箭头和 worker 数量收起。主会话的状态点汇总它的 worker，闲置
+  的 worker 排在最后并淡化显示。</li>
+<li>主会话聊天页的标题栏右侧有一个团队胶囊：在岗 worker 的状态点最多显示六个（运行中的排在最前），后面是
+  「7 个 worker · 3 运行」这样的汇总。点开是标题为「团队 · N」的团队列表，每个 worker 一行，状态点表示它的状态，
+  旁边写着已运行或已空闲多久，下面一行是它在做什么：运行中的当前任务，或主会话派它时的职责。点一行即可打开该
+  worker。闲置的 worker 折叠在列表底部的「闲置 N」下；所有 worker 都闲置后，胶囊随之消失。</li>
+<li>在手机端，会话列表不列出 worker，由主会话这一行代为显示它们的状态：任一 worker 运行时显示为运行中，
+  任一 worker 有未读时显示为未读。在主会话的聊天页，输入框上方的团队胶囊最多显示三个 worker 状态点，并用文字写出在岗 worker 数（「2 个 worker」），点开以底部弹层打开
+  同样的团队列表。闲置的 worker 不计入这两种状态，并折叠在列表底部。</li>
+<li>worker 的标题前显示主会话的标题，点击可回到主会话。输入框和任何会话一样可用，所以你可以直接和
+  worker 对话。</li>
+<li>worker 不会等你：它的提问和计划都发给主会话，等待回答期间和其他执行中的 worker 一样显示为运行中。
+  琥珀色的点只留给必须由你回答的请求，所以不会出现在 worker 上。</li>
+<li>在 worker 的 transcript 中，来自主会话的消息显示为带「来自主会话」标签的用户消息。</li>
+<li>在主会话的聊天页，主会话对 worker 的操作不混在工具调用里，而是各占一行安静的记录。启动 worker 是一行，
+  写着 worker 和模型（手机上模型移到这一行的提示文字和展开后的职责里），下面是职责的前两行；派活和回答各是一行，写明对哪个 worker，点击可看全文；停止也是
+  一行。紧跟在请求后面的回答会并进那条请求所在的行。</li>
+<li>主会话两次回复之间的 worker 动态（汇报、例行动态和请求）每个 worker 合成一行：状态点、worker 名、最新一条
+  汇报或请求（如果这段只有例行动态，则以淡色显示最新一条例行动态）和发生时间。请求的状态（如「问题已回答」）
+  和 worker 的实时状态（如「运行中 3分钟」）放在这一行的提示文字和无障碍名称里。点击展开时间线，例行动态比
+  汇报显示得更淡，每条可再展开看全文，并有打开 worker 会话的链接。一段动态涉及多个 worker 时，每个 worker
+  一行。提问或计划还没得到回答时，这一行保留请求的标签。实时状态只出现在每个 worker 最新的那一行，较早的行
+  显示发生的时间。</li>
+<li>主会话空闲而仍有 worker 在运行或在等待外部事件时，对话末尾有一行写明它在等谁，例如「主会话在等 docs
+  汇报」。</li>
+</ul>
+<h2 id="boards">看板<a class="headerlink" href="#boards" title="Permanent link">&para;</a></h2>
+<p><img alt="停靠栏中的看板：实时状态条、阶段卡片、结果表和图" src="../../images/ui/board.png" width="560" /></p>
+<p>看板是长任务的状态页。它显示在对话旁边，一眼就能看出任务进行到哪、接下来做什么、哪些在等你，以及已经做出的
+决策。看板属于某个项目，挂在推进这项工作的会话上。它不是会话的分组方式：围绕同一件工作组织多个会话，是主会话
+和 worker 的事。看板在所有 Web UI 会话里都能用，与是否开启团队模式无关，Claude 和 PI 后端都支持。</p>
+<p><strong>开看板。</strong> agent 在工作需要时开看板，通常是准备派出多个 worker，或任务要跨很多轮、很多小时的时候。
+<code>board</code> skill 告诉它什么时候值得开看板、怎么维护。你也可以直接要求开一个。</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>参数</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>board_open</code></td>
+<td><code>title</code> 或 <code>board</code></td>
+<td>新建标题为 <code>title</code> 的看板，或按 id、slug 接入已有看板。绑定调用它的会话，主会话还会绑定它的 worker（见下）</td>
+</tr>
+</tbody>
+</table>
+<p>这个工具来自 <code>cortex-web</code> 能力组（见 <a href="../mcp/#cortex-web">MCP</a>）。看板没有打开、关闭之分，一直可用；工作进行到
+哪、是否已经结束，都写在页面里。</p>
+<p><strong>绑定关系。</strong> 一个会话最多绑定一个看板。主会话开看板时，它的 worker 中未闲置、且还没有看板的会一并绑定。
+之后创建的 worker，以及主会话再派活的 worker，如果自己没有看板，会加入主会话的看板。worker 自己
+开的看板只绑定它自己。会话绑定后，下一轮开头会有一个简短的 <code>[Board]</code> 块，写明看板名和目录；上下文压缩之后
+会再次注入。</p>
+<p><strong>编写页面。</strong> 页面是 <code>board.html</code>，一个 HTML 片段，agent 像编辑普通文件一样编辑它。所有绑定的会话都可以
+改它，Cortex 不加锁，也不记录谁写了什么，怎么分工由会话之间自己协调。页面上的时间（<code>updated</code> 和时间线里的
+时间）都在写入时读取时钟。新看板自带一份骨架页面，标题已经填成看板名，各区块里是等
+agent 替换的简短示例，旁边是一个空的 <code>assets/</code>。每个看板在所属项目的上下文里有一个目录：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>&lt;项目 context 目录&gt;/boards/&lt;slug&gt;/
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>├── board.html        # agent 编辑的页面正文
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>├── assets/           # 页面显示或链接的图片和文件
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>└── decisions.jsonl   # 绑定会话的决策
+</code></pre></div>
+<p>Cortex 把每个绑定会话的 <code>send_decision</code> 汇总到 <code>decisions.jsonl</code>，agent 不编辑这个文件。所有看板的列表
+在 <code>data/boards.json</code>。</p>
+<p><strong>对话中的呈现。</strong> agent 新建看板时，这次调用在对话里显示为一张标着「已创建看板」的看板卡片，与折叠起来的工具
+调用分开。卡片上有看板的旗子和标题、最多四个绑定会话（每个一个状态点加名字，其余的显示为数量）、待你确认的数量
+（「n 项待你确认」），以及 <strong>打开看板</strong> 按钮。worker 显示它的 worker 名；其他会话显示为「主会话」，看板上这样的
+会话不止一个时则各显示自己的标题。闲置的 worker 不列出。卡片实时更新，有绑定会话在等你时旗子变成琥珀色。agent 接入已有看板时，对话里只显示一行：「已接入看板」、看板标题和
+<strong>打开</strong> 链接。看板后来被删除时，卡片和这一行仍显示原标题，按钮变灰。</p>
+<p>桌面端，当前显示的会话新建看板时，看板会在创建的同时在右侧 dock 打开；dock 里已有内容时，以新标签页打开。同一个
+看板在一次页面加载中只这样打开一次，刷新页面、切换会话或往回翻历史都不会再次打开。手机端不会自动打开，点卡片上的
+按钮全屏打开看板。</p>
+<p><strong>工作台中的呈现。</strong> 绑定了看板的会话，标题栏右侧的操作区有一个看板胶囊，显示看板的旗子和标题；看板上有会话在等你时，
+旗子变成琥珀色，胶囊上以琥珀色附上「n 项待你确认」。worker 的请求发给主会话，不计入这个数。点击胶囊在右侧 dock 打开看板；dock 正在
+显示这个看板时，胶囊隐藏。手机端的看板是输入框上方那排胶囊中的一个，显示旗子和「看板」二字，有待你确认的请求时旁边显示数量，
+点击后全屏打开看板。</p>
+<p>命令面板能找到所有看板，包括旧会话的看板。空查询时列出最近使用的八个看板，新建、有会话接入、文件发生变化都算
+使用；输入文字则在全部看板中搜索。</p>
+<p>看板顶部由界面自己绘制并实时更新：dock 标签页下方安静的一行，标签页已经写明看板名（手机端这一行以标题开头）。
+每个绑定会话显示为一个状态点、名字和距上次活动的时长，悬停时显示完整状态；点击某个会话即可打开它。有请求在等你时，
+右侧会出现琥珀色的「n 项待你确认 ›」链接：只有一个会话在等时点击直接打开它，有多个时列出这些会话和它们待回答的问题。
+旁边的「决策 n ›」链接展开决策流，最新的在最前。每条决策与聊天里的相同，只是省去「决策」标签：显示状态和最近一次回应的
+时间（尚未回应时显示宣告的时间），提供 <strong>同意</strong> 和 <strong>回复</strong>，回应会发给宣告这条决策的会话。<strong>同意</strong> 只记录你已确认，不给 agent 发消息；回复可以「请解释」（可附一个问题）或「按此修改」（写明要改成
+什么），都会给该会话发一条消息。</p>
+<p>顶部下面是在沙箱 frame 里渲染的 <code>board.html</code>。<code>assets/</code> 里的图片直接显示。带 <code>data-open</code> 的链接用聊天里查看文件的
+同一套查看器打开看板目录中的文件：dock 开着时在 dock 里打开，否则在预览窗口中打开；没有查看器的文件直接下载。普通网页
+链接在浏览器新标签页中打开。文件保存后几秒内页面自动重新渲染，无需刷新。</p>
+<p><strong>样式。</strong> Cortex 自带一份默认样式表，提供推荐 agent 使用的组件：区块（<code>card</code>）、以状态点加文字呈现的状态标签
+（<code>chip</code>）、进度条（<code>meter</code>）、带状态列的阶段行（<code>steps</code>）、用于验收标准、决策和风险的列表（<code>rows</code>）、时间线
+（<code>tl</code>）等。整页读起来是一份文档：区块之间靠留白和小标题分隔，不加边框；只有 <code>callout</code> 带框，留给需要你处理的
+事。文字使用界面字体，等宽字体只用于代码。agent 也可以自己写 HTML 和 SVG。样式表的颜色取自界面主题，所以看板会跟随深浅色、配色和 accent。要改所有看板的样式，写
+<code>~/.cortex/config/board.css</code>（见配置指南中的<a href="../configuration/#boards">看板</a>）。</p>
+<h2 id="limits">限制<a class="headerlink" href="#limits" title="Permanent link">&para;</a></h2>
+<ul>
+<li>一个主会话同时最多运行八个 worker。</li>
+<li>只有网页会话能当主会话。Slack、飞书和定时任务会话不加载 worker 工具。</li>
+<li>阻塞的提问或计划最多等待 30 分钟，与所有交互相同；服务器重启后，挂起的请求不会保留。</li>
+<li>worker 发送的文件、视图和决策出现在 worker 自己的会话里。worker 会在汇报中写明路径，主会话可以再转
+  交给你。绑定了看板的会话，其决策也会汇总到看板上。</li>
+<li>worker 的存续跟随主会话。会话保留策略会把主会话和它的 worker 一起清理。</li>
+<li>团队模式关闭时，主会话从下一轮起不再有 worker 工具和名单，汇报和请求转交也会停止；已有的 worker 变回
+  普通会话，它们的问题直接交给你，但它们的一轮结束时仍不弹出完成通知。</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

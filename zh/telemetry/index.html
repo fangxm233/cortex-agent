@@ -1,0 +1,1650 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Agent workbench for auto research, self-improvement loops, and long-running work">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/zh/telemetry/">
+      
+      
+        <link rel="prev" href="../safety-and-approvals/">
+      
+      
+        <link rel="next" href="../hooks/">
+      
+      
+        
+          <link rel="alternate" href="../../telemetry/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>遥测 - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#telemetry" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../" title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              遥测
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="选择当前语言">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../telemetry/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../" title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    快速入门
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    桌面应用
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    浏览器访问
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack 设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    配置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 参考
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    后端
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../team/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    团队模式
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    记忆
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    技能与插件
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    调度
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    安全与审批
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    遥测
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    遥测
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-is-sent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        发送方式
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-sent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        发送的内容
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="发送的内容">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#crashes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        崩溃
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#errors-that-did-not-crash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        未导致崩溃的错误
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#daily-heartbeat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        每日心跳
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upgrades-and-migrations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        升级与迁移
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#onboarding-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        上手步骤
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#daily-usage-rollup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        每日使用汇总
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-never-sent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        从不发送的内容
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-names-are-normalized" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        名称如何规范化
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-text-is-redacted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        文本如何脱敏
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-nothing-is-sent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        什么情况下不发送
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspecting-what-is-queued" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        查看排队的内容
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#turning-it-off" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        关闭遥测
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#retention-and-deletion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        保留期与删除
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#claude-codes-own-telemetry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Claude Code 自身的遥测
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    钩子
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../waitpoints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    等待点
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    跨机器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent-browser/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent 浏览器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-is-sent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        发送方式
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-sent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        发送的内容
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="发送的内容">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#crashes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        崩溃
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#errors-that-did-not-crash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        未导致崩溃的错误
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#daily-heartbeat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        每日心跳
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upgrades-and-migrations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        升级与迁移
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#onboarding-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        上手步骤
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#daily-usage-rollup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        每日使用汇总
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-never-sent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        从不发送的内容
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-names-are-normalized" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        名称如何规范化
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-text-is-redacted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        文本如何脱敏
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-nothing-is-sent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        什么情况下不发送
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspecting-what-is-queued" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        查看排队的内容
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#turning-it-off" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        关闭遥测
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#retention-and-deletion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        保留期与删除
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#claude-codes-own-telemetry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Claude Code 自身的遥测
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="telemetry">遥测<a class="headerlink" href="#telemetry" title="Permanent link">&para;</a></h1>
+<p>Cortex 会发送匿名的崩溃报告和使用统计，用来修复崩溃，并把精力投到真正有用的地方。遥测从不包含你的对话、提示词、文件、项目名或机器名，每个安装只用一个随机的安装 ID 标识。遥测默认开启。<code>cortex init</code> 会询问，桌面应用会在安装完成后的第一个页面上提供这个选项，你也可以随时在 <strong>设置 → 隐私</strong> 中关闭。</p>
+<p>本页列出发送的全部内容、不发送的内容，以及如何查看、停止或删除这些数据。上报格式只由一个文件定义：<a href="https://github.com/fangxm233/cortex-agent/blob/main/agent-server/src/domain/telemetry/schema.ts"><code>agent-server/src/domain/telemetry/schema.ts</code></a>。服务端、收集端和本页都以它为准。</p>
+<h2 id="how-it-is-sent">发送方式<a class="headerlink" href="#how-it-is-sent" title="Permanent link">&para;</a></h2>
+<p>服务端把事件排队存放在 <code>&lt;CORTEX_HOME&gt;/data/telemetry/</code>，再通过 HTTPS 分批发给运行在 Cloudflare Workers 上的收集端。崩溃在几秒内发出。其他排队的事件在服务端启动 30 秒后发一次，运行满十分钟后每五分钟发一次。心跳最多每 24 小时发一次，第一次在服务端启动约十分钟后。当天的使用汇总在该 UTC 日结束后发送。</p>
+<p>每次上传十秒超时，不会阻塞或拖慢你的工作。上传失败会按退避重试，间隔从一分钟开始，最长六小时。被收集端拒收的批次直接丢弃。</p>
+<p>每个批次都以一个描述本次安装的信封开头：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>installId</code></td>
+<td>每个安装生成一次的随机 UUID。桌面应用在安装向导中生成它，并交给它安装的服务端，因此安装过程和之后的使用共用同一个 ID</td>
+</tr>
+<tr>
+<td><code>version</code></td>
+<td>Cortex 版本</td>
+</tr>
+<tr>
+<td><code>channel</code></td>
+<td><code>release</code>；从源码运行或调试构建并且主动开启时为 <code>dev</code></td>
+</tr>
+<tr>
+<td><code>installForm</code></td>
+<td><code>desktop</code>（由桌面应用安装）、<code>npm</code>（npm 全局安装）或 <code>other</code></td>
+</tr>
+<tr>
+<td><code>os</code>、<code>osRelease</code>、<code>arch</code></td>
+<td>操作系统、它的主版本号（如 <code>6</code> 或 <code>10</code>）和 CPU 架构</td>
+</tr>
+<tr>
+<td><code>nodeMajor</code></td>
+<td>Node.js 主版本号。桌面应用在安装向导中发送的步骤此项为空</td>
+</tr>
+<tr>
+<td><code>uiLang</code></td>
+<td>界面语言：<code>en</code>、<code>zh</code> 或 <code>other</code></td>
+</tr>
+<tr>
+<td><code>schema</code>、<code>sentAt</code></td>
+<td>格式版本和发送时间</td>
+</tr>
+</tbody>
+</table>
+<p>收集端会附上 Cloudflare 为每个请求给出的两位国家代码，不保存 IP 地址。</p>
+<h2 id="what-is-sent">发送的内容<a class="headerlink" href="#what-is-sent" title="Permanent link">&para;</a></h2>
+<h3 id="crashes">崩溃<a class="headerlink" href="#crashes" title="Permanent link">&para;</a></h3>
+<p>服务端、守护进程、Web UI、桌面或 Android 应用崩溃时会发送崩溃报告。服务端记录自己的崩溃，守护进程重启崩溃的服务端进程也会被记录。Web UI 的渲染错误和窗口错误经由服务端上报。桌面或 Android 应用 panic 时会先把它保存下来，下次启动时由 Web UI 经服务端转发。</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>component</code></td>
+<td><code>server</code>、<code>daemon</code>、<code>web</code>、<code>desktop</code> 或 <code>android</code></td>
+</tr>
+<tr>
+<td><code>kind</code></td>
+<td><code>uncaughtException</code>、<code>unhandledRejection</code>、<code>childExit</code>（服务端进程退出后由守护进程重启）、<code>renderError</code> 和 <code>windowError</code>（Web UI），或 <code>panic</code>（桌面和 Android 应用）</td>
+</tr>
+<tr>
+<td><code>errorName</code>、<code>message</code>、<code>stack</code></td>
+<td>错误类型，以及经过<a href="#how-text-is-redacted">脱敏</a>的消息和调用栈。消息截断为 300 个字符，调用栈最多 30 帧</td>
+</tr>
+<tr>
+<td><code>groupKey</code></td>
+<td>把同一种崩溃归为一组：错误类型加上 Cortex 自身代码中的第一帧（<code>TypeError@dist/domain/x.js#run</code>）、Web UI 的资源文件，或 panic 发生的位置（<code>panic@src/setup.rs:123</code>）</td>
+</tr>
+<tr>
+<td><code>uptimeS</code></td>
+<td>进程已运行的秒数</td>
+</tr>
+<tr>
+<td><code>route</code></td>
+<td>仅 Web UI：路由模式，如 <code>/m/session/:sessionId</code>。从不发送具体路径</td>
+</tr>
+<tr>
+<td><code>buildStamp</code></td>
+<td>Web UI 的构建标记或应用版本</td>
+</tr>
+<tr>
+<td><code>client</code></td>
+<td>Web UI 运行在哪个应用中：<code>desktop</code>、<code>android</code> 或 <code>browser</code></td>
+</tr>
+<tr>
+<td><code>exit</code></td>
+<td>仅子进程退出：退出码或信号，以及重启前的等待时间</td>
+</tr>
+<tr>
+<td><code>suppressed</code></td>
+<td>同一组中被频率限制压下、没有单独发送的报告数</td>
+</tr>
+</tbody>
+</table>
+<p>每组崩溃每小时最多发送一次，每个安装每天最多发送 20 份崩溃报告。</p>
+<h3 id="errors-that-did-not-crash">未导致崩溃的错误<a class="headerlink" href="#errors-that-did-not-crash" title="Permanent link">&para;</a></h3>
+<p>Cortex 记录了但没有导致崩溃的错误不逐条发送，而是汇总进每日汇总。<code>errors.byModule</code> 统计当天每个内部日志模块（如 <code>lifecycle</code>）报告的错误数。<code>errors.samples</code> 最多保留五种不同的错误，每种带有模块、分组键、脱敏后的消息和出现次数。</p>
+<h3 id="daily-heartbeat">每日心跳<a class="headerlink" href="#daily-heartbeat" title="Permanent link">&para;</a></h3>
+<p>心跳描述这个安装的配置情况：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>backends</code></td>
+<td>登录可用的后端：<code>claude</code>、<code>pi</code></td>
+</tr>
+<tr>
+<td><code>claudeBilling</code></td>
+<td>Claude 的付费方式：<code>plan</code>（订阅）、<code>api</code> 或 <code>none</code></td>
+</tr>
+<tr>
+<td><code>piProviders</code></td>
+<td>凭据可用的 PI provider，经过<a href="#how-names-are-normalized">规范化</a></td>
+</tr>
+<tr>
+<td><code>projects</code></td>
+<td>项目数</td>
+</tr>
+<tr>
+<td><code>onlineClients</code>、<code>clientPlatforms</code></td>
+<td>已连接的远程机器数，以及按操作系统的分布</td>
+</tr>
+<tr>
+<td><code>activeSessions24h</code></td>
+<td>过去 24 小时内活跃的会话数</td>
+</tr>
+<tr>
+<td><code>uptimeH</code></td>
+<td>服务端已运行的小时数</td>
+</tr>
+<tr>
+<td><code>settings</code></td>
+<td>一组固定设置的开关状态：<code>teamEnabled</code>、<code>serverAutoUpdate</code>、<code>serverUpdateDisable</code>、<code>autoResume</code>、<code>bgContinuation</code>、<code>streamDeltas</code>、<code>clientHotReloadEnabled</code>、<code>storeArchiveEnabled</code>、<code>providerUsageCollectionEnabled</code>、<code>claudeWindowWarmupEnabled</code>、<code>feishuSkillsInWeb</code>、<code>memoryIndexRegenEnabled</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="upgrades-and-migrations">升级与迁移<a class="headerlink" href="#upgrades-and-migrations" title="Permanent link">&para;</a></h3>
+<p>每次服务端升级都会上报 <code>from</code> 和 <code>to</code> 版本、<code>method</code>（<code>auto</code>、<code>prompt</code> 或 <code>manual</code>）、<code>stage</code> 和 <code>durationS</code>。npm 安装这一步的 stage 是 <code>installed</code> 或 <code>failed</code>；之后按下次启动是否运行新版本分为 <code>confirmed</code> 或 <code>unconfirmed</code>；启动时发现版本变了但没有对应的升级记录则为 <code>version-changed</code>。失败时附带一个分类（<code>network</code>、<code>permission</code>、<code>npm</code>、<code>disk</code>、<code>timeout</code> 或 <code>other</code>）和脱敏后的消息。</p>
+<p>启动时运行的数据迁移失败时，报告会写明是哪个迁移（它的版本和它修改的内置文件，如 <code>2026.6.22:config/profiles.json</code>），并附带错误分类（<code>io</code>、<code>parse</code>、<code>permission</code> 或 <code>other</code>）和脱敏后的消息。</p>
+<h3 id="onboarding-steps">上手步骤<a class="headerlink" href="#onboarding-steps" title="Permanent link">&para;</a></h3>
+<p>每个上手步骤每个安装只发送一次，用来看出新用户卡在哪一步。服务端上报这些步骤：</p>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>附加信息</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>server_init_completed</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>provider_authed</code></td>
+<td>第一个完成的回合所用的后端（<code>claude</code> 或 <code>pi</code>）</td>
+</tr>
+<tr>
+<td><code>first_session</code>、<code>first_turn_completed</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>first_remote_client</code>、<code>first_worker</code>、<code>first_schedule</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>服务端存在之前，没有别的组件能报告安装过程是否顺利，所以桌面应用把自己的安装步骤直接发给收集端。这些步骤是 <code>setup_started</code>、<code>server_installed</code> 或 <code>server_install_failed</code>、<code>init_completed</code> 或 <code>init_failed</code>，以及 <code>daemon_started</code> 或 <code>daemon_start_failed</code>。失败的步骤只带一个分类（<code>network</code>、<code>permission</code>、<code>disk</code>、<code>timeout</code>、<code>cancelled</code> 或 <code>other</code>），从不带错误文本。</p>
+<h3 id="daily-usage-rollup">每日使用汇总<a class="headerlink" href="#daily-usage-rollup" title="Permanent link">&para;</a></h3>
+<p>每个 UTC 日一份汇总，只包含计数，不包含单个事件。时长和百分比按固定区间计数（例如耗时不超过 5 秒、不超过 15 秒……直到超过一小时的回合数），从不发送具体数值。</p>
+<table>
+<thead>
+<tr>
+<th>部分</th>
+<th>统计内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>回合健康度</td>
+<td>每个后端、provider、模型和付费方式一行（最多 100 行）。每行包含完成、失败、取消和触发限流的回合数；失败分类（<code>auth</code>、<code>rate_limit</code>、<code>network</code>、<code>adapter_crash</code>、<code>timeout</code>、<code>other</code>）；重试次数；模型回退次数；完成回合的首个输出耗时；回合时长；回合结束时的上下文占用；自动和手动压缩次数；以及输入、输出、缓存读取和缓存写入的 token 数。<code>customApi</code> 给出自定义 provider 的 API 类型，如 <code>openai-completions</code></td>
+</tr>
+<tr>
+<td>功能</td>
+<td>创建会话、启动 worker、运行子智能体、打开看板、创建和触发定时任务、创建和触发等待点、使用浏览器会话的次数；以及提交、批准和驳回计划，提问和回答问题，连接远程机器的次数</td>
+</tr>
+<tr>
+<td>工具</td>
+<td>每个<a href="#how-names-are-normalized">规范化</a>后的工具名的调用次数和出错次数（最多 200 个工具）</td>
+</tr>
+<tr>
+<td>入口</td>
+<td>各渠道的消息数（<code>desktop</code>、<code>android</code>、<code>browser</code>、<code>feishu</code>、<code>slack</code>、<code>tui</code>、<code>other</code>），以及各 Web UI 操作（如 <code>sessions.send</code>）的调用次数</td>
+</tr>
+<tr>
+<td>智能体活动</td>
+<td>你打断的回合数、被新消息替换的回合数、每个会话回合数的分布（不发送会话 ID），以及 worker 和子智能体运行的完成、失败、取消次数</td>
+</tr>
+<tr>
+<td>性能</td>
+<td>当天每次服务端启动（最多十次）各启动阶段的耗时；事件循环延迟（每分钟 99 分位值的中位数和最大值）；Web UI 加载耗时（首字节、首次渲染、可交互）；实时更新的重连次数；远程机器断开次数</td>
+</tr>
+<tr>
+<td>错误</td>
+<td>上文所述的错误汇总</td>
+</tr>
+</tbody>
+</table>
+<h2 id="what-is-never-sent">从不发送的内容<a class="headerlink" href="#what-is-never-sent" title="Permanent link">&para;</a></h2>
+<ul>
+<li>对话、提示词、模型输出或任何文件的内容</li>
+<li>命令、工具输入或工具结果</li>
+<li>文件名、路径、项目名、会话标题或会话 ID</li>
+<li>机器名、主机名、用户名或邮箱地址</li>
+<li>IP 地址。收集端只保留 Cloudflare 根据请求得出的国家</li>
+<li>你自己起的名字：自定义 provider、自定义模型和第三方 MCP 工具会按下文规则替换</li>
+</ul>
+<h2 id="how-names-are-normalized">名称如何规范化<a class="headerlink" href="#how-names-are-normalized" title="Permanent link">&para;</a></h2>
+<p>来自你配置的名称在上传前会与公开列表比对：</p>
+<ul>
+<li><strong>Provider 和模型。</strong> Claude 后端的 provider 一律上报为 <code>anthropic</code>。Claude 模型名出现在 Cortex 内置的 Anthropic 模型列表或 PI SDK 自带的模型目录中时保留原名。PI 的 provider 和模型出现在这份自带目录中时保留原名。你在 <code>~/.pi/agent/models.json</code> 中定义的 provider 上报为 <code>custom</code> 并附带其 API 类型，它的模型上报为 <code>custom</code>。其余一律为 <code>other</code>。</li>
+<li><strong>工具。</strong> Claude Code 和 PI 的内置工具保留原名，Cortex 自己的 MCP 工具（<code>mcp__cortex-…</code>）也保留原名。其他 MCP 工具上报为 <code>mcp_other</code>，其余工具上报为 <code>other</code>。</li>
+</ul>
+<p>Web UI 操作名、日志模块名、迁移名和设置名都来自 Cortex 自己的代码。本地汇总文件在当天上传之前保存的是原始名称，上传时才做规范化。</p>
+<h2 id="how-text-is-redacted">文本如何脱敏<a class="headerlink" href="#how-text-is-redacted" title="Permanent link">&para;</a></h2>
+<p>崩溃消息、调用栈和错误样本在排队前就会脱敏：</p>
+<ul>
+<li>Cortex 安装目录内的路径改写为相对于安装目录的路径。其他任何平台上的文件路径都替换为 <code>&lt;path&gt;</code>。</li>
+<li>URL 保留协议和路径。主机替换为 <code>&lt;host&gt;</code>（回环地址除外），查询串、片段和登录凭据被删除。</li>
+<li>邮箱地址替换为 <code>&lt;email&gt;</code>。API 密钥、较长的十六进制或 base64 字符串等类似机密替换为 <code>&lt;secret&gt;</code>，IPv4 地址替换为 <code>&lt;ip&gt;</code>。</li>
+<li>你的主目录、机器的主机名和你的用户名如果仍然出现，分别替换为 <code>&lt;home&gt;</code>、<code>&lt;host&gt;</code> 和 <code>&lt;user&gt;</code>。</li>
+</ul>
+<h2 id="when-nothing-is-sent">什么情况下不发送<a class="headerlink" href="#when-nothing-is-sent" title="Permanent link">&para;</a></h2>
+<p>满足以下任一条件时，服务端不记录也不发送任何内容：</p>
+<ul>
+<li>在 <strong>设置 → 隐私</strong> 中关闭了遥测（即 <code>telemetryEnabled</code> 设置）。</li>
+<li>服务端的环境变量或 <code>$CORTEX_HOME/config/.env</code> 中设置了 <code>CORTEX_TELEMETRY=0</code>。它优先于设置。</li>
+<li><code>DO_NOT_TRACK</code> 被设为空值、<code>0</code>、<code>false</code>、<code>no</code>、<code>off</code> 以外的任何值。</li>
+<li>服务端从源码目录运行（目录中仍有 <code>src/</code>，或设置了 <code>CORTEX_REPO</code>）。设置 <code>CORTEX_TELEMETRY=1</code> 可让源码目录主动开启，其报告标记为 <code>dev</code>。</li>
+<li>Cortex 主目录为基准测试运行做了封存（<code>CORTEX_CONFIG_IMMUTABLE=1</code>）。</li>
+<li>构建中没有收集端地址。正式发布的构建都带有地址，<code>CORTEX_TELEMETRY_ENDPOINT</code> 可以覆盖它。你可以把它指向自己的 HTTP 端点，看清楚到底会发出什么。</li>
+</ul>
+<p>在以上任一条件成立期间，服务端还会删除已排队的事件和当天的计数。如果是这些条件而不是开关让遥测处于关闭状态，<strong>设置 → 隐私</strong> 页面会说明原因。桌面应用的安装步骤会照常发送，除非桌面应用的环境变量中设置了 <code>CORTEX_TELEMETRY=0</code> 或 <code>DO_NOT_TRACK</code>。</p>
+<h2 id="inspecting-what-is-queued">查看排队的内容<a class="headerlink" href="#inspecting-what-is-queued" title="Permanent link">&para;</a></h2>
+<p>所有等待发送的内容都在 <code>&lt;CORTEX_HOME&gt;/data/telemetry/</code>（默认为 <code>~/.cortex/data/telemetry/</code>）：</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>install-id</code></td>
+<td>安装 ID</td>
+</tr>
+<tr>
+<td><code>outbox.jsonl</code></td>
+<td>等待发送的事件，每行一个 JSON 对象，与实际发出的内容完全一致。上限 2 MB，满了先丢最旧的事件</td>
+</tr>
+<tr>
+<td><code>outbox.sending.jsonl</code></td>
+<td>正在上传或等待重试的事件</td>
+</tr>
+<tr>
+<td><code>rollup-YYYY-MM-DD.json</code></td>
+<td>某个 UTC 日的累计计数，每五分钟和关机时保存一次。超过七天仍未发出的日汇总会被丢弃</td>
+</tr>
+<tr>
+<td><code>state.json</code></td>
+<td>上次心跳的时间、上次见到的版本、已发送的上手步骤，以及等待确认的升级</td>
+</tr>
+<tr>
+<td><code>crash-limits.json</code></td>
+<td>崩溃频率限制的计数</td>
+</tr>
+</tbody>
+</table>
+<p>桌面应用把自己的文件放在其应用数据目录下的 <code>telemetry</code> 文件夹中：<code>install-id</code>、<code>setup.json</code>（安装向导的语言和已发送的安装步骤），以及 <code>native-crash.json</code>（等待转发的 panic）。</p>
+<h2 id="turning-it-off">关闭遥测<a class="headerlink" href="#turning-it-off" title="Permanent link">&para;</a></h2>
+<ul>
+<li>桌面应用、Android 应用或浏览器工作台的 <strong>设置 → 隐私</strong> 中有 <strong>帮助我们改进 Cortex</strong> 开关。关闭后立即停止记录，并删除已排队的事件和当天的计数。安装 ID 会保留，以便你之后申请删除数据。</li>
+<li><code>cortex init</code> 会询问是否发送匿名统计（默认是）。脚本化安装通过 answers 文件的 <code>telemetry</code> 字段设置：<code>{"telemetry": {"enabled": false}}</code>。</li>
+<li>桌面应用安装完成后的第一个页面（Provider 设置页）上也有同一个 <strong>帮助我们改进 Cortex</strong> 开关，服务端一就绪你就可以做出选择。</li>
+<li><code>$CORTEX_HOME/config/settings.json</code> 中的 <code>"telemetryEnabled": false</code> 与该开关是同一个设置。</li>
+<li>在服务端的环境变量或 <code>$CORTEX_HOME/config/.env</code> 中设置 <code>CORTEX_TELEMETRY=0</code> 或 <code>DO_NOT_TRACK=1</code>，无论设置如何都会关闭遥测。</li>
+</ul>
+<h2 id="retention-and-deletion">保留期与删除<a class="headerlink" href="#retention-and-deletion" title="Permanent link">&para;</a></h2>
+<p>收集端收到的数据不设过期时间，以便跨版本比较版本普及和崩溃趋势。崩溃按分组保存，每组只保留最新的一条样本，所以反复出现的崩溃只会增加计数，不会增加新记录。这些数据只有项目维护者可以查看。</p>
+<p>如需删除你的数据，请发邮件到 <a href="mailto:privacy@fangxm.me">privacy@fangxm.me</a>，附上你的安装 ID。安装 ID 可以在 <strong>设置 → 隐私</strong> 中复制。这个 ID 是随机生成的，不关联任何其他信息，只有这封邮件会把它和你联系起来，删除完成后邮件不会保留。</p>
+<h2 id="claude-codes-own-telemetry">Claude Code 自身的遥测<a class="headerlink" href="#claude-codes-own-telemetry" title="Permanent link">&para;</a></h2>
+<p>Cortex 运行 Claude Code 后端时，Claude Code 可能会向 Anthropic 发送它自己的遥测。这部分遥测由 Claude Code 自己的设置和环境变量控制，不受本开关影响。</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

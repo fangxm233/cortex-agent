@@ -1,0 +1,1725 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Agent workbench for auto research, self-improvement loops, and long-running work">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/zh/cli-reference/">
+      
+      
+        <link rel="prev" href="../configuration/">
+      
+      
+        <link rel="next" href="../backends/">
+      
+      
+        
+          <link rel="alternate" href="../../cli-reference/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>CLI 参考 - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cli-reference" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../" title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              CLI 参考
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="选择当前语言">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../cli-reference/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../" title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    快速入门
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    桌面应用
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    浏览器访问
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack 设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    配置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 参考
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 参考
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#cortex" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cortex">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exit-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        退出码
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cortex-browser" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-browser
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cortex-browser">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cortex-browser-exit-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        退出码
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cortex-browser-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        示例
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cortex-evidence-export" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-evidence-export
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cortex-hook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-hook
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cortex-hook">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#exit-codes_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        退出码
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cortex-signal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-signal
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cortex-signal">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#spooling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        落盘缓冲
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exit-codes_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        退出码
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        示例
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    后端
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../team/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    团队模式
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    记忆
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    技能与插件
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    调度
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    安全与审批
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../telemetry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    遥测
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    钩子
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../waitpoints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    等待点
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    跨机器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent-browser/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent 浏览器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#cortex" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cortex">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exit-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        退出码
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cortex-browser" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-browser
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cortex-browser">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cortex-browser-exit-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        退出码
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cortex-browser-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        示例
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cortex-evidence-export" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-evidence-export
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cortex-hook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-hook
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cortex-hook">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#exit-codes_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        退出码
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cortex-signal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cortex-signal
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="cortex-signal">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#spooling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        落盘缓冲
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exit-codes_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        退出码
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        示例
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="cli-reference">CLI 参考<a class="headerlink" href="#cli-reference" title="Permanent link">&para;</a></h1>
+<p>Cortex 提供五个可执行文件，在 <code>agent-server/package.json</code> 中注册：</p>
+<table>
+<thead>
+<tr>
+<th>可执行文件</th>
+<th>入口点</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cortex</code></td>
+<td><code>dist/entry/cortex-cli.js</code></td>
+<td>服务器管理和初始化</td>
+</tr>
+<tr>
+<td><code>cortex-browser</code></td>
+<td><code>dist/entry/browser-cli.js</code></td>
+<td>操作当前会话的 agent 浏览器</td>
+</tr>
+<tr>
+<td><code>cortex-evidence-export</code></td>
+<td><code>dist/entry/production-evidence-export-cli.js</code></td>
+<td>导出生产 benchmark evidence v2</td>
+</tr>
+<tr>
+<td><code>cortex-hook</code></td>
+<td><code>dist/entry/hook-cli.js</code></td>
+<td>检查、切换、试运行 hook，以及阻塞式用户询问</td>
+</tr>
+<tr>
+<td><code>cortex-signal</code></td>
+<td><code>dist/entry/signal-cli.js</code></td>
+<td>让外部程序解决一个 waitpoint</td>
+</tr>
+</tbody>
+</table>
+<p>五个都接受 <code>--help</code>（或 <code>-h</code>）打印用法。</p>
+<hr />
+<h2 id="cortex">cortex<a class="headerlink" href="#cortex" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>cortex &lt;command&gt; [options]
+</code></pre></div>
+<p>服务器生命周期和初始化 CLI。<code>cortex --help</code> 列出所有命令。</p>
+<h3 id="commands">命令<a class="headerlink" href="#commands" title="Permanent link">&para;</a></h3>
+<p><strong><code>cortex init [--home &lt;path&gt;] [--gateway-config-dir &lt;path&gt;] [--force] [--answers &lt;file&gt;] [--json]</code></strong></p>
+<p>初始化 <code>CORTEX_HOME</code>。交互式向导默认使用内置 PI，不询问后端选择；收集平台（Slack / 飞书）、机器、用量报告与服务设置，写入 <code>.env</code>、复制默认配置，并生成 <code>mcp-config*.json</code> 文件、<code>machines.json</code>、<code>preferences.json</code> 和 <code>agent-state.json</code>。它还会初始化 <code>schedules.json</code>，在 <code>git</code> 可用时在 <code>CORTEX_HOME</code> 中创建 git 仓库，并可按回答启用本地 Web UI、安装系统服务。</p>
+<p>写入配置后，向导检测本地 Provider 凭据，提供登录、重新检测、使用已配置的 Provider 继续，或带警告跳过。登录使用与 <code>cortex auth login</code> 相同的流程；选择 Claude Code 时复用已有安装，缺失时询问是否允许安装。继续操作会从检测到的端点配置 gateway 路由，并询问默认模型与收藏。默认项预选推荐模型，并包含在收藏中。检测不会发起付费推理请求，也不验证模型是否可调用。</p>
+<p>使用 <code>--answers</code> 或 <code>--json</code> 运行时，不会启动 Provider 登录或等待输入；命令会报告凭据状态，并允许在 Provider 设置未完成时结束。</p>
+<p>选项：
+- <code>--home &lt;path&gt;</code> — 设置 <code>CORTEX_HOME</code>（默认：<code>$CORTEX_HOME</code> 或 <code>~/.cortex/</code>）
+- <code>--gateway-config-dir &lt;path&gt;</code> — 网关配置输出目录（默认：<code>~/.aistatus/</code>）
+- <code>--force</code> — 覆盖已有配置（<code>.env</code>、<code>budget.json</code>、<code>agent-state.json</code> 等）
+- <code>--answers &lt;file&gt;</code> — 从 JSON 文档读取回答，不进行交互提问。省略的字段使用默认值；<code>{}</code> 创建使用 PI 的单机安装，若未检测到凭据，仍需登录 Provider。桌面安装器使用此选项。显式 <code>backends</code> 数组保留指定的后端选择与安装语义（<code>claude</code>、<code>pi</code> 或两者）；显式空数组保留回退到 Claude 的行为。
+- <code>--json</code> — 在 stdout 输出按行分隔的进度事件，并将面向人的输出改到 stderr。最后一条事件报告 home 目录、版本、客户端 token 与本地 Web UI 地址。</p>
+<p>模型答案采用以下结构（所选组合须属于检测到的模型）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">"defaultChoice"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"mode"</span><span class="p">:</span><span class="w"> </span><span class="s2">"openai-codex"</span><span class="p">,</span><span class="w"> </span><span class="nt">"model"</span><span class="p">:</span><span class="w"> </span><span class="s2">"gpt-6.1-sol"</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">"favorites"</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="w"> </span><span class="nt">"mode"</span><span class="p">:</span><span class="w"> </span><span class="s2">"openai-codex"</span><span class="p">,</span><span class="w"> </span><span class="nt">"model"</span><span class="p">:</span><span class="w"> </span><span class="s2">"gpt-6.1-sol"</span><span class="w"> </span><span class="p">}]</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="p">}</span>
+</code></pre></div>
+<p>显式 <code>defaultChoice</code> 会替换保存的默认值，否则保留它。收藏合并并包含所选默认模型。按位置读取的 stdin 协议以两行模型选择结束：默认模型的 <code>mode:model</code>，以及逗号分隔的收藏 <code>mode:model</code>。</p>
+<p><strong><code>cortex ui enable [--port &lt;n&gt;] [--home &lt;path&gt;] [--json]</code></strong></p>
+<p>让本安装可被 Cortex 桌面应用连接。缺失时生成客户端 token，设置 <code>CORTEX_UI_HTTP=1</code> 与 <code>CORTEX_UI_PORT</code>，并把应用的 origin 加入 <code>uiCorsOrigins</code>。该命令幂等——第二次运行不会改变任何内容。其输出末尾会提示 <code>cortex ui pair</code>。</p>
+<p>当它提示配置已改变时需重启 daemon：<code>.env</code> 只在进程启动时读取一次。</p>
+<p>选项：
+- <code>--port &lt;n&gt;</code> — 监听端口。不传时保留 <code>.env</code> 中已有的 <code>CORTEX_UI_PORT</code>，没有则使用 <code>3004</code>；端口无效时退出码为 1
+- <code>--home &lt;path&gt;</code> — 设置 <code>CORTEX_HOME</code>（默认：<code>$CORTEX_HOME</code> 或 <code>~/.cortex</code>）
+- <code>--json</code> — 打印 <code>{ ok, home, url, token, port, changed }</code></p>
+<p><strong><code>cortex ui pair [--home &lt;path&gt;] [--json]</code></strong></p>
+<p>为新的应用或浏览器打印一次性配对码（<code>XXXX-XXXX</code>）。配对码 10 分钟内有效、只能用一次；在桌面或 Android 应用中连同服务器地址一起填入，或在浏览器登录页输入。配对码写入 <code>$CORTEX_HOME/data/ui-pairing.json</code>，运行中的服务器会读取它，无需重启。已登录的设备也可在<strong>设置 → 机器 →「已连接的 App」</strong>中生成同样的配对码（见<a href="../browser-access/#pairing-codes-and-connected-apps">浏览器访问</a>）。</p>
+<p>选项：
+- <code>--home &lt;path&gt;</code> — 设置 <code>CORTEX_HOME</code>（默认：<code>$CORTEX_HOME</code> 或 <code>~/.cortex</code>）
+- <code>--json</code> — 打印 <code>{ ok, code, expiresAt }</code></p>
+<p><strong><code>cortex client remove --device &lt;name&gt; [--keep-remote] [--dry-run] [--home &lt;path&gt;]</code></strong></p>
+<p>下线一台远程机器。命令从 <code>config/machines.json</code> 删除该机器的条目，经 SSH 连到该机器，停止所有运行其 client bundle 的进程，并从 client 的 <code>CORTEX_HOME</code> 中删除 bundle（<code>client/</code>）、<code>config/cortex-client.json</code> 和 <code>logs/client-*.log</code> 文件，随后从 <code>data/client-pids.json</code> 与 <code>data/client-routes.json</code> 中移除该机器。注册表条目最先删除，因此运行中的服务器在热加载时释放该机器的隧道和重启定时器，不会把正在停止的 client 再拉起来。</p>
+<p>client 的 <code>CORTEX_HOME</code> 取自 <code>clientCommand</code> 中的 bundle 路径，默认是 <code>~/.cortex</code>（Windows 上为 <code>%USERPROFILE%\.cortex</code>）。若该目录同时含有 <code>config/machines.json</code>，说明它属于一个 Cortex 服务器：此时只停止 client 进程，文件全部保留。无法连通的机器仍会在本地移除，结果中为 <code>remote.status: "unreachable"</code>，并在 stderr 给出警告。服务器本机（没有 <code>ssh</code> 的条目）会被拒绝。</p>
+<p>输出为 JSON，包含 <code>device</code>、<code>removed_at</code>、被删除的 <code>machine_entry</code>、被清掉的 <code>runtime</code> pid 与路由，以及 <code>remote</code>——<code>cleaned</code>（附被结束的 <code>killed</code> pid 与 <code>files: removed | kept-server-home</code>）、<code>unreachable</code> 或 <code>skipped</code>。<code>--dry-run</code> 把计划打印在 <code>would_remove</code> 下，不做任何改动。</p>
+<p>选项：
+- <code>--device &lt;name&gt;</code> — <code>machines.json</code> 中的机器名（必填）
+- <code>--keep-remote</code> — 只在本地注销，不动远端进程与文件
+- <code>--dry-run</code> — 打印将要删除的内容，不做任何改动
+- <code>--home &lt;path&gt;</code> — 设置 <code>CORTEX_HOME</code></p>
+<p><strong><code>cortex path &lt;install|remove|status&gt; [--home &lt;path&gt;] [--dry-run] [--json]</code></strong></p>
+<p>让新开的终端可以直接使用本安装的命令。<code>install</code> 为上表中的每个二进制在 <code>$CORTEX_HOME/runtime/bin</code> 写入一个启动器：启动器用执行本命令的那个 Node.js 运行本安装的入口文件，因此终端的 <code>PATH</code> 中不需要有 Node.js。随后把该目录登记到 <code>PATH</code>：Linux 和 macOS 上写入以 <code># &gt;&gt;&gt; cortex &gt;&gt;&gt;</code> 标记的块，放在 <code>~/.profile</code> 末尾，以及正在使用的 shell 对应的 <code>~/.bash_profile</code> 和 <code>~/.zshenv</code>（设置了 <code>$ZDOTDIR</code> 时位于其下）末尾；<code>~/.bashrc</code> 中的块放在文件开头，让非交互的 SSH 命令也能读到。Windows 上把该目录加到用户 <code>Path</code> 的最前面，保留其注册表类型，并通知新进程环境已变化。重复执行 <code>install</code> 只改写有差异的部分。即使 <code>PATH</code> 上还有别的 <code>cortex</code>，新终端也会使用本安装；结果的 <code>shadowed</code> 列出这些被覆盖的命令。不配置 fish。</p>
+<p>服务端启动时，若自己的 Node.js 或入口路径与已有启动器不一致，会改写这些启动器。由桌面应用安装在 <code>$CORTEX_HOME/runtime/prefix</code> 中的服务端，在没有启动器时还会自行执行 <code>install</code>，除非最近一次选择是 <code>remove</code>。<code>install</code> 和 <code>remove</code> 把这一选择记录在 <code>$CORTEX_HOME/runtime/terminal-cli.json</code>。<code>remove</code> 只删除本命令写入的文件，并把该目录从 <code>PATH</code> 中撤下，profile 文件和用户 <code>Path</code> 恢复为 <code>install</code> 之前的样子。<code>status</code> 报告启动器是否存在、哪些已过期，以及该目录登记在哪里。</p>
+<p>选项：
+- <code>--home &lt;path&gt;</code> — 设置 <code>CORTEX_HOME</code>，它同时成为启动器默认使用的 <code>CORTEX_HOME</code>（默认：<code>$CORTEX_HOME</code> 或 <code>~/.cortex</code>）
+- <code>--dry-run</code> — 用于 <code>install</code> 和 <code>remove</code>：报告将做的改动，不写入任何内容
+- <code>--json</code> — 打印 <code>{ ok, action, dry_run, dir, … }</code>：<code>install</code> 附 <code>written</code> 和 <code>shadowed</code>，<code>remove</code> 附 <code>removed</code>，<code>path_targets</code> 列出每个 profile 文件或 <code>HKCU\Environment\Path</code> 以及它是否被改动</p>
+<p><strong><code>cortex start</code></strong></p>
+<p>在前台运行服务器：以继承的 stdio、以 <code>$CORTEX_HOME</code> 为工作目录 fork <code>dist/entry/app.js</code>，并以它的退出码退出。该进程运行平台适配器、Web UI 宿主、webhook 服务器和所有智能体编排，没有 supervisor 负责重启它。</p>
+<p><strong><code>cortex daemon</code></strong></p>
+<p>在后台启动 supervisor 并立即返回。命令以脱离终端、不带 stdio 的方式 fork <code>dist/entry/daemon.js</code>（守护进程自行把日志写到 <code>logs/</code> 下），然后以 0 退出。守护进程把 <code>app.js</code> 作为子进程运行，崩溃后按指数退避重启它；触碰 <code>$STORE_DIR/.restart</code> 时会排空并重新拉起它。<code>cortex daemon --version</code> 打印版本。</p>
+<p><strong><code>cortex daemon stop</code></strong></p>
+<p>向守护进程发送 SIGTERM，最多等待 10 秒让它退出；超时仍存活的守护进程会被 SIGKILL 结束，命令以 1 退出。守护进程会和它在本机启动的 client（本机 client）一起停止，因此不会留下仍在运行或占用运行时文件的 Cortex 进程；本机 client 未能结束时同样以 1 退出。SSH 机器和自定义命令机器上的 client 继续运行，下次执行 <code>cortex daemon</code> 时会重新启动本机 client。守护进程未运行时（包括残留的 PID 文件，会被清理）以 0 退出。</p>
+<p><strong><code>cortex daemon status</code></strong></p>
+<p>打印守护进程的 PID 和运行时长，以及其 <code>app.js</code> 子进程的状态（PID 和运行时长、<code>starting...</code> 或 <code>none</code>）。</p>
+<p><strong><code>cortex daemon restart [--hard | --force]</code></strong></p>
+<p>不带标志时触碰重启触发文件，让守护进程排空并重新拉起 <code>app.js</code>。<code>--hard</code> 直接向 <code>app.js</code> 发送 SIGTERM，<code>--force</code> 发送 SIGKILL；两种方式下守护进程都会启动新的子进程。没有守护进程在运行时，三种形式都以 1 退出；没有存活的 <code>app.js</code> 子进程时，带标志的形式也以 1 退出。</p>
+<p><strong><code>cortex daemon restart-self</code></strong></p>
+<p>按 <code>cortex daemon stop</code> 的方式停止守护进程，再启动一个新的脱离终端的守护进程。</p>
+<p><strong><code>cortex restart</code></strong></p>
+<p>触碰 <code>$STORE_DIR/.restart</code> 处的重启触发文件并打印其路径。运行中的守护进程会排空并重新拉起 <code>app.js</code>；没有守护进程在运行时，命令只创建该文件。文件无法写入时以 1 退出。</p>
+<p><strong><code>cortex tui [--resume] [--project &lt;id&gt;] [--port &lt;n&gt;]</code></strong></p>
+<p>打开连接到运行中服务器的终端聊天客户端。命令检查 TUI 网关是否在 <code>127.0.0.1:&lt;port&gt;</code> 上监听，未监听时以 1 退出并提示启动守护进程；否则在终端中运行客户端，并以它的退出码退出。</p>
+<p>选项：
+- <code>--resume</code> — 连接后打开恢复会话的选择器
+- <code>--project &lt;id&gt;</code> — 在该项目中开启新会话
+- <code>--port &lt;n&gt;</code> — 网关端口（默认：<code>$CORTEX_TUI_PORT</code>，否则为 <code>3003</code>）</p>
+<p><strong><code>cortex install latest</code></strong></p>
+<p>从 npm 更新服务器。命令向 npm 查询 <code>@cortex-agent/server</code> 的最新版本；当前安装已是最新时打印 <code>Already on the latest version</code>，否则对该版本执行 <code>npm install -g</code>，安装到 <code>CORTEX_NPM_PREFIX</code>，未设置时安装到当前安装自身的 prefix。之后用 <code>cortex daemon restart</code> 重启守护进程。查询或安装失败时以 1 退出。</p>
+<p><strong><code>cortex config</code></strong></p>
+<p>打印解析后的路径和初始化状态。显示 <code>INSTALL_ROOT</code>、所有数据目录，以及 <code>.env</code>、<code>mcp-config.json</code> 和 <code>agent-state.json</code> 是否存在。</p>
+<p><strong><code>cortex doctor [--fix] [--json]</code></strong></p>
+<p>一次性对整个安装做健康检查并报告问题。默认运行是只读的，任何时候运行都安全。它检查四个方面：</p>
+<ul>
+<li>运行时与进程——Node 版本、PATH 上的 <code>git</code>（Windows 上缺失为失败，其他平台为警告）、PATH 上的 <code>claude</code> 可执行文件（缺失为警告；PI 始终通过，因为它在进程内由内置 SDK 运行），以及守护进程是否在运行。</li>
+<li>后端安装 / 登录——数据目录存在且可写、<code>.env</code> 存在、客户端与 webhook token 已设置、<code>ANTHROPIC_API_KEY</code> 状态，以及 <code>agent-state.json</code>、<code>models.json</code> 和 <code>mcp-config.json</code> 存在且有效。缺少 <code>models.json</code> 为警告；JSON 无效、默认引擎选择无效、收藏数组缺失或无效为失败。它还会对已安装的 PI 运行时及其 <code>login</code> 导出做烟测，再从不含凭据的后端认证快照中汇总使用中但已过期或未登录的 provider。这两项检查只产生警告，不会失败。API 模式下，若 gateway 健康但本地没有 key，会报告为由 gateway 托管的说明信息，而不是误报未登录警告。</li>
+<li>消息平台——解析 <code>CORTEX_PLATFORM</code>，并校验每个已启用平台的凭据（Slack <code>xoxb-</code>/signing/<code>xapp-</code>，飞书 app id/secret）。</li>
+<li>网关——所配置的 gateway YAML 是否存在，以及对 <code>http://127.0.0.1:&lt;CORTEX_GATEWAY_PORT&gt;/status</code> 的健康探测（默认端口 <code>9880</code>）。目录由 <code>CORTEX_GATEWAY_HOME</code> 决定，默认为 <code>~/.aistatus/</code>。只有在网关实际被使用时，探测才会报告为失败；否则跳过。</li>
+</ul>
+<p>每项检查打印 <code>[OK]</code>、<code>[WARN]</code>、<code>[FAIL]</code> 或 <code>[--]</code>（跳过），附简短说明，有问题时附修复提示。任一检查失败时命令以 <code>1</code> 退出，否则以 <code>0</code> 退出；警告不会让运行失败。</p>
+<p>选项：
+- <code>--fix</code> — 只执行安全且幂等的修复：创建缺失的数据目录、创建缺失的 <code>.env</code>、生成缺失的认证 token，以及重建 <code>mcp-config.json</code>。JSON 报告把它们列在 <code>fixes</code> 下。
+  它从不删除配置，也不覆盖已有凭据。修复后会重新运行诊断，使摘要反映修复后的状态。
+- <code>--json</code> — 以 JSON 输出完整报告（各部分、检查项、计数），便于脚本处理。</p>
+<p><strong><code>cortex auth status [--json]</code></strong></p>
+<p>读取归一化的 Claude Code 与 PI 认证快照。默认文本输出是简洁状态总览；<code>--json</code> 返回完整的 <code>AuthStatusSnapshot</code>，便于脚本处理。两种输出都不包含凭据值或其片段。</p>
+<p>该子命令只读，报告本地凭据状态，不做在线推理验证。本地登录使用 <code>cortex auth login</code>。远程登录从 Slack 或飞书中的 <code>!login</code> 发起，或在 Web UI 的 <strong>设置 → 账号</strong> 中发起；移动端用户进入 <code>/m/settings/accounts</code>。</p>
+<p>选项：
+- <code>--json</code> — 以 JSON 输出完整且不含凭据的状态快照
+- <code>--help</code>、<code>-h</code> — 显示 auth 命令帮助</p>
+<p>登录命令、provider 能力规则和过期处理参见 <a href="../backends/#remote-login">后端：远程登录</a>。</p>
+<p><strong><code>cortex auth login [--backend pi|claude] [--provider ID] [--auth-type oauth|api_key]</code></strong></p>
+<p>从交互式终端登录 Provider，无需运行 daemon。省略的选项通过交互方式从该后端支持的 Provider 与认证方式中选择。PI 已内置。Claude Code 已安装时直接复用；缺失时必须确认后，Cortex 才会安装并开始登录。</p>
+<p>即使已提供全部选择参数，登录仍要求 stdin 和 stderr 都是 TTY。API key 与授权响应通过隐藏输入提示收集；此命令不接受密钥、token 或授权码参数。浏览器链接与设备授权指引显示在 stderr。非 TTY 登录会立即失败，不启动认证流程；帮助信息无需 TTY。</p>
+<p>结果以 JSON 写入 stdout，面向人的提示与错误写入 stderr；不需要也不接受 <code>--json</code> 参数。结果不含秘密值。登录成功后同步 gateway/模型配置，并报告同步结果与 <code>inferenceVerified: false</code>：凭据已配置，但未经推理测试，也不会发送付费模型请求。</p>
+<p>选项：
+- <code>--backend pi|claude</code> — 选择后端；省略时交互选择
+- <code>--provider ID</code> — 选择该后端运行时支持的 Provider
+- <code>--auth-type oauth|api_key</code> — 选择支持的认证方式
+- <code>--help</code>、<code>-h</code> — 显示登录帮助，不启动登录</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>cortex<span class="w"> </span>auth<span class="w"> </span>login
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>cortex<span class="w"> </span>auth<span class="w"> </span>login<span class="w"> </span>--backend<span class="w"> </span>pi<span class="w"> </span>--provider<span class="w"> </span>anthropic<span class="w"> </span>--auth-type<span class="w"> </span>api_key
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>cortex<span class="w"> </span>auth<span class="w"> </span>login<span class="w"> </span>--backend<span class="w"> </span>claude<span class="w"> </span>--provider<span class="w"> </span>anthropic<span class="w"> </span>--auth-type<span class="w"> </span>oauth
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>cortex<span class="w"> </span>auth<span class="w"> </span>login<span class="w"> </span>--help
+</code></pre></div>
+<p><strong><code>cortex auth provider &lt;list|add|remove&gt; [options]</code></strong></p>
+<p>管理自定义 PI provider——自建或代理的端点，它们没有自己的登录流程。<code>add</code> 是 upsert，因此用改过的 URL 或模型列表重新运行，就会原地编辑已保存的定义。</p>
+<p>选项：
+- <code>--name &lt;name&gt;</code> — provider 名称，仅限字母、数字、<code>-</code> 和 <code>_</code>
+- <code>--api &lt;api&gt;</code> — 请求协议：<code>anthropic-messages</code>、<code>openai-completions</code>、<code>openai-responses</code> 或 <code>google-generative-ai</code>
+- <code>--url &lt;url&gt;</code> — 上游端点，保存在网关路由中
+- <code>--key &lt;key|-&gt;</code> — 上游 API key；<code>-</code> 表示从 stdin 读取，这样它不会出现在 shell 历史中
+- <code>--model &lt;id&gt;</code> — 该端点提供的模型 id；多个时重复使用
+- <code>--dry-run</code> — 用于 <code>remove</code>：报告将删除的内容，但不删除
+- <code>--json</code> — 以 JSON 输出结果
+- <code>--help</code>、<code>-h</code> — 显示 provider 命令帮助</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># define a local endpoint that speaks the Anthropic protocol</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>cortex<span class="w"> </span>auth<span class="w"> </span>provider<span class="w"> </span>add<span class="w"> </span>--name<span class="w"> </span>my-vllm<span class="w"> </span>--api<span class="w"> </span>anthropic-messages<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span>--url<span class="w"> </span>http://127.0.0.1:8100<span class="w"> </span>--model<span class="w"> </span>Model-27B
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># take the key from a secret store instead of the command line</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>pass<span class="w"> </span>show<span class="w"> </span>my-endpoint<span class="w"> </span><span class="p">|</span><span class="w"> </span>cortex<span class="w"> </span>auth<span class="w"> </span>provider<span class="w"> </span>add<span class="w"> </span>--name<span class="w"> </span>my-proxy<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span>--api<span class="w"> </span>openai-completions<span class="w"> </span>--url<span class="w"> </span>https://proxy.example.com/v1<span class="w"> </span>--model<span class="w"> </span>small<span class="w"> </span>--key<span class="w"> </span>-
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>cortex<span class="w"> </span>auth<span class="w"> </span>provider<span class="w"> </span>list<span class="w"> </span>--json
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>cortex<span class="w"> </span>auth<span class="w"> </span>provider<span class="w"> </span>remove<span class="w"> </span>--name<span class="w"> </span>my-vllm<span class="w"> </span>--dry-run
+</code></pre></div>
+<p>两处写入的内容以及一条定义如何到达 agent，参见 <a href="../backends/#custom-providers">后端：自定义 provider</a>。</p>
+<p><strong><code>cortex setup-gateway [--dry-run] [--output-dir &lt;path&gt;]</code></strong></p>
+<p>从本地配置文件自动检测 Claude Code 和 PI 配置，生成 gateway YAML（备份已有文件），并写入 <code>$CORTEX_HOME/config/models.json</code>。每当你添加新的 API key 或更换模型时运行此命令。默认写入 <code>~/.aistatus/gateway.yaml</code>；<code>CORTEX_GATEWAY_HOME</code> 将其设为 <code>&lt;CORTEX_GATEWAY_HOME&gt;/.aistatus/gateway.yaml</code>，<code>CORTEX_GATEWAY_PORT</code> 指定其端口。两项均可保存在 <code>$CORTEX_HOME/config/.env</code>，多实例设置见<a href="../configuration/#local-model-gateway">本地模型网关</a>。</p>
+<p>选项：
+- <code>--dry-run</code> — 将生成的 gateway.yaml 打印到 stdout 而不写入
+- <code>--output-dir &lt;path&gt;</code> — 在 <code>&lt;path&gt;</code> 下写入 gateway.yaml 和 models.json，而不是默认位置；仅导出文件，不改变运行中网关的位置</p>
+<p>设置保留已有默认选择并合并收藏，摘要显示默认模型与收藏；修改默认值可用<strong>设置 → 模型</strong>。登录后的同步也保留已有选择，补齐缺失的默认值，并为尚无收藏的新接通 backend/provider 组合添加一个推荐收藏。同步结果包含 <code>defaultSet</code> 和 <code>favorites</code>。</p>
+<p><strong><code>cortex schedule &lt;list|get|add|edit|pause|resume|remove&gt; [&lt;id&gt;] [options]</code></strong></p>
+<p>管理定时任务——与 <code>!schedule</code> 和 Web UI 管理的是同一批记录。每次触发都会在调度所属项目中新开一个会话并发送消息，见 <a href="../scheduling/">调度</a>。变更写入 <code>schedules.json</code>，运行中的 daemon 会在一秒内应用。</p>
+<p>智能体通过 <code>schedule</code> skill 使用此 CLI。对于针对会话所在项目的请求，从会话上下文或 <code>cortex_context</code> 解析项目，并显式传入 <code>--project</code>；若请求的当前项目缺失，先询问使用哪个项目。CLI 不会从 Bash 环境变量推断会话范围。每日/每周时间使用 daemon 的本地时区（包括 <code>TZ</code> 覆盖）；应显式换算用户的时区和星期，并以用户时区报告下次运行时间。调度不支持独立时区，也不会自动做跨时区的夏令时调整。</p>
+<p>每个命令都输出带 <code>ok: true</code> 的 JSON 和调度本身（<code>schedule</code>；<code>list</code> 输出 <code>schedules</code> 和 <code>count</code>），时间戳为 ISO 8601。输入无效时以 1 退出，并在 stderr 列出有效取值。</p>
+<ul>
+<li><code>list [--project &lt;id&gt;]</code> — 列出全部调度，或某个项目的调度</li>
+<li><code>get &lt;id&gt;</code> — 查看一个调度；id 不存在时以 1 退出</li>
+<li><code>add --type &lt;type&gt; …</code> — 创建调度；<code>--idempotency-key</code> 命中已有调度时输出 <code>created: false</code> 和那个调度。不属于该类型的时间标志会被拒绝</li>
+<li><code>edit &lt;id&gt; …</code> — 修改消息、项目、模型选择、pre-check，或该调度类型对应的时间字段；类型本身固定不变</li>
+<li><code>pause &lt;id&gt;</code> / <code>resume &lt;id&gt;</code> — 暂停或恢复周期性调度；重复执行不会改变任何内容</li>
+<li><code>remove &lt;id&gt; [--dry-run]</code> — 删除调度（不存在时输出 <code>removed: false</code>）；<code>--dry-run</code> 输出 <code>would_remove</code>，不删除任何内容</li>
+</ul>
+<p>选项：
+- <code>--type interval|daily|weekly|once</code> — 调度类型（仅 <code>add</code>）
+- <code>--interval &lt;duration&gt;</code> — <code>interval</code>：重复周期，如 <code>30m</code>、<code>2h</code>、<code>1d</code>
+- <code>--time &lt;HH:MM&gt;</code> — <code>daily</code>/<code>weekly</code>：24 小时制，服务器本地时间
+- <code>--day &lt;day&gt;</code> — <code>weekly</code>：<code>sun</code>..<code>sat</code> 或 <code>0</code>-<code>6</code>
+- <code>--delay &lt;duration&gt;</code> — <code>once</code>：从现在起多久后触发；用于 <code>edit</code> 时移动触发时间
+- <code>--message &lt;text|-&gt;</code> — 触发会话收到的提示；<code>-</code> 从 stdin 读取
+- <code>--project &lt;id&gt;</code> — 触发会话所属的项目（默认：<code>general</code>）
+- <code>--model &lt;[provider/]model&gt;</code> — 运行所用的模型；PI 可显式使用 <code>provider/model</code>。创建时不传模型相关标志则保存配置的默认选择，它可能与当前会话不同
+- <code>--thinking &lt;level&gt;</code> — 后端原生思考档位。不传模型标志时，创建操作以配置默认选择的副本为基础，编辑操作以调度保存的选择为基础；换模型时省略则使用该模型记住的档位
+- <code>--pre-check &lt;cmd&gt;</code> — 每次触发前运行的 shell 门控；非零退出则跳过这次触发
+- <code>--idempotency-key &lt;key&gt;</code> — <code>add</code>：用同一个 key 重试会返回第一次创建的调度
+- <code>--help</code>、<code>-h</code> — 显示 schedule 帮助</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>cortex<span class="w"> </span>schedule<span class="w"> </span>add<span class="w"> </span>--type<span class="w"> </span>interval<span class="w"> </span>--interval<span class="w"> </span>30m<span class="w"> </span>--project<span class="w"> </span>nimbus<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span>--message<span class="w"> </span><span class="s2">"Check GPU usage on lab2 and report a one-line summary"</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>cortex<span class="w"> </span>schedule<span class="w"> </span>add<span class="w"> </span>--type<span class="w"> </span>weekly<span class="w"> </span>--day<span class="w"> </span>mon<span class="w"> </span>--time<span class="w"> </span><span class="m">21</span>:00<span class="w"> </span>--message<span class="w"> </span><span class="s2">"Weekly review"</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">"Check training run r42 on lab2"</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>cortex<span class="w"> </span>schedule<span class="w"> </span>add<span class="w"> </span>--type<span class="w"> </span>once<span class="w"> </span>--delay<span class="w"> </span>2h<span class="w"> </span>--message<span class="w"> </span>-
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>cortex<span class="w"> </span>schedule<span class="w"> </span>list<span class="w"> </span>--project<span class="w"> </span>nimbus
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>cortex<span class="w"> </span>schedule<span class="w"> </span>edit<span class="w"> </span>a1b2c3d4<span class="w"> </span>--time<span class="w"> </span><span class="m">10</span>:30
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>cortex<span class="w"> </span>schedule<span class="w"> </span>remove<span class="w"> </span>a1b2c3d4<span class="w"> </span>--dry-run
+</code></pre></div>
+<p><strong><code>cortex memory &lt;regen|consolidate&gt; [--project &lt;name&gt;]... [--text]</code></strong></p>
+<p>维护 <code>$CORTEX_HOME/context/projects/*/</code> 下的项目记忆（其 <code>experiments/</code>、<code>knowledge/</code> 和 <code>patterns/</code> 目录；见 <a href="../memory/">记忆</a>）。<code>--project</code> 把运行限制在一个项目，可重复使用；不传时处理所有带记忆目录的项目，未知项目以 1 退出并列出有效名称。</p>
+<ul>
+<li><code>regen</code> — 根据条目 frontmatter 和访问日志重建生成的 <code>index.md</code> 文件，从不改动 <code>EXP</code>/<code>K</code>/<code>PAT</code> 条目本身。打印
+  <code>{ ok: true, projects: [{ project, indexes }] }</code>。</li>
+<li><code>consolidate</code> — 以 <code>{ ok: true, reports }</code> 报告矛盾、过期条目、反模式信号和合并候选；<code>--text</code> 改为打印可读摘要。</li>
+</ul>
+<p><strong><code>cortex feishu &lt;login|status|logout&gt; [--scope &lt;scopes&gt;] [--manual] [--redirect-uri &lt;url&gt;]</code></strong></p>
+<p>管理飞书文档工具所代表的飞书用户身份。</p>
+<ul>
+<li><code>login</code> — 用 OAuth 设备流程授权一个飞书账号：命令打印一个 URL 和一个代码，可在任意浏览器中打开。需要 <code>FEISHU_APP_ID</code> 和 <code>FEISHU_APP_SECRET</code>。成功后保存用户 token，并向 <code>.env</code> 写入 <code>FEISHU_AUTH_MODE=user</code>；重启 daemon 后生效。</li>
+<li><code>status</code> — 显示认证模式（<code>user</code> 或 <code>bot</code>）以及已保存 token 的有效性和过期时间。</li>
+<li><code>logout</code> — 删除已保存的用户 token。</li>
+</ul>
+<p>选项：
+- <code>--scope &lt;scopes&gt;</code> — 要申请的 scope（默认：<code>$FEISHU_USER_SCOPE</code>，否则为一组无需应用审核的文档、表格、多维表格和知识库 scope；始终会加上 <code>offline_access</code>）
+- <code>--manual</code> — 使用授权 URL 加粘贴代码的流程，而不是设备流程
+- <code>--redirect-uri &lt;url&gt;</code> — <code>--manual</code> 使用的重定向 URI（默认：<code>$FEISHU_REDIRECT_URI</code>）</p>
+<h3 id="exit-codes">退出码<a class="headerlink" href="#exit-codes" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>代码</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>成功</td>
+</tr>
+<tr>
+<td>1</td>
+<td>错误（无效命令、缺少配置、运行时失败）</td>
+</tr>
+<tr>
+<td>130</td>
+<td><code>init</code> 或 <code>auth login</code> 被取消，或拒绝安装 Claude Code</td>
+</tr>
+</tbody>
+</table>
+<p><code>cortex start</code> 和 <code>cortex tui</code> 以它们所运行进程的退出码退出。</p>
+<hr />
+<h2 id="cortex-browser">cortex-browser<a class="headerlink" href="#cortex-browser" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>cortex-browser [--device &lt;name&gt;] &lt;agent-browser command&gt; [args...]
+</code></pre></div>
+<p>操作调用方会话在 <a href="../agent-browser/">agent 浏览器</a>里的那个 tab。Agent 在自己的 shell 里运行它；除 <code>--device</code> 外的所有参数都原样交给随 Cortex 固定版本的 <a href="https://agent-browser.dev">agent-browser</a>，并连到该会话自己的 tab 上。输出和退出码都来自 agent-browser。<code>cortex-browser skills get core</code> 打印与所带版本匹配的 agent-browser 命令指南，加 <code>--full</code> 列出全部命令和选项。</p>
+<p>选项：
+- <code>--device &lt;name&gt;</code> — 用谁的 Chrome：<code>server</code> 或一台已连接的设备。选定后对该会话一直生效（默认：该会话上次用的设备，没有则为 <code>server</code>）
+- <code>--help</code>、<code>-h</code> — 显示用法；<code>cortex-browser &lt;command&gt; --help</code> 显示单个 agent-browser 命令的用法</p>
+<p>每次调用都通过回环 webhook（<code>http://127.0.0.1:$WEBHOOK_PORT/webhook/browser</code>，用 <code>CORTEX_WEBHOOK_TOKEN</code> 认证）向守护进程要该会话的浏览器。会话取自 <code>CORTEX_SESSION_ID</code>（或 <code>CORTEX_EXECUTION_ID</code>）。Agent 的 shell 里这三个变量都已设好，因此在那里无需任何配置。<code>skills</code>、<code>help</code> 和 <code>--version</code> 不需要浏览器即可运行。</p>
+<p>文件类命令（<code>screenshot</code>、<code>pdf</code>、<code>download</code>、<code>upload</code>、<code>record</code>、<code>trace</code>、<code>har</code>、<code>state</code> 等）的相对路径，以及 <code>--screenshot-dir</code>、<code>--download-path</code>、<code>--baseline</code> 的相对路径，都按调用方的工作目录解析。</p>
+<p><code>--cdp</code>、<code>--session</code> 和 tab 绑定由 <code>cortex-browser</code> 自己设置；会让调用离开本会话 tab 的参数会被拒绝：<code>--cdp</code>、<code>--session</code>、<code>--no-pin-tab</code>、<code>--auto-connect</code>、<code>--provider</code>/<code>-p</code>、<code>--namespace</code>、<code>--engine</code> 和 <code>--executable-path</code>。<code>connect</code>、<code>install</code>、<code>upgrade</code>、<code>dashboard</code>、<code>mcp</code> 和 <code>close --all</code> 也会被拒绝，并说明原因和替代做法。</p>
+<p>如果该会话的 tab 已经不在了（空闲 10 分钟后被关闭，或 Chrome 重启过），这次调用会新开一个空白 tab，在 stderr 上打印一条说明，然后在新 tab 里执行命令。</p>
+<h3 id="cortex-browser-exit-codes">退出码<a class="headerlink" href="#cortex-browser-exit-codes" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>退出码</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>成功</td>
+</tr>
+<tr>
+<td>1</td>
+<td>agent-browser 命令失败，或浏览器无法使用：设备未知或离线、Chrome 启动失败、用户正在操作浏览器、守护进程不可达或拒绝了 token。原因和提示写在 stderr</td>
+</tr>
+<tr>
+<td>2</td>
+<td>用法错误（被拒绝的参数或命令、<code>--device</code> 缺少设备名），或环境里没有会话</td>
+</tr>
+</tbody>
+</table>
+<p>连上浏览器之后，退出码就是 agent-browser 自己的。</p>
+<h3 id="cortex-browser-examples">示例<a class="headerlink" href="#cortex-browser-examples" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># 打开页面并列出可点击的元素</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>cortex-browser<span class="w"> </span>open<span class="w"> </span>http://127.0.0.1:5173<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>cortex-browser<span class="w"> </span>snapshot<span class="w"> </span>-i
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># 点击快照里的一个 ref，再截图看结果</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>cortex-browser<span class="w"> </span>click<span class="w"> </span>@e2<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>cortex-browser<span class="w"> </span>screenshot<span class="w"> </span>./after-click.png
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># 使用用户机器上的 Chrome（它的 localhost、它的登录状态）</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>cortex-browser<span class="w"> </span>--device<span class="w"> </span>my-pc<span class="w"> </span>open<span class="w"> </span>https://example.com
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="c1"># 查看与版本匹配的命令参考</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>cortex-browser<span class="w"> </span>skills<span class="w"> </span>get<span class="w"> </span>core<span class="w"> </span>--full
+</code></pre></div>
+<hr />
+<h2 id="cortex-evidence-export">cortex-evidence-export<a class="headerlink" href="#cortex-evidence-export" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>cortex-evidence-export --input-file &lt;path|-&gt;
+</code></pre></div>
+<p>从 <code>CORTEX_HOME</code> 下的生产 store 发布不可变的 terminal/composite benchmark evidence v2。命令初始化生产 attempt identity 与 journal store，加载 <code>data/executions.json</code>，读取归因后的 cost，再把验证和原子发布委托给 <code>exportProductionBenchmarkEvidence</code>。Cortex benchmark arm 始终通过生产服务器运行，每个 trial 是一个 direct session；此命令记录该运行时的 store，不定义第二条编排路径。</p>
+<p>Evidence 按 session 与 execution 建键：trial 的 session 打开的每次 run 是一个 attempt，由其 <code>session_id</code> 和 <code>execution_id</code> 标识；该 session 之后的每次 run 是前一次 run 的 spawn 子节点。</p>
+<p><code>--input-file</code> 包含一个 JSON 编码的 <code>ProductionEvidenceExportInput</code>；传 <code>-</code> 表示从 stdin 读取。参数必须恰好是 <code>--input-file &lt;value&gt;</code>，其他形式均为用法错误。所有字段都由 launcher 负责：<code>outputDirectory</code>、<code>trialId</code>、<code>rootRunId</code>、<code>armName</code>、<code>armCanonicalSha256</code>、<code>bundleManifestHash</code>、<code>proxyExport</code>，以及可选的 <code>evaluatedChecks</code>。发布前会验证 hash、proxy trial identity 和 predicate 结果。输入缺失或格式错误、持久记录不完整，或输出目录已存在时，命令以退出码 <code>1</code> fail closed。</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>cortex-evidence-export<span class="w"> </span>--input-file<span class="w"> </span>production-evidence.json
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>cat<span class="w"> </span>production-evidence.json<span class="w"> </span><span class="p">|</span><span class="w"> </span>cortex-evidence-export<span class="w"> </span>--input-file<span class="w"> </span>-
+</code></pre></div>
+<p>成功时向 stdout 写入一个 JSON 对象：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="p">{</span><span class="nt">"ok"</span><span class="p">:</span><span class="kc">true</span><span class="p">,</span><span class="nt">"directory"</span><span class="p">:</span><span class="s2">"/evidence/run-1"</span><span class="p">,</span><span class="nt">"composite_path"</span><span class="p">:</span><span class="s2">"/evidence/run-1/composite-manifest.json"</span><span class="p">,</span><span class="nt">"composite_sha256"</span><span class="p">:</span><span class="s2">"&lt;sha256&gt;"</span><span class="p">,</span><span class="nt">"terminal_paths"</span><span class="p">:[</span><span class="s2">"/evidence/run-1/execution-root.terminal.json"</span><span class="p">]}</span>
+</code></pre></div>
+<p>失败时向 stderr 写入 <code>{"ok":false,"error":"..."}</code>，且不会发布不完整的目录。只有所有 terminal 和 composite 字节都在隐藏的 staging 目录中完成写入、fsync 和校验后，公开输出路径才会出现。</p>
+<hr />
+<h2 id="cortex-hook">cortex-hook<a class="headerlink" href="#cortex-hook" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>cortex-hook &lt;list|show|enable|disable|test|ask&gt; [options]
+</code></pre></div>
+<p>检查和操作从内置注册表及 <code>$CORTEX_HOME/config/hooks/</code> 挂载的 hook。每个命令都把 JSON 输出到 stdout，错误输出到 stderr。这些命令所作用的注册表见 <a href="../hooks/#the-cortex-hook-cli">Hooks：cortex-hook CLI</a>。</p>
+<ul>
+<li><code>list</code> — 所有已挂载的 hook：<code>id</code>、<code>event</code>、<code>enabled</code>、<code>source</code>（<code>builtin</code> 或 <code>user</code>），以及是否有用户文件覆盖内置 hook</li>
+<li><code>show --id &lt;id&gt;</code> — 一条完整声明；id 未知时以 1 退出并列出有效 id</li>
+<li><code>enable --id &lt;id&gt; [--dry-run]</code> / <code>disable --id &lt;id&gt; [--dry-run]</code> — 幂等地切换 hook；结果说明是否有内容 <code>changed</code>，<code>--dry-run</code> 报告 <code>would_set</code> 而不写入</li>
+<li><code>test --id &lt;id&gt; --payload &lt;file|-&gt;</code> — 以 stdin 传入 payload 运行该 hook 一次，打印其 <code>exit_code</code>、<code>stdout</code> 和 <code>stderr</code>；命令以 hook 自身的退出码退出</li>
+<li><code>ask (--question &lt;text&gt; | --payload &lt;file|-&gt;)</code> — 发出一张询问用户的卡片并阻塞到有人回答，然后打印 <code>{ ok: true, answers }</code>。<code>--header</code>、<code>--options "a|b|c"</code>、<code>--multi</code> 和 <code>--level info|warn|warning|error</code> 用于构造单个问题；<code>--payload</code> 接收问题对象组成的 JSON 数组。卡片发到 <code>--channel</code>（默认：<code>$CORTEX_HOOK_CHANNEL</code>）或 <code>--session-id</code>（默认：<code>$CORTEX_HOOK_SESSION_ID</code>）所在的频道，hook 的环境中已经带有这两个变量。<code>--dry-run</code> 以合成方式完成解析，不发出卡片。见 <a href="../hooks/#asking-the-user-from-a-hook">从 hook 询问用户</a></li>
+</ul>
+<h3 id="exit-codes_1">退出码<a class="headerlink" href="#exit-codes_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>代码</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>成功，或 <code>ask</code> 已得到回答</td>
+</tr>
+<tr>
+<td>1</td>
+<td>用法或运行时错误</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>ask</code> 超时且无人回答</td>
+</tr>
+</tbody>
+</table>
+<p><code>test</code> 以其所运行 hook 的退出码退出。</p>
+<hr />
+<h2 id="cortex-signal">cortex-signal<a class="headerlink" href="#cortex-signal" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>cortex-signal [--id wp_…] [--secret …] [--status ok|fail|progress] [--message TEXT] [--exit-code N]
+</code></pre></div>
+<p>告诉 Cortex：它在等的那件事结束了。不带参数运行时打印用法。Agent 先用 <code>wait_create</code> MCP 工具登记一个 waitpoint 并结束自己那一轮，这个命令解决该 waitpoint 并唤醒对应 session。完整说明见 <a href="../waitpoints/">waitpoints.md</a>。</p>
+<p><code>--id</code> 和 <code>--secret</code> 默认取 <code>$CORTEX_SIGNAL_ID</code> 和 <code>$CORTEX_SIGNAL_SECRET</code>，所以通常的接入就是两行：先 export 一次，再追加一条命令。</p>
+<p>选项：
+- <code>--id &lt;wp_…&gt;</code> — waitpoint id（默认：<code>$CORTEX_SIGNAL_ID</code>）
+- <code>--secret &lt;hex&gt;</code> — 随该 waitpoint 一起签发的能力凭证（默认：<code>$CORTEX_SIGNAL_SECRET</code>）
+- <code>--status &lt;s&gt;</code> — <code>ok</code>、<code>fail</code> 或 <code>progress</code>（默认：<code>ok</code>）。<code>ok</code>/<code>fail</code> 是终态：计入 quorum 并唤醒会话。<code>progress</code> 只记录心跳，不结算任何东西，<strong>也不唤醒任何人</strong>——两者的区别完全在于“这件事值不值一个 turn”
+- <code>--exit-code &lt;n&gt;</code> — 由命令退出码推导状态（0 为 <code>ok</code>，其余为 <code>fail</code>），消息默认为 <code>exit=&lt;n&gt;</code>
+- <code>--message &lt;text&gt;</code> — 一行摘要，显示在唤醒消息里
+- <code>--member &lt;name&gt;</code> — 多任务 waitpoint 中这条信号属于哪个成员
+- <code>--data &lt;@file|-|text&gt;</code> — 来自文件、stdin 或字面文本的附加载荷；它以数据身份到达 agent，绝不作为指令
+- <code>--url &lt;url&gt;</code> — 守护进程 signal 端点（默认：<code>http://127.0.0.1:$WEBHOOK_PORT/webhook/signal</code>）
+- <code>--no-spool</code> — 守护进程不可达时直接失败，不落盘
+- <code>--help</code>、<code>-h</code> — 显示用法</p>
+<p>该端点只监听回环，并且<strong>不</strong>接受 <code>CORTEX_WEBHOOK_TOKEN</code>：每个 waitpoint 的 secret 是唯一凭证，而它除了解决自己那一个 waitpoint 之外什么都做不了。要从别的机器发信号，就在那台机器的 <code>~/.cortex/tmp/signals/</code> 里放一个 JSON 文件——见 <a href="../waitpoints/#on-another-machine">waitpoints.md</a>。</p>
+<h3 id="spooling">落盘缓冲<a class="headerlink" href="#spooling" title="Permanent link">&para;</a></h3>
+<p>守护进程不可达时，信号会写到 <code>$CORTEX_HOME/tmp/signals/&lt;name&gt;.json</code>（先写 <code>.tmp</code> 再重命名，因此半截文件永远不会被读取），命令仍然以 0 退出。守护进程会在下一次 sweep 时收走该目录中的信号，因此重启期间发出的信号只是延迟，不会丢失。<code>--no-spool</code> 关闭这一行为，改为以 1 退出。</p>
+<h3 id="exit-codes_2">退出码<a class="headerlink" href="#exit-codes_2" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>代码</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>已接受、已落盘，或该 waitpoint 早已被解决</td>
+</tr>
+<tr>
+<td>1</td>
+<td>被拒绝（secret 错误、id 未知、被限流），或带 <code>--no-spool</code> 且不可达</td>
+</tr>
+<tr>
+<td>2</td>
+<td>用法错误（缺少 id/secret、未知标志、缺少取值、<code>--status</code> 或 <code>--exit-code</code> 非法、<code>--data</code> 文件无法读取）</td>
+</tr>
+</tbody>
+</table>
+<p>早已被解决的 waitpoint 故意以 0 退出：重试的脚本不应把“别人已经报过了”当成失败。</p>
+<h3 id="examples">示例<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Report the exit code of the command that just ran</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">CORTEX_SIGNAL_ID</span><span class="o">=</span>wp_1a2b3c4d5e6f<span class="w"> </span><span class="nv">CORTEX_SIGNAL_SECRET</span><span class="o">=</span>…
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>python<span class="w"> </span>train.py<span class="p">;</span><span class="w"> </span>cortex-signal<span class="w"> </span>--exit-code<span class="w"> </span><span class="nv">$?</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="c1"># Report one arm of a multi-job waitpoint</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>cortex-signal<span class="w"> </span>--member<span class="w"> </span>arm2<span class="w"> </span>--status<span class="w"> </span>ok<span class="w"> </span>--message<span class="w"> </span><span class="s2">"33,120 steps"</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="c1"># Attach the tail of a log as data</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>python<span class="w"> </span>train.py<span class="p">;</span><span class="w"> </span><span class="nv">s</span><span class="o">=</span><span class="nv">$?</span><span class="p">;</span><span class="w"> </span>tail<span class="w"> </span>-c<span class="w"> </span><span class="m">2000</span><span class="w"> </span>train.log<span class="w"> </span><span class="p">|</span><span class="w"> </span>cortex-signal<span class="w"> </span>--exit-code<span class="w"> </span><span class="nv">$s</span><span class="w"> </span>--data<span class="w"> </span>-
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="c1"># Heartbeat without waking anyone</span>
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>cortex-signal<span class="w"> </span>--status<span class="w"> </span>progress<span class="w"> </span>--message<span class="w"> </span><span class="s2">"epoch 12/40"</span>
+<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a>
+<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a><span class="c1"># Signal when a process that is already running exits</span>
+<a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a><span class="o">(</span><span class="k">while</span><span class="w"> </span><span class="nb">kill</span><span class="w"> </span>-0<span class="w"> </span><span class="m">12345</span><span class="w"> </span><span class="m">2</span>&gt;/dev/null<span class="p">;</span><span class="w"> </span><span class="k">do</span><span class="w"> </span>sleep<span class="w"> </span><span class="m">5</span><span class="p">;</span><span class="w"> </span><span class="k">done</span><span class="p">;</span><span class="w"> </span>cortex-signal<span class="w"> </span>--status<span class="w"> </span>ok<span class="o">)</span><span class="w"> </span><span class="p">&amp;</span>
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

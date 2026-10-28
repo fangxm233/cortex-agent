@@ -1,0 +1,1778 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Agent workbench for auto research, self-improvement loops, and long-running work">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/zh/scheduling/">
+      
+      
+        <link rel="prev" href="../skills-and-plugins/">
+      
+      
+        <link rel="next" href="../safety-and-approvals/">
+      
+      
+        
+          <link rel="alternate" href="../../scheduling/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>调度 - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cortex-scheduling-system" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../" title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              调度
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="选择当前语言">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../scheduling/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../" title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    快速入门
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    桌面应用
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    浏览器访问
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack 设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    配置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 参考
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    后端
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../team/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    团队模式
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    记忆
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills-and-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    技能与插件
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    调度
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    调度
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#schedule-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        调度类型
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#managing-schedules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        管理调度
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#schedule-records" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        调度记录
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="调度记录">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scheduletask-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ScheduleTask 字段
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#built-in-periodic-jobs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        内置周期作业
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-a-fire-lands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        触发后在哪里运行
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#precheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PreCheck
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hot-reload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        热重载
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="热重载">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#config-hash-for-change-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        用于变更检测的配置哈希
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#in-flight-protection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        运行中保护
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pause-and-resume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        暂停和恢复
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="暂停和恢复">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pausing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        暂停
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resuming" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        恢复
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#removing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        移除
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#startup-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        启动行为
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#agent-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        智能体工作流
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#chat-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        聊天命令
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#execution-routing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        执行路由
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rate-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        速率限制
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    安全与审批
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../telemetry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    遥测
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    钩子
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../waitpoints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    等待点
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    跨机器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent-browser/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent 浏览器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#schedule-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        调度类型
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#managing-schedules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        管理调度
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#schedule-records" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        调度记录
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="调度记录">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scheduletask-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ScheduleTask 字段
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#built-in-periodic-jobs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        内置周期作业
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-a-fire-lands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        触发后在哪里运行
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#precheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PreCheck
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hot-reload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        热重载
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="热重载">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#config-hash-for-change-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        用于变更检测的配置哈希
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#in-flight-protection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        运行中保护
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pause-and-resume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        暂停和恢复
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="暂停和恢复">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pausing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        暂停
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resuming" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        恢复
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#removing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        移除
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#startup-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        启动行为
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#agent-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        智能体工作流
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#chat-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        聊天命令
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#execution-routing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        执行路由
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rate-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        速率限制
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="cortex-scheduling-system">Cortex 调度系统<a class="headerlink" href="#cortex-scheduling-system" title="Permanent link">&para;</a></h1>
+<p>调度系统用于设置周期性或一次性的智能体调用。调度持久化到磁盘，重启后依然保留，被外部修改时会热重载。每次触发都会新开一个会话来运行调度的提示。Provider 用量采集和记忆索引重建等 daemon 基础设施循环由下文介绍的内置作业控制器运行，不使用调度记录。</p>
+<div class="admonition tip">
+<p class="admonition-title">在等某件事结束？别用调度去轮询</p>
+<p>只为检查任务是否完成而触发的调度，每次都要花掉一整轮 agent，而其中几乎每一轮
+都一无所获。改用 <a href="../waitpoints/">waitpoint</a>：任务结束时自己回报，
+session 恰好被唤醒一次。调度用于该按时钟发生的工作，而不是用来盯着别的东西。</p>
+</div>
+<h2 id="schedule-types">调度类型<a class="headerlink" href="#schedule-types" title="Permanent link">&para;</a></h2>
+<p>支持四种触发类型：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>描述</th>
+<th>关键参数</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>interval</code></td>
+<td>每 N 个时间单位触发一次</td>
+<td><code>interval</code>（如 <code>"5m"</code>、<code>"1h"</code>、<code>"30s"</code>）</td>
+<td>每 5 分钟运行一次状态检查</td>
+</tr>
+<tr>
+<td><code>daily</code></td>
+<td>每天在固定时间触发</td>
+<td><code>time</code>（<code>HH:MM</code> 24 小时制）</td>
+<td>每天 09:00 运行每日摘要</td>
+</tr>
+<tr>
+<td><code>weekly</code></td>
+<td>每周在固定的某天某时触发</td>
+<td><code>dayOfWeek</code>（0-6，0=周日）、<code>time</code></td>
+<td>每周一 21:00 运行周回顾</td>
+</tr>
+<tr>
+<td><code>once</code></td>
+<td>延迟一段时间后触发一次</td>
+<td><code>delay</code>（时长字符串）</td>
+<td>2 小时后发送提醒</td>
+</tr>
+</tbody>
+</table>
+<p>时长字符串的格式为 <code>&lt;number&gt;&lt;unit&gt;</code>，其中 unit 为 <code>s</code>（秒）、<code>m</code>（分钟）、<code>h</code>（小时）或 <code>d</code>（天），不区分大小写，数字可以带小数部分。示例：<code>"30s"</code>、<code>"5m"</code>、<code>"1.5h"</code>、<code>"1d"</code>。不带单位的数字字符串会被拒绝，所以 <code>"30"</code> 绝不会被当成 30 毫秒；传 JSON 数字的调用方（如 Web UI）给的是毫秒。星期写作 <code>sun</code>..<code>sat</code>（不区分大小写）或 <code>0</code>-<code>6</code>，时间为服务器本地时间的 24 小时制 <code>HH:MM</code>，小时必须是两位（写 <code>09:00</code>，不写 <code>9:00</code>）。消息会去掉首尾空白，且不能为空。</p>
+<h2 id="managing-schedules">管理调度<a class="headerlink" href="#managing-schedules" title="Permanent link">&para;</a></h2>
+<p><img alt="每日 09:00 检查的 Edit schedule 对话框" src="../../images/ui/schedules.png" /></p>
+<p>所有入口使用同一套校验，写同一个 <code>schedules.json</code>：</p>
+<table>
+<thead>
+<tr>
+<th>入口</th>
+<th>使用者</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>schedule</code> skill → <code>cortex schedule</code></td>
+<td>会话内的智能体（见<a href="#agent-workflow">智能体工作流</a>）</td>
+</tr>
+<tr>
+<td><code>cortex schedule</code></td>
+<td>脚本和终端（见 <a href="#cli">CLI</a>）</td>
+</tr>
+<tr>
+<td><code>!schedule</code></td>
+<td>Slack 或飞书里的聊天命令（见<a href="#chat-commands">聊天命令</a>）</td>
+</tr>
+<tr>
+<td>Web UI / 桌面端</td>
+<td>调度列表和编辑器；可设置除 <code>preCheck</code> 外的所有字段，<code>once</code> 调度的时间在创建后固定</td>
+</tr>
+</tbody>
+</table>
+<p>Web 和移动端编辑器选择模型与思考档位。CLI 与聊天命令的 <code>--model</code> 接受模型 id 或 PI 的 <code>provider/model</code>，选择时读取模型记忆；<code>--thinking</code> 可覆盖档位。创建或编辑时保存完整选择，触发时使用该快照。</p>
+<h2 id="schedule-records">调度记录<a class="headerlink" href="#schedule-records" title="Permanent link">&para;</a></h2>
+<p>每个调度以 JSON 对象的形式存储在 <code>~/.cortex/data/schedules.json</code> 中：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">"tasks"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">      </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"d6f1bb1e"</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">      </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"interval"</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">      </span><span class="nt">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Check the active projects and report blockers"</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">      </span><span class="nt">"projectId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"general"</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">      </span><span class="nt">"selection"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">        </span><span class="nt">"backend"</span><span class="p">:</span><span class="w"> </span><span class="s2">"claude"</span><span class="p">,</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">        </span><span class="nt">"provider"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">        </span><span class="nt">"model"</span><span class="p">:</span><span class="w"> </span><span class="s2">"haiku"</span><span class="p">,</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">        </span><span class="nt">"thinking"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">        </span><span class="nt">"mode"</span><span class="p">:</span><span class="w"> </span><span class="s2">"plan"</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">      </span><span class="p">},</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">      </span><span class="nt">"intervalMs"</span><span class="p">:</span><span class="w"> </span><span class="mi">3600000</span><span class="p">,</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">      </span><span class="nt">"createdAt"</span><span class="p">:</span><span class="w"> </span><span class="mi">1747680000000</span><span class="p">,</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">      </span><span class="nt">"nextRun"</span><span class="p">:</span><span class="w"> </span><span class="mi">1747683600000</span><span class="p">,</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">      </span><span class="nt">"lastRun"</span><span class="p">:</span><span class="w"> </span><span class="mi">1747680000000</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="p">}</span>
+</code></pre></div>
+<h3 id="scheduletask-fields">ScheduleTask 字段<a class="headerlink" href="#scheduletask-fields" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>8 字符十六进制标识符（自动生成）</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td><code>interval</code>、<code>daily</code>、<code>weekly</code> 或 <code>once</code></td>
+</tr>
+<tr>
+<td><code>message</code></td>
+<td>调度触发时发送的提示（触发时自动加上 <code>[Scheduled Task]</code> 前缀）</td>
+</tr>
+<tr>
+<td><code>projectId</code></td>
+<td>调度所属的项目；每次触发的会话都在这个项目中打开</td>
+</tr>
+<tr>
+<td><code>selection</code></td>
+<td>完整引擎选择：<code>backend</code>、<code>provider</code>、<code>model</code>、<code>thinking</code>、<code>mode</code>。未指定时保存创建时的配置默认选择；之后更换默认值或模型记忆不影响已有调度</td>
+</tr>
+<tr>
+<td><code>intervalMs</code></td>
+<td><code>interval</code> 类型：两次触发之间的毫秒数</td>
+</tr>
+<tr>
+<td><code>time</code></td>
+<td><code>daily</code>/<code>weekly</code> 类型：<code>HH:MM</code> 24 小时制时间</td>
+</tr>
+<tr>
+<td><code>dayOfWeek</code></td>
+<td><code>weekly</code> 类型：0-6（0=周日）</td>
+</tr>
+<tr>
+<td><code>runAt</code></td>
+<td><code>once</code> 类型：触发时刻的纪元毫秒数</td>
+</tr>
+<tr>
+<td><code>nextRun</code></td>
+<td>计算得出的下一次触发时刻（纪元毫秒）</td>
+</tr>
+<tr>
+<td><code>createdAt</code></td>
+<td>调度创建时刻（纪元毫秒）</td>
+</tr>
+<tr>
+<td><code>lastRun</code></td>
+<td>最近一次交给 runner 的触发时刻（纪元毫秒），包括因上一次运行尚未结束或 所选引擎被限速而被 runner 跳过的触发。<code>once</code> 调度在触发时即被删除，从不记录该字段</td>
+</tr>
+<tr>
+<td><code>lastSkipped</code></td>
+<td>最近一次被跳过的触发时刻（纪元毫秒，preCheck 失败）</td>
+</tr>
+<tr>
+<td><code>isPaused</code></td>
+<td>调度当前是否暂停</td>
+</tr>
+<tr>
+<td><code>pausedAt</code></td>
+<td>暂停时刻（纪元毫秒）</td>
+</tr>
+<tr>
+<td><code>pausedBy</code></td>
+<td>调度暂停期间为 <code>"user"</code></td>
+</tr>
+<tr>
+<td><code>dispatchType</code></td>
+<td>保留的内部处理器键；普通用户调度不填写</td>
+</tr>
+<tr>
+<td><code>preCheck</code></td>
+<td>可选的 shell 命令；非零退出 → 跳过此次触发</td>
+</tr>
+<tr>
+<td><code>idempotencyKey</code></td>
+<td>由 <code>cortex schedule add --idempotency-key</code> 写入；用同一个 key 重试会返回这个调度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="built-in-periodic-jobs">内置周期作业<a class="headerlink" href="#built-in-periodic-jobs" title="Permanent link">&para;</a></h2>
+<p>Provider 用量采集和记忆索引重建是 daemon 自有的作业。它们不会出现在 <code>schedules.json</code>、<code>!schedule list</code>、<code>cortex schedule list</code> 或 Web 调度列表中。它们的开关和间隔是 <code>config/settings.json</code> 中的两组键：<code>providerUsageCollectionEnabled</code> / <code>providerUsageCollectionIntervalMs</code>（默认开启，每 5 分钟一次）和 <code>memoryIndexRegenEnabled</code> / <code>memoryIndexRegenIntervalMs</code>（默认开启，每 24 小时一次）。记忆索引这一组也可以在 <strong>设置 → 高级 → 数据与维护</strong> 中设置。</p>
+<p>已启用的作业会在 daemon 启动时运行一次。设置修改会热重载：禁用作业会清除它的下一个 timer，启用作业会立即运行一次，修改间隔会重新安排下一次空闲运行。默认值和取值范围见 <a href="../configuration/#configsettingsjson">configuration.md</a>。</p>
+<h2 id="where-a-fire-lands">触发后在哪里运行<a class="headerlink" href="#where-a-fire-lands" title="Permanent link">&para;</a></h2>
+<p>每次触发都会新开一个普通会话——与你在 Web UI 或桌面端新建的会话相同——并把调度的消息加上
+<code>[Scheduled Task]</code> 前缀作为它的第一轮发送。该会话被记为这个调度的一次运行，并以消息的前
+60 个字符作为标题。触发从不复用之前运行的会话，因此周期性调度的每次运行各有独立的记录。</p>
+<p>在工作台中，会话栏的 <strong>Scheduled</strong> 分组为每个调度显示一行。周期性调度的那一行打开其运行列表；
+<code>once</code> 调度的那一行打开它的那次运行。回复某次运行会把它变成普通对话，随后移入常规的会话时间线。</p>
+<p>会话在调度的 <code>projectId</code> 中打开，该项目在创建调度时确定。<code>cortex schedule</code> 和 Web UI
+直接接受项目参数，默认为 <code>general</code>。智能体通过 <code>--project</code> 显式传入目标项目；<code>!schedule</code>
+使用创建所在频道登记的项目，否则使用 <code>general</code>。如果触发时该项目已不存在，会话会在消息中
+提到的项目中打开，否则在 <code>general</code> 中打开。</p>
+<h2 id="precheck">PreCheck<a class="headerlink" href="#precheck" title="Permanent link">&para;</a></h2>
+<p><code>preCheck</code> 字段是一个可选的 shell 命令，起门控作用：如果命令以非零状态退出，该周期的调度触发会被<strong>跳过</strong>。调度按正常节奏安排到下一个周期——不会快速重试。</p>
+<p>命令在 shell 中运行，不阻塞事件循环，超时为 15 秒。它会收到 <code>PRECHECK_LAST_RUN</code> 环境变量（任务 <code>lastRun</code> 字段的纪元毫秒数）。工作目录为 <code>DATA_DIR</code>（<code>~/.cortex/</code>）。</p>
+<p><strong>preCheck 的使用场景：</strong></p>
+<ul>
+<li>运行前检查必需的文件是否存在：<code>test -f ~/.cortex/data/schedules.json</code></li>
+<li>检查某个进程是否在运行：<code>pgrep -f "python train.py"</code></li>
+<li>检查系统负载：<code>[ $(cat /proc/loadavg | cut -d' ' -f1 | cut -d. -f1) -lt 8 ]</code></li>
+</ul>
+<h2 id="hot-reload">热重载<a class="headerlink" href="#hot-reload" title="Permanent link">&para;</a></h2>
+<p>只有 daemon 的调度器会触发调度。daemon 与 <code>cortex schedule</code> 共用持久化的记录；CLI
+直接写入 <code>schedules.json</code>。调度器用 <code>fs.watch</code> 监视这个文件，在最后一次变更 300ms 后：</p>
+<ol>
+<li>绕过内存副本，从磁盘读取文件</li>
+<li><strong>移除</strong>已不在文件中的任务的 timer</li>
+<li><strong>添加</strong>新任务的 timer</li>
+<li><strong>重新设置</strong>调度配置有变化的任务（通过比较配置哈希检测）</li>
+<li>发送管理通知：<code>🔄 schedules.json hot-reloaded: +N -M ~P task(s), T total</code></li>
+</ol>
+<p>调度器自己的写入同样会触发监视器；随后的重载发现没有变化，不发通知。每次写入（包括 daemon
+自己的）都会在写入过程中重新读取文件，因此其他进程刚做的修改会被保留，不会被过期副本覆盖。</p>
+<h3 id="config-hash-for-change-detection">用于变更检测的配置哈希<a class="headerlink" href="#config-hash-for-change-detection" title="Permanent link">&para;</a></h3>
+<p>每个任务中与调度相关的字段会被哈希：<code>type</code>、该类型对应的时间字段（<code>intervalMs</code>、<code>time</code>、<code>dayOfWeek</code>、<code>runAt</code>）、<code>message</code>、<code>projectId</code>、<code>selection</code>、<code>dispatchType</code>、<code>preCheck</code>，以及是否暂停。如果文件中某个任务的哈希与当前已设置的不同，就重新设置它的 timer，因此任何写入方所做的编辑、暂停或恢复都无需重启即可生效。</p>
+<h2 id="in-flight-protection">运行中保护<a class="headerlink" href="#in-flight-protection" title="Permanent link">&para;</a></h2>
+<p>如果调度触发时它的上一次运行仍在进行，这次触发会被跳过，以防同一调度的运行相互重叠。被跳过的触发仍记为该调度的 <code>lastRun</code>，下一次触发按正常时间进行。</p>
+<h2 id="pause-and-resume">暂停和恢复<a class="headerlink" href="#pause-and-resume" title="Permanent link">&para;</a></h2>
+<h3 id="pausing">暂停<a class="headerlink" href="#pausing" title="Permanent link">&para;</a></h3>
+<p><code>interval</code>、<code>daily</code> 和 <code>weekly</code> 类型的调度可以暂停。暂停或恢复 <code>once</code> 调度会被拒绝并报错；它要么触发，要么被移除。</p>
+<p>暂停时：
+- <code>isPaused</code> 设为 <code>true</code>，<code>pausedAt</code> 记录时间戳，<code>pausedBy</code> 记录 <code>"user"</code>
+- <code>nextRun</code> 设为 <code>null</code>
+- 清除内存中的 timer，且不会重新设置</p>
+<p>暂停的调度会一直保持暂停，直到被恢复。暂停一个已暂停的调度、或恢复一个正在运行的调度，都不会产生任何变化。</p>
+<h3 id="resuming">恢复<a class="headerlink" href="#resuming" title="Permanent link">&para;</a></h3>
+<p>恢复时：
+- <code>isPaused</code> 设为 <code>false</code>，清除 <code>pausedAt</code> 和 <code>pausedBy</code>
+- 根据调度类型重新计算 <code>nextRun</code>（<code>interval</code>：<code>now + intervalMs</code>；<code>daily</code>/<code>weekly</code>：下一次出现的时间）
+- 重新设置 timer</p>
+<h3 id="removing">移除<a class="headerlink" href="#removing" title="Permanent link">&para;</a></h3>
+<p>调度可以按 ID 删除。timer 被清除，条目从 <code>schedules.json</code> 中移除。移除是幂等的：对不存在的 id，<code>cortex schedule remove</code> 报告 <code>"removed": false</code>，Web UI 和 <code>!schedule remove</code> 则报告找不到该调度。</p>
+<h2 id="startup-behavior">启动行为<a class="headerlink" href="#startup-behavior" title="Permanent link">&para;</a></h2>
+<p>服务器启动时，调度器：</p>
+<ol>
+<li>丢弃逾期超过 1 分钟（已过其 <code>runAt</code>）的 <code>once</code> 任务，
+   并为每个任务发送一条管理通知：<code>Schedule &lt;id&gt; skipped (&lt;n&gt;s overdue): &lt;message&gt;</code></li>
+<li>按计算出的 <code>nextRun</code> 时间安排其余所有任务。若某个 <code>interval</code> 任务的
+   <code>nextRun</code> 在服务器停机期间已过，它会立即触发；停机期间错过的 <code>daily</code> 或 <code>weekly</code>
+   触发不会补跑，而是安排下一次出现的时间</li>
+<li>启动用于热重载的文件监视器</li>
+<li>记录任务总数</li>
+</ol>
+<h2 id="agent-workflow">智能体工作流<a class="headerlink" href="#agent-workflow" title="Permanent link">&para;</a></h2>
+<p><code>schedule</code> skill 用 <code>cortex schedule</code> 完成所有调度操作。CLI 在 Cortex 服务器上使用其
+<code>CORTEX_HOME</code> 运行，不会从调用它的会话或频道推断项目。智能体使用用户显式指定的项目，或从
+会话上下文或 <code>cortex_context</code> 解析出会话所属项目，然后在添加调度时传入 <code>--project &lt;id&gt;</code>。
+如果用户要求使用当前项目但取不到项目，应询问用哪个项目，而不是回退到 <code>general</code>。不能保证
+Bash 带有会话专属的环境变量，在 PI 上也是如此。创建时不传模型相关标志会保存配置的默认选择，
+它可能与当前会话不同。<code>--model</code> 选择模型，<code>--thinking</code> 指定其后端原生档位。</p>
+<p>每条消息都必须自包含：触发的会话需要知道项目、run、机器和文件路径，而不是引用创建调度时的对话。</p>
+<p>每日和每周的时间使用服务器本地时区。先把用户时区下的请求换算为服务器时区，再设置 <code>--time</code>，
+每周调度还要设置 <code>--day</code>；报告 <code>nextRun</code> 时换算回用户时区。要核实 daemon 实际使用的时区，
+包括任何 <code>TZ</code> 覆盖。调度不支持单独设置时区；两地夏令时切换不同步时，用户当地的周期触发时间
+可能发生偏移。换算不确定时先澄清，在有影响时说明这一限制。</p>
+<h2 id="cli">CLI<a class="headerlink" href="#cli" title="Permanent link">&para;</a></h2>
+<p><code>cortex schedule</code> 在智能体会话、终端或脚本中管理同一批调度。它的子命令有 <code>list</code>、<code>get</code>、<code>add</code>、<code>edit</code>、<code>pause</code>、<code>resume</code> 和 <code>remove</code>。所有命令都输出带 ISO 时间戳的 JSON，时间参数全部由显式 flag 给出，较长的提示可以从 stdin 读入：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>cortex<span class="w"> </span>schedule<span class="w"> </span>add<span class="w"> </span>--type<span class="w"> </span>daily<span class="w"> </span>--time<span class="w"> </span><span class="m">09</span>:00<span class="w"> </span>--project<span class="w"> </span>nimbus<span class="w"> </span>--message<span class="w"> </span><span class="s2">"Summarize yesterday's sessions"</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">"Check training run r42 on trainer"</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>cortex<span class="w"> </span>schedule<span class="w"> </span>add<span class="w"> </span>--type<span class="w"> </span>once<span class="w"> </span>--delay<span class="w"> </span>2h<span class="w"> </span>--message<span class="w"> </span>-
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>cortex<span class="w"> </span>schedule<span class="w"> </span>list<span class="w"> </span>--project<span class="w"> </span>nimbus
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>cortex<span class="w"> </span>schedule<span class="w"> </span>get<span class="w"> </span>a1b2c3d4
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>cortex<span class="w"> </span>schedule<span class="w"> </span>edit<span class="w"> </span>a1b2c3d4<span class="w"> </span>--time<span class="w"> </span><span class="m">10</span>:30
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>cortex<span class="w"> </span>schedule<span class="w"> </span>pause<span class="w"> </span>a1b2c3d4
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>cortex<span class="w"> </span>schedule<span class="w"> </span>remove<span class="w"> </span>a1b2c3d4<span class="w"> </span>--dry-run
+</code></pre></div>
+<p>与调度类型不符的时间 flag 会被拒绝，<code>edit</code> 也不能修改类型；对 <code>once</code> 调度执行 <code>edit --delay</code> 会把触发时间设为当前时间加上该延迟。正在运行的 daemon 会在一秒内应用变更。全部选项见 <a href="../cli-reference/">cli-reference.md</a>。</p>
+<h2 id="chat-commands">聊天命令<a class="headerlink" href="#chat-commands" title="Permanent link">&para;</a></h2>
+<p><code>!schedule</code> 命令在 Slack 或飞书中管理调度。在这里添加的调度属于该频道登记的项目，否则属于 <code>general</code>。</p>
+<table>
+<thead>
+<tr>
+<th>命令</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>!schedule</code> / <code>!schedule list</code></td>
+<td>列出所有调度及其状态和下次运行时间。前十个调度附带按钮：周期性调度为 <strong>Pause</strong> 或 <strong>Resume</strong>，<code>once</code> 调度为 <strong>Remove</strong></td>
+</tr>
+<tr>
+<td><code>!schedule add interval &lt;duration&gt; [--model &lt;[provider/]model&gt;] [--thinking &lt;level&gt;] &lt;message&gt;</code></td>
+<td>每隔一段时间重复（<code>--model</code> 紧跟在时间参数之后）</td>
+</tr>
+<tr>
+<td><code>!schedule add daily &lt;HH:MM&gt; [--model &lt;[provider/]model&gt;] [--thinking &lt;level&gt;] &lt;message&gt;</code></td>
+<td>每天在固定时间运行</td>
+</tr>
+<tr>
+<td><code>!schedule add weekly &lt;day&gt; &lt;HH:MM&gt; [--model &lt;[provider/]model&gt;] [--thinking &lt;level&gt;] &lt;message&gt;</code></td>
+<td>每周在固定的某天运行</td>
+</tr>
+<tr>
+<td><code>!schedule add once &lt;duration&gt; [--model &lt;[provider/]model&gt;] [--thinking &lt;level&gt;] &lt;message&gt;</code></td>
+<td>延迟一段时间后运行一次</td>
+</tr>
+<tr>
+<td><code>!schedule pause &lt;id&gt;</code></td>
+<td>暂停周期性调度</td>
+</tr>
+<tr>
+<td><code>!schedule resume &lt;id&gt;</code></td>
+<td>恢复已暂停的调度</td>
+</tr>
+<tr>
+<td><code>!schedule remove &lt;id&gt;</code></td>
+<td>移除调度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="execution-routing">执行路由<a class="headerlink" href="#execution-routing" title="Permanent link">&para;</a></h2>
+<p>普通调度记录使用 <code>scheduled-task</code> runner：每次触发新开一个会话，并发送带 <code>[Scheduled Task]</code> 前缀的消息。记录也可以在 <code>dispatchType</code> 中指定一个内部处理器；已注册的键为 <code>auth-expiry-scan</code> 和 <code>sync-public</code>，未注册的 <code>dispatchType</code> 会记录日志并跳过，不会被当作 agent prompt 解释。daemon 自有的周期基础设施使用内置作业控制器，不经过调度持久化。</p>
+<h2 id="rate-limits">速率限制<a class="headerlink" href="#rate-limits" title="Permanent link">&para;</a></h2>
+<p>调度所选引擎被限速时，会跳过本次触发并发出警告通知。周期性调度保持原有安排，在下一次计划时间触发；<code>once</code> 调度在触发时删除，不会再次尝试。其他启动失败（例如路由无效）也会发送通知。运行开始后才遇到限速的，会像其他会话一样暂停并在之后恢复。</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
