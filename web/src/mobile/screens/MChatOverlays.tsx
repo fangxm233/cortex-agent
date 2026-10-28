@@ -35,7 +35,7 @@ function SessionOverlays({ props, overlay }: OverlayProps): JSX.Element {
   const statsRows = props.sessionStatsRows?.length ? props.sessionStatsRows : null;
   return (
     <>
-      <MChatSessionMenu metadataSession={props.metadataSession} open={overlay.is('more')}
+      <MChatSessionMenu metadataSession={props.metadataSession} onDeleted={props.onSessionDeleted} open={overlay.is('more')}
         onClose={() => overlay.close('more')} onSessionId={() => overlay.open('sessionId')}
         onSessionStats={statsRows ? () => overlay.open('stats') : undefined} />
       {overlay.is('stats') && statsRows && <SessionStatsSheet rows={statsRows} onClose={() => overlay.close('stats')} />}

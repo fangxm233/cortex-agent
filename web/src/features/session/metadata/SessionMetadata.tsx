@@ -5,7 +5,12 @@ import { useVocab } from '@/i18n';
 import { useSessionMetadata, validSessionTitle, type MetadataSession, type SessionMetadataActions } from './useSessionMetadata';
 
 export type { MetadataSession, SessionMetadataActions } from './useSessionMetadata';
-type Props = { session: MetadataSession | null; children: (actions: SessionMetadataActions) => ReactNode };
+type Props = {
+  session: MetadataSession | null;
+  children: (actions: SessionMetadataActions) => ReactNode;
+  /** After the session is deleted, e.g. to leave a screen that showed it. */
+  onDeleted?: () => void;
+};
 
 const TITLE_INPUT_STYLE: CSSProperties = {
   display: 'block', width: '100%', minWidth: 0, minHeight: 34, boxSizing: 'border-box',
@@ -39,13 +44,13 @@ function RenameDialog({ actions }: { actions: SessionMetadataActions }): JSX.Ele
   </Modal>;
 }
 
-function MetadataState({ session, children }: Props): JSX.Element {
+function MetadataState({ session, children, onDeleted }: Props): JSX.Element {
   const L = useVocab();
-  const actions = useSessionMetadata(session, L.chatUpdateFailed);
+  const actions = useSessionMetadata(session, L.chatUpdateFailed, onDeleted);
   return <>
     {children(actions)}
     {actions.renameOpen && <RenameDialog actions={actions} />}
-    {actions.error && !actions.renameOpen && <Modal title={L.chatUpdateFailed} open
+    {actions.error && !actions.renameOpen && <Modal title={actions.deleting ? L.chatDeleteFailed : L.chatUpdateFailed} open
       onOpenChange={(open) => { if (!open) actions.clearError(); }} showClose={false}
       footer={<Button onClick={actions.clearError}>{L.cmClose}</Button>}>
       <p role="alert">{actions.error}</p>

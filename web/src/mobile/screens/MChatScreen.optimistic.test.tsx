@@ -286,7 +286,7 @@ describe('mobile chat metadata target', () => {
   it('passes the current stable ID/title, and none on a draft switch', () => {
     harness.sessions = [{ ...SESSION, label: 'Renamed', starred: true }];
     mounted = mountChat();
-    expect(view(mounted).props.metadataSession).toEqual({ sessionId: 's1', title: 'Renamed', starred: true });
+    expect(view(mounted).props.metadataSession).toEqual({ sessionId: 's1', title: 'Renamed', starred: true, running: false });
     harness.routeParam = 'new';
     act(() => mounted!.update(<LangProvider><MChatScreen /></LangProvider>));
     expect(view(mounted).props.metadataSession).toBeNull();

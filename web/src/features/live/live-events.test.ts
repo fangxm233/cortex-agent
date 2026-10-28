@@ -9,6 +9,7 @@ import {
   LIVE_RETRY_MAX_MS,
   matchesLiveEvent,
   BOARD_LIVE_EVENTS,
+  CATALOG_LIVE_EVENTS,
   CONFIG_LIVE_EVENTS,
   RATE_LIMIT_LIVE_EVENTS,
   LIVE_EVENT_TYPES,
@@ -21,7 +22,7 @@ const ev = (type: string, payload?: Record<string, unknown>): LiveEvent => ({ ty
 
 describe('LIVE_EVENT_TYPES', () => {
   it('is the union of every consumer group — a group event missing here would never reach its hook', () => {
-    for (const t of [...SESSION_LIVE_EVENTS, ...SYSTEM_LIVE_EVENTS, ...CONFIG_LIVE_EVENTS, ...RATE_LIMIT_LIVE_EVENTS, ...BOARD_LIVE_EVENTS]) {
+    for (const t of [...SESSION_LIVE_EVENTS, ...SYSTEM_LIVE_EVENTS, ...CONFIG_LIVE_EVENTS, ...RATE_LIMIT_LIVE_EVENTS, ...BOARD_LIVE_EVENTS, ...CATALOG_LIVE_EVENTS]) {
       expect(LIVE_EVENT_TYPES).toContain(t);
     }
   });

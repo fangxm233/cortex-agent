@@ -6,6 +6,7 @@ import { MoreMenu } from './MChatSheets';
 interface Props {
   /** Null for a draft; omitted in metadata-free previews. */
   metadataSession?: MetadataSession | null;
+  onDeleted?: () => void;
   open: boolean;
   onClose: () => void;
   onSessionId: () => void;
@@ -24,7 +25,7 @@ function MobileMenu({ props, metadataItems }: { props: Props; metadataItems?: Re
 /** Keep metadata state mounted when the popover closes to open its rename/error dialog. */
 export function MChatSessionMenu(props: Props): JSX.Element {
   if (props.metadataSession === undefined) return <MobileMenu props={props} />;
-  return <SessionMetadata session={props.metadataSession}>
+  return <SessionMetadata session={props.metadataSession} onDeleted={props.onDeleted}>
     {(actions) => <MobileMenu props={props} metadataItems={
       <SessionMetadataMenuItems actions={actions} touch onClose={props.onClose} />
     } />}

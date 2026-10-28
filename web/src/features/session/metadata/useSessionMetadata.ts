@@ -6,6 +6,8 @@ export interface MetadataSession {
   sessionId: string;
   title: string;
   starred?: boolean;
+  /** A running session cannot be deleted until it is stopped. */
+  running?: boolean;
 }
 
 export function validSessionTitle(value: string): boolean {
@@ -42,6 +44,7 @@ function useMetadataMutations() {
   const client = useQueryClient();
   const star = useMutation(trpc.sessions.setStarred.mutationOptions());
   const rename = useMutation(trpc.sessions.rename.mutationOptions());
+  const remove = useMutation(trpc.sessions.delete.mutationOptions());
   // Invalidate even if the originating view was unmounted while the request was in flight.
   function invalidate() { void client.invalidateQueries(trpc.sessions.list.queryFilter()); }
   return {
@@ -51,6 +54,10 @@ function useMetadataMutations() {
     },
     rename: async (sessionId: string, label: string) => {
       const result = await rename.mutateAsync({ sessionId, label });
+      invalidate(); return result;
+    },
+    remove: async (sessionId: string) => {
+      const result = await remove.mutateAsync({ sessionId });
       invalidate(); return result;
     },
   };
@@ -65,22 +72,31 @@ function useRenameState(title: string, pending: boolean, clearError: () => void)
 }
 
 /** Must be mounted under a session-ID key: drafts, errors and pending state never cross sessions. */
-export function useSessionMetadata(session: MetadataSession | null, fallbackError: string) {
+export function useSessionMetadata(session: MetadataSession | null, fallbackError: string, onDeleted?: () => void) {
   const mutation = useMetadataMutations();
   const request = useMetadataRequest(fallbackError);
+  const [deleting, setDeleting] = useState(false);
   const rename = useRenameState(session?.title ?? '', request.pending, request.clearError);
   const [starred, setStarred] = useState(session?.starred ?? false);
   useEffect(() => setStarred(session?.starred ?? false), [session?.starred]);
   const disabled = !session?.sessionId || request.pending;
   function toggleStar() {
     if (disabled || !session) return;
+    setDeleting(false);
     void request.run(() => mutation.star(session.sessionId, !starred), (result) => setStarred(result.starred));
   }
   function saveRename() {
     if (disabled || !session || !validSessionTitle(rename.draft)) return;
+    setDeleting(false);
     void request.run(() => mutation.rename(session.sessionId, rename.draft.trim()), rename.finishRename);
   }
-  return { ...request, ...rename, starred, disabled, toggleStar, saveRename,
+  function deleteSession() {
+    if (disabled || !session || session.running) return;
+    setDeleting(true);
+    void request.run(() => mutation.remove(session.sessionId), () => onDeleted?.());
+  }
+  return { ...request, ...rename, starred, disabled, toggleStar, saveRename, deleteSession, deleting,
+    title: session?.title ?? '', running: session?.running ?? false,
     openRename: () => { if (!disabled) rename.openRename(); } };
 }
 

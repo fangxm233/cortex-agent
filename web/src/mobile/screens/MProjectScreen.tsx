@@ -15,6 +15,7 @@ import { useNotesResource } from '@/features/notes/useNotesResource';
 import { buildMNotesVm } from './m-notes-vm';
 import { useAllSessions } from '@/features/projects/useProjectSessions';
 import { setProjectsPanel } from '@/mobile/mobile-navigation';
+import { useDeleteProject } from '@/features/projects/useDeleteProject';
 
 function useProjectQueries(projectId: string) {
   const trpc = useTRPC();
@@ -78,12 +79,17 @@ export function MProjectScreen() {
   const issues = useMemo(() => ({ count: queries.issues.length, previews: queries.issues.slice(0, 2).map((issue) => issue.title) }), [queries.issues]);
   // Switching closes the panel onto the new project's sessions.
   const onSwitch = (id: string) => { setCurrentProject(id); setProjectsPanel(false, navigate); };
+  const deleteProject = useDeleteProject();
+  const onDeleteProject = projectId && projectId !== 'general'
+    ? () => void deleteProject(projectId, queries.sessions.filter((s) => s.projectId === projectId).length)
+    : undefined;
   const viewProps: MProjectViewProps = {
     current, pendingApprovals: scopedApprovals + approvalCounts.global, globalPendingApprovals: approvalCounts.global, issues,
     notesVm, notesBusy, switchRows, rateLimitStatus: rate,
     onOpenRateLimit: () => setRateOpen(true), onIssues: () => navigate('/m/issues'), onNotes: () => navigate('/m/notes'), onAddNote: addNote,
     onApprovals: () => navigate('/m/approvals'), onMemory: () => navigate('/m/memory'),
     onUsage: () => navigate('/m/settings/usage', { state: { from: 'project' } satisfies UsageNavState }), onSettings: () => navigate('/m/settings'), onSwitch, onNewProject: project.show,
+    onDeleteProject,
   };
   return <><MProjectView {...viewProps} /><ProjectOverlays rate={rate} rateOpen={rateOpen} closeRate={() => setRateOpen(false)} project={project} /></>;
 }

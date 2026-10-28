@@ -2,6 +2,7 @@ import { useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNod
 import { useLang, useVocab } from '@/i18n';
 import { MENU_FOCUS, MENU_SURFACE } from '@/design/MenuChrome';
 import { IconButton } from '@/design/IconButton';
+import { RailProjectMenu } from './RailProjectMenu';
 import { RailSessionMenu } from './RailSessionMenu';
 import { NewProjectIcon, OverviewIcon, SortIcon } from './RailHeaderIcons';
 import type { RailProjectNode, RailSessionRow } from './rail-tree';
@@ -613,6 +614,9 @@ export function RailTree(props: RailTreeProps): JSX.Element {
               </span>
             ) : (
               node.idleAge !== null && <span style={META}>{node.idleAge}</span>
+            )}
+            {node.id !== 'general' && (
+              <RailProjectMenu projectId={node.id} sessionCount={node.totalSessions} visible={hovered} />
             )}
           </span>
         </div>

@@ -11,14 +11,15 @@ import { useLiveEvents } from '@/features/live/LiveEventsProvider';
  */
 const RAIL_EVENTS = [
   'session.status', 'session.interaction', 'session.context-usage', 'session.context-compacted',
-  'session.todos',
+  'session.todos', 'session.deleted', 'project.deleted',
 ];
 
 export function useSessionsLiveSync(): void {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
 
-  useLiveEvents(RAIL_EVENTS, () => {
+  useLiveEvents(RAIL_EVENTS, (event) => {
     queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+    if (event.type === 'project.deleted') queryClient.invalidateQueries(trpc.projects.list.queryFilter());
   });
 }

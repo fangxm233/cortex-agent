@@ -49,6 +49,8 @@ export interface MProjectViewProps {
   onSettings: () => void;
   onSwitch: (id: string) => void;
   onNewProject: () => void;
+  /** Absent for the general project, which cannot be deleted. */
+  onDeleteProject?: () => void;
 }
 
 const ICON_STROKE = {
@@ -250,6 +252,11 @@ function PrimaryProjectSection({ props }: { props: MProjectViewProps }) {
         <MNotesProjectCard vm={props.notesVm} busy={props.notesBusy} onOpen={props.onNotes} onAdd={props.onAddNote} />
         <LinkRow label={copy.projectMemory} onClick={props.onMemory} />
       </MGroup>
+      {props.onDeleteProject && <MGroup style={{ marginTop: 14 }}>
+        <div className="m-press" role="button" onClick={props.onDeleteProject} style={{ ...ROW, display: 'flex', alignItems: 'center' }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--proto-danger)' }}>{copy.projDelete}</span>
+        </div>
+      </MGroup>}
     </>
   );
 }

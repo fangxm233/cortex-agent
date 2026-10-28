@@ -213,7 +213,7 @@ export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
     >
       <ChatHeader
         title={title}
-        metadataSession={!isDraft && active ? { sessionId: active.sessionId, title, starred: active.starred } : null}
+        metadataSession={!isDraft && active ? { sessionId: active.sessionId, title, starred: active.starred, running: active.running } : null}
         running={chat.running}
         projectName={projectName}
         backendSessionId={active?.backendSessionId ?? null}

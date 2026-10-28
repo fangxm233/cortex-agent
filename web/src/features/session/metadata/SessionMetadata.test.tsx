@@ -4,10 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SessionMetadata, type MetadataSession } from './SessionMetadata';
 import { SessionMetadataMenuItems } from './SessionMetadataMenuItems';
 
-const rpc = vi.hoisted(() => ({ star: vi.fn(), rename: vi.fn() }));
+const rpc = vi.hoisted(() => ({ star: vi.fn(), rename: vi.fn(), remove: vi.fn() }));
 vi.mock('@/lib/trpc', () => ({ useTRPC: () => ({ sessions: {
   setStarred: { mutationOptions: () => ({ mutationFn: rpc.star }) },
   rename: { mutationOptions: () => ({ mutationFn: rpc.rename }) },
+  delete: { mutationOptions: () => ({ mutationFn: rpc.remove }) },
   list: { queryFilter: () => ({ queryKey: ['sessions', 'list'] }) },
 } }) }));
 vi.mock('@/i18n', async (importOriginal) => {
@@ -16,6 +17,8 @@ vi.mock('@/i18n', async (importOriginal) => {
 });
 vi.mock('@/design/Modal', () => ({ Modal: ({ open, children, footer }: any) =>
   open ? <section role="dialog">{children}{footer}</section> : null }));
+const dialog = vi.hoisted(() => ({ confirm: vi.fn() }));
+vi.mock('@/design/dialog-store', () => ({ confirmDialog: dialog.confirm }));
 
 const first = { sessionId: 'stable-1', title: 'Current title', starred: false };
 let renderer: ReactTestRenderer;
@@ -51,6 +54,8 @@ beforeEach(() => {
   vi.spyOn(client, 'invalidateQueries');
   rpc.star.mockReset().mockImplementation(async (input) => input);
   rpc.rename.mockReset().mockImplementation(async (input) => input);
+  rpc.remove.mockReset().mockImplementation(async (input) => ({ deletedIds: [input.sessionId] }));
+  dialog.confirm.mockReset().mockResolvedValue(true);
 });
 afterEach(() => { act(() => renderer?.unmount()); client.clear(); });
 
@@ -135,4 +140,42 @@ it('shows star failures without claiming success and blocks duplicate toggles', 
   expect(renderer.root.findByProps({ role: 'alert' }).children).toContain('Star failed');
   expect(button('Star').props.disabled).toBe(false);
   expect(client.invalidateQueries).not.toHaveBeenCalled();
+});
+
+describe('delete', () => {
+  function mountWith(session: MetadataSession, onDeleted: () => void) {
+    act(() => {
+      renderer = create(<QueryClientProvider client={client}><SessionMetadata session={session} onDeleted={onDeleted}>
+        {(actions) => <SessionMetadataMenuItems actions={actions} onClose={() => {}} />}
+      </SessionMetadata></QueryClientProvider>);
+    });
+  }
+  it('confirms, deletes by stable ID, refreshes the lists and reports back', async () => {
+    const onDeleted = vi.fn();
+    mountWith(first, onDeleted);
+    await click('Delete');
+    expect(dialog.confirm).toHaveBeenCalledWith(expect.objectContaining({ tone: 'danger', title: 'Delete “Current title”?' }));
+    expect(rpc.remove).toHaveBeenCalledWith({ sessionId: 'stable-1' }, expect.anything());
+    expect(client.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['sessions', 'list'] });
+    expect(onDeleted).toHaveBeenCalledTimes(1);
+  });
+  it('does nothing when the confirmation is declined', async () => {
+    dialog.confirm.mockResolvedValue(false);
+    mountWith(first, vi.fn());
+    await click('Delete');
+    expect(rpc.remove).not.toHaveBeenCalled();
+  });
+  it('is disabled while the session runs', async () => {
+    mountWith({ ...first, running: true }, vi.fn());
+    expect(button('Delete').props.disabled).toBe(true);
+    await click('Delete');
+    expect(dialog.confirm).not.toHaveBeenCalled();
+  });
+  it('shows the server refusal under the delete title', async () => {
+    rpc.remove.mockRejectedValue(new Error('Session is running — stop it before deleting'));
+    mountWith(first, vi.fn());
+    await click('Delete');
+    expect(renderer.root.findAll((node) => node.props.title === 'Could not delete the session.')).not.toHaveLength(0);
+    expect(JSON.stringify(renderer.toJSON())).toContain('Session is running');
+  });
 });

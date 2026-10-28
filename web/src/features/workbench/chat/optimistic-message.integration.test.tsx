@@ -286,7 +286,7 @@ describe('desktop chat metadata target', () => {
     harness.sessions = [{ ...SESSION, label: 'Renamed', starred: true }];
     mounted = mountCenterChat();
     const metadata = () => mounted!.root.findByProps({ 'data-chat-header': true }).props['data-metadata-session'];
-    expect(metadata()).toEqual({ sessionId: 's1', title: 'Renamed', starred: true });
+    expect(metadata()).toEqual({ sessionId: 's1', title: 'Renamed', starred: true, running: false });
     harness.selection = selection(true);
     act(() => mounted!.update(<LangProvider><CenterChat /></LangProvider>));
     expect(metadata()).toBeNull();

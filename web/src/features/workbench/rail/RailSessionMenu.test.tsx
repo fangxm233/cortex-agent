@@ -5,10 +5,11 @@ import * as Popover from '@radix-ui/react-popover';
 import { RailSessionMenu } from './RailSessionMenu';
 import type { RailSessionRow } from './rail-tree';
 
-const rpc = vi.hoisted(() => ({ star: vi.fn(), rename: vi.fn() }));
+const rpc = vi.hoisted(() => ({ star: vi.fn(), rename: vi.fn(), remove: vi.fn() }));
 vi.mock('@/lib/trpc', () => ({ useTRPC: () => ({ sessions: {
   setStarred: { mutationOptions: () => ({ mutationFn: rpc.star }) },
   rename: { mutationOptions: () => ({ mutationFn: rpc.rename }) },
+  delete: { mutationOptions: () => ({ mutationFn: rpc.remove }) },
   list: { queryFilter: () => ({ queryKey: ['sessions', 'list'] }) },
 } }) }));
 vi.mock('@/i18n', async (importOriginal) => {

@@ -81,6 +81,9 @@ export const RATE_LIMIT_LIVE_EVENTS = ['rate-limit.changed'] as const;
  *  binding (`session.board`), and the user's override stylesheet (`board.style-updated`). */
 export const BOARD_LIVE_EVENTS = ['board.updated', 'session.board', 'board.style-updated'] as const;
 
+/** Sessions or a whole project were deleted (possibly on another device): refetch the lists. */
+export const CATALOG_LIVE_EVENTS = ['session.deleted', 'project.deleted'] as const;
+
 /**
  * The FIXED union the shared stream subscribes to. Fixed rather than reference-counted over the
  * mounted listeners: the union is small and known, and a dynamic one would tear down and re-open the
@@ -94,6 +97,7 @@ export const LIVE_EVENT_TYPES: readonly string[] = [
   ...CONFIG_LIVE_EVENTS,
   ...RATE_LIMIT_LIVE_EVENTS,
   ...BOARD_LIVE_EVENTS,
+  ...CATALOG_LIVE_EVENTS,
 ];
 
 /**

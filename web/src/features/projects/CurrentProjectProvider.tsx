@@ -24,14 +24,16 @@ export function CurrentProjectProvider({ children }: { children: ReactNode }) {
   const [projectOrder, setProjectOrderState] = useState<string[]>([]);
 
   const projects = projectsQuery.data ?? [];
-  // An explicit or latched selection stays sticky ahead of the shared derived default.
-  const currentProjectId = override ?? deriveActiveProjectId(sessionsQuery.data ?? [], projects);
+  // An explicit or latched selection stays sticky ahead of the shared derived default — until the
+  // project list no longer has it (deleted here or on another device).
+  const overrideKnown = override !== null && (!projectsQuery.isSuccess || projects.some((p) => p.id === override));
+  const currentProjectId = overrideKnown ? override : deriveActiveProjectId(sessionsQuery.data ?? [], projects);
   // The most-recent session only picks the starting project. Latch it once the session list is in,
   // so activity elsewhere (another device, a background turn) never moves the project under the user.
   const sessionsLoaded = sessionsQuery.isSuccess;
   useEffect(() => {
-    if (override === null && sessionsLoaded && currentProjectId) setOverride(currentProjectId);
-  }, [override, sessionsLoaded, currentProjectId]);
+    if (!overrideKnown && sessionsLoaded && currentProjectId) setOverride(currentProjectId);
+  }, [overrideKnown, sessionsLoaded, currentProjectId]);
   const setCurrentProject = useCallback((id: string) => setOverride(id), []);
   const setProjectOrder = useCallback((ids: string[]) => {
     setProjectOrderState((previous) => (

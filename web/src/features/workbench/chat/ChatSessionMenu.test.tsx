@@ -6,10 +6,11 @@ import { ChatSessionMenu } from './ChatSessionMenu';
 import { MChatSessionMenu } from '@/mobile/screens/MChatSessionMenu';
 import type { MetadataSession } from '@/features/session/metadata/SessionMetadata';
 
-const rpc = vi.hoisted(() => ({ star: vi.fn(), rename: vi.fn(), lang: 'en' as 'en' | 'zh' }));
+const rpc = vi.hoisted(() => ({ star: vi.fn(), rename: vi.fn(), remove: vi.fn(), lang: 'en' as 'en' | 'zh' }));
 vi.mock('@/lib/trpc', () => ({ useTRPC: () => ({ sessions: {
   setStarred: { mutationOptions: () => ({ mutationFn: rpc.star }) },
   rename: { mutationOptions: () => ({ mutationFn: rpc.rename }) },
+  delete: { mutationOptions: () => ({ mutationFn: rpc.remove }) },
   list: { queryFilter: () => ({ queryKey: ['sessions', 'list'] }) },
 } }) }));
 vi.mock('@/i18n', async (importOriginal) => {

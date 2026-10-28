@@ -86,6 +86,8 @@ export interface MChatViewProps {
   onBack: () => void;
   /** Null for a draft; omitted in metadata-free presentation previews. */
   metadataSession?: MetadataSession | null;
+  /** The session shown here was deleted from its ⋯ menu. */
+  onSessionDeleted?: () => void;
   /** Whole-session totals rows, already formatted. Absent ⇒ the ⋯ menu hides the entry. */
   sessionStatsRows?: SessionStatsRow[] | null;
   backendUuid: string | null;

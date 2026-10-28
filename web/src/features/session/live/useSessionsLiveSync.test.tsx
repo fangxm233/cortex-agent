@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const harness = vi.hoisted(() => ({
   eventTypes: [] as readonly string[],
-  liveHandler: null as null | (() => void),
+  liveHandler: null as null | ((event: { type: string }) => void),
   invalidateQueries: vi.fn(),
 }));
 
@@ -12,11 +12,14 @@ vi.mock('@tanstack/react-query', () => ({
 }));
 
 vi.mock('@/lib/trpc', () => ({
-  useTRPC: () => ({ sessions: { list: { queryFilter: () => ({ queryKey: ['sessions.list'] }) } } }),
+  useTRPC: () => ({
+    sessions: { list: { queryFilter: () => ({ queryKey: ['sessions.list'] }) } },
+    projects: { list: { queryFilter: () => ({ queryKey: ['projects.list'] }) } },
+  }),
 }));
 
 vi.mock('@/features/live/LiveEventsProvider', () => ({
-  useLiveEvents: (types: readonly string[], handler: () => void) => {
+  useLiveEvents: (types: readonly string[], handler: (event: { type: string }) => void) => {
     harness.eventTypes = types;
     harness.liveHandler = handler;
   },
@@ -49,8 +52,18 @@ describe('useSessionsLiveSync', () => {
   it('refreshes session snapshots when any session updates its Todo list', () => {
     expect(harness.eventTypes).toContain('session.todos');
 
-    act(() => harness.liveHandler?.());
+    act(() => harness.liveHandler?.({ type: 'session.todos' }));
 
     expect(harness.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['sessions.list'] });
+    expect(harness.invalidateQueries).not.toHaveBeenCalledWith({ queryKey: ['projects.list'] });
+  });
+
+  it('refreshes both lists when a project is deleted elsewhere', () => {
+    expect(harness.eventTypes).toEqual(expect.arrayContaining(['session.deleted', 'project.deleted']));
+
+    act(() => harness.liveHandler?.({ type: 'project.deleted' }));
+
+    expect(harness.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['sessions.list'] });
+    expect(harness.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['projects.list'] });
   });
 });

@@ -244,7 +244,8 @@ export function MChatScreen(): JSX.Element {
       onOpenWorkerFromChat={(id) => navigate(`/m/session/${id}`)}
       boardId={isDraft ? null : active?.boardId ?? null}
       onOpenBoardSession={(id) => { if (id !== sessionId) navigate(`/m/session/${id}`); }}
-      metadataSession={!isDraft && active ? { sessionId: active.sessionId, title, starred: active.starred } : null}
+      metadataSession={!isDraft && active ? { sessionId: active.sessionId, title, starred: active.starred, running: active.running } : null}
+      onSessionDeleted={() => navigate('/m/sessions', { replace: true })}
       status={status}
       rows={rows}
       live={chat.running && !chat.backgroundRunning}
