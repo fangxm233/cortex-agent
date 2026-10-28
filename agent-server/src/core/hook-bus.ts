@@ -1,4 +1,3 @@
-import { runtimeCommandLine } from '@core/runtime-entry.js';
 import type { HookEntry } from '../store/hook-registry.js';
 import { runHookProcess } from './hook-exec.js';
 import { defaultHookScriptDirs, hookScriptArgs, type HookScriptDirs } from './hook-scripts.js';
@@ -49,7 +48,7 @@ function registryHook(entry: HookEntry, defaultTimeoutMs: number): HookSpec {
     : hookScriptArgs(entry.run.script, scriptDirs ?? defaultHookScriptDirs());
   return {
     id: entry.id,
-    command: args === undefined ? entry.run.command : runtimeCommandLine([]),
+    command: args === undefined ? entry.run.command : 'node',
     args,
     timeoutMs: entry.run.timeout === undefined
       ? defaultTimeoutMs

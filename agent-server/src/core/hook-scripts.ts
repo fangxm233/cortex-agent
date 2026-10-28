@@ -1,4 +1,3 @@
-import { runtimeEntry } from '@core/runtime-entry.js';
 import { existsSync } from 'node:fs';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -42,6 +41,6 @@ export function resolveHookScript(script: string, dirs: HookScriptDirs = default
 /** The `node` arguments that run one hook script. */
 export function hookScriptArgs(script: string, dirs: HookScriptDirs = defaultHookScriptDirs()): string[] {
   const resolved = resolveHookScript(script, dirs);
-  if (!resolved.user || !dirs.builtin) return [runtimeEntry(resolved.path)];
-  return ['--import', pathToFileURL(OVERLAY_IMPORT).href, runtimeEntry(resolved.path)];
+  if (!resolved.user || !dirs.builtin) return [resolved.path];
+  return ['--import', pathToFileURL(OVERLAY_IMPORT).href, resolved.path];
 }

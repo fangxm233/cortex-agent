@@ -1,4 +1,3 @@
-import { runtimeEntry } from '@core/runtime-entry.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawn } from 'child_process';
@@ -201,7 +200,7 @@ function spawnLocalClient(device: string): void {
     return;
   }
   try {
-    const child = spawn(process.execPath, [runtimeEntry(entry)], { windowsHide: true, detached: true, stdio: 'ignore' });
+    const child = spawn(process.execPath, [entry], { windowsHide: true, detached: true, stdio: 'ignore' });
     child.on('error', (err) => {
       log.error(`Local client spawn error on ${device}: ${(err as Error).message}`);
     });
@@ -218,7 +217,7 @@ function spawnLocalClient(device: string): void {
 function spawnOwnedLocalClient(device: string): void {
   assertLocalClientMachine(localPaths, _getRegistryImpl()[device]);
   const env = ownedLocalEnvironment(process.env, DATA_DIR, getClientToken(), getClientManagerPort());
-  const child = spawn(process.execPath, [runtimeEntry(localClientEntryPath())], { windowsHide: true, detached: true, stdio: 'ignore', env });
+  const child = spawn(process.execPath, [localClientEntryPath()], { windowsHide: true, detached: true, stdio: 'ignore', env });
   child.on('error', () => {
     log.error(`Owned local client spawn failed on ${device}; scheduling retry`);
     scheduleRestart(device);
