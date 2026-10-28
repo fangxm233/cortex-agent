@@ -1,3 +1,4 @@
+import { CORTEX_VERSION } from '@core/version.js';
 import { isTelemetryActive } from './gate.js';
 import { admitCrash, wipeCrashLimits } from './crash-limits.js';
 import type { ClientKind } from './client-kind.js';
@@ -54,6 +55,7 @@ export function buildCrashEvent(input: CrashInput, suppressed = 0): CrashEvent {
     client: input.client ?? null,
     exit: input.exit ?? null,
     suppressed,
+    version: CORTEX_VERSION.slice(0, 40),
   };
 }
 

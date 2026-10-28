@@ -107,7 +107,7 @@ export async function addDailyEvents(db: D1Database, ctx: IngestContext, events:
 function crashStatements(db: D1Database, ctx: IngestContext, event: CrashEvent): D1PreparedStatement[] {
   const e = ctx.envelope;
   return [db.prepare(CRASH_UPSERT).bind(
-    e.installId, event.component, event.groupKey, e.version, e.channel, 1 + event.suppressed,
+    e.installId, event.component, event.groupKey, event.version ?? e.version, e.channel, 1 + event.suppressed,
     event.at, event.kind, event.errorName, event.message, event.stack, event.route,
     event.buildStamp, event.client, event.uptimeS, event.exit?.code ?? null,
     event.exit?.signal ?? null, event.exit?.backoffMs ?? null,

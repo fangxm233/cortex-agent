@@ -156,6 +156,16 @@ test('resent rollups and funnel steps do not double count; crashes accumulate pe
   assert.deepEqual(crash, { count: 6, message: 'latest' });
 });
 
+test('a crash is stored under the version that recorded it, not the uploading one', async () => {
+  const t = setup();
+  const crashes = [crashEvent({ version: '2026.10.20' }), crashEvent({ groupKey: 'legacy' })];
+  assert.equal((await handleRequest(post(sampleBatch({ version: '2026.10.24' }, crashes)), t.env, deps)).status, 204);
+  assert.deepEqual(t.rows('SELECT group_key, version FROM crashes ORDER BY group_key'), [
+    { group_key: 'TypeError@dist/domain/runs/service.js:resolveSession', version: '2026.10.20' },
+    { group_key: 'legacy', version: '2026.10.24' },
+  ]);
+});
+
 test('routes enforce method and path', async () => {
   const t = setup();
   const wrongMethod = await handleRequest(new Request('https://telemetry.example.com/v1/batch'), t.env, deps);

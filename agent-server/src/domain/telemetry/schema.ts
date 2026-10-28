@@ -110,6 +110,8 @@ export const CrashEventSchema = z.object({
   }).nullable(),
   /** Same-group crashes rate-limited away since the previous one of this group was sent. */
   suppressed: count,
+  /** Version that crashed; the outbox may upload it later from an upgraded install. */
+  version: version.optional(),
 });
 export type CrashEvent = z.infer<typeof CrashEventSchema>;
 

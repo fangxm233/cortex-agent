@@ -8,6 +8,7 @@ import { buildCrashEvent, captureCrash, describeThrown } from '@domain/telemetry
 import { captureChildExitFromEnv, encodeChildExit } from '@domain/telemetry/child-exit.js';
 import { takeOutbox } from '@domain/telemetry/outbox.js';
 import { CrashEventSchema } from '@domain/telemetry/schema.js';
+import { CORTEX_VERSION } from '@core/version.js';
 import { wipeLocalTelemetry } from '@domain/telemetry/service.js';
 import { enableTelemetryForTest } from './helpers.js';
 
@@ -70,6 +71,13 @@ test('the daemon-provided child exit is reported once at boot', () => {
   assert.equal(crash.groupKey, 'ChildExit@SIGKILL');
   assert.deepEqual(crash.exit, { code: null, signal: 'SIGKILL', backoffMs: 2_000 });
   assert.equal(crash.uptimeS, 95);
+  assert.equal(crash.version, CORTEX_VERSION);
+});
+
+test('a clean exit 0 restart is not reported as a crash', () => {
+  restore = enableTelemetryForTest();
+  captureChildExitFromEnv({ CORTEX_CHILD_EXIT: encodeChildExit({ code: 0, signal: null, uptimeMs: 25_000, backoffMs: 1_000 }) });
+  assert.equal(takeOutbox().length, 0);
 });
 
 function panicKey(message: string, stack = ''): string {

@@ -45,9 +45,9 @@ not store IP addresses.
 
 A crash report is sent when the server, the daemon, the Web UI, or the desktop or Android app
 crashes. The server records its own crashes, and the daemon's restart of a crashed server process
-is recorded too. The Web UI reports render and window errors through the server. When the desktop
-or Android app panics, it saves the panic and the Web UI forwards it through the server the next
-time the app starts.
+is recorded too, unless the process shut down cleanly with exit code 0. The Web UI reports render
+and window errors through the server. When the desktop or Android app panics, it saves the panic
+and the Web UI forwards it through the server the next time the app starts.
 
 | Field | Meaning |
 |---|---|
@@ -61,6 +61,7 @@ time the app starts.
 | `client` | Which app the Web UI ran in: `desktop`, `android` or `browser` |
 | `exit` | Child exits only: exit code or signal, and the restart delay |
 | `suppressed` | Reports of the same group that were held back by the rate limit |
+| `version` | Cortex server version that recorded the crash, which can differ from the batch version when an upgrade happened before the report was sent |
 
 Each crash group is sent at most once per hour, and each install sends at most 20 crash reports
 per day.

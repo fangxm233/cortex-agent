@@ -30,7 +30,8 @@ function decode(raw: string | undefined): ChildExitInfo | null {
 /** At boot: report the crash the daemon recovered from, if any. */
 export function captureChildExitFromEnv(env: NodeJS.ProcessEnv = process.env): void {
   const info = decode(env[CHILD_EXIT_ENV]);
-  if (!info) return;
+  // Exit 0 is the SIGTERM shutdown path (e.g. `cortex daemon restart --hard`), not a crash.
+  if (!info || (info.code === 0 && !info.signal)) return;
   captureCrash({
     component: 'server',
     kind: 'childExit',
