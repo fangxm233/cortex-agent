@@ -1,21 +1,24 @@
-// Test-only port remapping through gateway-manager's existing injection seams.
-// Production fixes its gateway port at 9880; never adopt the user's live gateway in a smoke run.
+// Test-only guard through gateway-manager's injection seams: the smoke daemon must use its own
+// CORTEX_GATEWAY_PORT and never probe or spawn the user's live 9880 gateway. The pid marker proves
+// that SEA re-applied NODE_OPTIONS preloads in the daemon and its forked app.
+import fs from 'node:fs';
 import http from 'node:http';
+import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { isAbsolute } from 'node:path';
-const port = Number(process.env.CORTEX_BUNDLE_SMOKE_GATEWAY_PORT);
-if (!isAbsolute(process.env.CORTEX_HOME ?? '') || !Number.isInteger(port) || port < 1024 || port === 9880) {
-  throw new Error('Bundle smoke preload requires an explicit isolated home and gateway port');
+const port = process.env.CORTEX_GATEWAY_PORT ?? '';
+const home = process.env.CORTEX_HOME ?? '';
+if (!path.isAbsolute(home) || !/^\d+$/.test(port) || Number(port) < 1024 || port === '9880') {
+  throw new Error('SEA smoke preload requires an explicit isolated home and gateway port');
 }
+fs.appendFileSync(path.join(home, 'sea-smoke-preload.pids'), `${process.pid}\n`);
 globalThis.__mockHttpGet = (url, ...args) => {
   const target = new URL(url);
-  if (target.hostname !== '127.0.0.1' || target.port !== '9880') throw new Error(`Unexpected gateway probe: ${target}`);
-  target.port = String(port);
+  if (target.hostname !== '127.0.0.1' || target.port !== port) throw new Error(`Unexpected gateway probe: ${target}`);
   return http.get(target, ...args);
 };
 globalThis.__mockChildProcessSpawn = (command, args, options) => {
-  if (!args[0].replaceAll('\\', '/').endsWith('/gateway-cli.js') || args.at(-2) !== '-p' || args.at(-1) !== '9880') {
+  if (!args[0].replaceAll('\\', '/').endsWith('/gateway-cli.js') || args.at(-2) !== '-p' || args.at(-1) !== port) {
     throw new Error('Unexpected gateway spawn');
   }
-  return spawn(command, [...args.slice(0, -1), String(port)], options);
+  return spawn(command, args, options);
 };

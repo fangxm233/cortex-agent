@@ -1,6 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const { gunzipSync } = require('node:zlib');
+const { zstdDecompressSync } = require('node:zlib');
 
 function unpack(payload, directory) {
   let offset = 4 + payload.readUInt32LE(0);
@@ -22,7 +22,7 @@ function ensureCache(parent, id, payload) {
   fs.mkdirSync(parent, { recursive: true, mode: 0o700 });
   const stage = fs.mkdtempSync(path.join(parent, `${id}.tmp-`));
   try {
-    unpack(gunzipSync(payload()), stage);
+    unpack(zstdDecompressSync(payload()), stage);
     fs.writeFileSync(path.join(stage, '.complete'), id);
     try { fs.renameSync(stage, target); }
     catch (error) { if (!fs.existsSync(path.join(target, '.complete'))) throw error; }

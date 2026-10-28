@@ -1,5 +1,5 @@
-// Usage: env -i PATH="$PATH" HOME=/tmp/cortex-bundle-test/os-home \
-// CORTEX_HOME=/tmp/cortex-bundle-test/home node scripts/bundle-smoke.mjs /tmp/cortex-bundle-test/prefix
+// Usage: env -i PATH="$PATH" HOME=/tmp/cortex-sea-test/os-home CORTEX_HOME=/tmp/cortex-sea-test/home \
+// CORTEX_SEA_CACHE=/tmp/cortex-sea-test/cache <sea-output>/cortex --entry="$PWD/scripts/sea-smoke.mjs"
 // Requires an initialized, credential-free home. Uses only loopback ports 18301-18304/18380.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -22,7 +22,7 @@ const env = {
   CORTEX_SEA_CACHE: process.env.CORTEX_SEA_CACHE,
   CORTEX_TELEMETRY: '0', CORTEX_UI_HTTP: '1', CORTEX_PORT_FORWARD: '0',
   WEBHOOK_PORT: '18301', CORTEX_CLIENT_PORT: '18302', CORTEX_TUI_PORT: '18303',
-  CORTEX_UI_PORT: '18304', CORTEX_CLIENT_HOST: '127.0.0.1',
+  CORTEX_UI_PORT: '18304', CORTEX_GATEWAY_PORT: '18380', CORTEX_CLIENT_HOST: '127.0.0.1',
   CORTEX_CLIENT_TOKEN: 'bundle-smoke-client-token', CORTEX_WEBHOOK_TOKEN: 'bundle-smoke-webhook-token',
 };
 for (const key of Object.keys(env)) if (env[key] === undefined) delete env[key];
@@ -161,7 +161,9 @@ try {
     await new Promise((resolve, reject) => { const server = net.createServer(); server.once('error', reject); server.listen(port, '127.0.0.1', () => server.close(resolve)); });
   }
   const preload = fileURLToPath(new URL('./sea-smoke-preload.mjs', import.meta.url));
-  const daemon = start('dist/entry/daemon.js', [], { NODE_OPTIONS: `--import=${pathToFileURL(preload).href}`, CORTEX_BUNDLE_SMOKE_GATEWAY_PORT: '18380' });
+  const preloadPids = path.join(home, 'sea-smoke-preload.pids');
+  fs.rmSync(preloadPids, { force: true });
+  const daemon = start('dist/entry/daemon.js', [], { NODE_OPTIONS: `--import=${pathToFileURL(preload).href}` });
   await check('Daemon forks app; web SPA served', async () => {
     for (let i = 0; i < 200; i++) {
       try { const response = await fetch('http://127.0.0.1:18304/'); const body = await response.text(); if (response.ok && body.includes('<html')) return { status: response.status, bytes: body.length }; } catch {}
@@ -185,7 +187,12 @@ try {
     const response = await fetch(url, { headers: { 'x-cortex-token': env.CORTEX_CLIENT_TOKEN } });
     assert.equal(response.status, 200); const body = await response.json(); assert(body.result); return body;
   });
-  await check('Bundled aistatus child health on remapped test port', async () => {
+  await check('NODE_OPTIONS preload ran in daemon and forked app', () => {
+    const pids = fs.readFileSync(preloadPids, 'utf8').trim().split('\n');
+    assert(pids.includes(String(daemon.pid)) && pids.length >= 2, pids.join(','));
+    return pids;
+  });
+  await check('Bundled aistatus child health on isolated test port', async () => {
     const response = await fetch('http://127.0.0.1:18380/health'); assert.equal(response.status, 200); return response.text();
   });
   await check('TUI WebSocket upgrade', async () => {

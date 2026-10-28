@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { gzipSync } = require('node:zlib');
+const { zstdCompressSync } = require('node:zlib');
 const { ensureCache } = require('./sea-cache.cjs');
 
 function fixture(t) {
@@ -15,7 +15,7 @@ function archive(files) {
   const buffers = files.map(file => Buffer.from(file[2], 'base64'));
   const header = Buffer.from(JSON.stringify(files.map(([name, mode], i) => [name, mode, buffers[i].length])));
   const length = Buffer.alloc(4); length.writeUInt32LE(header.length);
-  return gzipSync(Buffer.concat([length, header, ...buffers]));
+  return zstdCompressSync(Buffer.concat([length, header, ...buffers]));
 }
 
 test('extract atomically, preserve modes, and reuse only a complete cache', t => {
