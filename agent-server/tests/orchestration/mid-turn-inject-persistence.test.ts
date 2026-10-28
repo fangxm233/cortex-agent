@@ -22,6 +22,12 @@ function deferred() {
   return { promise, resolve };
 }
 
+/** Let the injection run up to its gated durable write. A macrotask drains every pending
+ *  microtask, so the assertion does not depend on how many awaits precede the write. */
+function untilBlockedOnDisk(): Promise<void> {
+  return new Promise((resolve) => { setImmediate(resolve); });
+}
+
 function harness(persist: Promise<void>) {
   const order: string[] = [];
   // The live `AgentRun` the router selects: it owns the injection-ack translation, so the ledger
@@ -93,7 +99,7 @@ test('accepted injection is durably stored before its pending event is published
   const h = harness(gate.promise);
   const attempt = tryInjectIntoLiveTurn(h.deps, ctx);
 
-  await Promise.resolve();
+  await untilBlockedOnDisk();
   assert.deepEqual(h.order, ['track:1', 'persist-start']);
   gate.resolve();
   assert.equal(await attempt, true);
@@ -105,7 +111,7 @@ test('an ack arriving during the durable write is latched until pending has been
   const h = harness(gate.promise);
   const attempt = tryInjectIntoLiveTurn(h.deps, ctx);
 
-  await Promise.resolve();
+  await untilBlockedOnDisk();
   assert.ok(h.run.observerCount() > 0, 'the run is subscribed before awaiting disk so an early echo is not lost');
   const ack = h.run.deliver('change direction', true);
   gate.resolve();
