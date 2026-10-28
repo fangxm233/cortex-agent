@@ -190,6 +190,14 @@ export const projectsCreateInput = z.object({
   name: z.string(),
 });
 
+export const projectsDeleteInput = z.object({
+  projectId: z.string().min(1),
+});
+
+export const sessionsDeleteInput = z.object({
+  sessionId: z.string().min(1),
+});
+
 export const sessionsCreateInput = z.object({
   /** Project the new session belongs to. Omitted → the default project (handler fallback). */
   projectId: z.string().optional(),
@@ -810,7 +818,9 @@ export const queryInputSchemas = {
 
 export const mutateInputSchemas = {
   'projects.create': projectsCreateInput,
+  'projects.delete': projectsDeleteInput,
   'sessions.create': sessionsCreateInput,
+  'sessions.delete': sessionsDeleteInput,
   'sessions.send': sessionsSendInput,
   'sessions.cancel': sessionsCancelInput,
   'sessions.compact': sessionsCompactInput,

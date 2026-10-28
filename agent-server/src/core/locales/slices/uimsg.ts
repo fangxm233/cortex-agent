@@ -6,6 +6,7 @@ export const uimsgEn = {
   'ui.session.notFound': 'Session not found: ${id}',
   'ui.session.textOrAttachments': 'Either text or attachments required',
   'ui.session.runningCompact': 'Session is running — stop it before compacting context',
+  'ui.session.runningDelete': 'Session is running — stop it before deleting',
   'ui.session.compactUnsupported': 'This session backend does not support manual context compaction',
   'ui.session.invalidSelection': 'Invalid engine selection: ${name}',
   'ui.session.unknownAgent': 'Unknown environment: ${name}',
@@ -83,6 +84,8 @@ export const uimsgEn = {
   'ui.issue.promptTail': 'The entry has been removed from ISSUES.md and handed to this session. Please investigate and resolve the problem above; if the conclusion should be kept, write it to the matching project context file.',
   'ui.note.oneLine': 'Note text must be one line',
   'ui.project.notFound': 'Project not found: ${id}',
+  'ui.project.protected': 'The general project cannot be deleted',
+  'ui.project.runningDelete': 'A session in this project is running — stop it before deleting the project',
   'ui.machine.unknown': 'Unknown machine: ${name}',
 } as const;
 
@@ -90,6 +93,7 @@ export const uimsgZh: Record<keyof typeof uimsgEn, string> = {
   'ui.session.notFound': '未找到会话：${id}',
   'ui.session.textOrAttachments': '请输入文字或添加附件。',
   'ui.session.runningCompact': '会话正在运行——请先停止，再压缩上下文。',
+  'ui.session.runningDelete': '会话正在运行——请先停止，再删除。',
   'ui.session.compactUnsupported': '该会话的后端不支持手动压缩上下文。',
   'ui.session.invalidSelection': '无效的引擎选择：${name}',
   'ui.session.unknownAgent': '未知执行环境：${name}',
@@ -158,5 +162,7 @@ export const uimsgZh: Record<keyof typeof uimsgEn, string> = {
   'ui.issue.promptTail': '该条目已从 ISSUES.md 移除并交由本会话处理。请调查并解决上述问题；如需持久记录结论，写入项目上下文相应文件。',
   'ui.note.oneLine': '笔记内容必须是单行。',
   'ui.project.notFound': '未找到项目：${id}',
+  'ui.project.protected': 'general 项目不能删除。',
+  'ui.project.runningDelete': '该项目有会话正在运行——请先停止，再删除项目。',
   'ui.machine.unknown': '未知机器：${name}',
 };

@@ -93,6 +93,18 @@ function recordResume(entry: ResumeEntry): void {
   fireChange();
 }
 
+/** Drop the queued resumes of deleted sessions. */
+function removeDirectResumesForSessions(sessionIds: Iterable<string>): number {
+  const drop = new Set(sessionIds);
+  const channels = [..._direct].filter(([, entry]) => entry.trackSessionId && drop.has(entry.trackSessionId)).map(([channel]) => channel);
+  for (const channel of channels) _direct.delete(channel);
+  if (channels.length > 0) {
+    persist();
+    fireChange();
+  }
+  return channels.length;
+}
+
 /** Cancel a queued direct resume — the user declining the auto-continue for that channel. */
 function removeDirectResume(channel: string): boolean {
   const removed = _direct.delete(channel);
@@ -142,6 +154,7 @@ export {
   initResumeRegistry,
   recordResume,
   removeDirectResume,
+  removeDirectResumesForSessions,
   takeReadyResumes,
   getResumeCountsByProvider,
   getResumeCount,

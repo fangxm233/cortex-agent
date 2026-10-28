@@ -1511,6 +1511,17 @@ export interface SystemClearRateLimitReturn {
 
 // ── Mutate return types ───────────────────────────────────────────
 
+export interface ProjectDeleteReturn {
+  /** Sessions deleted with the project (leads count their workers). */
+  sessions: number;
+  schedules: number;
+}
+
+export interface SessionsDeleteReturn {
+  /** The session and, for a team lead, its workers. */
+  deletedIds: string[];
+}
+
 export interface ProjectCreateReturn {
   /** The id of the newly created project (equals its directory name). */
   id: string;
@@ -1667,7 +1678,9 @@ export type MutateArgsMap = { [O in MutateOp]: z.output<MutateInputSchemas[O]> }
 
 export interface MutateReturnMap {
   'projects.create': ProjectCreateReturn;
+  'projects.delete': ProjectDeleteReturn;
   'sessions.create': SessionsCreateReturn;
+  'sessions.delete': SessionsDeleteReturn;
   'sessions.send': SessionsSendReturn;
   'sessions.cancel': SessionsCancelReturn;
   'sessions.compact': SessionsCompactReturn;
@@ -1861,6 +1874,18 @@ export interface UiServiceDeps {
    * (layer safety / depcruise).
    */
   cancelSessionRun: (opts: { channel: string }) => Promise<number>;
+  /** Delete a session (a lead with its workers); refused while any of them is in use. */
+  deleteSession: (sessionId: string) => Promise<
+    | { ok: true; deletedIds: string[] }
+    | { ok: false; reason: 'not-found' }
+    | { ok: false; reason: 'busy'; busyIds: string[] }
+  >;
+  /** Delete a user project with its sessions, schedules, bindings and context directory. */
+  deleteProject: (projectId: string) => Promise<
+    | { ok: true; sessions: number; schedules: number }
+    | { ok: false; reason: 'not-found' | 'protected' }
+    | { ok: false; reason: 'busy'; busyIds: string[] }
+  >;
   /** Kill one live execution and tear it down as `cancelled` (Web "Kill run"). Wired to the
    *  orchestration `cancelLiveExecution`. False when no live execution has that id. */
   cancelLiveExecution: (executionId: string) => Promise<boolean>;

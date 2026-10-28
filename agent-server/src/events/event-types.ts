@@ -68,6 +68,10 @@ export type CortexEvent =
   // A session's board binding changed. Content-free: clients refetch the session record, which
   // carries boardId.
   | { type: 'session.board';          ts: string; sessionId: string; channel: string }
+  // Sessions (a lead with its workers) or a whole project were deleted by the user. Content-free:
+  // clients refetch the session and project lists.
+  | { type: 'session.deleted';        ts: string; sessionIds: string[]; projectId: string }
+  | { type: 'project.deleted';        ts: string; projectId: string }
   | { type: 'plan.submitted';         ts: string; requestId: string; channel: string; sessionId: string; planContent: string; toolInput: any; dryRun?: boolean }
   | { type: 'plan.approved';          ts: string; channel: string; executionId: string }
   | { type: 'ask-user.requested';     ts: string; requestId: string; channel: string; sessionId: string; questions: any[]; level?: 'info' | 'warning' | 'error'; dryRun?: boolean; extensionUiId?: string; blocking?: boolean }

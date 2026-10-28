@@ -11,6 +11,7 @@ import type {
   SessionsCompactReturn,
   SessionsMarkManyReadReturn,
   SessionsCancelReturn,
+  SessionsDeleteReturn,
   SessionsSetAgentReturn,
   SessionsSetSelectionReturn,
   SessionsCreateAndSendReturn,
@@ -89,6 +90,18 @@ export async function handleCancelSession(
   }
   const count = await deps.cancelSessionRun({ channel: session.channel });
   return { ok: true, data: { cancelled: count > 0, count } };
+}
+
+// Delete a session the user picked (a lead takes its workers along). Refused while running: the
+// user stops it first, so a delete never races a live turn.
+export async function handleDeleteSession(
+  deps: UiServiceDeps,
+  args: MutateArgs<'sessions.delete'>,
+): Promise<Result<SessionsDeleteReturn>> {
+  const result = await deps.deleteSession(args.sessionId);
+  if ('deletedIds' in result) return { ok: true, data: { deletedIds: result.deletedIds } };
+  if ('busyIds' in result) return { ok: false, code: 'session-running', message: t('ui.session.runningDelete') };
+  return { ok: false, code: 'not-found', message: t('ui.session.notFound', { id: args.sessionId }) };
 }
 
 // Unread tracking: stamp the session's registry lastReadAt=now — the user viewed this session in

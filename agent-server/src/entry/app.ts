@@ -44,8 +44,7 @@ import { initClientHotReload } from '@domain/remote/client-hot-reload.js';
 import { createServerUpdateCoordinator } from '@domain/system/server-update-check.js';
 import { emitSystemNotice } from '@domain/system/system-notice.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
-import { conversationHistory, CONVERSATION_HISTORY_DIR } from '@store/conversation-history-repo.js';
-import { TOOL_IMAGES_DIR } from '@store/tool-image-files.js';
+import { conversationHistory } from '@store/conversation-history-repo.js';
 import { executionRepo } from '@store/execution-repo.js';
 import { initializeProductionAttemptIdentity } from '@domain/benchmark/production-attempt-identity.js';
 import { DEFAULT_ENVIRONMENTS_DIR, ENVIRONMENTS_DIR, getEnvironmentRevision, loadEnvironments, mergeDefaultEnvironments, startEnvironmentWatcher } from '@domain/agents/environments/index.js';
@@ -99,7 +98,7 @@ import { runSessionRetentionSweep, type RetentionLivenessSnapshot } from '@domai
 import { cancelWaitpointsForSessions } from '@domain/waitpoints/service.js';
 import { pruneInboundAttachments } from '@orch/attachments-store.js';
 import { seedClaudeUserSettings, syncClaudeUserCleanupPeriodDays } from '@domain/auth/claude-user-settings.js';
-import { getProjectDir } from '@domain/sessions/session-transcript.js';
+import { forgetDeletedSessions, sessionFilePaths } from '@orch/session-deletion.js';
 import { initDiskMonitor } from '@domain/monitor/disk-monitor.js';
 import { startEventLoopMonitor } from '@domain/monitor/event-loop-monitor.js';
 import { loadMachinesFromFile, startMachineRegistryWatcher, setAdminNotifier as setMachineNotifier, setMachineReloadListener } from '@domain/remote/machine-registry.js';
@@ -176,14 +175,9 @@ async function runRetentionSweep(retentionDays: number, signal: AbortSignal): Pr
     historyRepo: conversationHistory,
     candidateRepo: retentionCandidateRepo,
     cancelWaitpoints: (sessionIds) => cancelWaitpointsForSessions(sessionIds),
+    forgetSessions: forgetDeletedSessions,
     liveness: retentionLiveness(),
-    paths: {
-      historyDir: CONVERSATION_HISTORY_DIR,
-      piSessionsDir: path.join(DATA_DIR, 'logs', 'sessions-pi'),
-      claudeCaptureDir: path.join(DATA_DIR, 'logs', 'sessions'),
-      claudeProjectDir: getProjectDir(),
-      toolImagesDir: TOOL_IMAGES_DIR,
-    },
+    paths: sessionFilePaths(),
     syncClaudeUserCleanupPeriodDays,
   });
   // Inbound platform attachments are read during the turn they arrive on; nothing links to them

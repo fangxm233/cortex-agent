@@ -183,6 +183,21 @@ export class ProjectStore {
     return { ok: true, project };
   }
 
+  /**
+   * Delete a user project's context directory and drop it from the cache. Resolves false for
+   * `general` and for an id that is not a listed project; what refers to the project elsewhere
+   * (sessions, schedules, bindings) is the caller's to clear first.
+   */
+  async removeProject(id: string): Promise<boolean> {
+    const project = this.get(id);
+    if (!project || project.kind !== 'user' || !project.contextDir) return false;
+    const entry = await fs.promises.lstat(project.contextDir).catch(() => null);
+    if (entry?.isDirectory()) await fs.promises.rm(project.contextDir, { recursive: true, force: true });
+    log.info(`Deleted project at ${project.contextDir}`);
+    this.scan();
+    return true;
+  }
+
   /** Stop the fs.watch watcher and release resources. */
   destroy(): void {
     if (this.debounceTimer) {

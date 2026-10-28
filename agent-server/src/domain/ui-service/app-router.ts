@@ -5,6 +5,8 @@ import { router, publicProcedure } from './trpc.js';
 import {
   projectsListInput,
   projectsCreateInput,
+  projectsDeleteInput,
+  sessionsDeleteInput,
   sessionsListInput,
   sessionsTranscriptInput,
   sessionsSubagentTranscriptInput,
@@ -206,6 +208,7 @@ function projectsRouter(service: UiService) {
   return router({
     list: makeQuery(service, 'projects.list', projectsListInput),
     create: makeMutation(service, 'projects.create', projectsCreateInput),
+    delete: makeMutation(service, 'projects.delete', projectsDeleteInput),
   });
 }
 
@@ -217,6 +220,7 @@ function sessionsRouter(service: UiService) {
     debugDetails: makeQuery(service, 'sessions.debugDetails', sessionsDebugDetailsInput),
     pendingInteraction: makeQuery(service, 'sessions.pendingInteraction', sessionsPendingInteractionInput),
     create: makeMutation(service, 'sessions.create', sessionsCreateInput),
+    delete: makeMutation(service, 'sessions.delete', sessionsDeleteInput),
     send: makeMutation(service, 'sessions.send', sessionsSendInput),
     cancel: makeMutation(service, 'sessions.cancel', sessionsCancelInput),
     compact: makeMutation(service, 'sessions.compact', sessionsCompactInput),

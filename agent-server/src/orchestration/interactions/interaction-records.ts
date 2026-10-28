@@ -122,6 +122,16 @@ export class InteractionRecords {
     return count;
   }
 
+  /** Resolve every pending interaction of one session (it is being deleted). */
+  async resolvePendingBySession(sessionId: string, status: Exclude<InteractionStatus, 'pending'>, resolvedVia: InteractionResolvedVia): Promise<number> {
+    const ids = [...this.index.values()].filter(e => e.sessionId === sessionId && e.status === 'pending').map(e => e.id);
+    let count = 0;
+    for (const id of ids) {
+      if (await this.resolve({ id, status, resolvedVia }) === 'resolved') count++;
+    }
+    return count;
+  }
+
   get(id: string): InteractionIndexEntry | null {
     return this.index.get(id) ?? null;
   }

@@ -36,6 +36,7 @@ import { cancelChannelRuns, cancelLiveExecution } from '@orch/routing/commands/c
 import { deliverToSessionDetached } from '@orch/session-gateway.js';
 import { compactSessionContext } from '../orchestration/session-compact.js';
 import { rewindWebSession } from '../orchestration/session-rewind.js';
+import { createSessionDeletion } from '@orch/session-deletion.js';
 import { snapshotInlineMedia } from '@orch/inline-media.js';
 import { moveDraftAttachments } from './draft-attachments.js';
 
@@ -69,6 +70,11 @@ export function buildUiService(w: UiServiceWiring): UiService {
     bus: w.bus,
     adapter: w.adapter,
     ...sessionRunDeps(w.adapter),
+    ...createSessionDeletion({
+      bus: w.bus,
+      scheduler: w.scheduler,
+      unbindConduits: (projectId) => w.adapter.unbindProjectConduit(projectId),
+    }),
     ...sessionSelectionDeps(),
     ...interactionDeps(),
   });
