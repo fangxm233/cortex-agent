@@ -67,6 +67,14 @@ export class BoardRepo {
     });
   }
 
+  /** Drop every board of a deleted project; returns how many were registered. */
+  async removeByProject(projectId: string): Promise<number> {
+    return this._repo.mutate((data) => {
+      const kept = data.boards.filter(b => b.projectId !== projectId);
+      return { next: { ...data, boards: kept }, result: data.boards.length - kept.length };
+    });
+  }
+
   /** Record a use of the board at `at` (never moving `updatedAt` back). Null, and no write, when
    *  the board is not registered. */
   async touch(id: string, at: number): Promise<BoardRecord | null> {

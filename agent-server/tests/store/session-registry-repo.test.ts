@@ -574,3 +574,34 @@ test('a turn anchor survives a journal reload, and a malformed one is dropped', 
   const again = new SessionRegistryRepo(filePath);
   assert.deepEqual((await again.readConversation('web:anc'))!.turns[0].anchor, anchor);
 });
+
+test('beginDelete takes the named sessions, starred or board-bound, with every worker of a named lead', async () => {
+  const { filePath } = nextPaths();
+  const repo = new SessionRegistryRepo(filePath);
+  await repo.registerSession(registerOpts('lead'));
+  await repo.registerSession({ ...registerOpts('w1'), teamLeadId: 'lead', workerName: 'w1' });
+  await repo.registerSession({ ...registerOpts('w2'), teamLeadId: 'lead', workerName: 'w2' });
+  await repo.setStarred('w2', true);
+  await repo.registerSession(registerOpts('board', { boardId: 'b-1' }));
+  await repo.registerSession(registerOpts('kept'));
+
+  const pending = await repo.beginDelete(['lead', 'board', 'board', 'missing'], async (session) => ({
+    claudeBackupPaths: [`${session.sessionId}.bak`],
+  }));
+  assert.deepEqual(pending.map(entry => entry.session.sessionId).sort(), ['board', 'lead', 'w1', 'w2']);
+  assert.deepEqual(pending.find(entry => entry.session.sessionId === 'w1')?.cleanup, { claudeBackupPaths: ['w1.bak'] });
+  assert.deepEqual((await repo.listRecentSessions(10)).map(s => s.sessionId), ['kept']);
+  assert.deepEqual(await repo.beginDelete(['lead']), [], 'a pending session is not taken twice');
+
+  const reopened = new SessionRegistryRepo(filePath);
+  assert.deepEqual((await reopened.listPendingDeletions()).map(entry => entry.session.sessionId).sort(), ['board', 'lead', 'w1', 'w2']);
+});
+
+test('beginDelete of a worker alone leaves its lead and siblings', async () => {
+  const repo = new SessionRegistryRepo(nextPaths().filePath);
+  await repo.registerSession(registerOpts('lead'));
+  await repo.registerSession({ ...registerOpts('w1'), teamLeadId: 'lead', workerName: 'w1' });
+  await repo.registerSession({ ...registerOpts('w2'), teamLeadId: 'lead', workerName: 'w2' });
+  assert.deepEqual((await repo.beginDelete(['w1'])).map(entry => entry.session.sessionId), ['w1']);
+  assert.deepEqual((await repo.listWorkers('lead')).map(s => s.sessionId), ['w2']);
+});

@@ -16,6 +16,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const CAPTURE_PREFIX = 'claude-output-';
 /** Pending deletions cleaned and committed per registry append; also the stop-check granularity. */
 const DELETE_BATCH_SIZE = 100;
+/** A session or backend id that names one directory entry: no separators, no dot segments. */
+const SAFE_DIR_NAME = /^[A-Za-z0-9_-]+$/;
 const log = createLogger('session-retention');
 
 export interface RetentionLivenessSnapshot {
@@ -33,6 +35,9 @@ export interface SessionRetentionPaths {
   claudeProjectDir: string;
   /** Root of the per-session tool-result image directories. Absent ⇒ not swept. */
   toolImagesDir?: string;
+  /** Roots holding one `<sessionId>` directory per session (outputs, composer uploads, tool images),
+   *  removed with the session. */
+  sessionDirRoots?: string[];
 }
 
 export interface SessionRetentionDeps {
@@ -47,6 +52,9 @@ export interface SessionRetentionDeps {
   /** Disarm the waitpoints these sessions armed, before their deletion commits: a waitpoint firing
    *  later would find-or-create a session on its channel. Absent ⇒ skipped. */
   cancelWaitpoints?: (sessionIds: string[]) => Promise<unknown>;
+  /** Drop what other stores keep about these sessions (pending injections, team mail), before
+   *  their deletion commits. Absent ⇒ skipped. */
+  forgetSessions?: (sessionIds: string[]) => Promise<unknown>;
   liveness: RetentionLivenessSnapshot;
   paths: SessionRetentionPaths;
   syncClaudeUserCleanupPeriodDays: (days: number) => Promise<ClaudeUserSettingsSyncResult>;
@@ -54,6 +62,10 @@ export interface SessionRetentionDeps {
    *  and is retried by the next sweep. */
   signal?: AbortSignal;
 }
+
+/** What committing a pending deletion needs — shared by the sweep and a user's explicit delete. */
+export type SessionDeleteCommitDeps = Pick<SessionRetentionDeps,
+  'registry' | 'historyRepo' | 'sessionTotals' | 'cancelWaitpoints' | 'forgetSessions' | 'paths' | 'signal'>;
 
 export interface SessionRetentionSweepResult {
   registryCommitted: number;
@@ -130,7 +142,7 @@ export async function runSessionRetentionSweep(deps: SessionRetentionDeps): Prom
   return result;
 }
 
-function isStopped(deps: SessionRetentionDeps): boolean {
+function isStopped(deps: Pick<SessionRetentionDeps, 'signal'>): boolean {
   return deps.signal?.aborted === true;
 }
 
@@ -203,8 +215,8 @@ async function safeRegistryListPendingDeletions(
  * The release cannot wait for the commit (whose replay drops the same channels): a session whose
  * file cleanup fails stays pending, and a channel still bound to it could not start a new turn.
  */
-async function commitDeletes(
-  deps: SessionRetentionDeps,
+export async function commitDeletes(
+  deps: SessionDeleteCommitDeps,
   entries: PendingDeletion[],
   errors: string[],
 ): Promise<number> {
@@ -216,7 +228,7 @@ async function commitDeletes(
 }
 
 async function commitDeleteBatch(
-  deps: SessionRetentionDeps,
+  deps: SessionDeleteCommitDeps,
   entries: PendingDeletion[],
   errors: string[],
 ): Promise<number> {
@@ -237,9 +249,13 @@ async function commitDeleteBatch(
       errors.push(`${entry.session.sessionId}: ${(error as Error).message}`);
     }
   }
-  if (cleaned.length === 0) return 0;
+  return cleaned.length === 0 ? 0 : finishDeleteBatch(deps, cleaned, errors);
+}
+
+async function finishDeleteBatch(deps: SessionDeleteCommitDeps, cleaned: string[], errors: string[]): Promise<number> {
   try {
     await deps.cancelWaitpoints?.(cleaned);
+    await deps.forgetSessions?.(cleaned);
     // Otherwise the carry would outlive every session it describes and grow without bound.
     await (deps.sessionTotals ?? sessionTotalsCarry).forget(cleaned);
     return (await deps.registry.commitDeletions(cleaned)).length;
@@ -252,7 +268,7 @@ async function commitDeleteBatch(
 /** One directory listing per batch instead of one per PI session. `null` when the listing failed:
  *  the batch's PI sessions then stay pending. */
 async function piBundleIndexFor(
-  deps: SessionRetentionDeps,
+  deps: SessionDeleteCommitDeps,
   entries: PendingDeletion[],
   errors: string[],
 ): Promise<Map<string, string[]> | null> {
@@ -265,8 +281,8 @@ async function piBundleIndexFor(
   }
 }
 
-async function prepareDeleteCleanup(
-  deps: SessionRetentionDeps,
+export async function prepareDeleteCleanup(
+  deps: Pick<SessionRetentionDeps, 'paths'>,
   session: Session,
   turns: TurnRecord[],
 ): Promise<PendingDeletion['cleanup']> {
@@ -276,14 +292,19 @@ async function prepareDeleteCleanup(
   const candidates = turns.map(turn => turn.backupPath && relocateLegacyClaudePath(turn.backupPath));
   // A clean session ran in its own workspace, so its backups sit in that folder's project dir.
   // The workspace itself is left alone: it may hold what the session produced.
-  const projectDir = session.workspaceDir ? getProjectDir(session.workspaceDir) : deps.paths.claudeProjectDir;
+  const projectDir = claudeProjectDirOf(deps, session);
   return {
     claudeBackupPaths: await trustedClaudeBackupPaths(projectDir, backendId, candidates),
   };
 }
 
+/** A clean session ran in its own workspace, so its Claude files sit in that folder's project dir. */
+function claudeProjectDirOf(deps: Pick<SessionRetentionDeps, 'paths'>, session: Session): string {
+  return session.workspaceDir ? getProjectDir(session.workspaceDir) : deps.paths.claudeProjectDir;
+}
+
 async function cleanupSessionFiles(
-  deps: SessionRetentionDeps,
+  deps: SessionDeleteCommitDeps,
   entry: PendingDeletion,
   piBundles: Map<string, string[]> | null,
 ): Promise<void> {
@@ -294,7 +315,24 @@ async function cleanupSessionFiles(
     if (!piBundles) throw new Error('PI transcript directory could not be listed');
     await deleteFiles(piBundles.get(backendId) ?? []);
   }
+  if (backendId && session.backend === 'claude') await deleteClaudeTranscript(claudeProjectDirOf(deps, session), backendId);
   await deleteFiles(entry.cleanup.claudeBackupPaths);
+  for (const root of deps.paths.sessionDirRoots ?? []) await removeOwnedDir(root, session.sessionId);
+}
+
+/** The Claude Code transcript `<id>.jsonl` and its `<id>/` sidecar (tool results, subagents). */
+async function deleteClaudeTranscript(projectDir: string, backendSessionId: string): Promise<void> {
+  if (!SAFE_DIR_NAME.test(backendSessionId)) return;
+  await unlinkIfExists(path.join(projectDir, `${backendSessionId}.jsonl`));
+  await removeOwnedDir(projectDir, backendSessionId);
+}
+
+/** Remove `<root>/<name>` when it is a real directory directly under `root`; a symlink is left. */
+async function removeOwnedDir(root: string, name: string): Promise<void> {
+  if (!SAFE_DIR_NAME.test(name)) return;
+  const dir = path.join(root, name);
+  const entry = await safeLstat(dir);
+  if (entry?.isDirectory()) await fs.rm(dir, { recursive: true, force: true });
 }
 
 async function trustedClaudeBackupPaths(

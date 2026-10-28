@@ -46,6 +46,15 @@ export class TeamOutboxRepo {
     }));
   }
 
+  /** Drop reports from or to deleted sessions. */
+  async forgetSessions(sessionIds: Iterable<string>): Promise<void> {
+    const drop = new Set(sessionIds);
+    await this.repo.mutate((data) => ({
+      next: { reports: data.reports.filter(r => !drop.has(r.leadId) && !drop.has(r.workerId)) },
+      result: undefined,
+    }));
+  }
+
   /** Oldest first. */
   async list(): Promise<TeamOutboxEntry[]> {
     const data = await this.repo.read();

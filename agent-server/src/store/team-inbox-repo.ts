@@ -89,6 +89,19 @@ export class TeamInboxRepo {
     });
   }
 
+  /** Forget deleted sessions, as a lead (its whole inbox) or as a worker (its updates). */
+  async forgetSessions(sessionIds: Iterable<string>): Promise<void> {
+    const drop = new Set(sessionIds);
+    await this.repo.mutate((data) => {
+      const leads: TeamInboxData['leads'] = {};
+      for (const [leadId, workers] of Object.entries(data.leads)) {
+        if (drop.has(leadId)) continue;
+        leads[leadId] = Object.fromEntries(Object.entries(workers).filter(([workerId]) => !drop.has(workerId)));
+      }
+      return { next: { leads }, result: undefined };
+    });
+  }
+
   flush(): Promise<void> {
     return this.repo.flush();
   }

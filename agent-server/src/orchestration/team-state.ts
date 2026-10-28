@@ -77,6 +77,15 @@ export function clearDispatch(workerId: string): void {
   dispatchedAt.delete(workerId);
 }
 
+/** Drop what is kept in memory about deleted sessions. */
+export function forgetTeamSessions(sessionIds: Iterable<string>): void {
+  for (const id of sessionIds) {
+    for (const map of [reports, briefs, dispatchedAt, workerNames, routineMarks]) map.delete(id);
+    userTouched.delete(id);
+    historyLoaded.delete(id);
+  }
+}
+
 export function markUserTouched(workerId: string): void {
   userTouched.add(workerId);
 }

@@ -45,6 +45,14 @@ export class ProjectDirRepo {
     });
   }
 
+  /** Drop a deleted project's directory on every machine. */
+  async removeProject(project: string): Promise<void> {
+    await this._repo.mutate((data) => {
+      delete data[project];
+      return { next: data, result: undefined };
+    });
+  }
+
   async getAllProjectDirs(): Promise<Record<string, Record<string, string>>> {
     return { ...(await this._repo.read()) };
   }

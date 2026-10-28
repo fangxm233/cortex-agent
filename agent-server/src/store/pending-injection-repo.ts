@@ -66,6 +66,16 @@ export class PendingInjectionRepo {
     });
   }
 
+  /** Drop every record of these sessions: a deleted session must not have its turns replayed. */
+  async removeBySessionIds(sessionIds: Iterable<string>): Promise<number> {
+    const drop = new Set(sessionIds);
+    return this.repo.mutate((data) => {
+      const ids = Object.keys(data.records).filter(id => drop.has(data.records[id].sessionId));
+      for (const id of ids) delete data.records[id];
+      return { next: data, result: ids.length };
+    });
+  }
+
   async listBySession(sessionId: string): Promise<PendingInjectionRecord[]> {
     return (await this.listAll()).filter((record) => record.sessionId === sessionId);
   }

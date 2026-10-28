@@ -540,51 +540,25 @@ export class SessionRegistryRepo {
   async beginDeleteExpired(
     cutoff: number | Date,
     protectedIds: Iterable<string>,
-    prepareCleanup: (session: Session, turns: TurnRecord[]) => Promise<SessionDeleteCleanup>
-      = async () => ({ claudeBackupPaths: [] }),
+    prepareCleanup: PrepareDeleteCleanup = noDeleteCleanup,
   ): Promise<PendingDeletion[]> {
     return this.withState(async (state) => {
-      const blocked = new Set(protectedIds);
-      const removed: PendingDeletion[] = [];
-      const intents: SessionRegistryEvent[] = [];
-      const records = sortRecent(state.live.values());
-      const channelsBySession = conversationChannelsBySession(state);
-      // A starred session and a board's session are kept however old: the user marked one, and
-      // the other is part of the work a board records.
-      const expired = (record: SessionRecord): boolean => {
-        if (record.starred === true || record.boardId) return false;
-        const lastUsedAtMs = parseLastUsedAtMs(record.lastUsedAt);
-        return lastUsedAtMs !== null && lastUsedAtMs < toCutoffMs(cutoff);
-      };
-      // A team worker lives as long as its lead: kept while the lead exists, deleted with it —
-      // unless it is starred itself. A star means "never auto-delete", for a worker too.
-      const leadsDeleted = new Set(records
-        .filter(record => !record.teamLeadId && !blocked.has(record.sessionId) && expired(record))
-        .map(record => record.sessionId));
-      const liveIds = new Set(records.map(record => record.sessionId));
-      for (const record of records) {
-        // In-use sessions are protected by the caller: `domain/sessions/session-retention.ts` unions
-        // `activeSessionUseIds()` into `protectedIds`. The store no longer keeps a use counter.
-        if (blocked.has(record.sessionId) || record.starred === true) continue;
-        const leadId = record.teamLeadId && liveIds.has(record.teamLeadId) ? record.teamLeadId : null;
-        if (leadId ? !leadsDeleted.has(leadId) : !expired(record)) continue;
-        // Hand the callback the session's turns from the locked state directly — the ledger is now a
-        // façade over THIS registry, so a callback that read it back would re-enter `withState` and
-        // deadlock. (The old ledger was a separate store with its own lock.)
-        const turns = (channelsBySession.get(record.sessionId) ?? []).flatMap(channel => readTurns(state, channel));
-        const cleanup = await prepareCleanup(cloneSession(record), turns);
-        intents.push({
-          v: 1,
-          op: 'delete-intent',
-          id: record.sessionId,
-          record: toStoredRecord(cloneSession(record)),
-          cleanup,
-        });
-        removed.push({ session: cloneSession(record), cleanup });
-      }
-      // All intents land durably before the caller starts any cleanup they describe.
-      await this.appendBatch(state, intents);
-      return removed;
+      const records = selectExpired(sortRecent(state.live.values()), toCutoffMs(cutoff), new Set(protectedIds));
+      return this.writeDeleteIntents(state, records, prepareCleanup);
+    });
+  }
+
+  /** Begin deleting these sessions by id, with every worker of a lead among them. Ids that are not
+   *  live are skipped. Nothing protects a session here: the caller checks it is not in use. */
+  async beginDelete(
+    sessionIds: Iterable<string>,
+    prepareCleanup: PrepareDeleteCleanup = noDeleteCleanup,
+  ): Promise<PendingDeletion[]> {
+    return this.withState(async (state) => {
+      const ids = new Set(sessionIds);
+      const records = sortRecent(state.live.values())
+        .filter(record => ids.has(record.sessionId) || (!!record.teamLeadId && ids.has(record.teamLeadId)));
+      return this.writeDeleteIntents(state, records, prepareCleanup);
     });
   }
 
@@ -672,6 +646,27 @@ export class SessionRegistryRepo {
     await this.maybeCompact(state);
   }
 
+  /** One `delete-intent` per record, all in one append that lands before the caller starts any
+   *  cleanup they describe. */
+  private async writeDeleteIntents(
+    state: SessionRegistryState,
+    records: Session[],
+    prepareCleanup: PrepareDeleteCleanup,
+  ): Promise<PendingDeletion[]> {
+    const channelsBySession = conversationChannelsBySession(state);
+    const removed: PendingDeletion[] = [];
+    for (const record of records) {
+      // The session's turns come from the locked state directly — the ledger is a façade over THIS
+      // registry, so a callback that read it back would re-enter `withState` and deadlock.
+      const turns = (channelsBySession.get(record.sessionId) ?? []).flatMap(channel => readTurns(state, channel));
+      removed.push({ session: cloneSession(record), cleanup: await prepareCleanup(cloneSession(record), turns) });
+    }
+    await this.appendBatch(state, removed.map(({ session, cleanup }): SessionRegistryEvent => ({
+      v: 1, op: 'delete-intent', id: session.sessionId, record: toStoredRecord(session), cleanup,
+    })));
+    return removed;
+  }
+
   private async appendBatch(state: SessionRegistryState, events: SessionRegistryEvent[]): Promise<void> {
     if (events.length === 0) return;
     await appendSessionRegistryEvents(this.filePath, state, events, this.options);
@@ -683,6 +678,34 @@ export class SessionRegistryRepo {
       await compactSessionRegistry(this.filePath, state, this.options);
     }
   }
+}
+
+type PrepareDeleteCleanup = (session: Session, turns: TurnRecord[]) => Promise<SessionDeleteCleanup>;
+
+const noDeleteCleanup: PrepareDeleteCleanup = async () => ({ claudeBackupPaths: [] });
+
+/**
+ * The sessions retention deletes. A starred session and a board's session are kept however old: the
+ * user marked one, and the other is part of the work a board records. A team worker lives as long as
+ * its lead: kept while the lead exists, deleted with it — unless it is starred itself, since a star
+ * means "never auto-delete", for a worker too. In-use sessions are in `blocked`: the store keeps no
+ * use counter, `domain/sessions/session-retention.ts` unions `activeSessionUseIds()` into it.
+ */
+function selectExpired(records: Session[], cutoffMs: number, blocked: Set<string>): Session[] {
+  const expired = (record: Session): boolean => {
+    if (record.starred === true || record.boardId) return false;
+    const lastUsedAtMs = parseLastUsedAtMs(record.lastUsedAt);
+    return lastUsedAtMs !== null && lastUsedAtMs < cutoffMs;
+  };
+  const leadsDeleted = new Set(records
+    .filter(record => !record.teamLeadId && !blocked.has(record.sessionId) && expired(record))
+    .map(record => record.sessionId));
+  const liveIds = new Set(records.map(record => record.sessionId));
+  return records.filter((record) => {
+    if (blocked.has(record.sessionId) || record.starred === true) return false;
+    const leadId = record.teamLeadId && liveIds.has(record.teamLeadId) ? record.teamLeadId : null;
+    return leadId ? leadsDeleted.has(leadId) : expired(record);
+  });
 }
 
 function readTurns(state: SessionRegistryState, channel: string): TurnRecord[] {
