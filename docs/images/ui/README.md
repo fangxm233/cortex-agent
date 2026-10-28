@@ -34,8 +34,10 @@ DPR 3 (1170×2532). All images are palette-compressed PNGs.
 | `mobile-strip.png` | Three phones side by side (sessions, chat, plan approval) on a transparent background. | Cortex on mobile: sessions, chat and approvals. |
 | `pelican-opus-cortex.png` | Cortex's result for "Generate an HTML of a pelican riding a bicycle" with Claude Opus 5.5 at xhigh effort, including its speed, brake and bell controls. Not from the demo instance. | The pelican test in Cortex, Claude Opus 5.5. |
 | `pelican-opus-claude-app.png` | The Claude app's result for the same prompt, model and effort. | The pelican test in the Claude app. |
-| `pelican-gpt-cortex.png` | Cortex's result for the same prompt with GPT-6.1 Sol at xhigh effort. | The pelican test in Cortex, GPT-6.1 Sol. |
-| `pelican-gpt-codex.png` | Codex's result for the same prompt, model and effort. | The pelican test in Codex. |
+| `pelican-sol-cortex.png` | Cortex's result for the same prompt with GPT-6.1 Sol at xhigh effort. | The pelican test in Cortex, GPT-6.1 Sol. |
+| `pelican-sol-codex.png` | Codex's result for the same prompt, model and effort. | The pelican test in Codex, GPT-6.1 Sol. |
+| `pelican-astra-cortex.png` | Cortex's result for the same prompt with GPT-6 Astra at xhigh effort. | The pelican test in Cortex, GPT-6 Astra. |
+| `pelican-astra-codex.png` | Codex's result for the same prompt, model and effort. | The pelican test in Codex, GPT-6 Astra. |
 
 Notes for reuse:
 

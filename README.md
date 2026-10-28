@@ -185,8 +185,14 @@ effort in Cortex and in that model's own app.
   <tr><th colspan="2">GPT-6.1 Sol · xhigh effort</th></tr>
   <tr><td align="center">Cortex</td><td align="center">Codex</td></tr>
   <tr>
-    <td><img width="400" alt="Cortex with GPT-6.1 Sol: a 'Pelican Pedal Club' page headed 'More coast. Less rush.', a pelican in a red scarf riding a green bicycle by the sea, with a Pause ride button" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-gpt-cortex.png"></td>
-    <td><img width="400" alt="Codex with GPT-6.1 Sol: a page headed 'Taking the scenic route.', a pelican in a green scarf riding a green bicycle by the sea" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-gpt-codex.png"></td>
+    <td><img width="400" alt="Cortex with GPT-6.1 Sol: a 'Pelican Pedal Club' page headed 'More coast. Less rush.', a pelican in a red scarf riding a green bicycle by the sea, with a Pause ride button" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-sol-cortex.png"></td>
+    <td><img width="400" alt="Codex with GPT-6.1 Sol: a page headed 'Taking the scenic route.', a pelican in a green scarf riding a green bicycle by the sea" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-sol-codex.png"></td>
+  </tr>
+  <tr><th colspan="2">GPT-6 Astra · xhigh effort</th></tr>
+  <tr><td align="center">Cortex</td><td align="center">Codex</td></tr>
+  <tr>
+    <td><img width="400" alt="Cortex with GPT-6 Astra: an 'Off the Clock' page headed 'The scenic route.', a pelican in a red scarf riding a dark green bicycle in front of a large sun, with a Pause ride button" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-astra-cortex.png"></td>
+    <td><img width="400" alt="Codex with GPT-6 Astra: a 'Pelican Pedal Club' card, a pelican in an orange scarf riding a teal bicycle by the sea, with a Pause ride button" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-astra-codex.png"></td>
   </tr>
 </table>
 
