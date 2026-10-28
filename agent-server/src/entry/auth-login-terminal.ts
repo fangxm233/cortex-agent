@@ -10,9 +10,9 @@ export interface LoginTerminal {
   confirm(message: string): Promise<boolean>;
   notify(notice: LoginFlowNotice): void;
 }
-function accepted<T>(value: T | symbol): T {
+function accepted<T>(value: T): Exclude<T, symbol> {
   if (clack.isCancel(value)) throw new LoginCliError(t('init.auth.cancelled'), 130);
-  return value as T;
+  return value as Exclude<T, symbol>;
 }
 function notify(notice: LoginFlowNotice): void {
   // Authorization links/device codes are terminal-only, never JSON or ordinary logs.

@@ -65,9 +65,9 @@ function persistLargeResult(toolName: keyof typeof RESULT_SIZE_THRESHOLDS, text:
 
 // --- Image processing pipeline ---
 // sharp — optional image processing (resize/compress for token budget)
-let sharpModule: typeof import('sharp') | null = null;
+let sharpModule: typeof import('sharp').default | null = null;
 try {
-  sharpModule = (await import('sharp')).default as any;
+  sharpModule = (await import('sharp')).default;
 } catch {
   // sharp not installed — image reads will pass through raw base64
 }
