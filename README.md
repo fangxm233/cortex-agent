@@ -170,6 +170,14 @@ signs in to dozens of providers, including subscriptions such as ChatGPT Plus/Pr
 API key. Claude Code is optional and uses your own Claude login. Usage and cost are tracked per
 session and per provider. [Backends →](https://fangxm233.github.io/cortex-agent/backends/)
 
+### The pelican test
+
+<p align="center"><img width="640" alt="A Cortex session asked to generate an HTML of a pelican riding a bicycle, with the rendered animation shown inline in the reply" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican.png"></p>
+
+The classic prompt, "Generate an HTML of a pelican riding a bicycle", run in the desktop app with
+Claude Opus 5.5. The agent wrote a single self-contained HTML file and showed a rendered
+preview of it inline in the chat.
+
 ## Get started
 
 ### Desktop app

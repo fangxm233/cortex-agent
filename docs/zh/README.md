@@ -113,6 +113,12 @@ Cortex 可以接入 Slack 和飞书（Lark），你可以直接在常用的聊�
 
 Cortex 驱动编程智能体，而不是自己调用模型 API。PI 随服务端一起提供，可以用 OAuth 或 API key 登录几十个 provider，包括 ChatGPT Plus/Pro 这样的订阅。Claude Code 是可选的，使用你自己的 Claude 登录。用量和花费按会话、按 provider 统计。[后端 →](https://fangxm233.github.io/cortex-agent/zh/backends/)
 
+### 鹈鹕测试
+
+<p align="center"><img width="640" alt="Cortex 会话：让它生成一个鹈鹕骑自行车的 HTML，回复里内嵌了渲染出的动画" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican.png"></p>
+
+经典提示词“Generate an HTML of a pelican riding a bicycle”，在桌面应用里用 Claude Opus 5.5 运行。智能体写出一个不依赖外部资源的 HTML 文件，并把渲染出的预览直接嵌在对话里。
+
 ## 上手
 
 ### 桌面应用
