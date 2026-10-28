@@ -32,7 +32,8 @@ DPR 3 (1170×2532). All images are palette-compressed PNGs.
 | `mobile-board.png` | Mobile board: live strip, head card, stages and the results table. | Boards work on mobile too. |
 | `mobile-ask.png` | Mobile agent question card with options, a default and a countdown before defaults apply. | Answer an agent's question from your phone. |
 | `mobile-strip.png` | Three phones side by side (sessions, chat, plan approval) on a transparent background. | Cortex on mobile: sessions, chat and approvals. |
-| `pelican.png` | Desktop app (Windows, light theme): a `general` session answering "Generate an HTML of a pelican riding a bicycle." with Opus 5.5, the reply showing the rendered HTML inline. Not from the demo instance. | The pelican test, run in Cortex. |
+| `pelican-cortex.png` | The rendered HTML from Cortex for "Generate an HTML of a pelican riding a bicycle" (Claude Opus 5.5, xhigh effort), with its speed, brake and bell controls. Not from the demo instance. | The pelican test in Cortex. |
+| `pelican-claude-app.png` | The Claude app's result for the same prompt and model, for comparison. | The pelican test in the Claude app. |
 
 Notes for reuse:
 

@@ -172,11 +172,16 @@ session and per provider. [Backends →](https://fangxm233.github.io/cortex-agen
 
 ### The pelican test
 
-<p align="center"><img width="640" alt="A Cortex session asked to generate an HTML of a pelican riding a bicycle, with the rendered animation shown inline in the reply" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican.png"></p>
+The classic prompt, "Generate an HTML of a pelican riding a bicycle", with the same model,
+Claude Opus 5.5 at xhigh effort, in Cortex and in the Claude app.
 
-The classic prompt, "Generate an HTML of a pelican riding a bicycle", run in the desktop app with
-Claude Opus 5.5. The agent wrote a single self-contained HTML file and showed a rendered
-preview of it inline in the chat.
+<table>
+  <tr><th>Cortex</th><th>Claude app</th></tr>
+  <tr>
+    <td><img width="400" alt="Cortex's result: a pelican with a red scarf riding a teal bicycle with a fish basket along a road, with speed, brake and bell controls below the scene" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-cortex.png"></td>
+    <td><img width="400" alt="The Claude app's result: a pelican riding a red bicycle along a road under a sun and clouds" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-claude-app.png"></td>
+  </tr>
+</table>
 
 ## Get started
 

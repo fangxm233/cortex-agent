@@ -115,9 +115,15 @@ Cortex 驱动编程智能体，而不是自己调用模型 API。PI 随服务端
 
 ### 鹈鹕测试
 
-<p align="center"><img width="640" alt="Cortex 会话：让它生成一个鹈鹕骑自行车的 HTML，回复里内嵌了渲染出的动画" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican.png"></p>
+经典提示词“Generate an HTML of a pelican riding a bicycle”，同样使用 Claude Opus 5.5（xhigh effort），分别在 Cortex 和 Claude app 里运行。
 
-经典提示词“Generate an HTML of a pelican riding a bicycle”，在桌面应用里用 Claude Opus 5.5 运行。智能体写出一个不依赖外部资源的 HTML 文件，并把渲染出的预览直接嵌在对话里。
+<table>
+  <tr><th>Cortex</th><th>Claude app</th></tr>
+  <tr>
+    <td><img width="400" alt="Cortex 的结果：戴红围巾的鹈鹕骑着带鱼篮的青绿色自行车在路上行驶，画面下方有速度、刹车和车铃控件" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-cortex.png"></td>
+    <td><img width="400" alt="Claude app 的结果：鹈鹕在太阳和云朵下骑着红色自行车在路上行驶" src="https://raw.githubusercontent.com/fangxm233/cortex-agent/main/docs/images/ui/pelican-claude-app.png"></td>
+  </tr>
+</table>
 
 ## 上手
 
