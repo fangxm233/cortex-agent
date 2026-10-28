@@ -14,6 +14,7 @@ vi.mock('../../src/domain/remote/device-file.js', () => ({
 import { prepareRemoteFetch, fetchRemoteFile } from '../../src/domain/remote/device-file.js';
 import { parseMediaSrc, snapshotInlineMedia, MAX_INLINE_MEDIA_BYTES } from '../../src/orchestration/inline-media.js';
 import { eagerSnapshotInlineMedia } from '../../src/orchestration/inline-media-eager.js';
+import { sessionStore } from '../../src/store/session-registry-repo.js';
 
 let serial = 0;
 let sessionId: string;
@@ -72,6 +73,20 @@ test('snapshot is immutable for one message, with new versions per message and s
   expect(await snapshotInlineMedia({ sessionId: 'other', ts, src })).not.toEqual(result);
   await fs.unlink(src);
   expect(await snapshot(src)).toEqual(result);
+});
+
+test('relative sources resolve in a clean session workspace, falling back to DATA_DIR', async () => {
+  const workspace = path.join(DATA_DIR, 'workspaces', sessionId);
+  await fs.mkdir(path.join(workspace, 'tmp'), { recursive: true });
+  await fs.writeFile(path.join(workspace, 'tmp', 'shot.png'), 'workspace');
+  await source('fallback.png', 'data-dir');
+  vi.spyOn(sessionStore, 'getById').mockResolvedValue({ clean: true, workspaceDir: workspace } as never);
+  const inWorkspace = await snapshot('tmp/shot.png');
+  if ('error' in inWorkspace) throw new Error(inWorkspace.error.reason);
+  expect(await fs.readFile(resolveWorkspaceRelPath(inWorkspace.path)!, 'utf8')).toBe('workspace');
+  const fallback = await snapshot(`${sessionId}/fallback.png`);
+  if ('error' in fallback) throw new Error(fallback.error.reason);
+  expect(await fs.readFile(resolveWorkspaceRelPath(fallback.path)!, 'utf8')).toBe('data-dir');
 });
 
 test('eager capture and lazy resolution share the exact key for paths with spaces', async () => {

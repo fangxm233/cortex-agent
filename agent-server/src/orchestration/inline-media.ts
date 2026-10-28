@@ -3,7 +3,9 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DATA_DIR, resolveWorkspaceRelPath } from '@core/paths.js';
+import { cleanWorkspaceOf } from '@core/workspace.js';
 import { getMachineRegistry } from '@domain/remote/machine-registry.js';
+import { sessionStore } from '@store/session-registry-repo.js';
 import { fetchRemoteFile, prepareRemoteFetch } from '@domain/remote/device-file.js';
 import type { InlineMediaErrorCode, ResolveMediaInput, ResolveMediaResult } from '@domain/ui-service/inline-media-types.js';
 
@@ -20,21 +22,21 @@ class MediaError extends Error {
 }
 
 /** Device names are configuration keys, not arbitrary URI schemes or currently-online devices. */
-export function parseMediaSrc(src: string): MediaSource {
+export function parseMediaSrc(src: string, base: string = DATA_DIR): MediaSource {
   if (!src || src.includes('\0')) throw new MediaError('unsupported', 'Invalid media source');
   if (/^https:\/\//i.test(src)) return { type: 'https', url: new URL(src).href };
   if (src.startsWith('workspace/')) {
     if (!resolveWorkspaceRelPath(src)) throw new MediaError('unsupported', 'Invalid workspace path');
     return { type: 'workspace', path: src };
   }
-  return parseFileSource(src);
+  return parseFileSource(src, base);
 }
 
-function parseFileSource(src: string): FileSource {
+function parseFileSource(src: string, base: string): FileSource {
   if (src.startsWith('~/')) return { type: 'local', filePath: path.join(os.homedir(), src.slice(2)) };
   if (path.isAbsolute(src)) return { type: 'local', filePath: src };
   const device = /^([^:/\\]+):(.*)$/s.exec(src);
-  if (!device) return { type: 'local', filePath: path.resolve(DATA_DIR, src) };
+  if (!device) return { type: 'local', filePath: path.resolve(base, src) };
   return parseDeviceSource(device[1], device[2]);
 }
 
@@ -71,11 +73,18 @@ async function assertMediaFile(filePath: string): Promise<void> {
   if (stat.size > MAX_INLINE_MEDIA_BYTES) throw new MediaError('too_large', 'Media exceeds the 200 MiB limit');
 }
 
+/** Relative paths follow the agent's cwd: a clean session's workspace when the file is there, else DATA_DIR. */
+async function relativeBase({ sessionId, src }: ResolveMediaInput): Promise<string> {
+  const workspace = cleanWorkspaceOf(await sessionStore.getById(sessionId));
+  if (!workspace) return DATA_DIR;
+  return fs.stat(path.resolve(workspace, src)).then(() => workspace, () => DATA_DIR);
+}
+
 /** First successful snapshot wins for this message/source; failures are retryable. */
 export async function snapshotInlineMedia(input: ResolveMediaInput): Promise<ResolveMediaResult> {
   try {
     if (!/^[\w-]+$/.test(input.sessionId)) throw new MediaError('unsupported', 'Invalid session ID');
-    const source = parseMediaSrc(input.src);
+    const source = parseMediaSrc(input.src, await relativeBase(input));
     if (source.type === 'https') throw new MediaError('unsupported', 'HTTPS media must be loaded directly by the browser');
     return await resolveSource(input, source);
   } catch (error) {
