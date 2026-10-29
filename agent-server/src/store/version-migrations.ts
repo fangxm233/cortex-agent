@@ -18,6 +18,7 @@ import { retireCommissions } from './board-migration.js';
 import { migrateToBuiltinOverlay } from './builtin-overlay-migration.js';
 import { retireProfiles } from './retire-profiles-migration.js';
 import { appendMemoryIndexIgnores } from './gitignore-migration.js';
+import { keepPreMainPortEndpoints } from './main-port-migration.js';
 import {
   CODER_COMMIT_POLICY_REPLACEMENTS,
   CODER_REVIEWER_COMMIT_POLICY_REPLACEMENTS,
@@ -59,7 +60,15 @@ export interface StepMigration {
   /** CalVer when this step was introduced. Same pending rule as file migrations. */
   version: string;
   /** Idempotent action. Return false to defer without bumping; throw to signal failure. */
-  run(ctx: { dataDir: string; storeDir: string; defaultsDir: string }): Promise<void | false>;
+  run(ctx: StepContext): Promise<void | false>;
+}
+
+export interface StepContext {
+  dataDir: string;
+  storeDir: string;
+  defaultsDir: string;
+  /** versions.json already recorded migrations: an earlier release has run on this home. */
+  upgrade: boolean;
 }
 
 // ── Marker-block helpers (text migrations) ─────────────────────
@@ -573,6 +582,18 @@ const stepMigrations: StepMigration[] = [
     key: 'sentinel:turn-anchors',
     version: '2026.10.25',
     run: async ({ dataDir, storeDir }) => { await retireTurnBackups(dataDir, storeDir); },
+  },
+  // S13: one port serves the UI, webhooks, clients and the TUI. An upgraded install keeps the
+  // ports it was reached on — the UI's old default 3004, and 3002 for its remote devices — so no
+  // browser, app, tunnel or client config has to change (see store/main-port-migration.ts). A
+  // sealed home declares its own environment.
+  {
+    key: 'sentinel:main-port',
+    version: '2026.10.28',
+    run: async ({ dataDir, upgrade }) => {
+      if (process.env.CORTEX_CONFIG_IMMUTABLE === '1') return;
+      await keepPreMainPortEndpoints(dataDir, { upgrade });
+    },
   },
 ];
 
@@ -1099,8 +1120,7 @@ async function migrateFile(
 // WITHOUT bumping — it retries next boot. S10 is required before runtime state writes. Only a step that
 // completes (rather than returning false to defer) bumps its key.
 async function runStepMigrations(
-  steps: StepMigration[], ctx: { dataDir: string; storeDir: string; defaultsDir: string },
-  versions: Record<string, string>, report: FailureReporter,
+  steps: StepMigration[], ctx: StepContext, versions: Record<string, string>, report: FailureReporter,
 ): Promise<void> {
   for (const step of steps) {
     const tracked = versions[step.key] || '0.0.0';
@@ -1139,11 +1159,12 @@ export async function runMigrations(opts: MigrationOptions = {}): Promise<void> 
   await runLegacyRelocations(dataDir);
   const versionsFile = path.join(storeDir, 'versions.json');
   const versions = await loadVersionsFrom(versionsFile);
+  const upgrade = Object.keys(versions).length > 0;
   for (const [filePath, fileMigrations] of groupByFile(migrations)) {
     const pending = pendingFor(fileMigrations, versions[filePath] || '0.0.0');
     if (pending.length > 0) await migrateFile(dataDir, filePath, pending, versions, report);
   }
-  await runStepMigrations(opts.stepMigrations ?? stepMigrations, { dataDir, storeDir, defaultsDir }, versions, report);
+  await runStepMigrations(opts.stepMigrations ?? stepMigrations, { dataDir, storeDir, defaultsDir, upgrade }, versions, report);
   await saveVersionsTo(versionsFile, versions);
 }
 
