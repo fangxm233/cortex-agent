@@ -224,7 +224,9 @@ it('keeps installation compact and technical diagnostics folded even after failu
   expect(view.root.findByProps({ 'data-action': 'onb-retry' }).props.disabled).toBe(false);
 });
 
-it('after a port-in-use start, the settings form opens on the suggested free port and sends it', async () => {
+// A launch whose daemon stopped on a taken port opens this screen (connect.html#/local); its automatic
+// start restarts the daemon, which fails the same way, and the setup flow reports it.
+it('a start that finds the port taken says so and opens the settings form on a suggested free port', async () => {
   vi.useFakeTimers();
   const { invoke, results } = nativeSetup('linux', true);
   let taken = true;

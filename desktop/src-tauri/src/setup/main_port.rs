@@ -3,7 +3,7 @@
 
 use serde::Deserialize;
 use std::path::Path;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 /// The server's default main port; its own free-port pick starts here too.
 pub const DEFAULT_MAIN_PORT: u16 = 26789;
@@ -89,6 +89,38 @@ pub fn port_conflict(home: &Path, since: Option<SystemTime>) -> Option<PortConfl
     })
 }
 
+/// Whether this home's server stopped on a port conflict at its latest start.
+pub fn conflict_recorded(home: Option<&Path>) -> bool {
+    home.is_some_and(|home| port_conflict(home, None).is_some())
+}
+
+/// How waiting for a started server ended.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Startup {
+    Ready,
+    Timeout,
+    /// The server stopped because another program holds its port; it is not retried on its own.
+    PortInUse(PortConflict),
+}
+
+/// Poll until `answers()` reports the server up, the home records a port conflict at or after
+/// `since`, or the budget runs out. A conflict ends the wait at once: the daemon will not retry.
+pub fn wait_for_server(answers: impl Fn() -> bool, home: Option<&Path>, budget: Duration, since: SystemTime) -> Startup {
+    let deadline = Instant::now() + budget;
+    loop {
+        if answers() {
+            return Startup::Ready;
+        }
+        if let Some(conflict) = home.and_then(|h| port_conflict(h, Some(since))) {
+            return Startup::PortInUse(conflict);
+        }
+        if Instant::now() >= deadline {
+            return Startup::Timeout;
+        }
+        std::thread::sleep(Duration::from_millis(600));
+    }
+}
+
 /// The first port from the default up that can be bound on loopback right now, other than `taken`.
 pub fn suggest_free_port(taken: Option<u16>) -> Option<u16> {
     (DEFAULT_MAIN_PORT..=MAIN_PORT_SEARCH_END)
@@ -170,6 +202,27 @@ mod tests {
         assert!((DEFAULT_MAIN_PORT..=MAIN_PORT_SEARCH_END).contains(&suggestion));
         let error = port_in_use_error(&PortConflict { port: Some(DEFAULT_MAIN_PORT), message: String::new() });
         assert!(error.starts_with("PORT_IN_USE: "), "{error}");
+    }
+
+    #[test]
+    fn a_start_that_hits_a_taken_port_ends_the_wait_with_the_conflict() {
+        let dir = home(None);
+        let since = SystemTime::now();
+        let started = Instant::now();
+        assert_eq!(wait_for_server(|| false, Some(dir.path()), Duration::ZERO, since), Startup::Timeout);
+        assert!(!conflict_recorded(Some(dir.path())), "no record, no conflict: the launch opens the workbench");
+        std::fs::write(
+            dir.path().join("data").join("app-stopped.json"),
+            r#"{"code":78,"port":26789,"message":"Port 26789 is already in use by another process."}"#,
+        )
+        .unwrap();
+        let outcome = wait_for_server(|| false, Some(dir.path()), Duration::from_secs(60), since);
+        assert!(started.elapsed() < Duration::from_secs(5), "the wait does not run out the budget");
+        let Startup::PortInUse(conflict) = outcome else { panic!("expected a port conflict, got {outcome:?}") };
+        assert_eq!(conflict.port, Some(26789));
+        assert!(port_in_use_error(&conflict).starts_with("PORT_IN_USE: "));
+        assert!(conflict_recorded(Some(dir.path())), "a later launch finds it too and opens setup");
+        assert_eq!(wait_for_server(|| true, Some(dir.path()), Duration::ZERO, since), Startup::Ready);
     }
 
     #[test]

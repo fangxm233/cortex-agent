@@ -10,6 +10,7 @@ pub mod autostart;
 pub mod claude;
 pub mod local_server;
 pub mod main_port;
+use main_port::Startup;
 #[cfg(any(target_os = "windows", test))]
 mod login_entry;
 mod package;
@@ -204,35 +205,20 @@ pub fn endpoint_answers(url: &str, token: &str) -> bool {
     }
 }
 
-/// How waiting for a started server ended.
-enum Startup {
-    Ready,
-    Timeout,
-    /// The server stopped because another program holds its port; it is not retried on its own.
-    PortInUse(main_port::PortConflict),
-}
-
 /// Poll until the server answers, reports a port conflict after `since`, or the budget runs out.
 fn wait_for_server(url: &str, token: &str, budget: Duration, since: SystemTime) -> Startup {
-    let deadline = Instant::now() + budget;
-    let home = cortex_home();
-    loop {
-        if endpoint_answers(url, token) {
-            return Startup::Ready;
-        }
-        if let Some(conflict) = home.as_deref().and_then(|h| main_port::port_conflict(h, Some(since))) {
-            return Startup::PortInUse(conflict);
-        }
-        if Instant::now() >= deadline {
-            return Startup::Timeout;
-        }
-        std::thread::sleep(Duration::from_millis(600));
-    }
+    main_port::wait_for_server(|| endpoint_answers(url, token), cortex_home().as_deref(), budget, since)
 }
 
 /// Whether the local server's last start ended on a port another program holds.
-pub fn local_port_in_use() -> bool {
-    cortex_home().is_some_and(|home| main_port::port_conflict(&home, None).is_some())
+fn local_port_in_use() -> bool {
+    main_port::conflict_recorded(cortex_home().as_deref())
+}
+
+/// Whether a local launch whose daemon did not come up opens the setup screen: a runtime to
+/// restore, or a port another program holds — setup then says so and offers a free port.
+pub fn launch_needs_setup(ready: bool, cortex_bin: &str) -> bool {
+    !ready && (local_runtime_needs_repair(cortex_bin) || local_port_in_use())
 }
 
 /// The port the local server binds, resolved as the server resolves it.

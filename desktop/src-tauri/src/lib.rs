@@ -328,8 +328,7 @@ pub fn run() {
             let mut runtime_repair = false;
             if let Some(ready) = start_local_daemon(app.handle(), &initial_config) {
                 let bin = initial_config.cortex_bin.as_deref().unwrap_or_default();
-                // A port another program holds needs the setup screen too: it offers a free port.
-                runtime_repair = !ready && (setup::local_runtime_needs_repair(bin) || setup::local_port_in_use());
+                runtime_repair = setup::launch_needs_setup(ready, bin);
                 shell_log!("[cortex-desktop] local daemon ready={ready}");
                 setup::autostart::refresh_in_background();
             }
