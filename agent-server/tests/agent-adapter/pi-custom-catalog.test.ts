@@ -41,6 +41,25 @@ test('writeProvidersConfig: writes a custom provider entry verbatim instead of a
   }
 });
 
+test('writeProvidersConfig: a custom entry saved with an older gateway port follows the current gateway', () => {
+  const dir = mkdtempSync(pathJoin(tmpdir(), 'cortex-pi-custom-catalog-'));
+  try {
+    const modelsPath = pathJoin(dir, 'models.json');
+    const external = { ...CUSTOM_ENTRY, baseUrl: 'https://llm.example.invalid/m/v1' };
+    writeProvidersConfig(
+      [{ name: 'my-vllm', entry: CUSTOM_ENTRY }, { name: 'hosted', entry: external }],
+      'http://127.0.0.1:9881',
+      { modelsPath },
+    );
+    const data = JSON.parse(readFileSync(modelsPath, 'utf8'));
+    assert.deepEqual(data.providers['my-vllm'], { ...CUSTOM_ENTRY, baseUrl: 'http://127.0.0.1:9881/m/my-vllm/my-vllm' });
+    assert.deepEqual(data.providers.hosted, external, 'a non-gateway base URL stays as written');
+    assert.equal(CUSTOM_ENTRY.baseUrl, 'http://127.0.0.1:9880/m/my-vllm/my-vllm', 'the saved definition is not mutated');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('withCustomEntries: attaches definitions only to overrides that have one', () => {
   const overrides = buildProviderOverrides(['anthropic', 'my-vllm'], 'my-vllm', '/m/my-vllm/my-vllm');
   const attached = withCustomEntries(overrides, { 'my-vllm': CUSTOM_ENTRY });

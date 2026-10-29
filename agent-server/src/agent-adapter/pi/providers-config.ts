@@ -45,6 +45,20 @@ const PROVIDER_COMPAT_OVERRIDES: Record<string, Record<string, unknown>> = {
   },
 };
 
+/** A local gateway route, whatever port the gateway had when the definition was saved. */
+const LOCAL_GATEWAY_ORIGIN = /^http:\/\/(?:127\.0\.0\.1|localhost):\d+(?=\/m\/)/;
+
+/**
+ * A user-defined provider keeps the gateway URL it was saved with. Once the gateway has moved to
+ * another port that URL may reach a different instance's gateway, so its origin follows the
+ * current gateway; any other base URL is the user's own and stays as written.
+ */
+function withCurrentGateway(entry: Record<string, unknown>, gatewayUrl: string): Record<string, unknown> {
+  const baseUrl = entry.baseUrl;
+  if (typeof baseUrl !== 'string' || !LOCAL_GATEWAY_ORIGIN.test(baseUrl)) return entry;
+  return { ...entry, baseUrl: baseUrl.replace(LOCAL_GATEWAY_ORIGIN, gatewayUrl.replace(/\/+$/, '')) };
+}
+
 export interface WriteProvidersOpts {
   /** Target file path. Required: an implicit host default is exactly the ambient reach §13 A3
    *  forbids, so every caller states where the catalog lands. */
@@ -68,7 +82,7 @@ export function writeProvidersConfig(
   const providersBlock: Record<string, Record<string, unknown>> = {};
   for (const p of providers) {
     if (p.entry) {
-      providersBlock[p.name] = p.entry;
+      providersBlock[p.name] = withCurrentGateway(p.entry, gatewayUrl);
       continue;
     }
     const basePath = p.basePath ?? `/${p.name}`;
