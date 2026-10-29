@@ -8,6 +8,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { runCli } from '../../src/entry/cli.js';
 import { DAEMON_PID_FILE, DAEMON_CHILD_PID_FILE, RESTART_TRIGGER_FILE, CONFIG_DIR, DATA_DIR, STORE_DIR } from '../../src/core/paths.js';
 import { localClientEntryPath } from '../../src/domain/remote/client-pids.js';
+import { APP_STOP_FILE, writeAppStop } from '../../src/core/app-stop.js';
 import { processCommandLine } from '../../src/core/process-command-line.js';
 
 const CLIENT_PIDS_FILE = path.join(STORE_DIR, 'client-pids.json');
@@ -39,7 +40,7 @@ beforeEach(() => {
 
 afterEach(() => {
   for (const child of sleepers.splice(0)) child.kill('SIGKILL');
-  for (const file of [DAEMON_PID_FILE, DAEMON_CHILD_PID_FILE, RESTART_TRIGGER_FILE, CLIENT_PIDS_FILE, MACHINES_FILE]) {
+  for (const file of [DAEMON_PID_FILE, DAEMON_CHILD_PID_FILE, RESTART_TRIGGER_FILE, CLIENT_PIDS_FILE, MACHINES_FILE, APP_STOP_FILE]) {
     fs.rmSync(file, { force: true });
   }
 });
@@ -93,6 +94,19 @@ test('daemon status reports the live daemon and its app.js child', async () => {
 
   fs.writeFileSync(DAEMON_CHILD_PID_FILE, String(await deadPid()));
   assert.match((await runCli(['daemon', 'status'])).stdout, /Child: {3}none \(stale PID/);
+});
+
+test('daemon status shows why app.js stopped when its port could not be bound', async () => {
+  const daemon = startSleeper();
+  fs.writeFileSync(DAEMON_PID_FILE, String(daemon.pid));
+  writeAppStop({
+    code: 78, reason: 'port-in-use', port: 26789, host: '127.0.0.1', at: new Date().toISOString(),
+    message: 'Port 26789 is already in use by another process.',
+  });
+  assert.match((await runCli(['daemon', 'status'])).stdout, /Child: {3}stopped — Port 26789 is already in use/);
+  const child = startSleeper();
+  fs.writeFileSync(DAEMON_CHILD_PID_FILE, String(child.pid));
+  assert.match((await runCli(['daemon', 'status'])).stdout, /Child: {3}app\.js \(PID/, 'a running child wins over a stale record');
 });
 
 test('daemon restart touches the restart trigger only when the daemon is alive', async () => {

@@ -83,6 +83,7 @@ import { createLogger } from '@core/log.js';
 import { t, setLocale, normalizeLocale } from '@core/i18n.js';
 import { loadLang } from '@domain/system/preferences.js';
 import { loadRuntimeDotenv } from '@core/runtime-env.js';
+import { EXIT_PORT_UNAVAILABLE, clearAppStop, readAppStop } from '@core/app-stop.js';
 import { createResilientWatchMonitor, type WatchMonitor } from '@core/resilient-watch.js';
 import { isMainModule, moduleDir } from '@core/utils.js';
 import {
@@ -108,7 +109,10 @@ import {
 // Load .env BEFORE reading any CORTEX_* env vars below. Mirrors app.ts §61 — the
 // daemon needs CORTEX_REPO (and potentially other vars) from .env, not just from
 // the OS shell env. Must be sync and before the `CORTEX_REPO` constant below.
+// The keys the shell set are remembered so each child gets the .env as it is now (see childEnv).
+const SHELL_ENV_KEYS = new Set(Object.keys(process.env));
 loadRuntimeDotenv(path.join(CONFIG_DIR, '.env'));
+const DOTENV_KEYS = new Set(Object.keys(process.env).filter((key) => !SHELL_ENV_KEYS.has(key)));
 
 // --- Logger ---
 const log = createLogger('daemon');
@@ -174,11 +178,28 @@ function cancelPendingTimers() {
   if (rebuildTimer) { clearTimeout(rebuildTimer); rebuildTimer = null; }
 }
 
+/**
+ * The daemon's env with the .env values re-read. The daemon loads .env once, so without this a
+ * changed value (a new CORTEX_UI_PORT after a port conflict) would never reach the child it
+ * restarts for that very change. Values the shell set still win, as they do at first load.
+ */
+export function childEnv(
+  base: NodeJS.ProcessEnv = process.env, envFile = ENV_FILE,
+  shellKeys: ReadonlySet<string> = SHELL_ENV_KEYS, dotenvKeys: ReadonlySet<string> = DOTENV_KEYS,
+): NodeJS.ProcessEnv {
+  const env = { ...base };
+  const fileEnv: NodeJS.ProcessEnv = {};
+  loadRuntimeDotenv(envFile, fileEnv);
+  for (const key of dotenvKeys) if (!(key in fileEnv)) delete env[key];
+  for (const [key, value] of Object.entries(fileEnv)) if (!shellKeys.has(key)) env[key] = value;
+  return env;
+}
+
 export function buildChildProcessConfig(
   restartReason: string | null = null, childExit: string | null = null,
 ) {
   const stdio: ('pipe' | 'ignore' | 'ipc')[] = ['pipe', 'ignore', 'ignore', 'ipc'];
-  const env = { ...process.env };
+  const env = childEnv();
   delete env.CORTEX_RESTART_REASON;
   delete env[CHILD_EXIT_ENV];
   if (restartReason) env.CORTEX_RESTART_REASON = restartReason;
@@ -209,6 +230,7 @@ function startChild() {
   childStartedAt = Date.now();
   childBusy = false;
   pendingRestart = null;
+  clearAppStop();
 
   child = fork(APP_ENTRY, [], buildChildProcessConfig(reasonForChild, childExit));
 
@@ -269,7 +291,20 @@ function onChildExit(code, signal): void {
     if (signal) log.info(`app.ts stopped (signal ${signal}).`);
     return;
   }
+  if (!restartsAfterExit(code)) {
+    // The next .env change or `cortex daemon restart` starts it again; until then
+    // `cortex daemon status` shows why it is stopped.
+    const stop = readAppStop();
+    log.error(`app.ts stopped: ${stop?.message ?? 'the main port could not be bound'} Not restarting until the configuration changes.`);
+    return;
+  }
   scheduleCrashRecovery(code, signal);
+}
+
+/** Whether an app.js exit is recovered by restarting it. A main port that cannot be bound is not:
+ *  another start would fail the same way, and a restart loop would only fill the log. */
+export function restartsAfterExit(code: number | null): boolean {
+  return code !== EXIT_PORT_UNAVAILABLE;
 }
 
 /** Unexpected crash — schedule recovery with backoff. */
@@ -725,7 +760,7 @@ function acquireSingletonLock() {
   }
   log.error(
     `Another Cortex daemon is already running (PID ${result.holderPid}, lockfile ${DAEMON_PID_FILE}).\n` +
-    `         Refusing to start a second instance — its app.ts already holds ports 3001/3002 and your child would crash-loop on EADDRINUSE.\n` +
+    `         Refusing to start a second instance — its app.ts already serves this home on its main port (CORTEX_UI_PORT).\n` +
     `         To restart the running daemon: \`touch agent-server/.restart\` (hot reload), or send SIGTERM to PID ${result.holderPid} and rerun.`
   );
   process.exit(1);

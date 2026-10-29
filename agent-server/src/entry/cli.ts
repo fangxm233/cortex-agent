@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { existsSync, readdirSync, readFileSync, unlinkSync } from 'fs';
 import { isMainModule } from '@core/utils.js';
 import { resolveMainPort } from '@core/main-port.js';
+import { readAppStop } from '@core/app-stop.js';
 import { formatDuration } from '@core/format-duration.js';
 import {
   INSTALL_ROOT, DATA_DIR, DAEMON_PID_FILE, DAEMON_CHILD_PID_FILE, RESTART_TRIGGER_FILE,
@@ -259,12 +260,16 @@ function getDaemonStatusInternal(): CliResult {
     `  Uptime:  ${uptime}`,
   ];
 
-  const childPid = readPidFile(DAEMON_CHILD_PID_FILE);
-  if (childPid === null) lines.push('  Child:   starting...');
-  else if (isProcessAlive(childPid)) lines.push(`  Child:   app.js (PID ${childPid}, uptime ${getProcessUptime(childPid)})`);
-  else lines.push(`  Child:   none (stale PID ${childPid} — daemon will restart)`);
-
+  lines.push(`  Child:   ${describeChild(readPidFile(DAEMON_CHILD_PID_FILE))}`);
   return { exitCode: 0, stdout: lines.join('\n') + '\n', stderr: '' };
+}
+
+/** The app.js line of `daemon status`: running, starting, or stopped with the reason it gave. */
+function describeChild(childPid: number | null): string {
+  if (childPid !== null && isProcessAlive(childPid)) return `app.js (PID ${childPid}, uptime ${getProcessUptime(childPid)})`;
+  const stop = readAppStop();
+  if (stop) return `stopped — ${stop.message}`;
+  return childPid === null ? 'starting...' : `none (stale PID ${childPid} — daemon will restart)`;
 }
 
 // ─── Daemon restart ────────────────────────────────────────────────

@@ -5,10 +5,13 @@ import path from 'node:path';
 import { test } from 'vitest';
 import {
   buildChildProcessConfig,
+  childEnv,
   planRebuildLanes,
+  restartsAfterExit,
   planRebuildStepNames,
   rebuildHoldsTurns,
 } from '../src/entry/daemon.js';
+import { EXIT_PORT_UNAVAILABLE } from '../src/core/app-stop.js';
 import { handleDaemonMessage } from '../src/entry/daemon-notice.js';
 import { MockAdapter } from '../src/platform/testing.js';
 
@@ -217,4 +220,23 @@ test('handleDaemonMessage ignores unrelated daemon IPC messages', async () => {
     assert.equal(await handleDaemonMessage(msg as any, adapter), false);
   }
   assert.equal(adapter.posted.length, 0);
+});
+
+test('a main port that cannot be bound is not restarted; every other exit is', () => {
+  assert.equal(restartsAfterExit(EXIT_PORT_UNAVAILABLE), false);
+  for (const code of [null, 0, 1, 2, 137]) assert.equal(restartsAfterExit(code), true, String(code));
+});
+
+test('each child gets the .env as it is now, while values from the shell still win', () => {
+  const dir = fs.mkdtempSync(path.join(process.env.CORTEX_HOME!, 'child-env-'));
+  const envFile = path.join(dir, '.env');
+  fs.writeFileSync(envFile, 'CORTEX_UI_PORT=27001\nCORTEX_UI_HOST=0.0.0.0\nNEW_KEY=fresh\n');
+  const base = { PATH: '/bin', CORTEX_UI_PORT: '26789', CORTEX_UI_HOST: '127.0.0.1', DROPPED: 'old', SHELL_SET: 'shell' };
+  const env = childEnv(base, envFile, new Set(['PATH', 'SHELL_SET', 'CORTEX_UI_HOST']), new Set(['CORTEX_UI_PORT', 'DROPPED']));
+  assert.equal(env.CORTEX_UI_PORT, '27001', 'a changed .env value reaches the next child');
+  assert.equal(env.NEW_KEY, 'fresh', 'a key added to .env reaches the next child');
+  assert.equal(env.DROPPED, undefined, 'a key removed from .env is gone');
+  assert.equal(env.CORTEX_UI_HOST, '127.0.0.1', 'the shell value still wins');
+  assert.equal(env.SHELL_SET, 'shell');
+  assert.equal(base.CORTEX_UI_PORT, '26789', 'the daemon env itself is untouched');
 });
