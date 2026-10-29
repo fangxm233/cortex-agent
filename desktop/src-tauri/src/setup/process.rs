@@ -141,6 +141,18 @@ fn redact_log_line(line: &str) -> String {
     line.to_string()
 }
 
+/// One line of shell-side detail in a run's activity log.
+pub(super) fn run_log(app: &AppHandle, run: &str, line: &str) {
+    let _ = app.emit(
+        SETUP_LOG_EVENT,
+        SetupLogLine {
+            run,
+            stream: "stderr",
+            line: redact_log_line(line),
+        },
+    );
+}
+
 pub(super) fn install_log(app: &AppHandle, line: &str) {
     let _ = app.emit(
         SETUP_LOG_EVENT,

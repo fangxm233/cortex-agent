@@ -237,6 +237,30 @@ pub fn initial_route(
     ("index.html", "")
 }
 
+/// A local install is reached on the port its server binds, resolved as the server resolves it
+/// (`CORTEX_UI_PORT` from the environment, then the home's `.env`, else the default). A saved URL on
+/// another port — the port was changed outside this app — is replaced and saved; a failed save only
+/// means the same correction on the next launch.
+pub fn align_local_port(app: &tauri::AppHandle, config: ConnectionConfig) -> ConnectionConfig {
+    let port = crate::setup::local_main_port();
+    let Some(aligned) = aligned_local_config(&config, port) else {
+        return config;
+    };
+    shell_log!("[cortex-desktop] local server port is {port:?}; updating the saved connection");
+    if let Err(e) = creds::save(app, &aligned) {
+        shell_log!("[cortex-desktop] saving the local server port failed: {e}");
+    }
+    aligned
+}
+
+fn aligned_local_config(config: &ConnectionConfig, port: Option<u16>) -> Option<ConnectionConfig> {
+    if config.mode != ConnectionMode::Local {
+        return None;
+    }
+    let url = crate::setup::main_port::loopback_url_on_port(config.server_url.as_deref()?, port?)?;
+    Some(ConnectionConfig { server_url: Some(url), ..config.clone() })
+}
+
 /// Load initial credentials: the credential file first, then env-var fallback
 /// (`CORTEX_SERVER_URL` / `CORTEX_TOKEN`, dev convenience). Loaded inside `setup` because the
 /// store needs the `AppHandle` to resolve the app-private data dir.
@@ -678,6 +702,18 @@ mod tests {
             restored.cortex_bin.as_deref(),
             Some("/usr/local/bin/cortex")
         );
+    }
+
+    #[test]
+    fn a_local_connection_follows_the_port_its_server_binds() {
+        let aligned = aligned_local_config(&local_config(false), Some(26790)).unwrap();
+        assert_eq!(aligned.server_url.as_deref(), Some("http://127.0.0.1:26790"));
+        assert_eq!(aligned.token.as_deref(), Some(TEST_TOKEN));
+        assert_eq!(aligned.cortex_bin.as_deref(), Some(CLI));
+        assert!(aligned_local_config(&local_config(false), Some(3004)).is_none(), "already on it");
+        assert!(aligned_local_config(&local_config(false), None).is_none(), "no home to read");
+        let remote = ConnectionConfig { mode: ConnectionMode::Remote, ..local_config(false) };
+        assert!(aligned_local_config(&remote, Some(26790)).is_none(), "remote servers are left alone");
     }
 
     #[test]

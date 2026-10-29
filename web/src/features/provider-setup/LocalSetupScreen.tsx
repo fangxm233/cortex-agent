@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } fro
 import { useLang, useVocab, type Vocab } from '@/i18n';
 import { invokeNative, listenNativeEvent } from '@/lib/native-bridge';
 import {
-  LocalSetupFlow, localSetupErrorText, setupLogLine,
+  DEFAULT_LOCAL_PORT, LocalSetupFlow, localSetupErrorText, setupLogLine,
   type LocalSetupPorts, type LocalSetupState, type LocalSetupStep, type LocalSetupWarning, type LocalStepStatus,
 } from './local-setup';
 import { ChevronIcon, MonitorIcon } from './onboarding-icons';
@@ -83,7 +83,7 @@ function ProgressSection({ state, log }: { state: LocalSetupState; log: string }
   </section>;
 }
 
-type StartLocal = (machine: string, autostart: boolean, terminal: boolean, port: number) => void;
+type StartLocal = (machine: string, autostart: boolean, terminal: boolean, port: number | undefined) => void;
 
 function useMachineSettings(state: LocalSetupState, start: StartLocal) {
   const L = useVocab();
@@ -91,7 +91,11 @@ function useMachineSettings(state: LocalSetupState, start: StartLocal) {
   const [machine, setMachine] = useState(state.answers?.machineName ?? state.probe?.hostname ?? '');
   const [autostart, setAutostart] = useState(state.answers?.installService ?? false);
   const [terminal, setTerminal] = useState(state.answers?.installCli ?? true);
-  const [port, setPort] = useState(String(state.answers?.port ?? 3004));
+  const [port, setPortText] = useState(String(state.suggestedPort ?? state.answers?.port ?? DEFAULT_LOCAL_PORT));
+  // The port is sent only when chosen — edited here, kept from the last attempt, or suggested after
+  // the previous one was taken. Left at the default, the server picks the first free port itself.
+  const [portChosen, setPortChosen] = useState(state.suggestedPort !== null || state.answers?.port !== undefined);
+  const setPort = (value: string) => { setPortText(value); setPortChosen(true); };
   const machineInput = useRef<HTMLInputElement>(null);
   const form = useRef<HTMLFormElement>(null);
   const submit = (event: FormEvent) => {
@@ -101,10 +105,11 @@ function useMachineSettings(state: LocalSetupState, start: StartLocal) {
       form.current?.reportValidity();
       return;
     }
-    start(machine.trim(), autostart && state.needsInit, terminal, Number(port));
+    start(machine.trim(), autostart && state.needsInit, terminal, portChosen ? Number(port) : undefined);
   };
   return {
     machine, setMachine, autostart, setAutostart, terminal, setTerminal, port, setPort, machineInput, form, submit,
+    portSuggested: state.suggestedPort !== null,
   };
 }
 
@@ -144,7 +149,7 @@ function MachineFields({ needsInit, settings: s }: { needsInit: boolean; setting
       <div><strong>{L.onbTerminalCommand}</strong><p className="setup-hint">{L.onbTerminalCommandHint}</p></div>
       <input className="onb-toggle" type="checkbox" checked={s.terminal} onChange={event => s.setTerminal(event.target.checked)} />
     </label>
-    <details className="onb-advanced"><summary>{L.onbAdvanced}</summary>
+    <details className="onb-advanced" open={s.portSuggested}><summary>{L.onbAdvanced}</summary>
       <label className="onb-field" htmlFor="onb-port"><span className="onb-label">{L.onbLocalPort}</span>
         <input id="onb-port" className="setup-input onb-mono" type="number" min={1} max={65535} required
           value={s.port} onChange={event => s.setPort(event.target.value)} /></label>
@@ -173,7 +178,7 @@ export function LocalSetupView({ flow, log, otherOptions, clearLog }: {
   const state = useSyncExternalStore(flow.subscribe, flow.snapshot);
   const L = useVocab();
   const lang = useLang();
-  const start = (machineName: string, installService: boolean, installCli: boolean, port: number) => {
+  const start = (machineName: string, installService: boolean, installCli: boolean, port: number | undefined) => {
     clearLog();
     void flow.start({
       lang, machineName, backends: ['pi'], installService, installCli, port, restartDaemon: true, telemetry: NEW_SERVER_TELEMETRY,

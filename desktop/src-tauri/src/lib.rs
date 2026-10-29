@@ -316,7 +316,8 @@ pub fn run() {
             }
             // Load credentials (credential file → env fallback) and seed AppState.
             shell_log!("[cortex-desktop] {}", creds::diagnostics(&app.handle()));
-            let initial_config = connection::load_initial_config(&app.handle());
+            let initial_config =
+                connection::align_local_port(app.handle(), connection::load_initial_config(&app.handle()));
 
             // The Windows login entry: bring the local daemon up, then leave without a window.
             if setup::autostart::headless_launch() {
@@ -327,7 +328,8 @@ pub fn run() {
             let mut runtime_repair = false;
             if let Some(ready) = start_local_daemon(app.handle(), &initial_config) {
                 let bin = initial_config.cortex_bin.as_deref().unwrap_or_default();
-                runtime_repair = !ready && setup::local_runtime_needs_repair(bin);
+                // A port another program holds needs the setup screen too: it offers a free port.
+                runtime_repair = !ready && (setup::local_runtime_needs_repair(bin) || setup::local_port_in_use());
                 shell_log!("[cortex-desktop] local daemon ready={ready}");
                 setup::autostart::refresh_in_background();
             }

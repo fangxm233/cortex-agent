@@ -81,7 +81,7 @@ it.each(['linux', 'windows'])('retries installation from the real %s screen and 
   failing = false;
   await act(async () => view.root.findByProps({ 'data-action': 'onb-retry' }).props.onClick());
   expect(invoke).toHaveBeenCalledWith('setup_run_init', { run: 'start', bin: '/bin/cortex',
-    answers: { lang: 'en', machineName: 'host', backends: ['pi'], port: 3004, installService: false, telemetry: { enabled: true } } });
+    answers: { lang: 'en', machineName: 'host', backends: ['pi'], installService: false, telemetry: { enabled: true } } });
   expect(invoke).toHaveBeenCalledWith('connect', expect.anything());
   expect(view.root.findAllByType('form')).toHaveLength(0);
   act(() => view.unmount());
@@ -222,4 +222,40 @@ it('keeps installation compact and technical diagnostics folded even after failu
   expect(ports.connect).not.toHaveBeenCalled();
   expect(view.root.findAllByProps({ 'data-action': 'onb-cancel' })).toHaveLength(0);
   expect(view.root.findByProps({ 'data-action': 'onb-retry' }).props.disabled).toBe(false);
+});
+
+it('after a port-in-use start, the settings form opens on the suggested free port and sends it', async () => {
+  vi.useFakeTimers();
+  const { invoke, results } = nativeSetup('linux', true);
+  let taken = true;
+  invoke.mockImplementation(async (command: string) => {
+    if (command === 'setup_start_daemon' && taken) throw new Error('PORT_IN_USE: 26791');
+    return results[command];
+  });
+  let view!: ReactTestRenderer;
+  await act(async () => { view = create(<LocalSetupScreen otherOptions={vi.fn()} leave={vi.fn()} />); });
+  expect(text(view)).toContain(en.onbErrPortInUse);
+  act(() => view.root.findByProps({ children: en.onbEditSettings }).props.onClick());
+  expect(view.root.findByProps({ id: 'onb-port' }).props.value).toBe('26791');
+  expect(view.root.findByProps({ className: 'onb-advanced' }).props.open).toBe(true);
+  taken = false;
+  await act(async () => view.root.findByType('form').props.onSubmit({ preventDefault() {} }));
+  expect(invoke).toHaveBeenCalledWith('setup_enable_ui', { run: 'start', bin: '/bin/cortex', port: 26791 });
+  act(() => view.unmount());
+});
+
+it('an untouched port field leaves the choice to the server', async () => {
+  vi.useFakeTimers();
+  const { invoke, results } = nativeSetup('linux', true);
+  results.setup_start_daemon = false;
+  let view!: ReactTestRenderer;
+  await act(async () => { view = create(<LocalSetupScreen otherOptions={vi.fn()} leave={vi.fn()} />); });
+  act(() => view.root.findByProps({ children: en.onbEditSettings }).props.onClick());
+  expect(view.root.findByProps({ id: 'onb-port' }).props.value).toBe('26789');
+  results.setup_start_daemon = true;
+  await act(async () => view.root.findByType('form').props.onSubmit({ preventDefault() {} }));
+  expect(invoke).toHaveBeenLastCalledWith('connect', expect.anything());
+  expect(invoke).toHaveBeenCalledWith('setup_enable_ui', { run: 'start', bin: '/bin/cortex', port: undefined });
+  expect(invoke.mock.calls.filter(call => call[0] === 'setup_enable_ui')).toHaveLength(2);
+  act(() => view.unmount());
 });

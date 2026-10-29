@@ -43,7 +43,12 @@ export interface LocalSetupState {
   automatic: boolean;
   /** Where the SPA continues once connected: provider setup after a fresh install. */
   destination: string | null;
+  /** A free port to offer in the settings form after the server's port turned out to be taken. */
+  suggestedPort: number | null;
 }
+
+/** The port the settings form starts from; left unchanged, the server picks a free one itself. */
+export const DEFAULT_LOCAL_PORT = 26789;
 
 export const WORKBENCH_PAGE = 'index.html';
 const PROVIDER_SETUP_PAGE = 'index.html#/setup/providers';
@@ -54,7 +59,7 @@ export class LocalSetupFlow {
   state: LocalSetupState = {
     stage: 'prepare', busy: false, cancelling: false, error: null, active: null, probe: null, bin: null, version: null,
     needsInit: true, endpoint: null, progress: {}, answers: null, warning: null, newInstall: null,
-    destination: null, automatic: false,
+    destination: null, automatic: false, suggestedPort: null,
   };
   private listeners = new Set<() => void>();
   /** `ready` resolves once the activity-log listener is registered, before the first command. */
@@ -78,7 +83,7 @@ export class LocalSetupFlow {
       await action();
     } catch (error) {
       const progress = this.state.active ? { ...this.state.progress, [this.state.active]: 'error' as const } : this.state.progress;
-      this.patch({ error: message(error), progress });
+      this.patch({ error: message(error), progress, suggestedPort: suggestedPort(message(error)) ?? this.state.suggestedPort });
     } finally {
       this.patch({ busy: false });
     }
@@ -108,7 +113,7 @@ export class LocalSetupFlow {
 
   private defaultAnswers(lang: string): NativeSetupAnswers {
     const kept = this.state.needsInit ? { telemetry: NEW_SERVER_TELEMETRY } : { preserveEndpoint: true };
-    return { lang, machineName: this.state.probe?.hostname ?? '', backends: ['pi'], port: 3004, installService: false, ...kept };
+    return { lang, machineName: this.state.probe?.hostname ?? '', backends: ['pi'], installService: false, ...kept };
   }
 
   cancelInstall = async () => {
@@ -197,11 +202,19 @@ const ERROR_KEYS: Record<string, keyof Vocab> = {
   SERVER_INSTALL_FAILED: 'onbErrServerInstallFailed', SERVER_PACKAGE_INVALID: 'onbErrServerPackageInvalid',
   SERVER_TOO_OLD: 'onbErrServerTooOld', CLI_NOT_ON_PATH: 'onbErrCliNotOnPath',
   ANSWERS_FILE_FAILED: 'onbErrAnswersFileFailed', INIT_FAILED: 'onbErrInitFailed', INIT_NO_RESULT: 'onbErrInitNoResult',
-  UI_ENABLE_FAILED: 'onbErrUiEnableFailed', DAEMON_START_FAILED: 'onbErrDaemonStartFailed',
+  UI_ENABLE_FAILED: 'onbErrUiEnableFailed', DAEMON_START_FAILED: 'onbErrDaemonStartFailed', PORT_IN_USE: 'onbErrPortInUse',
   PROGRAM_FAILED: 'onbErrProgramFailed', SETUP_TASK_FAILED: 'onbErrSetupTaskFailed',
   RUNTIME_UNSUPPORTED: 'onbErrRuntimeUnsupported', RUNTIME_MISSING: 'onbErrRuntimeMissing',
   RUNTIME_NOT_BUNDLED: 'onbErrRuntimeNotBundled', SETUP_CANCELLED: 'onbErrSetupCancelled',
 };
+
+/** The free port a `PORT_IN_USE: <port>` failure offers for the settings form. */
+export function suggestedPort(error: string): number | null {
+  const parts = parseNativeError(error);
+  if (parts?.code !== 'PORT_IN_USE') return null;
+  const port = Number(/^\d+/.exec(parts.detail ?? '')?.[0]);
+  return Number.isInteger(port) && port > 0 && port < 65536 ? port : null;
+}
 
 /** Show only the actionable sentence; native details belong in the folded activity log. */
 export function localSetupErrorText(error: string, L: Vocab): string {

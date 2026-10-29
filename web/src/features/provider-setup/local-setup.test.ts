@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { en, zh } from '@/i18n/vocab';
 import type { NativeSetupAnswers, NativeSetupProbe } from '@/lib/native-bridge';
-import { LocalSetupFlow, localSetupErrorText, setupLogLine, type LocalSetupPorts } from './local-setup';
+import { LocalSetupFlow, localSetupErrorText, setupLogLine, suggestedPort, type LocalSetupPorts } from './local-setup';
 
 const answers: NativeSetupAnswers = { lang: 'en', machineName: 'test-machine', backends: ['pi'], port: 13004, installService: false };
 const probe: NativeSetupProbe = {
@@ -56,7 +56,7 @@ describe('local setup flow', () => {
     flow.subscribe(() => stages.push(flow.state.stage));
     await flow.prepare('zh');
     expect(runInit).toHaveBeenCalledWith('/isolated/bin/cortex', {
-      lang: 'zh', machineName: 'host', port: 3004, installService: false, backends: ['pi'], telemetry: { enabled: true },
+      lang: 'zh', machineName: 'host', installService: false, backends: ['pi'], telemetry: { enabled: true },
     });
     expect(calls).toEqual(['probe', 'installServer', 'runInit', 'startDaemon', 'connect']);
     expect(stages).not.toContain('configure');
@@ -81,7 +81,8 @@ describe('local setup flow', () => {
     const original = flow.state.answers!;
     await flow.start(original);
     expect(runInit.mock.calls.map(call => call[1])).toEqual([original, original]);
-    expect(original).toMatchObject({ lang: 'zh', machineName: 'host', port: 3004, installService: false });
+    expect(original).toMatchObject({ lang: 'zh', machineName: 'host', installService: false });
+    expect(original.port, 'the server picks a free port itself').toBeUndefined();
     expect(flow.state.destination).toBe('index.html#/setup/providers');
   });
 
@@ -98,6 +99,19 @@ describe('local setup flow', () => {
     expect(enableUi).toHaveBeenLastCalledWith('/isolated/bin/cortex', 14004);
     expect(calls).not.toContain('runInit');
     expect(calls).not.toContain('enableAutostart');
+  });
+
+  it('offers the free port a port-in-use failure suggests and keeps it for the settings form', async () => {
+    const startDaemon = vi.fn().mockRejectedValueOnce(new Error('PORT_IN_USE: 26791')).mockResolvedValue(true);
+    const enableUi = vi.fn(async () => endpoint);
+    const { flow } = fixture({ probe: async () => ({ ...probe, homeExists: true }), enableUi, startDaemon });
+    await flow.prepare('en');
+    expect(flow.state).toMatchObject({ stage: 'start', error: 'PORT_IN_USE: 26791', suggestedPort: 26791 });
+    expect(localSetupErrorText(flow.state.error!, en)).toBe(en.onbErrPortInUse);
+    flow.configure();
+    await flow.start({ ...answers, port: flow.state.suggestedPort!, restartDaemon: true });
+    expect(enableUi).toHaveBeenLastCalledWith('/isolated/bin/cortex', 26791);
+    expect(flow.state.stage).toBe('ready');
   });
 
   it('does not expose repair settings without a start failure', async () => {
@@ -357,6 +371,14 @@ describe('local setup copy', () => {
     for (const vocab of [en, zh]) {
       expect(localSetupErrorText(`${code}: Node /private/runtime checksum`, vocab)).toBe(vocab[key]);
     }
+  });
+
+  it('reads the suggested port only from a port-in-use failure', () => {
+    expect(suggestedPort('PORT_IN_USE: 26790')).toBe(26790);
+    expect(suggestedPort('PORT_IN_USE')).toBeNull();
+    expect(suggestedPort('DAEMON_TIMEOUT: 26790')).toBeNull();
+    expect(suggestedPort('PORT_IN_USE: 70000')).toBeNull();
+    for (const vocab of [en, zh]) expect(localSetupErrorText('PORT_IN_USE: 26790', vocab)).toBe(vocab.onbErrPortInUse);
   });
 
   it('shows only the install and start runs of the log, without colour codes', () => {

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 use std::ffi::OsStr;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 use tauri::AppHandle;
 
 mod answers;
@@ -9,6 +9,7 @@ pub use answers::{answers_document, SetupAnswers};
 pub mod autostart;
 pub mod claude;
 pub mod local_server;
+pub mod main_port;
 #[cfg(any(target_os = "windows", test))]
 mod login_entry;
 mod package;
@@ -203,18 +204,50 @@ pub fn endpoint_answers(url: &str, token: &str) -> bool {
     }
 }
 
-/// Poll until the server answers or the budget runs out. Returns whether it came up.
-fn wait_until_ready(url: &str, token: &str, budget: Duration) -> bool {
+/// How waiting for a started server ended.
+enum Startup {
+    Ready,
+    Timeout,
+    /// The server stopped because another program holds its port; it is not retried on its own.
+    PortInUse(main_port::PortConflict),
+}
+
+/// Poll until the server answers, reports a port conflict after `since`, or the budget runs out.
+fn wait_for_server(url: &str, token: &str, budget: Duration, since: SystemTime) -> Startup {
     let deadline = Instant::now() + budget;
+    let home = cortex_home();
     loop {
         if endpoint_answers(url, token) {
-            return true;
+            return Startup::Ready;
+        }
+        if let Some(conflict) = home.as_deref().and_then(|h| main_port::port_conflict(h, Some(since))) {
+            return Startup::PortInUse(conflict);
         }
         if Instant::now() >= deadline {
-            return false;
+            return Startup::Timeout;
         }
         std::thread::sleep(Duration::from_millis(600));
     }
+}
+
+/// Whether the local server's last start ended on a port another program holds.
+pub fn local_port_in_use() -> bool {
+    cortex_home().is_some_and(|home| main_port::port_conflict(&home, None).is_some())
+}
+
+/// The port the local server binds, resolved as the server resolves it.
+pub fn local_main_port() -> Option<u16> {
+    cortex_home().map(|home| main_port::resolve_main_port(&home))
+}
+
+/// Start the daemon, or restart it when asked. A daemon whose server stopped on a port conflict
+/// leaves it stopped until a restart, so that case restarts too.
+fn launch_daemon(app: &AppHandle, run: &str, bin: &str, restart: bool) -> Result<process::RunOutcome, String> {
+    if restart || local_port_in_use() {
+        let restarted = run_streaming(app, run, bin, &["daemon", "restart"])?;
+        if restarted.ok() { return Ok(restarted); }
+    }
+    run_streaming(app, run, bin, &["daemon"])
 }
 
 /// Start (or restart) the local daemon and wait for it to answer.
@@ -230,13 +263,17 @@ pub fn start_local_daemon(
     restart: bool,
 ) -> Result<bool, String> {
     if !restart && endpoint_answers(url, token) { return Ok(true); }
-    if restart {
-        let restarted = run_streaming(app, run, bin, &["daemon", "restart"])?;
-        if restarted.ok() { return Ok(wait_until_ready(url, token, DAEMON_READY_TIMEOUT)); }
-    }
-    let started = run_streaming(app, run, bin, &["daemon"])?;
+    let since = SystemTime::now();
+    let started = launch_daemon(app, run, bin, restart)?;
     if !started.ok() { return Err(format!("DAEMON_START_FAILED: {}", started.combined())); }
-    Ok(wait_until_ready(url, token, DAEMON_READY_TIMEOUT))
+    match wait_for_server(url, token, DAEMON_READY_TIMEOUT, since) {
+        Startup::Ready => Ok(true),
+        Startup::Timeout => Ok(false),
+        Startup::PortInUse(conflict) => {
+            process::run_log(app, run, &conflict.message);
+            Err(main_port::port_in_use_error(&conflict))
+        }
+    }
 }
 
 // ─── Tauri commands ────────────────────────────────────────────────────────
@@ -557,14 +594,11 @@ pub fn ensure_local_daemon(app: &AppHandle, bin: &str, url: &str, token: &str) -
     }
     #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     restore_local_runtime(app);
-    match run_streaming(app, "startup", bin, &["daemon"]) {
-        Ok(outcome) if outcome.ok() => wait_until_ready(url, token, STARTUP_READY_TIMEOUT),
-        Ok(outcome) => {
-            // Non-zero usually means "already running" — a process is up but not yet listening, so
-            // waiting is still the right move.
-            let _ = outcome;
-            wait_until_ready(url, token, STARTUP_READY_TIMEOUT)
-        }
+    let since = SystemTime::now();
+    // Non-zero usually means "already running" — a process is up but not yet listening, so waiting
+    // is still the right move. A port conflict ends the wait early; the caller opens setup for it.
+    match launch_daemon(app, "startup", bin, false) {
+        Ok(_) => matches!(wait_for_server(url, token, STARTUP_READY_TIMEOUT, since), Startup::Ready),
         Err(_) => false,
     }
 }
@@ -716,7 +750,7 @@ mod tests {
             machine_name: "workbench".into(),
             backends: vec!["pi".into()],
             install_service: true,
-            port: 3004,
+            port: Some(3004),
             telemetry: None,
         };
         let doc = answers_document(&answers);

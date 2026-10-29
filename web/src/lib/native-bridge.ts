@@ -99,7 +99,8 @@ export interface NativeSetupAnswers {
   installService: boolean;
   /** Explicit terminal-command choice (`cortex path install` / `remove`); unset leaves it to the server. */
   installCli?: boolean;
-  port: number;
+  /** Unset lets the server keep its configured port, or pick the first free one from 26789. */
+  port?: number;
   /** Internal setup intent: reuse the configured UI port when enabling an existing endpoint. */
   preserveEndpoint?: boolean;
   /** The new server's telemetry setting; the shell adds its install id before handing it to init. */

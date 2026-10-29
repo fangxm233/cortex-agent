@@ -14,7 +14,9 @@ pub struct SetupAnswers {
     pub machine_name: String,
     pub backends: Vec<String>,
     pub install_service: bool,
-    pub port: u16,
+    /// Unset lets init keep a configured port or pick the first free one from 26789.
+    #[serde(default)]
+    pub port: Option<u16>,
     #[serde(default)]
     pub telemetry: Option<SetupTelemetry>,
 }
@@ -37,9 +39,12 @@ fn answers_for_platform(answers: &SetupAnswers, platform: &str) -> serde_json::V
         "backends": answers.backends,
         "platforms": [],
         "installService": answers.install_service && !matches!(platform, "macos" | "linux" | "windows"),
-        "localUi": { "enabled": true, "port": answers.port },
+        "localUi": { "enabled": true },
         "localClient": { "enabled": true },
     });
+    if let Some(port) = answers.port {
+        doc["localUi"]["port"] = serde_json::json!(port);
+    }
     if platform == "windows" {
         doc["clientListenHost"] = serde_json::json!("127.0.0.1");
     }
@@ -56,7 +61,7 @@ mod tests {
             machine_name: "workbench".into(),
             backends: vec!["pi".into()],
             install_service: true,
-            port: 3004,
+            port: Some(3004),
             telemetry: None,
         }
     }
@@ -88,5 +93,20 @@ mod tests {
             assert_eq!(doc["machineName"], "workbench");
             assert_eq!(doc["backends"], serde_json::json!(["pi"]));
         }
+    }
+}
+
+#[cfg(test)]
+mod port_tests {
+    use super::*;
+
+    #[test]
+    fn without_a_chosen_port_init_picks_one() {
+        let answers: SetupAnswers = serde_json::from_value(serde_json::json!({
+            "lang": "en", "machineName": "workbench", "backends": ["pi"], "installService": false
+        }))
+        .unwrap();
+        assert_eq!(answers.port, None);
+        assert_eq!(answers_for_platform(&answers, "linux")["localUi"], serde_json::json!({ "enabled": true }));
     }
 }
