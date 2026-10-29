@@ -27,7 +27,7 @@ Every batch starts with an envelope that describes the install:
 
 | Field | Meaning |
 |---|---|
-| `installId` | Random UUID created once per install. The desktop app creates it during setup and passes it to the server it installs, so setup and later use share one ID |
+| `installId` | Random UUID created once per install. The desktop app and the server share it: setup passes the desktop app's ID to a server it initializes, and takes over the ID of a Cortex home that already has one |
 | `version` | Cortex version |
 | `channel` | `release`, or `dev` for a source checkout or debug build that has opted in |
 | `installForm` | `desktop` (installed by the desktop app), `npm` (global npm install) or `other` |
@@ -106,18 +106,29 @@ includes an error class (`io`, `parse`, `permission` or `other`) and the redacte
 Each onboarding step is sent once per install, so the reports show where new users get stuck. The
 server reports these steps:
 
-| Step | Detail |
-|---|---|
-| `server_init_completed` | — |
-| `provider_authed` | The backend (`claude` or `pi`) of the first completed turn |
-| `first_session`, `first_turn_completed` | — |
-| `first_remote_client`, `first_worker`, `first_schedule` | — |
+| Step | Reached when | Detail |
+|---|---|---|
+| `server_init_completed` | `cortex init` finishes | — |
+| `provider_authed` | A backend first has usable credentials, however they were added | The backend (`claude` or `pi`) |
+| `first_session` | The first session is created, or the first message arrives from any entry (Web UI, Slack, Feishu, TUI) | — |
+| `first_turn_completed` | The first turn completes | — |
+| `first_remote_client` | A client first connects from a machine other than the server's own | — |
+| `first_worker`, `first_schedule` | The first worker is spawned, or the first scheduled task is created | — |
+
+These steps describe an install from its first day, so they count only for a Cortex home that
+`cortex init` created. When the server starts on any other home, such as one set up by a Cortex
+version without onboarding steps, it reports none of the steps after `server_init_completed` and
+sends `existing_install` once instead. The reports leave these installs out of the onboarding
+funnel.
 
 Before a server exists, nothing else can report how setup went, so the desktop app sends its own
 setup steps directly to the collector. These steps are `setup_started`, `server_installed` or
 `server_install_failed`, `init_completed` or `init_failed`, and `daemon_started` or
-`daemon_start_failed`. A failed step includes only a class (`network`, `permission`, `disk`,
-`timeout`, `cancelled` or `other`), never the error text.
+`daemon_start_failed`. When setup reuses an existing Cortex home instead of running `cortex init`,
+`init_completed` carries the detail `existing`. A failed step includes only a class (`network`,
+`permission`, `disk`, `timeout`, `cancelled` or `other`), never the error text. A step stays queued
+until the collector answers; one that could not be delivered is sent again the next time the app
+starts.
 
 ### Daily usage rollup
 
@@ -128,7 +139,7 @@ up to more than an hour), never as individual values.
 | Part | What it counts |
 |---|---|
 | Turn health | One row per backend, provider, model and billing type (up to 100 rows). Each row has completed, failed, cancelled and rate-limited turns; failure classes (`auth`, `rate_limit`, `network`, `adapter_crash`, `timeout`, `other`); retries; model fallbacks; time to first output for completed turns; turn duration; context use at the end of the turn; automatic and manual compactions; and input, output, cache-read and cache-write tokens. `customApi` gives the API type of a custom provider, such as `openai-completions` |
-| Features | How often sessions were created, workers spawned, subagents run, boards opened, schedules created and fired, waitpoints created and signaled, and browser sessions used. Also how often plans were submitted, approved and rejected, questions were asked and answered, and remote machines connected |
+| Features | How often sessions were created, workers spawned, subagents run, boards opened, schedules created and fired, waitpoints created and signaled, and browser sessions used. Also how often plans were submitted, approved and rejected, questions were asked and answered, and machines other than the server's own connected |
 | Tools | Calls and errors per [normalized](#how-names-are-normalized) tool name (up to 200 tools) |
 | Entry points | Messages per channel (`desktop`, `android`, `browser`, `feishu`, `slack`, `tui`, `other`), and calls per Web UI operation (such as `sessions.send`) |
 | Agent activity | Turns you interrupted, turns replaced by a newer message, a histogram of turns per session (session IDs are not sent), and completed, failed and cancelled worker and subagent runs |
@@ -206,11 +217,11 @@ by default):
 | `outbox.jsonl` | Events waiting to be sent, one JSON object per line, exactly as they will be posted. Capped at 2 MB, with the oldest events dropped first |
 | `outbox.sending.jsonl` | Events from an upload that is in progress or waiting to be retried |
 | `rollup-YYYY-MM-DD.json` | Running counts for one UTC day, saved every five minutes and at shutdown. Unsent days older than seven days are dropped |
-| `state.json` | Time of the last heartbeat, the last version seen, onboarding steps already sent, and an upgrade waiting to be confirmed |
+| `state.json` | Time of the last heartbeat, the last version seen, onboarding steps already sent, whether the install's onboarding steps began with it, and an upgrade waiting to be confirmed |
 | `crash-limits.json` | Crash rate-limit counters |
 
 The desktop app keeps its own files in the `telemetry` folder of its app data directory:
-`install-id`, `setup.json` (the setup language and the setup steps already sent), and
+`install-id`, `setup.json` (the setup language, the setup steps already sent, and those waiting to be sent), and
 `native-crash.json` (a panic waiting to be forwarded).
 
 ## Turning it off

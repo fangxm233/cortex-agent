@@ -14,7 +14,7 @@ Cortex 会发送匿名的崩溃报告和使用统计，用来修复崩溃，并�
 
 | 字段 | 含义 |
 |---|---|
-| `installId` | 每个安装生成一次的随机 UUID。桌面应用在安装向导中生成它，并交给它安装的服务端，因此安装过程和之后的使用共用同一个 ID |
+| `installId` | 每个安装生成一次的随机 UUID。桌面应用和服务端共用它：安装向导把桌面应用的 ID 交给它初始化的服务端；Cortex 主目录里已有 ID 时，向导改用主目录的 ID |
 | `version` | Cortex 版本 |
 | `channel` | `release`；从源码运行或调试构建并且主动开启时为 `dev` |
 | `installForm` | `desktop`（由桌面应用安装）、`npm`（npm 全局安装）或 `other` |
@@ -76,14 +76,18 @@ Cortex 记录了但没有导致崩溃的错误不逐条发送，而是汇总进�
 
 每个上手步骤每个安装只发送一次，用来看出新用户卡在哪一步。服务端上报这些步骤：
 
-| 步骤 | 附加信息 |
-|---|---|
-| `server_init_completed` | — |
-| `provider_authed` | 第一个完成的回合所用的后端（`claude` 或 `pi`） |
-| `first_session`、`first_turn_completed` | — |
-| `first_remote_client`、`first_worker`、`first_schedule` | — |
+| 步骤 | 何时达成 | 附加信息 |
+|---|---|---|
+| `server_init_completed` | `cortex init` 完成 | — |
+| `provider_authed` | 某个后端第一次有可用凭据，不论凭据是怎么添加的 | 该后端（`claude` 或 `pi`） |
+| `first_session` | 创建第一个会话，或从任何入口（Web UI、Slack、飞书、TUI）收到第一条消息 | — |
+| `first_turn_completed` | 第一个回合完成 | — |
+| `first_remote_client` | 第一次有服务端所在机器以外的机器连上来 | — |
+| `first_worker`、`first_schedule` | 启动第一个 worker，或创建第一个定时任务 | — |
 
-服务端存在之前，没有别的组件能报告安装过程是否顺利，所以桌面应用把自己的安装步骤直接发给收集端。这些步骤是 `setup_started`、`server_installed` 或 `server_install_failed`、`init_completed` 或 `init_failed`，以及 `daemon_started` 或 `daemon_start_failed`。失败的步骤只带一个分类（`network`、`permission`、`disk`、`timeout`、`cancelled` 或 `other`），从不带错误文本。
+这些步骤从一个安装的第一天开始描述它，所以只对由 `cortex init` 创建的 Cortex 主目录计数。服务端在其他主目录上启动时（例如由没有上手步骤的 Cortex 版本创建的主目录），不上报 `server_init_completed` 之后的任何步骤，而是发送一次 `existing_install`。报表把这些安装排除在上手漏斗之外。
+
+服务端存在之前，没有别的组件能报告安装过程是否顺利，所以桌面应用把自己的安装步骤直接发给收集端。这些步骤是 `setup_started`、`server_installed` 或 `server_install_failed`、`init_completed` 或 `init_failed`，以及 `daemon_started` 或 `daemon_start_failed`。安装向导沿用已有的 Cortex 主目录、不运行 `cortex init` 时，`init_completed` 带附加信息 `existing`。失败的步骤只带一个分类（`network`、`permission`、`disk`、`timeout`、`cancelled` 或 `other`），从不带错误文本。每个步骤在收集端应答之前一直排队，没能送达的步骤在应用下次启动时重新发送。
 
 ### 每日使用汇总 {#daily-usage-rollup}
 
@@ -92,7 +96,7 @@ Cortex 记录了但没有导致崩溃的错误不逐条发送，而是汇总进�
 | 部分 | 统计内容 |
 |---|---|
 | 回合健康度 | 每个后端、provider、模型和付费方式一行（最多 100 行）。每行包含完成、失败、取消和触发限流的回合数；失败分类（`auth`、`rate_limit`、`network`、`adapter_crash`、`timeout`、`other`）；重试次数；模型回退次数；完成回合的首个输出耗时；回合时长；回合结束时的上下文占用；自动和手动压缩次数；以及输入、输出、缓存读取和缓存写入的 token 数。`customApi` 给出自定义 provider 的 API 类型，如 `openai-completions` |
-| 功能 | 创建会话、启动 worker、运行子智能体、打开看板、创建和触发定时任务、创建和触发等待点、使用浏览器会话的次数；以及提交、批准和驳回计划，提问和回答问题，连接远程机器的次数 |
+| 功能 | 创建会话、启动 worker、运行子智能体、打开看板、创建和触发定时任务、创建和触发等待点、使用浏览器会话的次数；以及提交、批准和驳回计划，提问和回答问题，服务端所在机器以外的机器连上来的次数 |
 | 工具 | 每个[规范化](#how-names-are-normalized)后的工具名的调用次数和出错次数（最多 200 个工具） |
 | 入口 | 各渠道的消息数（`desktop`、`android`、`browser`、`feishu`、`slack`、`tui`、`other`），以及各 Web UI 操作（如 `sessions.send`）的调用次数 |
 | 智能体活动 | 你打断的回合数、被新消息替换的回合数、每个会话回合数的分布（不发送会话 ID），以及 worker 和子智能体运行的完成、失败、取消次数 |
@@ -149,10 +153,10 @@ Web UI 操作名、日志模块名、迁移名和设置名都来自 Cortex 自�
 | `outbox.jsonl` | 等待发送的事件，每行一个 JSON 对象，与实际发出的内容完全一致。上限 2 MB，满了先丢最旧的事件 |
 | `outbox.sending.jsonl` | 正在上传或等待重试的事件 |
 | `rollup-YYYY-MM-DD.json` | 某个 UTC 日的累计计数，每五分钟和关机时保存一次。超过七天仍未发出的日汇总会被丢弃 |
-| `state.json` | 上次心跳的时间、上次见到的版本、已发送的上手步骤，以及等待确认的升级 |
+| `state.json` | 上次心跳的时间、上次见到的版本、已发送的上手步骤、这个安装的上手步骤是否从它的第一天开始记录，以及等待确认的升级 |
 | `crash-limits.json` | 崩溃频率限制的计数 |
 
-桌面应用把自己的文件放在其应用数据目录下的 `telemetry` 文件夹中：`install-id`、`setup.json`（安装向导的语言和已发送的安装步骤），以及 `native-crash.json`（等待转发的 panic）。
+桌面应用把自己的文件放在其应用数据目录下的 `telemetry` 文件夹中：`install-id`、`setup.json`（安装向导的语言、已发送的安装步骤和等待发送的安装步骤），以及 `native-crash.json`（等待转发的 panic）。
 
 ## 关闭遥测 {#turning-it-off}
 
