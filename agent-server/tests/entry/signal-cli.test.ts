@@ -16,6 +16,7 @@ function capturing(status = 202, body: any = { accepted: true, fired: true }) {
   const calls: Array<{ url: string; body: any }> = [];
   const options: SignalCliOptions = {
     env: ENV as any,
+    spoolDir: path.join(tmpDir, `spool-${status}-${Math.random().toString(36).slice(2)}`),
     post: async (url, payload) => { calls.push({ url, body: payload }); return { status, body }; },
   };
   return { calls, options };
@@ -162,6 +163,60 @@ test('an undeclared member name is refused with the names the waitpoint expects'
 });
 
 // ── spool fallback ─────────────────────────────────────────────
+
+test('the default URL is the main port from the env', async () => {
+  const { calls, options } = capturing();
+  await runSignalCli(['--status', 'ok'], options);
+  assert.equal(calls[0].url, 'http://127.0.0.1:3001/webhook/signal');
+});
+
+test('the default URL falls back to the home .env when the env has no port', async () => {
+  const home = path.join(tmpDir, 'home-env');
+  await fs.mkdir(path.join(home, 'config'), { recursive: true });
+  await fs.writeFile(path.join(home, 'config', '.env'), 'CORTEX_UI_PORT=27123\n');
+  const calls: string[] = [];
+  await runSignalCli(['--status', 'ok'], {
+    env: { CORTEX_SIGNAL_ID: 'wp_abcdef123456', CORTEX_SIGNAL_SECRET: 's3cret', CORTEX_HOME: home } as any,
+    post: async (url) => { calls.push(url); return { status: 202, body: { accepted: true } }; },
+  });
+  assert.deepEqual(calls, ['http://127.0.0.1:27123/webhook/signal']);
+});
+
+test.each([404, 403, 500, 503, 200])('an answer of HTTP %i from what may be another server is spooled, not lost', async (status) => {
+  const spoolDir = path.join(tmpDir, `spool-other-${status}`);
+  const result = await runSignalCli(['--exit-code', '1'], {
+    env: ENV as any,
+    spoolDir,
+    post: async () => ({ status, body: { accepted: false, error: 'unknown waitpoint' } }),
+  });
+  assert.equal(result.exitCode, 0);
+  assert.match(result.stdout, new RegExp(`^spooled .*\\(HTTP ${status}: unknown waitpoint\\)$`));
+  const files = await fs.readdir(spoolDir);
+  assert.equal(files.length, 1);
+  const payload = JSON.parse(await fs.readFile(path.join(spoolDir, files[0]), 'utf8'));
+  assert.deepEqual(payload, { id: 'wp_abcdef123456', secret: 's3cret', status: 'fail', message: 'exit=1' });
+});
+
+test('--no-spool turns any other answer into a failure', async () => {
+  const spoolDir = path.join(tmpDir, 'spool-no-404');
+  const result = await runSignalCli(['--status', 'ok', '--no-spool'], {
+    env: ENV as any,
+    spoolDir,
+    post: async () => ({ status: 404, body: { accepted: false, error: 'unknown waitpoint' } }),
+  });
+  assert.equal(result.exitCode, 1);
+  assert.match(result.stderr, /HTTP 404/);
+  assert.deepEqual(await fs.readdir(spoolDir).catch(() => []), []);
+});
+
+test('a refusal only the owning daemon gives is not spooled', async () => {
+  for (const status of [401, 413, 422]) {
+    const { options } = capturing(status, { accepted: false, error: 'refused' });
+    const result = await runSignalCli(['--status', 'ok'], options);
+    assert.equal(result.exitCode, 1, String(status));
+    assert.deepEqual(await fs.readdir(options.spoolDir!).catch(() => []), [], String(status));
+  }
+});
 
 test('an unreachable daemon spools the signal to disk and still exits 0', async () => {
   const spoolDir = path.join(tmpDir, 'spool-a');

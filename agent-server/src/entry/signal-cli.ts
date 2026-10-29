@@ -37,7 +37,7 @@ const HELP: HelpSpec = {
     { flag: '--member <name>', description: 'Which member of a multi-job waitpoint this is (required when it names members)' },
     { flag: '--data <@file|->', description: 'Extra payload from a file or stdin (treated as data, not instructions)' },
     { flag: '--url <url>', description: 'Daemon signal endpoint', default: 'http://127.0.0.1:$CORTEX_UI_PORT/webhook/signal (port from the env, else the home .env)' },
-    { flag: '--no-spool', description: 'Fail instead of spooling to disk when the daemon is unreachable' },
+    { flag: '--no-spool', description: 'Fail instead of spooling to disk when the daemon is unreachable or refuses the signal' },
     { flag: '--help, -h', description: 'Show this help' },
   ],
   examples: [
@@ -137,6 +137,44 @@ function writeSpoolFile(dir: string, name: string, contents: string): void {
   fs.renameSync(tmp, path.join(dir, name));
 }
 
+function spool(payload: Record<string, unknown>, dir: string, note: string): CliResult {
+  const name = `${Date.now()}-${process.pid}-${Math.random().toString(36).slice(2, 8)}.json`;
+  writeSpoolFile(dir, name, JSON.stringify(payload));
+  return { exitCode: 0, stdout: `spooled ${path.join(dir, name)}${note ? ` (${note})` : ''}`, stderr: '' };
+}
+
+function refusal(response: { status: number; body: any }): string {
+  const detail = typeof response.body === 'object' && response.body?.error ? response.body.error : String(response.body ?? '');
+  return `HTTP ${response.status}: ${detail}`;
+}
+
+/**
+ * Refusals only the daemon that owns the waitpoint can give (bad secret, too large, unknown member).
+ * The spool would be refused the same way, so they fail here, where the caller sees why.
+ */
+const OWNER_REFUSALS = new Set([401, 413, 422]);
+
+/**
+ * Map the daemon's reply. Any other answer is spooled rather than failed: the address may belong to
+ * another server (a job started before the port changed, a second Cortex on this machine) or to a
+ * daemon still starting, and the daemon that owns the waitpoint collects the file.
+ */
+function answer(response: { status: number; body: any }, noSpool: boolean, spoolIt: () => CliResult): CliResult {
+  if (response.status === 202) {
+    const note = response.body?.fired ? ' (waitpoint fired)'
+      : response.body?.held ? ' (hourly wake cap reached; the wake is delivered once it clears)' : '';
+    return { exitCode: 0, stdout: `accepted${note}`, stderr: '' };
+  }
+  if (response.status === 410) {
+    // Not an error worth failing a build over: the waitpoint did its job already.
+    return { exitCode: 0, stdout: `already resolved (${response.body?.state ?? 'unknown'})`, stderr: '' };
+  }
+  if (noSpool || OWNER_REFUSALS.has(response.status)) {
+    return { exitCode: 1, stdout: '', stderr: formatError(`Signal refused (${refusal(response)})`) };
+  }
+  return spoolIt();
+}
+
 export async function runSignalCli(argv: string[], options: SignalCliOptions = {}): Promise<CliResult> {
   const env = options.env ?? process.env;
   try {
@@ -176,23 +214,9 @@ export async function runSignalCli(argv: string[], options: SignalCliOptions = {
       if (parsed.noSpool) {
         return { exitCode: 1, stdout: '', stderr: formatError(`Cannot reach ${url}: ${(error as Error).message}`) };
       }
-      const dir = options.spoolDir ?? defaultSpoolDir(env);
-      const name = `${Date.now()}-${process.pid}-${Math.random().toString(36).slice(2, 8)}.json`;
-      writeSpoolFile(dir, name, JSON.stringify(payload));
-      return { exitCode: 0, stdout: `spooled ${path.join(dir, name)}`, stderr: '' };
+      return spool(payload, options.spoolDir ?? defaultSpoolDir(env), '');
     }
-
-    if (response.status === 202) {
-      const note = response.body?.fired ? ' (waitpoint fired)'
-        : response.body?.held ? ' (hourly wake cap reached; the wake is delivered once it clears)' : '';
-      return { exitCode: 0, stdout: `accepted${note}`, stderr: '' };
-    }
-    if (response.status === 410) {
-      // Not an error worth failing a build over: the waitpoint did its job already.
-      return { exitCode: 0, stdout: `already resolved (${response.body?.state ?? 'unknown'})`, stderr: '' };
-    }
-    const detail = typeof response.body === 'object' && response.body?.error ? response.body.error : String(response.body ?? '');
-    return { exitCode: 1, stdout: '', stderr: formatError(`Signal refused (HTTP ${response.status}): ${detail}`) };
+    return answer(response, parsed.noSpool, () => spool(payload, options.spoolDir ?? defaultSpoolDir(env), refusal(response)));
   } catch (error) {
     // cliError() tags usage problems with cliMessage; exit 2 is the usage code (CLI Rule ④).
     const cliMessage = (error as { cliMessage?: string }).cliMessage;
