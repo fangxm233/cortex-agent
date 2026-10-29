@@ -125,13 +125,27 @@ export async function chooseGatewayPort(log: Log): Promise<number> {
     ?? await nextFreePort(configured);
   if (port === configured) return port;
   log(`Gateway port ${configured} is used by another process; the gateway listens on ${port}`);
+  await recordMovedPort(port, saved, log);
+  return port;
+}
+
+/** Replace a port another process bound between the free-port probe and the gateway's own bind
+ *  (two instances starting at once can pick the same one). The next free port above it is taken
+ *  and saved. */
+export async function repickGatewayPort(taken: number, log: Log): Promise<number> {
+  const port = await nextFreePort(taken);
+  log(`Gateway port ${taken} was taken by another process before the gateway came up; the gateway listens on ${port}`);
+  await recordMovedPort(port, readSavedPort(), log);
+  return port;
+}
+
+async function recordMovedPort(port: number, saved: number | undefined, log: Log): Promise<void> {
   try {
     if (port !== saved) await saveMovedPort(port, log);
     rewriteGatewayYamlPort(port);
   } catch (error) {
     log(`Could not save gateway port ${port}: ${(error as Error).message}`);
   }
-  return port;
 }
 
 async function saveMovedPort(port: number, log: Log): Promise<void> {

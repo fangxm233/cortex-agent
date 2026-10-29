@@ -6,7 +6,7 @@ import { createRequire } from 'module';
 import { GATEWAY_CONFIG, DATA_DIR } from '@core/paths.js';
 import { gatewayUrl, setActiveGatewayPort } from '@core/gateway-endpoint.js';
 import { createLogger } from '@core/log.js';
-import { GATEWAY_PID_FILE, chooseGatewayPort, reclaimOrphanGateway } from './gateway-port.js';
+import { GATEWAY_PID_FILE, chooseGatewayPort, isPortFree, reclaimOrphanGateway, repickGatewayPort } from './gateway-port.js';
 
 const log = createLogger('gateway-mgr');
 
@@ -27,10 +27,16 @@ const HEALTHY_THRESHOLD_MS = 10_000; // if alive > 10s, reset backoff
 const HEALTH_CHECK_INTERVAL_MS = 30_000;
 const HEALTH_CHECK_TIMEOUT_MS = 5_000;
 
+// A gateway that loses its port before it ever answers moves at most this many times.
+const MAX_PORT_REPICKS = 3;
+
 // --- State ---
 let child: ChildProcess | null = null;
-/** Chosen once per server run; crash restarts reuse it so running sessions keep their URL. */
+/** Fixed once the gateway has answered; crash restarts reuse it so running sessions keep their URL. */
 let port: number | null = null;
+/** Set by the first passing health check; until then no session can rely on the URL. */
+let everHealthy = false;
+let portRepicks = 0;
 let childStartedAt = 0;
 let backoff = BACKOFF_INITIAL_MS;
 let crashRestartTimer: ReturnType<typeof setTimeout> | null = null;
@@ -79,6 +85,7 @@ async function runHealthCheck() {
   if (shuttingDown || !child) return;
   const wasHealthy = healthy;
   healthy = await checkHealth();
+  everHealthy ||= healthy;
   if (wasHealthy && !healthy) {
     gwLog('Health check failed — gateway may be unresponsive');
   } else if (!wasHealthy && healthy) {
@@ -96,11 +103,30 @@ function isGatewayHealthy(): boolean {
  *  gateway, holding that instance's credentials. Only this instance's own orphan is stopped. */
 async function settlePort(): Promise<number> {
   await reclaimOrphanGateway(gwLog);
-  const chosen = await chooseGatewayPort(gwLog);
+  return usePort(await chooseGatewayPort(gwLog));
+}
+
+function usePort(chosen: number): number {
   setActiveGatewayPort(chosen);
   // Children that inherited a stale CORTEX_GATEWAY_PORT (e.g. `cortex doctor` run by an agent).
   if (process.env.CORTEX_GATEWAY_PORT !== undefined) process.env.CORTEX_GATEWAY_PORT = String(chosen);
   return chosen;
+}
+
+/** Another process bound the port after it was probed free, and the gateway has never answered,
+ *  so nothing relies on its URL yet. Once it has answered, the port stays for crash restarts. */
+async function portLostBeforeFirstHealth(current: number): Promise<boolean> {
+  if (everHealthy || portRepicks >= MAX_PORT_REPICKS) return false;
+  return !(await isPortFree(current));
+}
+
+async function restartGateway(): Promise<void> {
+  if (shuttingDown || port === null) return;
+  if (await portLostBeforeFirstHealth(port)) {
+    portRepicks += 1;
+    port = usePort(await repickGatewayPort(port, gwLog));
+  }
+  spawnGateway();
 }
 
 function spawnGateway() {
@@ -171,7 +197,7 @@ function onGatewayExit(code: number | null, signal: NodeJS.Signals | null) {
   gwLog(`Restarting gateway in ${backoff}ms...`);
   crashRestartTimer = setTimeout(() => {
     crashRestartTimer = null;
-    spawnGateway();
+    void restartGateway().catch((error: Error) => gwLog(`Gateway restart failed: ${error.message}`));
   }, backoff);
   backoff = Math.min(backoff * 2, BACKOFF_MAX_MS);
 }
@@ -179,6 +205,7 @@ function onGatewayExit(code: number | null, signal: NodeJS.Signals | null) {
 async function checkInitialHealth() {
   if (!child) return;
   healthy = await checkHealth();
+  everHealthy ||= healthy;
   gwLog(healthy ? 'Gateway is healthy after startup' : 'Gateway not yet healthy after startup (will retry via periodic check)');
 }
 

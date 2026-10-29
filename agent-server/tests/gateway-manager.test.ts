@@ -18,6 +18,9 @@ const globals = globalThis as typeof globalThis & { __mockHttpGet?: unknown; __m
 type FakeChild = EventEmitter & { pid: number; stdout: EventEmitter; stderr: EventEmitter; kill: () => boolean };
 type Manager = typeof import('../src/domain/costs/gateway-manager.js');
 
+// Every fresh module graph below registers its own process exit hooks.
+process.setMaxListeners(30);
+
 const cleanups: Array<() => unknown> = [];
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
@@ -36,14 +39,16 @@ function fakeChild(): FakeChild {
   return child;
 }
 
-function unhealthyHttpGet(_url: string, _options: unknown, callback: (res: unknown) => void) {
-  const req = Object.assign(new EventEmitter(), { destroy() {} });
-  queueMicrotask(() => {
-    const res = Object.assign(new EventEmitter(), { statusCode: 503, resume() {} });
-    callback(res);
-    res.emit('end');
-  });
-  return req;
+function mockHttpGet(statusCode: number) {
+  return (_url: string, _options: unknown, callback: (res: unknown) => void) => {
+    const req = Object.assign(new EventEmitter(), { destroy() {} });
+    queueMicrotask(() => {
+      const res = Object.assign(new EventEmitter(), { statusCode, resume() {} });
+      callback(res);
+      res.emit('end');
+    });
+    return req;
+  };
 }
 
 /** A loopback server the test owns; resolves once it listens. */
@@ -70,13 +75,13 @@ function savedEnv(): Record<string, string> {
 }
 
 /** Fresh module graph so paths.ts and the gateway endpoint read this test's settings. */
-async function loadManager(envLines: string[]) {
+async function loadManager(envLines: string[], { healthy = false } = {}) {
   fs.mkdirSync(path.join(gatewayHome, '.aistatus'), { recursive: true });
   fs.writeFileSync(envFile, [...envLines, `CORTEX_GATEWAY_HOME=${gatewayHome}`, ''].join('\n'));
   const children: FakeChild[] = [];
   const spawn = vi.fn(() => { const child = fakeChild(); children.push(child); return child; });
   globals.__mockChildProcessSpawn = spawn;
-  globals.__mockHttpGet = unhealthyHttpGet;
+  globals.__mockHttpGet = mockHttpGet(healthy ? 200 : 503);
   vi.resetModules();
   const manager: Manager = await import('../src/domain/costs/gateway-manager.js');
   const endpoint = await import('../src/core/gateway-endpoint.js');
@@ -176,10 +181,11 @@ test('a recycled pid in the pid file is left alone and treated as a foreign port
   assert.notEqual(portArgs()[0], taken);
 });
 
-test('a crash restart reuses the port chosen at startup', async () => {
+test('once the gateway has answered, a crash restart keeps its port even if the port is taken', async () => {
   const port = await freePort();
-  const { manager, children, portArgs } = await loadManager([`CORTEX_GATEWAY_PORT=${port}`]);
+  const { manager, children, portArgs } = await loadManager([`CORTEX_GATEWAY_PORT=${port}`], { healthy: true });
   await manager.startGateway();
+  await vi.waitFor(() => assert(manager.isGatewayHealthy()), { timeout: 4_000, interval: 50 });
   // Re-choosing now would move the gateway; sessions already hold the old URL.
   await occupy(port);
 
@@ -187,6 +193,34 @@ test('a crash restart reuses the port chosen at startup', async () => {
   await vi.waitFor(() => assert.equal(portArgs().length, 2), { timeout: 3_000, interval: 50 });
 
   assert.deepEqual(portArgs(), [port, port]);
+});
+
+test('a port another process binds before the gateway first answers is replaced and saved', async () => {
+  const port = await freePort();
+  const { manager, endpoint, children, portArgs } = await loadManager([`CORTEX_GATEWAY_PORT=${port}`]);
+  await manager.startGateway();
+  // A second instance probed the same free port and bound it first; our child exits on EADDRINUSE.
+  await occupy(port);
+
+  children[0].emit('exit', 1, null);
+  await vi.waitFor(() => assert.equal(portArgs().length, 2), { timeout: 3_000, interval: 50 });
+
+  const [, moved] = portArgs();
+  assert.notEqual(moved, port);
+  assert.equal(endpoint.gatewayUrl(), `http://127.0.0.1:${moved}`);
+  assert.equal(savedEnv().CORTEX_GATEWAY_PORT, String(moved));
+});
+
+test('before the gateway first answers, a crash with its port still free restarts on the same port', async () => {
+  const port = await freePort();
+  const { manager, children, portArgs } = await loadManager([`CORTEX_GATEWAY_PORT=${port}`]);
+  await manager.startGateway();
+
+  children[0].emit('exit', 1, null);
+  await vi.waitFor(() => assert.equal(portArgs().length, 2), { timeout: 3_000, interval: 50 });
+
+  assert.deepEqual(portArgs(), [port, port]);
+  assert.equal(savedEnv().CORTEX_GATEWAY_PORT, String(port));
 });
 
 test('consumers loaded before a move read the moved URL, and a fresh process reads it from config/.env', async () => {
