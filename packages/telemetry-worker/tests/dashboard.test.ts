@@ -25,6 +25,18 @@ async function seeded(): Promise<Env> {
   return env;
 }
 
+test('the funnel leaves out installs that predate their funnel', async () => {
+  const env = await seeded();
+  await ingest(env, sampleBatch({ installId: '5d0c7b1a-8e2f-4a3b-9c6d-1e2f3a4b5c6d' }, [
+    { type: 'funnel', at: '2026-10-21T09:00:00.000Z', source: 'desktop-setup', step: 'setup_started', detail: null },
+    { type: 'funnel', at: '2026-10-21T09:04:00.000Z', source: 'desktop-setup', step: 'init_completed', detail: 'existing' },
+    { type: 'funnel', at: '2026-10-21T09:05:00.000Z', source: 'server', step: 'existing_install', detail: null },
+  ]));
+  const { funnel } = await loadDashboard(env.DB, reportFilter(NOW, 30, false));
+  assert.equal(funnel.find(row => row.step === 'setup_started')?.installs, 1);
+  assert.equal(funnel.some(row => row.step === 'existing_install' || row.detail === 'existing'), false);
+});
+
 test('every report runs and the release filter excludes dev installs', async () => {
   const env = await seeded();
   const release = await loadDashboard(env.DB, reportFilter(NOW, 30, false));

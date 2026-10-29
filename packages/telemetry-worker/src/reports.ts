@@ -150,11 +150,13 @@ FROM install_days WHERE day >= ? AND ${IN_CHANNELS}`,
   activeByInstallForm: { description: 'Active installs by install form (today / 7 days)', build: activeBy('installForm') },
   activeByCountry: { description: 'Active installs by country (today / 7 days)', build: activeBy('country') },
   funnel: {
-    description: 'Onboarding steps reached by installs that started setup or init in the window',
+    description: 'Onboarding steps reached by installs that started setup or init in the window '
+      + '(installs flagged existing_install predate their funnel and are left out)',
     build: f => ({
       sql: `WITH cohort AS (
   SELECT DISTINCT install_id FROM funnel
   WHERE step IN ('setup_started', 'server_init_completed') AND at >= ? AND ${IN_CHANNELS}
+    AND install_id NOT IN (SELECT install_id FROM funnel WHERE step = 'existing_install')
 )
 SELECT step, COALESCE(detail, '') AS detail, COUNT(*) AS installs
 FROM funnel JOIN cohort USING (install_id) GROUP BY step, detail`,

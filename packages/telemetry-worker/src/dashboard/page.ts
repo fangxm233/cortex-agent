@@ -133,7 +133,8 @@ function funnelSection(data: DashboardData): string {
   return section('Onboarding funnel', grid(
     panel('Desktop setup (from setup_started)', funnelTable(DESKTOP_SETUP_STEPS, counts, 'setup_started')),
     panel('Server (from server_init_completed)', funnelTable(SERVER_FUNNEL_STEPS, counts, 'server_init_completed')),
-  ), 'Installs whose setup or init started in the window, and every step they reached since.');
+  ), 'Installs whose setup or init started in the window, and every step they reached since. '
+    + 'Installs that predate their funnel (existing_install) are left out.');
 }
 
 function exitText(row: Row): string {
