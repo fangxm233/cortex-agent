@@ -455,7 +455,7 @@ async function sendDaemonNotice(
 }
 
 function uiPort(logs: ChildLogs): number {
-  const match = logs.stdout.match(/Listening on 127\.0\.0\.1:(\d+)\/trpc\//);
+  const match = logs.stdout.match(/Listening on 127\.0\.0\.1:(\d+)\b/);
   assert.ok(match, `UI port missing from stdout:\n${logs.stdout.slice(0, 4000)}`);
   return Number(match[1]);
 }
@@ -589,7 +589,7 @@ async function runScenario(): Promise<void> {
     await Promise.all([
       waitForOutput(child, started.logs, 'Cortex agent is running', 'server exited before startup completed'),
       waitForOutput(
-        child, started.logs, /Listening on 127\.0\.0\.1:\d+\/trpc\//,
+        child, started.logs, /Listening on 127\.0\.0\.1:\d+\b/,
         'server exited before the UI listener became ready',
       ),
     ]);
