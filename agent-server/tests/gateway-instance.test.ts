@@ -52,13 +52,13 @@ test('manager health, spawn port/config and child HOME agree', async () => {
   globals.__mockHttpGet = mockHttp(urls);
   globals.__mockChildProcessSpawn = spawn;
   const manager = await import('../src/domain/costs/gateway-manager.js');
+  const { gatewayUrl } = await import('../src/core/gateway-endpoint.js');
   try {
-    manager.startGateway();
-    await new Promise(resolve => setTimeout(resolve, 25));
-    assert.deepEqual(urls, [`${url}/status`]);
-    assert.equal(manager.GATEWAY_URL, url);
+    await manager.startGateway();
+    assert.deepEqual(urls, [], 'no listener on the port is probed or adopted');
+    assert.equal(gatewayUrl(), url);
     const call = spawn.mock.calls[0] as unknown as [string, string[], { env: NodeJS.ProcessEnv }];
-    assert.deepEqual(call[1].slice(1), ['start', '-c', configPath, '-p', '17380']);
+    assert.deepEqual(call[1].slice(1), ['start', '-c', configPath, '-p', '17380', '--pid-file', path.join(home, 'data/gateway.pid')]);
     assert.equal(call[2].env.HOME, gatewayHome);
     assert.equal(call[2].env.USERPROFILE, gatewayHome);
     assert.equal(process.env.CORTEX_HOME, home);

@@ -1,5 +1,5 @@
 import { createLogger } from '@core/log.js';
-import { GATEWAY_URL } from '@domain/costs/gateway-manager.js';
+import { gatewayUrl } from '@core/gateway-endpoint.js';
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
 import {
   buildModelsJsonEntry,
@@ -48,7 +48,7 @@ export function defaultCustomProviderStores(): CustomProviderStores {
   return {
     modelsPath: USER_PI_MODELS_PATH,
     gatewayPath: GATEWAY_CONFIG_PATH,
-    gatewayUrl: GATEWAY_URL,
+    gatewayUrl: gatewayUrl(),
     onChanged: () => piProviderDiscovery.refresh(),
   };
 }

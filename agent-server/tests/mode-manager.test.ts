@@ -7,7 +7,8 @@ import { CLAUDE_CONFIG_HOME, CONFIG_DIR } from '../src/core/paths.js';
 import { importFresh } from './helpers/fresh-module.js';
 
 // Standard import (no cache buster) — same singleton instance that mode-manager uses
-import { _testSetHealthy, GATEWAY_URL } from './../src/domain/costs/gateway-manager.js';
+import { _testSetHealthy } from './../src/domain/costs/gateway-manager.js';
+import { gatewayUrl } from '../src/core/gateway-endpoint.js';
 import * as anthropicEnv from './../src/domain/auth/anthropic-env.js';
 import { resolveModeEnv } from './../src/domain/runs/mode-env.js';
 import { GATEWAY_MANAGED_KEY_PLACEHOLDER } from './../src/core/utils.js';
@@ -32,7 +33,7 @@ test('resolveModeEnv(non-plan custom mode) keeps API key when gateway healthy', 
   process.env.ANTHROPIC_API_KEY = 'sk-test-custom';
   const route = modeManager.resolveModeEnv('qwen-local');
 
-  assert.equal(route.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/qwen-local/anthropic`,
+  assert.equal(route.ANTHROPIC_BASE_URL, `${gatewayUrl()}/m/qwen-local/anthropic`,
     'custom mode should encode mode in URL path');
   assert.equal(route.ANTHROPIC_API_KEY, 'sk-test-custom',
     'non-plan modes should keep the API key — only plan mode requires the OAuth bearer path');
@@ -155,7 +156,7 @@ test('resolveModeEnv(plan) routes via gateway and marks the API key for deletion
 
   const modeEnv = modeManager.resolveModeEnv('plan');
 
-  assert.equal(modeEnv.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/plan/anthropic`);
+  assert.equal(modeEnv.ANTHROPIC_BASE_URL, `${gatewayUrl()}/m/plan/anthropic`);
   assert.equal(modeEnv.ANTHROPIC_API_KEY, null,
     'plan mode must report null (= delete the variable), not a value and not undefined');
   assert.ok(!('CLAUDE_CODE_OAUTH_TOKEN' in modeEnv),
@@ -167,7 +168,7 @@ test('resolveModeEnv(api) keeps the saved key on the gateway route', async (t) =
 
   const modeEnv = modeManager.resolveModeEnv('api');
 
-  assert.equal(modeEnv.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/api/anthropic`);
+  assert.equal(modeEnv.ANTHROPIC_BASE_URL, `${gatewayUrl()}/m/api/anthropic`);
   assert.equal(modeEnv.ANTHROPIC_API_KEY, 'sk-ant-fixture-api',
     'non-plan modes keep the key so Claude Code passes its startup credential check');
 });
@@ -177,7 +178,7 @@ test('resolveModeEnv(custom mode) uses the placeholder key and encodes metadata'
 
   const modeEnv = modeManager.resolveModeEnv('qwen-local', { project: 'cortex-self' });
 
-  assert.equal(modeEnv.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/qwen-local/project=cortex-self/anthropic`,
+  assert.equal(modeEnv.ANTHROPIC_BASE_URL, `${gatewayUrl()}/m/qwen-local/project=cortex-self/anthropic`,
     'metadata must be encoded into the per-request mode URL');
   assert.equal(modeEnv.ANTHROPIC_API_KEY, modeManager.GATEWAY_MANAGED_KEY_PLACEHOLDER,
     'with no saved key the gateway route still needs a placeholder to start Claude Code');
@@ -285,7 +286,7 @@ test('applyAuthEnv keeps the mode route out of the daemon env', async (t) => {
   const route = modeManager.resolveModeEnv('openai-codex');
   modeManager.applyAuthEnv();
 
-  assert.equal(route.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/openai-codex/anthropic`);
+  assert.equal(route.ANTHROPIC_BASE_URL, `${gatewayUrl()}/m/openai-codex/anthropic`);
   assert.equal(process.env.ANTHROPIC_BASE_URL, 'https://untouched.example.test',
     'a mode URL in the daemon env is what made the usage probe inherit a non-subscription route (K-053)');
 });

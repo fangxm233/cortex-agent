@@ -49,7 +49,8 @@ import { buildEngineSpec } from '../src/domain/runs/engine-spec.js';
 import { startAttempt } from '../src/domain/runs/attempt.js';
 import { resolveRunRoute } from '../src/domain/runs/config-resolver.js';
 import { engines } from '../src/domain/runs/engines.js';
-import { GATEWAY_URL, _testSetHealthy } from '../src/domain/costs/gateway-manager.js';
+import { _testSetHealthy } from '../src/domain/costs/gateway-manager.js';
+import { gatewayUrl } from '../src/core/gateway-endpoint.js';
 import { generateConfigs, getResolvedPaths, type InitAnswers } from '../src/entry/init.js';
 
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -969,10 +970,10 @@ test('interleaved mode configuration cannot cross-contaminate two concurrent spa
   delete process.env.ANTHROPIC_API_KEY;
   const codexEnv = childEnvironment(routeSpawnConfig('route-codex', codex));
 
-  assert.equal(planEnv.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/plan/project=alpha/anthropic`);
+  assert.equal(planEnv.ANTHROPIC_BASE_URL, `${gatewayUrl()}/m/plan/project=alpha/anthropic`);
   assert.equal(planEnv.ANTHROPIC_API_KEY, undefined,
     'the plan spawn must not inherit the key sitting in the daemon env when it launches');
-  assert.equal(codexEnv.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/openai-codex/project=beta/anthropic`);
+  assert.equal(codexEnv.ANTHROPIC_BASE_URL, `${gatewayUrl()}/m/openai-codex/project=beta/anthropic`);
   assert.equal(codexEnv.ANTHROPIC_API_KEY, ROUTE_FIXTURE_KEY,
     'the non-plan spawn must carry its own key even though the daemon env has none when it launches');
 });
@@ -984,7 +985,7 @@ test('a plan route deletes the API key and carries its base URL on exactly one f
     'route-plan-gateway', resolveRunRoute(planConfig()),
   );
 
-  assert.equal(spawn.route.anthropicBaseUrl, `${GATEWAY_URL}/m/plan/anthropic`);
+  assert.equal(spawn.route.anthropicBaseUrl, `${gatewayUrl()}/m/plan/anthropic`);
   assert.equal(spawn.env.sets?.ANTHROPIC_BASE_URL, undefined,
     'the base URL needs one source: production-attempt-identity reads config.env before the field');
   assert.deepEqual(spawn.env.unsets, ['ANTHROPIC_API_KEY']);
@@ -992,7 +993,7 @@ test('a plan route deletes the API key and carries its base URL on exactly one f
   repointDaemonGlobals();
   const env = childEnvironment(spawn);
   assert.equal(env.ANTHROPIC_API_KEY, undefined);
-  assert.equal(env.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/plan/anthropic`);
+  assert.equal(env.ANTHROPIC_BASE_URL, `${gatewayUrl()}/m/plan/anthropic`);
 });
 
 test('a route without a base URL deletes the one the daemon left behind', (t) => {
@@ -1033,7 +1034,7 @@ test('retired selection fields cannot override route credentials or Claude think
 
   assert.equal(spec.env.sets?.ANTHROPIC_API_KEY, ROUTE_FIXTURE_KEY);
   assert.equal(launch.env.ANTHROPIC_API_KEY, ROUTE_FIXTURE_KEY);
-  assert.equal(launch.env.ANTHROPIC_BASE_URL, `${GATEWAY_URL}/m/openai-codex/anthropic`);
+  assert.equal(launch.env.ANTHROPIC_BASE_URL, `${gatewayUrl()}/m/openai-codex/anthropic`);
   assert.equal(launch.env.CORTEX_PROFILE, undefined);
   assert.equal(launch.args[launch.args.indexOf('--effort') + 1], 'high');
   assert.ok(!launch.args.includes('--thinking'));

@@ -1,7 +1,8 @@
 import { createLogger } from '@core/log.js';
 import { GATEWAY_MANAGED_KEY_PLACEHOLDER } from '@core/utils.js';
 import { getSavedApiEnv } from '../auth/anthropic-env.js';
-import { GATEWAY_URL, isGatewayHealthy } from '../costs/gateway-manager.js';
+import { gatewayUrl } from '@core/gateway-endpoint.js';
+import { isGatewayHealthy } from '../costs/gateway-manager.js';
 
 const log = createLogger('mode-env');
 
@@ -12,9 +13,9 @@ function gatewayModeUrl(mode: string, metadata?: Record<string, string>): string
     const metaStr = Object.entries(metadata)
       .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
       .join(",");
-    return `${GATEWAY_URL}/m/${mode}/${metaStr}/anthropic`;
+    return `${gatewayUrl()}/m/${mode}/${metaStr}/anthropic`;
   }
-  return `${GATEWAY_URL}/m/${mode}/anthropic`;
+  return `${gatewayUrl()}/m/${mode}/anthropic`;
 }
 
 /**

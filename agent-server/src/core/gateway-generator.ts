@@ -8,8 +8,9 @@ import { atomicWriteSync } from './atomic-write.js';
 import { ANTHROPIC_MODELS } from './anthropic-models.js';
 import { claudeOwnsOAuthCredential, resolveAnthropicApiKey } from './claude-credentials.js';
 import { createLogger } from './log.js';
-import { AISTATUS_DIR, CONFIG_DIR, GATEWAY_CONFIG } from './paths.js';
+import { AISTATUS_DIR, CONFIG_DIR } from './paths.js';
 import { gatewayYamlPort } from './gateway-config.js';
+import { activeGatewayConfig } from './gateway-endpoint.js';
 import { loadPiDefaultModels, loadPiSdk, piUserAuthPath, piUserModelsPath } from './pi-sdk.js';
 
 const log = createLogger('gateway-generator');
@@ -395,7 +396,7 @@ function gatewayYamlHeader(renderable: DiscoveredEndpoint[], endpoints: Discover
 
   // Collect all renderable modes for the comment
   const allModes = renderable.map(e => e.mode).filter((v, i, a) => a.indexOf(v) === i);
-  lines.push(`port: ${GATEWAY_CONFIG.port}`);
+  lines.push(`port: ${activeGatewayConfig().port}`);
   lines.push(`mode: ${activeMode}${allModes.length > 0 ? `  # active billing mode: ${allModes.join(' | ')}` : ''}`);
   lines.push(`status_check: true`);
   lines.push(`max_body_size_mb: ${DEFAULT_MAX_BODY_SIZE_MB}  # buffered request limit in MiB`);
@@ -545,7 +546,7 @@ export function mergeGatewayConfig(
   const activeMode = activeGatewayMode(merged, discovered, defaultMode, existing?.top.mode);
 
   const top: Record<string, unknown> = existing ? deepCopy(existing.top) : {};
-  top.port = gatewayYamlPort(GATEWAY_CONFIG, top.port);
+  top.port = gatewayYamlPort(activeGatewayConfig(), top.port);
   top.mode = activeMode;
   top.status_check = top.status_check ?? true;
   top.max_body_size_mb = top.max_body_size_mb ?? DEFAULT_MAX_BODY_SIZE_MB;
@@ -598,7 +599,7 @@ function activeGatewayMode(merged: EndpointMap, discovered: DiscoveredEndpoint[]
 export function serializeGatewayYaml(result: MergeGatewayResult): string {
   const obj: Record<string, unknown> = {};
   // Ordered, well-known top-level fields first.
-  obj.port = gatewayYamlPort(GATEWAY_CONFIG, result.top.port);
+  obj.port = gatewayYamlPort(activeGatewayConfig(), result.top.port);
   obj.mode = result.top.mode;
   obj.status_check = result.top.status_check ?? true;
   obj.max_body_size_mb = result.top.max_body_size_mb ?? DEFAULT_MAX_BODY_SIZE_MB;

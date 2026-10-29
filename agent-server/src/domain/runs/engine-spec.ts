@@ -4,7 +4,7 @@ import type {
   EngineSpec, CortexContextEnv, McpComposition,
 } from '../../agent-adapter/types.js';
 import { resolveMcpComposition } from '../../agent-adapter/types.js';
-import { GATEWAY_URL } from '../costs/gateway-manager.js';
+import { gatewayUrl } from '@core/gateway-endpoint.js';
 import { composeSystemPrompt, globalRuleBodies } from './prompt.js';
 import { workspacePrompt } from '@core/workspace.js';
 import { resolvePluginRuntime } from '../plugins/runtime.js';
@@ -246,7 +246,7 @@ export function buildEngineSpec(
     },
     route: {
       anthropicBaseUrl: route?.ANTHROPIC_BASE_URL,
-      gatewayBaseUrl: attempt.backend === 'pi' ? GATEWAY_URL : undefined,
+      gatewayBaseUrl: attempt.backend === 'pi' ? gatewayUrl() : undefined,
       gatewayPath: provider ? buildPiGatewaySubPath(attempt.mode, provider) : undefined,
     },
     flags: policy.flags,

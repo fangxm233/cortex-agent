@@ -457,6 +457,8 @@ installSigtermShutdown(shutdownHandles);
   if (syncManagedAssets) ensureMcpConfig();
   // Migrate old aistatus config from wrong location (CORTEX_HOME/config) to correct location (~/.aistatus)
   await migrateAistatusConfigLocation(DATA_DIR);
+  // The gateway port is fixed here, before recovery or a platform message can spawn a session.
+  await startGateway();
   initConfiguredHooks();
   executionRepo.load();
   // An in-process execution dies with the server, so stale it immediately — otherwise a
@@ -584,7 +586,6 @@ installSigtermShutdown(shutdownHandles);
   await projectStore.initialize();
   markBootPhase('projects');
 
-  startGateway();
   prewarmPiBackend();
   startClientManager(parseInt(process.env.CORTEX_CLIENT_PORT || '3002', 10), process.env.CORTEX_CLIENT_HOST);
 

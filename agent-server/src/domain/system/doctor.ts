@@ -7,6 +7,7 @@ import { parse as parseDotenvLib } from 'dotenv';
 import { isGitAvailable } from '@core/git-availability.js';
 import { GATEWAY_MANAGED_KEY_PLACEHOLDER } from '@core/utils.js';
 import { AISTATUS_DIR, GATEWAY_CONFIG, DATA_DIR, CONFIG_DIR, STORE_DIR, DAEMON_PID_FILE } from '@core/paths.js';
+import { gatewayUrl } from '@core/gateway-endpoint.js';
 import { ensureAuthTokens, CLIENT_TOKEN_ENV, WEBHOOK_TOKEN_ENV } from '@core/auth.js';
 import { generateMcpConfig } from '@core/config-generator.js';
 import { isProcessAlive } from '@core/singleton-lock.js';
@@ -434,7 +435,7 @@ function sectionGateway(
   const checks: CheckResult[] = [];
   const gwYaml = path.join(deps.aistatusDir, 'gateway.yaml');
   const gwConfigured = deps.fileExists(gwYaml);
-  const gatewayAddress = new URL(deps.gatewayUrl ?? GATEWAY_CONFIG.url).host;
+  const gatewayAddress = new URL(deps.gatewayUrl ?? gatewayUrl()).host;
   const missingConfig = GATEWAY_CONFIG.home ? gwYaml : '~/.aistatus/gateway.yaml';
   checks.push(gwConfigured
     ? { id: 'gateway-config', label: 'Gateway config', status: 'pass', detail: gwYaml }
@@ -543,7 +544,7 @@ function resolveBundledPiSdk(): PiSdkInfo | null {
 
 function probeGatewayHttp(): Promise<boolean> {
   return new Promise((resolve) => {
-    const req = http.get(`${GATEWAY_CONFIG.url}/status`, { timeout: 5000 }, (res) => {
+    const req = http.get(`${gatewayUrl()}/status`, { timeout: 5000 }, (res) => {
       res.resume();
       resolve(res.statusCode === 200);
     });
@@ -557,7 +558,7 @@ export function createDefaultDoctorDeps(): DoctorDeps {
     env: process.env,
     paths: { DATA_DIR, CONFIG_DIR, STORE_DIR },
     aistatusDir: AISTATUS_DIR,
-    gatewayUrl: GATEWAY_CONFIG.url,
+    gatewayUrl: gatewayUrl(),
     nodeVersion: process.version,
     requiredNodeMajor: 20,
     fileExists: (p) => { try { return fs.existsSync(p); } catch { return false; } },

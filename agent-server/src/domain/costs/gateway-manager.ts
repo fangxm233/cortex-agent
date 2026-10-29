@@ -4,12 +4,13 @@ import * as path from 'path';
 import * as http from 'http';
 import { createRequire } from 'module';
 import { GATEWAY_CONFIG, DATA_DIR } from '@core/paths.js';
+import { gatewayUrl, setActiveGatewayPort } from '@core/gateway-endpoint.js';
 import { createLogger } from '@core/log.js';
+import { GATEWAY_PID_FILE, chooseGatewayPort, reclaimOrphanGateway } from './gateway-port.js';
 
 const log = createLogger('gateway-mgr');
 
 // --- Config ---
-const GATEWAY_URL = GATEWAY_CONFIG.url;
 // Resolve gateway CLI from the aistatus npm package (bin entry: ./dist/gateway-cli.js)
 const require = createRequire(import.meta.url);
 const aistatusDir = path.dirname(require.resolve('aistatus'));
@@ -28,6 +29,8 @@ const HEALTH_CHECK_TIMEOUT_MS = 5_000;
 
 // --- State ---
 let child: ChildProcess | null = null;
+/** Chosen once per server run; crash restarts reuse it so running sessions keep their URL. */
+let port: number | null = null;
 let childStartedAt = 0;
 let backoff = BACKOFF_INITIAL_MS;
 let crashRestartTimer: ReturnType<typeof setTimeout> | null = null;
@@ -60,7 +63,7 @@ const spawnProcess = (globalThis as { __mockChildProcessSpawn?: typeof childSpaw
 // --- Health Check ---
 function checkHealth(): Promise<boolean> {
   return new Promise((resolve) => {
-    const req = httpGet(`${GATEWAY_URL}/status`, { timeout: HEALTH_CHECK_TIMEOUT_MS }, (res) => {
+    const req = httpGet(`${gatewayUrl()}/status`, { timeout: HEALTH_CHECK_TIMEOUT_MS }, (res) => {
       let data = '';
       res.on('data', (chunk: Buffer) => { data += chunk; });
       res.on('end', () => {
@@ -73,8 +76,7 @@ function checkHealth(): Promise<boolean> {
 }
 
 async function runHealthCheck() {
-  if (shuttingDown) return;
-  if (!child && !healthy) return;
+  if (shuttingDown || !child) return;
   const wasHealthy = healthy;
   healthy = await checkHealth();
   if (wasHealthy && !healthy) {
@@ -90,33 +92,24 @@ function isGatewayHealthy(): boolean {
 }
 
 // --- Subprocess Management ---
-async function adoptExistingGatewayIfHealthy(): Promise<boolean> {
-  const existingHealthy = await checkHealth();
-  if (!existingHealthy) return false;
-  healthy = true;
-  backoff = BACKOFF_INITIAL_MS;
-  gwLog(`Gateway already healthy on ${GATEWAY_URL} — reusing existing process`);
-  return true;
+/** Whatever already listens on a port is never reused: it may be another Cortex instance's
+ *  gateway, holding that instance's credentials. Only this instance's own orphan is stopped. */
+async function settlePort(): Promise<number> {
+  await reclaimOrphanGateway(gwLog);
+  const chosen = await chooseGatewayPort(gwLog);
+  setActiveGatewayPort(chosen);
+  // Children that inherited a stale CORTEX_GATEWAY_PORT (e.g. `cortex doctor` run by an agent).
+  if (process.env.CORTEX_GATEWAY_PORT !== undefined) process.env.CORTEX_GATEWAY_PORT = String(chosen);
+  return chosen;
 }
 
-async function spawnGateway() {
-  if (shuttingDown) return;
+function spawnGateway() {
+  if (shuttingDown || port === null) return;
   if (child) {
     gwLog('spawnGateway called but child already running — skipping');
     return;
   }
-
-  // Check that gateway CLI exists
-  if (!existsSync(GATEWAY_CLI_PATH)) {
-    gwLog(`Gateway CLI not found at ${GATEWAY_CLI_PATH} — cannot start gateway`);
-    return;
-  }
-
-  if (await adoptExistingGatewayIfHealthy()) {
-    return;
-  }
-
-  launchGateway();
+  launchGateway(port);
 }
 
 function gatewayChildEnv(): NodeJS.ProcessEnv {
@@ -125,15 +118,16 @@ function gatewayChildEnv(): NodeJS.ProcessEnv {
   return { ...process.env, HOME: GATEWAY_CONFIG.home, USERPROFILE: GATEWAY_CONFIG.home };
 }
 
-function launchGateway() {
-  gwLog('Starting aistatus gateway (TS)...');
+function launchGateway(listenPort: number) {
+  gwLog(`Starting aistatus gateway on ${gatewayUrl()}...`);
   childStartedAt = Date.now();
   healthy = false;
 
   const gatewayLogStream = getLogStream();
 
   // API dumps remain opt-in via GATEWAY_DUMP_DIR.
-  child = spawnProcess(process.execPath, [GATEWAY_CLI_PATH, 'start', '-c', GATEWAY_CONFIG.configPath, '-p', String(GATEWAY_CONFIG.port)], {
+  const args = ['start', '-c', GATEWAY_CONFIG.configPath, '-p', String(listenPort), '--pid-file', GATEWAY_PID_FILE];
+  child = spawnProcess(process.execPath, [GATEWAY_CLI_PATH, ...args], {
     cwd: DATA_DIR,
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
@@ -211,9 +205,22 @@ function killGateway(): Promise<void> {
 
 // --- Public API ---
 
-function startGateway() {
+/** Settle the gateway port and launch the gateway. Resolves once the port is fixed, so callers
+ *  that await it hand every later spawn the URL the gateway really listens on. */
+async function startGateway(): Promise<void> {
   shuttingDown = false;
-  void spawnGateway();
+  if (!existsSync(GATEWAY_CLI_PATH)) {
+    gwLog(`Gateway CLI not found at ${GATEWAY_CLI_PATH} — cannot start gateway`);
+    return;
+  }
+  try {
+    port ??= await settlePort();
+  } catch (error) {
+    gwLog(`Could not choose a gateway port — gateway not started: ${(error as Error).message}`);
+    return;
+  }
+  if (shuttingDown) return;
+  spawnGateway();
 
   // Periodic health check
   healthCheckTimer = setInterval(runHealthCheck, HEALTH_CHECK_INTERVAL_MS);
@@ -244,4 +251,4 @@ function _testSetHealthy(value: boolean | null) {
   _healthOverride = value;
 }
 
-export { startGateway, stopGateway, isGatewayHealthy, GATEWAY_URL, _testSetHealthy };
+export { startGateway, stopGateway, isGatewayHealthy, _testSetHealthy };

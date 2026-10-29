@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import * as path from 'node:path';
 import { parse } from 'dotenv';
 
-const DEFAULT_GATEWAY_PORT = 9880;
+export const DEFAULT_GATEWAY_PORT = 9880;
 
 export interface GatewayConfig {
   port: number;
@@ -13,6 +13,11 @@ export interface GatewayConfig {
   home?: string;
   aistatusDir: string;
   configPath: string;
+}
+
+/** The gateway always listens on loopback. */
+export function gatewayUrlFor(port: number): string {
+  return `http://127.0.0.1:${port}`;
 }
 
 function parsePort(value: string | undefined): number | undefined {
@@ -35,15 +40,23 @@ export function resolveGatewayConfig(env: NodeJS.ProcessEnv, fileEnv: NodeJS.Pro
   const port = portOverride ?? DEFAULT_GATEWAY_PORT;
   const home = parseHome(env.CORTEX_GATEWAY_HOME ?? fileEnv.CORTEX_GATEWAY_HOME);
   const aistatusDir = path.join(home ?? osHome, '.aistatus');
-  return { port, portOverride, home, aistatusDir, configPath: path.join(aistatusDir, 'gateway.yaml'), url: `http://127.0.0.1:${port}` };
+  return { port, portOverride, home, aistatusDir, configPath: path.join(aistatusDir, 'gateway.yaml'), url: gatewayUrlFor(port) };
+}
+
+function readConfigEnv(configDir: string): NodeJS.ProcessEnv {
+  try { return parse(readFileSync(path.join(configDir, '.env'))); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+  return {};
 }
 
 /** CLI imports precede runtime dotenv loading, so read startup settings without populating env. */
 export function loadGatewayConfig(configDir: string, env = process.env, osHome = homedir()): GatewayConfig {
-  let fileEnv: NodeJS.ProcessEnv = {};
-  try { fileEnv = parse(readFileSync(path.join(configDir, '.env'))); }
-  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
-  return resolveGatewayConfig(env, fileEnv, osHome);
+  return resolveGatewayConfig(env, readConfigEnv(configDir), osHome);
+}
+
+/** The gateway port saved in config/.env, ignoring the process env. */
+export function savedGatewayPort(configDir: string): number | undefined {
+  return parsePort(readConfigEnv(configDir).CORTEX_GATEWAY_PORT);
 }
 
 /** An explicit Cortex port wins; without one, retain the legacy add-only YAML merge. */

@@ -1,7 +1,7 @@
 import * as readline from 'readline';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
-import { mutateFileAtomically } from '@core/atomic-write.js';
+import { upsertEnvVar } from '@core/env-file.js';
 import { CONFIG_DIR } from '@core/paths.js';
 import {
   buildAuthorizeUrl,
@@ -19,6 +19,8 @@ import {
 } from '@domain/mcp/feishu/user-auth.js';
 import type { CliResult } from '@core/cli-utils.js';
 
+export { upsertEnvContents, upsertEnvVar } from '@core/env-file.js';
+
 /** Injectable seams so the dispatcher is testable without real stdin/network/CONFIG_DIR. */
 export interface FeishuCliDeps {
   env?: NodeJS.ProcessEnv;
@@ -32,29 +34,6 @@ export interface FeishuCliDeps {
   loadDotenv?: boolean;
   /** dotenv file that a successful login flips to FEISHU_AUTH_MODE=user (default: CONFIG_DIR/.env). */
   envFile?: string;
-}
-
-export function upsertEnvContents(existing: string, key: string, value: string): string {
-  const line = `${key}=${value}`;
-  const lines = existing === '' ? [] : existing.replace(/\n+$/, '').split('\n');
-  const re = new RegExp(`^\\s*(?:export\\s+)?${key}\\s*=`);
-  const idx = lines.map(candidate => re.test(candidate)).lastIndexOf(true);
-  if (idx >= 0) {
-    if (lines[idx] === line) return existing;
-    lines[idx] = line;
-  } else {
-    lines.push(line);
-  }
-  return lines.join('\n') + '\n';
-}
-
-/** Serialize dotenv read-modify-write across processes so unrelated settings survive. */
-export function upsertEnvVar(file: string, key: string, value: string): Promise<void> {
-  return mutateFileAtomically(
-    file,
-    existing => upsertEnvContents(existing, key, value),
-    { mode: 0o600 },
-  );
 }
 
 export function getFeishuHelp(): string {

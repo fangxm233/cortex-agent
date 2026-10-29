@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { validateEngineSelection } from '../../../src/domain/agents/engine-selection.js';
 import { buildPiGatewaySubPath } from '../../../src/domain/runs/engine-spec.js';
 import { specFromFixture } from '../../run-request-fixture.js';
-import { GATEWAY_URL } from '../../../src/domain/costs/gateway-manager.js';
+import { gatewayUrl } from '../../../src/core/gateway-endpoint.js';
 
 const selection = { model: 'm', backend: 'pi', mode: 'anthropic', provider: 'anthropic', thinking: null };
 
@@ -24,9 +24,9 @@ test('PI keeps the gateway authority, not the Claude route URL', () => {
   const spec = specFromFixture(
     { loadCortexRules: false },
     { model: 'gpt-x', backend: 'pi', mode: 'openai-codex', provider: 'openai-codex' },
-    { ANTHROPIC_BASE_URL: `${GATEWAY_URL}/m/openai-codex/project=nimbus,trigger=user/anthropic` },
+    { ANTHROPIC_BASE_URL: `${gatewayUrl()}/m/openai-codex/project=nimbus,trigger=user/anthropic` },
   );
-  expect(spec.route.gatewayBaseUrl).toBe(GATEWAY_URL);
+  expect(spec.route.gatewayBaseUrl).toBe(gatewayUrl());
   expect(spec.route.gatewayPath).toBe('/m/openai-codex/openai-codex');
-  expect(`${spec.route.gatewayBaseUrl}${spec.route.gatewayPath}`).toBe(`${GATEWAY_URL}/m/openai-codex/openai-codex`);
+  expect(`${spec.route.gatewayBaseUrl}${spec.route.gatewayPath}`).toBe(`${gatewayUrl()}/m/openai-codex/openai-codex`);
 });

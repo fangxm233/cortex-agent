@@ -8,7 +8,7 @@ import type { SubagentNotice } from '@core/agents/subagent/types.js';
 import { parseModelSpec, selectChildModel, type ModelSpec } from '@core/agents/subagent/model-spec.js';
 import { noticesFor } from '../../../agent-adapter/pi/child-events.js';
 import { getPiEngineAdapter } from '../../runs/adapters.js';
-import { GATEWAY_URL } from '../../costs/gateway-manager.js';
+import { gatewayUrl } from '@core/gateway-endpoint.js';
 import { type AgentRole } from '@core/agents/roles.js';
 import { buildPiGatewaySubPath } from '../../runs/engine-spec.js';
 import { getDefaultSelectionForBackend } from '../models.js';
@@ -117,7 +117,7 @@ async function runPiSubagent(request: SubagentRunRequest): Promise<SubagentResul
       adapter.ensureProviderRouting({
         provider,
         gatewayPath: buildPiGatewaySubPath(mode, provider) ?? null,
-        gatewayBaseUrl: GATEWAY_URL,
+        gatewayBaseUrl: gatewayUrl(),
         model: model.model,
       });
     } catch (error) {

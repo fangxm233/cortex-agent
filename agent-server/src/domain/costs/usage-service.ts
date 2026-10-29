@@ -5,7 +5,7 @@ import { getSettings as readSettings, type Settings } from '@core/settings.js';
 import { t } from '@core/i18n.js';
 import { createLogger } from '@core/log.js';
 import { providerStateRepo } from '@store/provider-state-repo.js';
-import { GATEWAY_URL } from './gateway-manager.js';
+import { gatewayUrl as liveGatewayUrl } from '@core/gateway-endpoint.js';
 import { claudeAccountClient } from './claude-account.js';
 import { codexAccountClient } from './codex-account.js';
 import { readDaemonOAuthProviders, subscriptionModesFor } from './subscription-modes.js';
@@ -542,7 +542,7 @@ export class UsageService {
   private readonly getSettings: SettingsReader;
   private readonly getOAuthProviders: () => ReadonlySet<string>;
   private readonly fetch: typeof globalThis.fetch;
-  private readonly gatewayUrl: string;
+  private readonly gatewayUrl: () => string;
   private readonly now: () => Date;
   private readonly codexAccount: Pick<ResetAccount, 'readUsage'>;
   private readonly releaseThrottle: (provider: string, windows: QuotaReading[]) => Promise<unknown>;
@@ -557,7 +557,8 @@ export class UsageService {
     this.getSettings = dependencies.getSettings ?? readSettings;
     this.getOAuthProviders = dependencies.getOAuthProviders ?? (() => new Set());
     this.fetch = dependencies.fetch ?? globalThis.fetch;
-    this.gatewayUrl = dependencies.gatewayUrl ?? GATEWAY_URL;
+    const fixedGatewayUrl = dependencies.gatewayUrl;
+    this.gatewayUrl = fixedGatewayUrl === undefined ? liveGatewayUrl : () => fixedGatewayUrl;
     this.now = dependencies.now ?? (() => new Date());
     this.codexAccount = dependencies.codexAccount ?? NO_ACCOUNT;
     this.claudeAccount = dependencies.claudeAccount ?? NO_ACCOUNT;
@@ -787,7 +788,7 @@ export class UsageService {
   }
 
   private async readGatewayQuota(): Promise<GatewayQuotaSnapshot | null> {
-    const url = `${this.gatewayUrl}/quota?provider=anthropic`;
+    const url = `${this.gatewayUrl()}/quota?provider=anthropic`;
     const response = await this.fetch(url, { signal: AbortSignal.timeout(GATEWAY_USAGE_TIMEOUT_MS) });
     if (!response.ok) throw new Error(`gateway quota HTTP ${response.status}`);
     return parseGatewayQuota(await response.json());
@@ -809,7 +810,7 @@ export class UsageService {
   }
 
   private async readGroupedSpend(period: GatewayPeriod): Promise<PeriodSpend | null> {
-    const url = `${this.gatewayUrl}/usage?period=${period}&group_by=provider,billing_mode`;
+    const url = `${this.gatewayUrl()}/usage?period=${period}&group_by=provider,billing_mode`;
     const response = await this.fetch(url, { signal: AbortSignal.timeout(GATEWAY_USAGE_TIMEOUT_MS) });
     if (response.status === 400) return null;
     if (!response.ok) throw new Error(`gateway usage HTTP ${response.status}`);
@@ -819,7 +820,7 @@ export class UsageService {
 
   private async readRecordSpend(period: WindowPeriod): Promise<PeriodSpend> {
     const since = encodeURIComponent(periodStartIso(period, this.now()));
-    const url = `${this.gatewayUrl}/usage?format=records&since=${since}&limit=${GATEWAY_RECORDS_LIMIT}`;
+    const url = `${this.gatewayUrl()}/usage?format=records&since=${since}&limit=${GATEWAY_RECORDS_LIMIT}`;
     const response = await this.fetch(url, { signal: AbortSignal.timeout(GATEWAY_USAGE_TIMEOUT_MS) });
     if (!response.ok) throw new Error(`gateway usage HTTP ${response.status}`);
     const payload = await response.json();

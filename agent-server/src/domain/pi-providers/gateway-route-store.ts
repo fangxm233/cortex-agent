@@ -4,6 +4,7 @@ import { atomicWriteSync } from '@core/atomic-write.js';
 import { createLogger } from '@core/log.js';
 import { GATEWAY_CONFIG } from '@core/paths.js';
 import { gatewayYamlPort } from '@core/gateway-config.js';
+import { activeGatewayConfig } from '@core/gateway-endpoint.js';
 import {
   readGatewayYaml, serializeGatewayYaml, type EndpointMap,
 } from '@core/gateway-generator.js';
@@ -78,7 +79,7 @@ export function upsertGatewayRoute(gatewayPath: string, route: GatewayRouteSpec)
   if (route.keys.length > 0) config.keys = [...route.keys];
 
   doc.endpoints[route.endpoint] = { ...doc.endpoints[route.endpoint], [route.mode]: config };
-  doc.top.port = gatewayYamlPort(GATEWAY_CONFIG, doc.top.port);
+  doc.top.port = gatewayYamlPort(activeGatewayConfig(), doc.top.port);
   doc.top.status_check ??= true;
   // Never steal the active billing mode from an existing config; only seed it on a fresh file.
   if (typeof doc.top.mode !== 'string' || doc.top.mode === '') doc.top.mode = route.mode;
