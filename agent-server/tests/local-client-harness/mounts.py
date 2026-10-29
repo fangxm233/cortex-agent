@@ -20,8 +20,7 @@ def environment():
                 XDG_CACHE_HOME=f'{HOME}/.cache', XDG_DATA_HOME=f'{HOME}/.local/share',
                 XDG_STATE_HOME=f'{HOME}/.local/state', XDG_RUNTIME_DIR=f'{HOME}/.run',
                 XDG_CONFIG_DIRS='/etc/xdg', XDG_DATA_DIRS='/usr/share',
-                CORTEX_UI_PORT='3004', WEBHOOK_PORT='3001', CORTEX_CLIENT_PORT='3002',
-                CORTEX_TUI_PORT='3003')
+                CORTEX_UI_PORT='3004')
 
 
 def synthetic_etc(run):

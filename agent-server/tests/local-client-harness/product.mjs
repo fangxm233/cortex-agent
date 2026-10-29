@@ -93,7 +93,7 @@ export async function initialize() {
 }
 
 export async function webhook(tokens, path, body) {
-  const response = await fetch(`http://127.0.0.1:3001/webhook/${path}`, {
+  const response = await fetch(`http://127.0.0.1:3004/webhook/${path}`, {
     method: body ? 'POST' : 'GET', headers: { 'x-cortex-token': tokens.webhook, 'content-type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(15000),
   });

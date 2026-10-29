@@ -264,8 +264,9 @@ def _sealed_environment(
         "XDG_CONFIG_HOME": str(runtime_home / f"{CONTAINER_HOME_DIR}/.config"),
         # The server serves the benchmark-session route and refuses every other one.
         "CORTEX_CONFIG_IMMUTABLE": "1", "CORTEX_WEBHOOK_BENCHMARK_ONLY": "1",
-        "WEBHOOK_PORT": "3001",
-        "CORTEX_TUI": "1", "CORTEX_TUI_PORT": "3003",
+        # The server's one port: the benchmark-session route and the TUI socket share it.
+        "CORTEX_UI_PORT": "3001",
+        "CORTEX_TUI": "1",
         # A trial never reports product telemetry.
         "CORTEX_TELEMETRY": "0",
     })

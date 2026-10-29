@@ -78,7 +78,6 @@ async function fixture(): Promise<Fixture> {
     NPM_CONFIG_PREFIX: prefix, npm_config_prefix: prefix,
     PATH: [dirname(node), join(prefix, 'bin'), restrictedTools(home)].join(':'),
     CORTEX_PLATFORM: 'test', CORTEX_UI_PORT: await unusedPort(),
-    WEBHOOK_PORT: await unusedPort(), CORTEX_CLIENT_PORT: await unusedPort(), CORTEX_TUI_PORT: await unusedPort(),
     npm_config_cache: join(home, 'npm-cache'), LANG: 'C.UTF-8' };
   const result = { home, prefix, node, cli, env };
   fixtures.push(result);

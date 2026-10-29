@@ -104,9 +104,7 @@ async function firstLoginRefresh(home: string, endpoint: { uiUrl: string; client
 test.skipIf(process.platform === 'win32')('Git-free init starts a real server and serves provider setup', async () => {
   const { home, env } = isolatedEnvironment();
   const endpoint = await initialize(home, env, await freePort());
-  const run = launch('app.ts', [], { ...env,
-    WEBHOOK_PORT: String(await freePort()), CORTEX_CLIENT_PORT: String(await freePort()), CORTEX_TUI_PORT: String(await freePort()),
-  });
+  const run = launch('app.ts', [], env);
   await waitForReady(run);
   const status = await query(endpoint.uiUrl, endpoint.clientToken, 'auth.status') as {
     piRuntime: { available: boolean }; accounts: { inUse: boolean }[];

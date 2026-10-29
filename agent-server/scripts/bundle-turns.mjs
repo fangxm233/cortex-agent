@@ -16,8 +16,7 @@ const env = {
   PATH: process.env.PATH, HOME: process.env.HOME, CORTEX_HOME: home,
   CORTEX_GATEWAY_HOME: process.env.HOME,
   CORTEX_TELEMETRY: '0', CORTEX_UI_HTTP: '1', CORTEX_PORT_FORWARD: '0',
-  WEBHOOK_PORT: '17301', CORTEX_CLIENT_PORT: '17302', CORTEX_TUI_PORT: '17303', CORTEX_UI_PORT: '17304',
-  CORTEX_CLIENT_HOST: '127.0.0.1', CORTEX_CLIENT_TOKEN: 'bundle-smoke-client-token',
+  CORTEX_UI_PORT: '17304', CORTEX_CLIENT_TOKEN: 'bundle-smoke-client-token',
   CORTEX_WEBHOOK_TOKEN: 'bundle-smoke-webhook-token', CORTEX_GATEWAY_PORT: '17380',
   NODE_OPTIONS: `--import=${fileURLToPath(new URL('./bundle-turn-preload.mjs', import.meta.url))}`,
 };
@@ -119,7 +118,7 @@ if (process.argv.includes('--verify-recorded-pi')) {
   fs.writeFileSync(path.join(output, 'pi-verified.json'), JSON.stringify(result, null, 2));
   console.log('Recorded pi turn verified without another paid request'); process.exit(0);
 }
-for (const port of [17301, 17302, 17303, 17304, 17380]) {
+for (const port of [17304, 17380]) {
   await new Promise((resolve, reject) => { const server = net.createServer(); server.once('error', reject); server.listen(port, '127.0.0.1', () => server.close(resolve)); });
 }
 const child = spawn(process.execPath, [path.join(root, 'dist/entry/daemon.js')], { env, cwd: home, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });

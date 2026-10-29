@@ -1,11 +1,12 @@
 // Usage: env -i PATH="$PATH" HOME=/tmp/cortex-bundle-test/os-home \
 // CORTEX_HOME=/tmp/cortex-bundle-test/home node scripts/bundle-smoke.mjs /tmp/cortex-bundle-test/prefix
-// Requires an initialized, credential-free home. Uses only loopback ports 17301-17304/17380.
+// Requires an initialized, credential-free home. Uses only loopback ports 17304 (main) and 17380 (gateway).
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import net from 'node:net';
 import { spawn, spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -30,9 +31,8 @@ const env = {
     TEMP: testRoot, TMP: testRoot,
   } : {}),
   CORTEX_TELEMETRY: '0', CORTEX_UI_HTTP: '1', CORTEX_PORT_FORWARD: '0',
-  WEBHOOK_PORT: '17301', CORTEX_CLIENT_PORT: '17302', CORTEX_TUI_PORT: '17303',
   CORTEX_GATEWAY_PORT: '17380', CORTEX_GATEWAY_HOME: process.env.HOME,
-  CORTEX_UI_PORT: '17304', CORTEX_CLIENT_HOST: '127.0.0.1',
+  CORTEX_UI_PORT: '17304',
   CORTEX_CLIENT_TOKEN: 'bundle-smoke-client-token', CORTEX_WEBHOOK_TOKEN: 'bundle-smoke-webhook-token',
 };
 Object.assign(process.env, env);
@@ -173,7 +173,7 @@ try {
     assert(data.includes('"tools"'), data); await stop(child); return data;
   });
   // Refuse to bind occupied test ports rather than reuse anyone else's service.
-  for (const port of [17301, 17302, 17303, 17304, 17380]) {
+  for (const port of [17304, 17380]) {
     await new Promise((resolve, reject) => { const server = net.createServer(); server.once('error', reject); server.listen(port, '127.0.0.1', () => server.close(resolve)); });
   }
   const preload = fileURLToPath(new URL('./bundle-smoke-preload.mjs', import.meta.url));
@@ -208,17 +208,20 @@ try {
     }
     throw new Error('Isolated gateway did not become ready');
   });
-  await check('TUI WebSocket upgrade', async () => {
-    // Node's built-in WebSocket proves the upgrade; auth is exercised separately via HTTP.
-    await new Promise((resolve, reject) => {
-      const ws = new WebSocket('ws://127.0.0.1:17303');
-      const timer = setTimeout(() => { ws.close(); reject(new Error('WebSocket timeout')); }, 5000);
-      ws.onopen = () => { clearTimeout(timer); ws.close(); resolve(); };
-      ws.onerror = () => { clearTimeout(timer); reject(new Error('WebSocket upgrade failed')); };
+  await check('TUI WebSocket upgrade on the main port needs the client token', async () => {
+    const { WebSocket: Ws } = createRequire(path.join(root, 'package.json'))('ws');
+    const open = headers => new Promise((resolve) => {
+      const ws = new Ws('ws://127.0.0.1:17304/tui', { headers });
+      const timer = setTimeout(() => { ws.terminate(); resolve('timeout'); }, 5000);
+      ws.once('open', () => { clearTimeout(timer); ws.close(); resolve('open'); });
+      ws.once('unexpected-response', (_req, res) => { clearTimeout(timer); res.resume(); ws.terminate(); resolve(res.statusCode); });
+      ws.once('error', () => { clearTimeout(timer); resolve('error'); });
     });
+    assert.equal(await open({}), 401);
+    assert.equal(await open({ 'x-cortex-token': env.CORTEX_CLIENT_TOKEN }), 'open');
   });
   await check('signal-cli rejects unknown waitpoint through isolated HTTP endpoint', () => {
-    const result = runBin('cortex-signal', ['--id', 'bundle-smoke-missing', '--secret', 'not-a-secret', '--status', 'ok', '--url', 'http://127.0.0.1:17301/webhook/signal', '--no-spool'], { env, encoding: 'utf8', timeout: 10000 });
+    const result = runBin('cortex-signal', ['--id', 'bundle-smoke-missing', '--secret', 'not-a-secret', '--status', 'ok', '--url', 'http://127.0.0.1:17304/webhook/signal', '--no-spool'], { env, encoding: 'utf8', timeout: 10000 });
     assert.notEqual(result.status, 0); assert(!/ECONNREFUSED|Cannot find|not defined/.test(result.stderr));
     return { exit: result.status, stdout: result.stdout, stderr: result.stderr };
   });
@@ -234,7 +237,7 @@ try {
   }
   await stop(daemon);
   await check('Daemon and children stopped', async () => {
-    for (const port of [17301, 17302, 17303, 17304, 17380]) {
+    for (const port of [17304, 17380]) {
       await new Promise((resolve, reject) => {
         const socket = net.connect(port, '127.0.0.1');
         socket.once('connect', () => { socket.destroy(); reject(new Error(`Port ${port} still open`)); });

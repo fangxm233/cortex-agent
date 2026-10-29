@@ -13,7 +13,7 @@ for (const key of ['HOME', 'CORTEX_GATEWAY_HOME', 'CORTEX_HOME', 'CORTEX_NPM_PRE
 }
 const eventFile = process.env.CORTEX_BUNDLE_EVENTS;
 const gatewayPort = Number(process.env.CORTEX_GATEWAY_PORT);
-const ports = [gatewayPort, ...['WEBHOOK_PORT', 'CORTEX_CLIENT_PORT', 'CORTEX_TUI_PORT', 'CORTEX_UI_PORT'].map(key => Number(process.env[key]))];
+const ports = [gatewayPort, Number(process.env.CORTEX_UI_PORT)];
 assert(ports.every(port => Number.isInteger(port) && port > 1023 && port !== 9880));
 
 function record(type, detail = {}) {

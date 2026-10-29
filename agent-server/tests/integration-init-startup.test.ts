@@ -265,8 +265,7 @@ test('Test 2: Server starts and shuts down cleanly in initialized environment', 
     installLifecycleHook(tempDir, 'ab-shutdown-capture-fail', 'cortex:server.shutdown', 'capture-fail-shutdown.mjs');
 
     // Fork app.ts directly with test platform
-    const webhookPort = String(randomPort());
-    const clientPort = String(randomPort());
+    const mainPort = String(randomPort());
     // The server resolves ~/.aistatus via os.homedir(): its gateway child reads gateway.yaml and
     // records usage under ~/.aistatus/usage. Point HOME into tempDir so none of that reaches the
     // real home directory.
@@ -279,8 +278,7 @@ test('Test 2: Server starts and shuts down cleanly in initialized environment', 
         HOME: isolatedHome,
         CORTEX_HOME: tempDir,
         CORTEX_PLATFORM: 'test',
-        WEBHOOK_PORT: webhookPort,
-        CORTEX_CLIENT_PORT: clientPort,
+        CORTEX_UI_PORT: mainPort,
       },
       stdio: ['pipe', 'pipe', 'pipe'],
     });

@@ -43,7 +43,7 @@ async function ready(context) {
 async function unauthorizedWs() {
   const { WebSocket } = createRequire(`${SERVER}/package.json`)('ws');
   const status = await new Promise((resolve, reject) => {
-    const socket = new WebSocket('ws://127.0.0.1:3002', { handshakeTimeout: 3000 });
+    const socket = new WebSocket('ws://127.0.0.1:3004', { handshakeTimeout: 3000 });
     socket.on('error', () => {});
     socket.once('open', () => { socket.close(); reject(new Error('Unauthenticated WS accepted')); });
     socket.once('unexpected-response', (_req, response) => {
@@ -55,7 +55,7 @@ async function unauthorizedWs() {
 }
 
 async function authGates(context) {
-  const request = token => fetch('http://127.0.0.1:3001/webhook/devices', {
+  const request = token => fetch('http://127.0.0.1:3004/webhook/devices', {
     headers: token ? { 'x-cortex-token': token } : {}, signal: AbortSignal.timeout(3000),
   });
   assert.equal((await request()).status, 401);

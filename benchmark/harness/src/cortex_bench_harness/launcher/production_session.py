@@ -241,7 +241,7 @@ class ProductionServerSession:
         self, request_path: PurePosixPath, auth_path: PurePosixPath,
     ) -> str:
         environment = self._spec.materialized_home.process_environment
-        port = environment["WEBHOOK_PORT"]
+        port = environment["CORTEX_UI_PORT"]
         url = f"http://127.0.0.1:{port}{SESSION_ROUTE}"
         return shlex.join([
             "node", "--input-type=module", "--eval", HTTP_CLIENT,
