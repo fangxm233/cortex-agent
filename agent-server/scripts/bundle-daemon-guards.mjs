@@ -12,10 +12,15 @@ export function guardedPort(args) {
   return Number(value);
 }
 
+// The default model gateway port and the fixed ports an installed server on this machine may
+// still serve (Web UI, webhook, client, TUI). Test processes never reach or bind them.
+const LIVE_PORTS = new Set([9880, 3001, 3002, 3003, 3004]);
+
 function checkPort(args, operation, record) {
-  if (guardedPort(args) !== 9880) return;
-  record('blocked-network', { operation, port: 9880 });
-  throw new Error(`Test harness blocked ${operation} to live port 9880`);
+  const port = guardedPort(args);
+  if (!LIVE_PORTS.has(port)) return;
+  record('blocked-network', { operation, port });
+  throw new Error(`Test harness blocked ${operation} to live port ${port}`);
 }
 
 function loopbackListen(args, allowed) {
