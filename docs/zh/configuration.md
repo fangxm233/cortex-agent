@@ -109,10 +109,16 @@ $CORTEX_HOME/
 
 | 变量 | 默认值 | 用途 |
 |---|---|---|
-| `CORTEX_GATEWAY_PORT` | `9880` | 本地模型网关端口，`1`–`65535` 的整数 |
+| `CORTEX_GATEWAY_PORT` | `9880` | 本地模型网关在 `127.0.0.1` 上监听的端口，`1`–`65535` 的整数。网关换端口时 Cortex 把它写入 `config/.env` |
 | `CORTEX_GATEWAY_HOME` | OS 用户 home | 网关子进程的独立 home，必须是绝对路径；配置、usage、quota、pricing cache 位于其下 `.aistatus/` |
 
-这两项属于 `$CORTEX_HOME/config/.env` 中的启动设置，不热更新。启动环境优先于文件，CLI 也读取同一文件。空值或非法值会阻止启动；修改后须重启该实例的 daemon。网关启动、健康检查、Claude/PI 路由、usage 查询和 `cortex doctor` 共用这个端口。显式端口也写入生成或更新的 YAML；只改 YAML 的 `port:` 不会改变 Cortex 使用的端口。未显式设置端口时，YAML 合并保留既有字段，Cortex 在 `9880` 启动网关。
+这两项属于 `$CORTEX_HOME/config/.env` 中的启动设置，不热更新。启动环境优先于文件，CLI 也读取同一文件。空值或非法值会阻止启动；修改后须重启该实例的 daemon。
+
+网关是 server 的子进程。server 启动时依次尝试：`CORTEX_GATEWAY_PORT` 指定的端口；环境变量指定了别的端口时，`config/.env` 中保存的端口；`9880`；都被占用时取配置端口之上第一个空闲端口。Cortex 从不经由不是自己启动的网关转发请求，即使它在该端口上应答、健康检查也通过：它可能属于另一个 Cortex 实例，带着那个实例的凭据。端口被其他任何进程占用都视为不可用。网关换端口后，Cortex 把新端口以 `CORTEX_GATEWAY_PORT` 写入 `config/.env`，之后的启动和 CLI 命令都使用它，并在 `$CORTEX_HOME/logs/gateway.log` 中记录这次换端口。端口在 server 进程的整个生命周期内保持不变：网关崩溃后在同一端口重启，正在运行的会话路由不受影响。
+
+网关把自己的 PID 写入 `$CORTEX_HOME/data/gateway.pid`。server 进程被杀而网关没有停止时，下次启动会通过这个文件找到那个网关，根据命令行确认它是本实例的网关，结束它并沿用它的端口。
+
+健康检查、Claude/PI 路由、usage 查询和 `cortex doctor` 都使用选定的端口。以其他本机网关端口保存的 PI 自定义 provider 会路由到当前网关。显式端口写入生成或更新的网关 YAML，换端口时还会写入现有 YAML 的 `port:`。只改 YAML 的 `port:` 不会改变 Cortex 使用的端口。未显式设置端口时，YAML 合并保留既有字段。
 
 同机第二个实例使用不同的 `CORTEX_HOME`，并在配置 provider 或启动前**同时设置**两个网关变量。仅更换 `CORTEX_HOME` 不会隔离网关。所有启用的监听端口都须错开，例如第二实例的 `config/.env`：
 
@@ -127,7 +133,7 @@ CORTEX_UI_HTTP=1
 CORTEX_UI_PORT=3104
 ```
 
-启动该实例及运行其 CLI 时，始终指定 `CORTEX_HOME=/absolute/path/to/cortex-second`。`.env` 中路径须写绝对路径，不展开 `~` 或 `$CORTEX_HOME`。所选端口已有健康网关时会复用它，因此独立网关必须使用不同端口。
+启动该实例及运行其 CLI 时，始终指定 `CORTEX_HOME=/absolute/path/to/cortex-second`。`.env` 中路径须写绝对路径，不展开 `~` 或 `$CORTEX_HOME`。
 
 为第二实例配置 provider 凭据并运行 `cortex setup-gateway`。网关从自己的 YAML 读取托管 key，或从后端请求接收透传 key，不从独立 home 下的 `~/.claude`、`~/.pi` 读取登录。`CORTEX_GATEWAY_HOME` 只改变网关子进程的 home，不改变 Cortex 的 Claude/PI 凭据位置。尤其是 `~/.pi/agent/` 中的 PI 凭据和自定义 provider 目录仍由使用同一 OS home 的 Cortex 实例共享；如需隔离它们，也要为 Cortex 使用独立 OS home。不要跨实例复制会轮换的 OAuth token，应使用后端登录流程。网关 usage-sharing 偏好也按 home 隔离，需单独配置。既有网关文件和凭据不会自动复制。
 

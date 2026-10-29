@@ -164,17 +164,37 @@ TUI, or other server listeners.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `CORTEX_GATEWAY_PORT` | `9880` | Local model gateway port, an integer from `1` through `65535` |
+| `CORTEX_GATEWAY_PORT` | `9880` | Port the local model gateway listens on at `127.0.0.1`, an integer from `1` through `65535`. Cortex sets it in `config/.env` when it moves the gateway |
 | `CORTEX_GATEWAY_HOME` | OS user home | Absolute private home for the gateway child; its config, usage, quota and pricing cache live in `.aistatus/` beneath it |
 
 These are startup settings in `$CORTEX_HOME/config/.env`, not hot-reloaded
 settings. Launcher environment variables take precedence; the CLI reads the same
 file. Invalid or empty values stop startup. Restart the instance's daemon after
-changing them. Cortex uses this port for gateway startup, health checks, Claude
-and PI routing, usage queries and `cortex doctor`. An explicit port is also written
-into generated and updated gateway YAML. Editing only the YAML `port:` does not
-change the port Cortex uses. With no port override, YAML merges preserve existing
-fields and Cortex starts the gateway on `9880`.
+changing them.
+
+The gateway is a child process of the server. When the server starts, it tries
+the port set by `CORTEX_GATEWAY_PORT`, then the port saved in `config/.env` if
+the environment names a different one, then `9880`, and otherwise takes the first
+free port above the configured one. Cortex never routes through a gateway it did
+not start, even one that answers on the port and passes health checks: it may
+belong to another Cortex instance and carry that instance's credentials. A port
+held by any other process counts as taken. When the gateway moves, Cortex saves
+the new port to `config/.env` as `CORTEX_GATEWAY_PORT`, so later starts and CLI
+commands use it, and records the move in `$CORTEX_HOME/logs/gateway.log`. The
+port stays fixed for the life of the server process: a gateway that crashes
+restarts on the same port, and running sessions keep their route.
+
+The gateway writes its PID to `$CORTEX_HOME/data/gateway.pid`. When a server
+process is killed without stopping its gateway, the next start finds that
+gateway through this file, confirms from its command line that it is this
+instance's gateway, stops it and reuses its port.
+
+Cortex uses the chosen port for health checks, Claude and PI routing, usage
+queries and `cortex doctor`. PI custom providers saved with another local
+gateway port are routed to the current one. An explicit port is written into
+generated and updated gateway YAML, and a moved port into the existing YAML's
+`port:` as well. Editing only the YAML `port:` does not change the port Cortex
+uses. With no port override, YAML merges preserve existing fields.
 
 For a second instance, use a different `CORTEX_HOME` and set **both** gateway
 variables before provider setup or startup. Merely changing `CORTEX_HOME` does not
@@ -194,8 +214,7 @@ CORTEX_UI_PORT=3104
 
 Always launch that instance and its CLI commands with
 `CORTEX_HOME=/absolute/path/to/cortex-second`. Paths in `.env` must be absolute;
-`~` and `$CORTEX_HOME` are not expanded there. A healthy gateway already on the
-selected port is reused, so distinct ports are required for distinct gateways.
+`~` and `$CORTEX_HOME` are not expanded there.
 
 Configure provider credentials and run `cortex setup-gateway` for the second
 instance. The gateway obtains managed keys from its YAML and passthrough keys
