@@ -2,7 +2,7 @@ import * as http from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { Duplex } from 'stream';
-import { createHTTPServer } from '@trpc/server/adapters/standalone';
+import { createHTTPHandler } from '@trpc/server/adapters/standalone';
 import type { AnyRouter } from '@trpc/server';
 import { AUTH_HEADER, timingSafeEqualStr } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
@@ -265,161 +265,215 @@ function serveSpaStub(req: http.IncomingMessage, res: http.ServerResponse, spaDi
   stream.pipe(res);
 }
 
+/** The UI half of an HTTP server: its request handler and the WebSocket paths it owns. */
+export interface UiHttpHandler {
+  handleRequest: http.RequestListener;
+  /** Serve an upgrade on one of the UI's paths. False when the path is not the UI's (socket untouched). */
+  handleUpgrade: (req: http.IncomingMessage, socket: Duplex, head: Buffer) => boolean;
+  /** Close the port forward and every upgrade route. */
+  close: () => void;
+}
+
+export type UiHttpHandlerOptions = Omit<UiHttpServerOptions, 'port' | 'host'>;
+
+function corsAllowList(opts: UiHttpHandlerOptions): readonly string[] | undefined {
+  return typeof opts.corsOrigins === 'function' ? opts.corsOrigins() : opts.corsOrigins;
+}
+
+function sendUnauthorized(res: http.ServerResponse): void {
+  res.writeHead(401, { 'Content-Type': 'text/plain; charset=utf-8' });
+  res.end('Unauthorized');
+}
+
+interface UiRequestKind {
+  url: string;
+  pathname: string;
+  isCustomRoute: boolean;
+  isApi: boolean;
+}
+
+function classifyUiRequest(req: http.IncomingMessage, opts: UiHttpHandlerOptions): UiRequestKind {
+  const url = req.url ?? '/';
+  // Match custom routes on the PATHNAME (query string stripped) so routes that take query
+  // params (e.g. /api/files/download?path=…) still resolve. Exact-path routes (upload, OTA)
+  // are unaffected — they carry no query.
+  const pathname = url.split('?')[0];
+  const isCustomRoute = !!(opts.customRoutes && pathname in opts.customRoutes);
+  return { url, pathname, isCustomRoute, isApi: isCustomRoute || url.startsWith(TRPC_BASE_PATH) };
+}
+
 /**
- * Build (but do not stop) an HTTP server exposing the injected tRPC router over HTTP+SSE behind
- * the dual-path auth gate (x-cortex-token OR a verified Cf-Access-Jwt-Assertion), plus the SPA
- * static server. The server is already listening when this returns. Call `close()` for a clean
- * shutdown (force-closes live SSE sockets).
+ * Answer what never reaches the gate. Returns true when the response is already sent.
+ *
+ * CORS preflight: OPTIONS for a tRPC or custom path is answered 204 WITHOUT an auth check. The
+ * browser sends the preflight BEFORE attaching x-cortex-token to learn whether the server allows
+ * it — requiring the token on the preflight itself would create a bootstrapping impossibility.
+ *
+ * CSRF: before the gate, so a cross-site page cannot even probe whether a credential rides along.
+ */
+function answeredBeforeGate(
+  req: http.IncomingMessage, res: http.ServerResponse, kind: UiRequestKind, allowList: readonly string[] | undefined,
+): boolean {
+  if (req.method === 'OPTIONS' && kind.isApi) {
+    res.writeHead(204);
+    res.end();
+    return true;
+  }
+  if (kind.isApi && !SAFE_METHODS.has(req.method ?? 'GET') && !isTrustedOrigin(req, allowList)) {
+    log.warn(`ui-http cross-origin request refused: ${req.method} ${kind.pathname} from ${firstHeader(req.headers.origin)}`);
+    sendError(res, 403, 'cross-origin', 'Cross-origin request refused');
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Auth-gated non-tRPC endpoints (e.g. file upload), handled BEFORE tRPC so custom routes can shadow
+ * tRPC base-path prefixes if needed. The login / session-probe routes run the gate themselves (or
+ * need no credential at all), so they are reached before the check rather than through it.
+ */
+async function serveCustomRoute(
+  req: http.IncomingMessage, res: http.ServerResponse, opts: UiHttpHandlerOptions,
+  kind: UiRequestKind, publicRoutes: ReadonlySet<string>,
+): Promise<void> {
+  const authorized = publicRoutes.has(kind.pathname) || (await opts.authorize(req));
+  if (!authorized) {
+    log.warn(`ui-http auth rejected (custom route): ${req.method} ${kind.url}`);
+    sendUnauthorized(res);
+    return;
+  }
+  try {
+    await opts.customRoutes![kind.pathname](req, res);
+  } catch (e) {
+    log.error(`Custom route ${kind.url} error:`, (e as Error).message);
+    sendError(res, 500, 'internal', 'Internal server error');
+  }
+}
+
+/**
+ * tRPC paths. Triple-path auth: a matching x-cortex-token (desktop/machine — checked first,
+ * synchronous, so that path never awaits) OR a live session cookie (the token-login browser path)
+ * OR a valid Cf-Access-Jwt-Assertion (Cloudflare Access — the other browser path). None → 401.
+ */
+async function gateTrpc(
+  req: http.IncomingMessage, res: http.ServerResponse, next: () => void, authorize: Authorizer, url: string,
+): Promise<void> {
+  if (!(await authorize(req))) {
+    log.warn(`ui-http auth rejected: ${req.method} ${url}`);
+    sendUnauthorized(res);
+    return;
+  }
+  next();
+}
+
+/** Runs BEFORE the tRPC handler. tRPC paths are auth-gated here; everything else is the SPA stub. */
+function createUiMiddleware(opts: UiHttpHandlerOptions) {
+  const publicRoutes = new Set(opts.publicRoutes ?? []);
+  return async (req: http.IncomingMessage, res: http.ServerResponse, next: () => void): Promise<void> => {
+    // CORS headers go on first so they survive every downstream writeHead: Node merges setHeader
+    // entries with an explicit headers map, so the ACAO header appears on 200, 401 and 204 alike.
+    const allowList = corsAllowList(opts);
+    applyCorsHeaders(req, res, allowList);
+    const kind = classifyUiRequest(req, opts);
+    if (answeredBeforeGate(req, res, kind, allowList)) return;
+    if (kind.isCustomRoute) return serveCustomRoute(req, res, opts, kind, publicRoutes);
+    if (kind.isApi) return gateTrpc(req, res, next, opts.authorize, kind.url);
+    serveSpaStub(req, res, opts.spaDir);
+  };
+}
+
+/**
+ * Port forward (upgrade path). Deliberately TOKEN-ONLY: neither browser leg is accepted here. A
+ * browser page riding an Access SSO cookie — or our own `cortex_ui` session cookie — must never be
+ * able to open a raw TCP forward, and only a native client can set `x-cortex-token` on a WebSocket
+ * handshake anyway. Note that a browser WOULD attach the session cookie to this handshake
+ * automatically: calling `authorize(req)` here instead of `isAuthorized` would silently hand every
+ * logged-in page a raw socket to any loopback service on this host.
+ */
+function upgradeForward(
+  req: http.IncomingMessage, socket: Duplex, head: Buffer, opts: UiHttpHandlerOptions,
+  forward: ReturnType<typeof createPortForward>,
+): void {
+  if (!isAuthorized(req, opts.getToken, opts.matchDeviceToken)) {
+    log.warn(`forward auth rejected: ${req.url}`);
+    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+  forward.handleUpgrade(req, socket, head);
+}
+
+/** A handshake carries cookies like any request, so a foreign page is refused before the route sees it. */
+function upgradeRoute(
+  req: http.IncomingMessage, socket: Duplex, head: Buffer, opts: UiHttpHandlerOptions, route: UpgradeRoute,
+): void {
+  if (!isTrustedOrigin(req, corsAllowList(opts))) {
+    log.warn(`ui-http cross-origin upgrade refused: ${(req.url ?? '').split('?')[0]} from ${firstHeader(req.headers.origin)}`);
+    socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+  route.handleUpgrade(req, socket, head);
+}
+
+/**
+ * Build the UI's request and upgrade handlers without binding a port: the injected tRPC router over
+ * HTTP+SSE behind the auth gate (x-cortex-token, a session cookie, or a verified
+ * Cf-Access-Jwt-Assertion), the custom routes, the SPA static server, the port forward and the
+ * upgrade routes. The caller mounts them on its own server.
  *
  * CORS: if `corsOrigins` is provided, a matching `Origin` header causes non-wildcard CORS headers
  * to be set on all responses (including 401s, so the browser can read the error body). OPTIONS
  * preflight for tRPC paths is answered 204 without requiring the auth token — the token is the
  * header being pre-flighted.
  */
-export function createUiHttpServer(opts: UiHttpServerOptions): UiHttpServer {
-  const host = opts.host ?? '127.0.0.1';
-  const authorize = opts.authorize;
-  const publicRoutes = new Set(opts.publicRoutes ?? []);
-
-  const server = createHTTPServer({
+export function createUiHttpHandler(opts: UiHttpHandlerOptions): UiHttpHandler {
+  const handleRequest = createHTTPHandler({
     router: opts.router,
     basePath: TRPC_BASE_PATH,
     createContext: ({ req }) => opts.createContext?.(req) ?? {},
     maxBodySize: TRPC_MAX_BODY_BYTES,
-    // Runs BEFORE the tRPC handler. tRPC paths are auth-gated here; everything else is the SPA stub.
-    middleware: async (req, res, next) => {
-      const url = req.url ?? '/';
-
-      // ── CORS ──────────────────────────────────────────────────────────────────
-      // Apply headers early so they survive all downstream writeHead/write calls.
-      // Node.js merges setHeader entries with any explicit headers map passed to
-      // writeHead later — the ACAO header we set here will appear on 200, 401, and 204.
-      const allowList = typeof opts.corsOrigins === 'function' ? opts.corsOrigins() : opts.corsOrigins;
-      applyCorsHeaders(req, res, allowList);
-
-      // ── CORS preflight ────────────────────────────────────────────────────────
-      // OPTIONS for a tRPC path is answered 204 here WITHOUT an auth check.
-      // The browser sends the preflight BEFORE attaching x-cortex-token to learn
-      // whether the server allows it — requiring the token on the preflight itself
-      // would create a bootstrapping impossibility.
-      // Match custom routes on the PATHNAME (query string stripped) so routes that take query
-      // params (e.g. /api/files/download?path=…) still resolve. Exact-path routes (upload, OTA)
-      // are unaffected — they carry no query.
-      const pathname = url.split('?')[0];
-      const isCustomRoute = !!(opts.customRoutes && pathname in opts.customRoutes);
-      if (req.method === 'OPTIONS' && (url.startsWith(TRPC_BASE_PATH) || isCustomRoute)) {
-        res.writeHead(204);
-        res.end();
-        return;
-      }
-
-      // ── CSRF ──────────────────────────────────────────────────────────────────
-      // Before the gate, so a cross-site page cannot even probe whether a credential rides along.
-      const isApi = isCustomRoute || url.startsWith(TRPC_BASE_PATH);
-      if (isApi && !SAFE_METHODS.has(req.method ?? 'GET') && !isTrustedOrigin(req, allowList)) {
-        log.warn(`ui-http cross-origin request refused: ${req.method} ${pathname} from ${firstHeader(req.headers.origin)}`);
-        sendError(res, 403, 'cross-origin', 'Cross-origin request refused');
-        return;
-      }
-
-      // ── Custom API routes ─────────────────────────────────────────────────────
-      // Auth-gated non-tRPC endpoints (e.g. file upload). Handled BEFORE tRPC so
-      // custom routes can shadow tRPC base-path prefixes if needed.
-      if (isCustomRoute) {
-        // The login / session-probe routes run the gate themselves (or need no credential at all),
-        // so they are reached before the check rather than through it.
-        const authorized = publicRoutes.has(pathname) || (await authorize(req));
-        if (!authorized) {
-          log.warn(`ui-http auth rejected (custom route): ${req.method} ${url}`);
-          res.writeHead(401, { 'Content-Type': 'text/plain; charset=utf-8' });
-          res.end('Unauthorized');
-          return;
-        }
-        try {
-          await opts.customRoutes![pathname](req, res);
-        } catch (e) {
-          log.error(`Custom route ${url} error:`, (e as Error).message);
-          sendError(res, 500, 'internal', 'Internal server error');
-        }
-        return;
-      }
-
-      // ── tRPC paths ────────────────────────────────────────────────────────────
-      // Triple-path auth: a matching x-cortex-token (desktop/machine — checked first, synchronous,
-      // so that path is byte-for-byte unchanged and never awaits) OR a live session cookie (the
-      // token-login browser path) OR a valid Cf-Access-Jwt-Assertion (Cloudflare Access — the other
-      // browser path). None → 401.
-      if (url.startsWith(TRPC_BASE_PATH)) {
-        const authorized = await authorize(req);
-        if (!authorized) {
-          log.warn(`ui-http auth rejected: ${req.method} ${url}`);
-          res.writeHead(401, { 'Content-Type': 'text/plain; charset=utf-8' });
-          res.end('Unauthorized');
-          return;
-        }
-        next();
-        return;
-      }
-
-      // ── Non-tRPC (SPA static files) ───────────────────────────────────────────
-      serveSpaStub(req, res, opts.spaDir);
-    },
+    middleware: createUiMiddleware(opts),
   });
-
-  // ── Port forward (upgrade path) ─────────────────────────────────────────────
-  // Deliberately TOKEN-ONLY: neither browser leg is accepted here. A browser page riding an Access
-  // SSO cookie — or our own `cortex_ui` session cookie — must never be able to open a raw TCP
-  // forward, and only a native client can set `x-cortex-token` on a WebSocket handshake anyway.
-  // Note that a browser WOULD attach the session cookie to this handshake automatically: calling
-  // `authorize(req)` here instead of `isAuthorized` would silently hand every logged-in page a raw
-  // socket to any loopback service on this host. See plan/embedded-browser.md §10.
   const forward = opts.portForward === false ? null : createPortForward();
   const upgradeRoutes = opts.upgradeRoutes ?? {};
-  if (forward || Object.keys(upgradeRoutes).length > 0) {
-    server.on('upgrade', (req, socket, head) => {
-      const pathname = (req.url ?? '').split('?')[0];
-      if (forward && pathname === FORWARD_PATH) {
-        if (!isAuthorized(req, opts.getToken, opts.matchDeviceToken)) {
-          log.warn(`forward auth rejected: ${req.url}`);
-          socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-          socket.destroy();
-          return;
-        }
-        forward.handleUpgrade(req, socket, head);
-        return;
-      }
-      const route = Object.hasOwn(upgradeRoutes, pathname) ? upgradeRoutes[pathname] : undefined;
-      if (!route) {
-        socket.destroy();
-        return;
-      }
-      // A handshake carries cookies like any request, so a foreign page is refused before the route
-      // ever sees it.
-      const allowList = typeof opts.corsOrigins === 'function' ? opts.corsOrigins() : opts.corsOrigins;
-      if (!isTrustedOrigin(req, allowList)) {
-        log.warn(`ui-http cross-origin upgrade refused: ${pathname} from ${firstHeader(req.headers.origin)}`);
-        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
-        socket.destroy();
-        return;
-      }
-      route.handleUpgrade(req, socket, head as Buffer);
-    });
-  }
+  const handleUpgrade = (req: http.IncomingMessage, socket: Duplex, head: Buffer): boolean => {
+    const pathname = (req.url ?? '').split('?')[0];
+    if (forward && pathname === FORWARD_PATH) upgradeForward(req, socket, head, opts, forward);
+    else if (Object.hasOwn(upgradeRoutes, pathname)) upgradeRoute(req, socket, head, opts, upgradeRoutes[pathname]);
+    else return false;
+    return true;
+  };
+  const close = (): void => {
+    forward?.close();
+    for (const route of Object.values(upgradeRoutes)) route.close();
+  };
+  return { handleRequest, handleUpgrade, close };
+}
 
+/**
+ * A standalone UI server on its own port (tests and the dev script; the daemon mounts
+ * createUiHttpHandler on its main server instead). Already listening when this returns. Call
+ * `close()` for a clean shutdown (force-closes live SSE sockets).
+ */
+export function createUiHttpServer(opts: UiHttpServerOptions): UiHttpServer {
+  const host = opts.host ?? '127.0.0.1';
+  const ui = createUiHttpHandler(opts);
+  const server = http.createServer(ui.handleRequest);
+  server.on('upgrade', (req, socket, head) => {
+    if (!ui.handleUpgrade(req, socket, head as Buffer)) socket.destroy();
+  });
   server.listen(opts.port, host, () => {
     const addr = server.address();
     const boundPort = addr && typeof addr !== 'string' ? addr.port : opts.port;
     log.info(`Listening on ${host}:${boundPort}${TRPC_BASE_PATH}`);
   });
-
   const close = (): Promise<void> =>
     new Promise((resolve) => {
-      forward?.close();
-      for (const route of Object.values(upgradeRoutes)) route.close();
+      ui.close();
       // Force-close keep-alive + live SSE sockets, else server.close() would hang on them.
       server.closeAllConnections?.();
       server.close(() => resolve());
     });
-
   return { server, close };
 }
