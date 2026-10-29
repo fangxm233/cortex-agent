@@ -180,9 +180,12 @@ not start, even one that answers on the port and passes health checks: it may
 belong to another Cortex instance and carry that instance's credentials. A port
 held by any other process counts as taken. When the gateway moves, Cortex saves
 the new port to `config/.env` as `CORTEX_GATEWAY_PORT`, so later starts and CLI
-commands use it, and records the move in `$CORTEX_HOME/logs/gateway.log`. The
-port stays fixed for the life of the server process: a gateway that crashes
-restarts on the same port, and running sessions keep their route.
+commands use it, and records the move in `$CORTEX_HOME/logs/gateway.log`. If
+another process binds the port before the gateway first answers, as when two
+instances start at the same moment, the gateway moves to the next free port the
+same way. Once it has answered, the port stays fixed for the life of the server
+process: a gateway that crashes restarts on the same port, and running sessions
+keep their route.
 
 The gateway writes its PID to `$CORTEX_HOME/data/gateway.pid`. When a server
 process is killed without stopping its gateway, the next start finds that
