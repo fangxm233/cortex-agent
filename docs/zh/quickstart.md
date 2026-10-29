@@ -6,7 +6,7 @@ Cortex 通过 Slack 或飞书（Lark）与你对话——任选其一，或同�
 
 ## 不想用终端？ {#prefer-not-to-use-a-terminal}
 
-[桌面应用](desktop-app.md#installing-a-server-from-the-app)可以在 macOS、Linux 和 Windows 上替你安装并配置 Cortex。选择**安装 Cortex**，等待安装与启动自动完成，再登录并选择默认模型。全新安装使用本机 hostname、端口 3004，不安装登录自启服务；已有机器、端口和服务设置会被保留。只有初始化、启动或连接失败才提供修复设置。Slack 与飞书设置会被跳过——应用本身就是交互界面。登录可能需要在浏览器中授权或完成 MFA；macOS 首次打开应用时可能需要 Gatekeeper 确认。
+[桌面应用](desktop-app.md#installing-a-server-from-the-app)可以在 macOS、Linux 和 Windows 上替你安装并配置 Cortex。选择**安装 Cortex**，等待安装与启动自动完成，再登录并选择默认模型。全新安装使用本机 hostname、26789 起第一个空闲端口，不安装登录自启服务；已有机器、端口和服务设置会被保留。只有初始化、启动或连接失败才提供修复设置。Slack 与飞书设置会被跳过——应用本身就是交互界面。登录可能需要在浏览器中授权或完成 MFA；macOS 首次打开应用时可能需要 Gatekeeper 确认。
 
 安装包自带 Node.js，Windows 安装包另含 Git Bash，因此不需要终端、另行安装的 Node.js 或 Git、Homebrew 或管理员权限。本机安装支持 macOS 13.5+、glibc 2.28+ 的 x86_64 Linux，以及 x86_64 的 Windows 10/11；详见桌面应用指南。以下内容介绍终端安装与聊天平台设置。
 
@@ -388,7 +388,7 @@ cortex ui enable
 cortex daemon restart   # 仅当守护进程已在运行时需要
 ```
 
-`cortex ui enable` 会在需要时生成客户端 token，在 `$CORTEX_HOME/config/.env` 中设置 `CORTEX_UI_HTTP=1` 与 `CORTEX_UI_PORT=3004`，放行原生应用的 origin，并打印本地地址。然后运行 `cortex ui pair` 获取一次性配对码（10 分钟内有效）。在服务器上用浏览器打开 `http://127.0.0.1:3004`，用该配对码登录；或在[桌面应用](./desktop-app.md#first-connection)中填入地址和配对码。`.env` 中 `CORTEX_CLIENT_TOKEN` 的值在这两处同样可用。有一个设备登录后，就可以在它的**设置 → 机器 →「已连接的 App」**中为下一个设备生成配对码。要从其他电脑访问工作台，见[浏览器访问](./browser-access.md)。
+`cortex ui enable` 会在需要时生成客户端 token，在 `$CORTEX_HOME/config/.env` 中设置 `CORTEX_UI_HTTP=1`，保留已配置的 `CORTEX_UI_PORT`，未配置时写入 26789 起第一个空闲端口，放行原生应用的 origin，并打印本地地址。然后运行 `cortex ui pair` 获取一次性配对码（10 分钟内有效）。在服务器上用浏览器打开该地址（默认 `http://127.0.0.1:26789`），用该配对码登录；或在[桌面应用](./desktop-app.md#first-connection)中填入地址和配对码。`.env` 中 `CORTEX_CLIENT_TOKEN` 的值在这两处同样可用。有一个设备登录后，就可以在它的**设置 → 机器 →「已连接的 App」**中为下一个设备生成配对码。要从其他电脑访问工作台，见[浏览器访问](./browser-access.md)。
 
 ## 第四步 — 发送你的第一条消息 {#step-4-send-your-first-messages}
 

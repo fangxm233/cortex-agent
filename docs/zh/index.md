@@ -66,4 +66,4 @@ cortex ui enable
 cortex daemon
 ```
 
-服务器与聊天平台的详细设置见[快速入门](quickstart.md)。服务器启动后，可在服务器上打开 `http://127.0.0.1:3004` 进入工作台，按[浏览器访问](browser-access.md)从其他地方访问，或按[桌面与 Android 应用](desktop-app.md)连接原生客户端。
+服务器与聊天平台的详细设置见[快速入门](quickstart.md)。服务器启动后，可在服务器上打开 `cortex ui enable` 打印的地址（默认 `http://127.0.0.1:26789`）进入工作台，按[浏览器访问](browser-access.md)从其他地方访问，或按[桌面与 Android 应用](desktop-app.md)连接原生客户端。

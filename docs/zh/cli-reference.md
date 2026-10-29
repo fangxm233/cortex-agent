@@ -26,7 +26,7 @@ cortex <command> [options]
 
 **`cortex init [--home <path>] [--gateway-config-dir <path>] [--force] [--answers <file>] [--json]`**
 
-初始化 `CORTEX_HOME`。交互式向导默认使用内置 PI，不询问后端选择；收集平台（Slack / 飞书）、机器、用量报告与服务设置，写入 `.env`、复制默认配置，并生成 `mcp-config*.json` 文件、`machines.json`、`preferences.json` 和 `agent-state.json`。它还会初始化 `schedules.json`，在 `git` 可用时在 `CORTEX_HOME` 中创建 git 仓库，并可按回答启用本地 Web UI、安装系统服务。
+初始化 `CORTEX_HOME`。交互式向导默认使用内置 PI，不询问后端选择；收集平台（Slack / 飞书）、机器、用量报告与服务设置，写入 `.env`、复制默认配置，并生成 `mcp-config*.json` 文件、`machines.json`、`preferences.json` 和 `agent-state.json`。它还会初始化 `schedules.json`，在 `git` 可用时在 `CORTEX_HOME` 中创建 git 仓库，并可按回答启用本地 Web UI、安装系统服务。它保留已配置的 `CORTEX_UI_PORT`，未配置时把 26789 起（至 26999）第一个空闲端口写为实例的[主端口](./configuration.md#main-port)。
 
 写入配置后，向导检测本地 Provider 凭据，提供登录、重新检测、使用已配置的 Provider 继续，或带警告跳过。登录使用与 `cortex auth login` 相同的流程；选择 Claude Code 时复用已有安装，缺失时询问是否允许安装。继续操作会从检测到的端点配置 gateway 路由，并询问默认模型与收藏。默认项预选推荐模型，并包含在收藏中。检测不会发起付费推理请求，也不验证模型是否可调用。
 
@@ -57,7 +57,7 @@ cortex <command> [options]
 当它提示配置已改变时需重启 daemon：`.env` 只在进程启动时读取一次。
 
 选项：
-- `--port <n>` — 监听端口。不传时保留 `.env` 中已有的 `CORTEX_UI_PORT`，没有则使用 `3004`；端口无效时退出码为 1
+- `--port <n>` — 监听的[主端口](./configuration.md#main-port)；该端口必须空闲，否则以 1 退出且不写入任何内容。不传时保留 `.env` 中已有的 `CORTEX_UI_PORT`，没有则写入 26789 起（至 26999）第一个空闲端口；端口无效时退出码为 1
 - `--home <path>` — 设置 `CORTEX_HOME`（默认：`$CORTEX_HOME` 或 `~/.cortex`）
 - `--json` — 打印 `{ ok, home, url, token, port, changed }`
 
@@ -108,7 +108,7 @@ client 的 `CORTEX_HOME` 取自 `clientCommand` 中的 bundle 路径，默认是
 
 **`cortex daemon status`**
 
-打印守护进程的 PID 和运行时长，以及其 `app.js` 子进程的状态（PID 和运行时长、`starting...` 或 `none`）。
+打印守护进程的 PID 和运行时长，以及其 `app.js` 子进程的状态（PID 和运行时长、`starting...` 或 `none`）。`app.js` 因[主端口](./configuration.md#main-port)无法绑定而退出时，子进程显示为已停止及其原因；配置改变之前守护进程不会重启它。
 
 **`cortex daemon restart [--hard | --force]`**
 
@@ -124,12 +124,12 @@ client 的 `CORTEX_HOME` 取自 `clientCommand` 中的 bundle 路径，默认是
 
 **`cortex tui [--resume] [--project <id>] [--port <n>]`**
 
-打开连接到运行中服务器的终端聊天客户端。命令检查 TUI 网关是否在 `127.0.0.1:<port>` 上监听，未监听时以 1 退出并提示启动守护进程；否则在终端中运行客户端，并以它的退出码退出。
+打开连接到运行中服务器的终端聊天客户端。命令检查服务器是否在 `127.0.0.1:<port>` 上监听，未监听时以 1 退出并提示启动守护进程；否则在终端中运行客户端，并以它的退出码退出。客户端连接该端口的 `/tui`，用客户端 token 认证（`CORTEX_CLIENT_TOKEN`，取自环境变量，否则取自 `$CORTEX_HOME/config/.env`）。
 
 选项：
 - `--resume` — 连接后打开恢复会话的选择器
 - `--project <id>` — 在该项目中开启新会话
-- `--port <n>` — 网关端口（默认：`$CORTEX_TUI_PORT`，否则为 `3003`）
+- `--port <n>` — 服务器端口（默认：环境变量中的 `CORTEX_UI_PORT`，否则取 `$CORTEX_HOME/config/.env` 中的值，再否则为 `26789`）
 
 **`cortex install latest`**
 
@@ -311,7 +311,7 @@ cortex-browser [--device <name>] <agent-browser command> [args...]
 - `--device <name>` — 用谁的 Chrome：`server` 或一台已连接的设备。选定后对该会话一直生效（默认：该会话上次用的设备，没有则为 `server`）
 - `--help`、`-h` — 显示用法；`cortex-browser <command> --help` 显示单个 agent-browser 命令的用法
 
-每次调用都通过回环 webhook（`http://127.0.0.1:$WEBHOOK_PORT/webhook/browser`，用 `CORTEX_WEBHOOK_TOKEN` 认证）向守护进程要该会话的浏览器。会话取自 `CORTEX_SESSION_ID`（或 `CORTEX_EXECUTION_ID`）。Agent 的 shell 里这三个变量都已设好，因此在那里无需任何配置。`skills`、`help` 和 `--version` 不需要浏览器即可运行。
+每次调用都通过回环 webhook（`http://127.0.0.1:$CORTEX_UI_PORT/webhook/browser`，用 `CORTEX_WEBHOOK_TOKEN` 认证）向守护进程要该会话的浏览器。会话取自 `CORTEX_SESSION_ID`（或 `CORTEX_EXECUTION_ID`）。Agent 的 shell 里这三个变量都已设好，因此在那里无需任何配置。`skills`、`help` 和 `--version` 不需要浏览器即可运行。
 
 文件类命令（`screenshot`、`pdf`、`download`、`upload`、`record`、`trace`、`har`、`state` 等）的相对路径，以及 `--screenshot-dir`、`--download-path`、`--baseline` 的相对路径，都按调用方的工作目录解析。
 
@@ -418,22 +418,22 @@ cortex-signal [--id wp_…] [--secret …] [--status ok|fail|progress] [--messag
 - `--message <text>` — 一行摘要，显示在唤醒消息里
 - `--member <name>` — 多任务 waitpoint 中这条信号属于哪个成员
 - `--data <@file|-|text>` — 来自文件、stdin 或字面文本的附加载荷；它以数据身份到达 agent，绝不作为指令
-- `--url <url>` — 守护进程 signal 端点（默认：`http://127.0.0.1:$WEBHOOK_PORT/webhook/signal`）
-- `--no-spool` — 守护进程不可达时直接失败，不落盘
+- `--url <url>` — 守护进程 signal 端点（默认：`http://127.0.0.1:$CORTEX_UI_PORT/webhook/signal`，端口取自环境变量，否则取自该 home 的 `config/.env`）
+- `--no-spool` — 守护进程不可达或拒绝信号时直接失败，不落盘
 - `--help`、`-h` — 显示用法
 
 该端点只监听回环，并且**不**接受 `CORTEX_WEBHOOK_TOKEN`：每个 waitpoint 的 secret 是唯一凭证，而它除了解决自己那一个 waitpoint 之外什么都做不了。要从别的机器发信号，就在那台机器的 `~/.cortex/tmp/signals/` 里放一个 JSON 文件——见 [waitpoints.md](./waitpoints.md#on-another-machine)。
 
 ### 落盘缓冲 {#spooling}
 
-守护进程不可达时，信号会写到 `$CORTEX_HOME/tmp/signals/<name>.json`（先写 `.tmp` 再重命名，因此半截文件永远不会被读取），命令仍然以 0 退出。守护进程会在下一次 sweep 时收走该目录中的信号，因此重启期间发出的信号只是延迟，不会丢失。`--no-spool` 关闭这一行为，改为以 1 退出。
+守护进程不可达，或服务器返回 `401`、`413`、`422` 以外的错误（例如不认识该 waitpoint 的服务器返回的 `404`，或 `429`）时，信号会写到 `$CORTEX_HOME/tmp/signals/<name>.json`（先写 `.tmp` 再重命名，因此半截文件永远不会被读取），命令仍然以 0 退出。守护进程会在下一次 sweep 时收走该目录中的信号，因此重启期间发出的信号只是延迟，不会丢失。`--no-spool` 关闭这一行为，改为以 1 退出。
 
 ### 退出码 {#exit-codes_2}
 
 | 代码 | 含义 |
 |---|---|
 | 0 | 已接受、已落盘，或该 waitpoint 早已被解决 |
-| 1 | 被拒绝（secret 错误、id 未知、被限流），或带 `--no-spool` 且不可达 |
+| 1 | 以 `401`（secret 错误）、`413`（请求体过大）或 `422`（成员缺失或不在名单上）被拒绝，或带 `--no-spool` 时不可达或返回其他错误 |
 | 2 | 用法错误（缺少 id/secret、未知标志、缺少取值、`--status` 或 `--exit-code` 非法、`--data` 文件无法读取） |
 
 早已被解决的 waitpoint 故意以 0 退出：重试的脚本不应把“别人已经报过了”当成失败。

@@ -147,18 +147,8 @@ start (see [Automatic migration out of .env](#automatic-migration-out-of-env)).
 |---|---|---|
 | `CORTEX_MACHINE` | `os.hostname()` | Machine label for startup DM |
 | `CORTEX_LANG` | `config/preferences.json`, else `en` | Language of system-generated messages (`en` or `zh`). Outranks the preference that `!lang` writes |
-| `CORTEX_CLIENT_PORT` | `3002` | WebSocket port for cortex-client manager |
-| `CORTEX_CLIENT_HOST` | Unspecified (all interfaces) | Bind address for the cortex-client WebSocket listener only; read at server startup |
 | `CORTEX_CLIENT_TOKEN` | generated | Shared secret that remote clients present; the desktop app and the Web UI accept it as an alternative to a pairing code. `cortex init` and the first server start generate it |
 | `CORTEX_WEBHOOK_TOKEN` | generated | Bearer token of the loopback webhook (hook callbacks, `cortex-hook ask`). Generated the same way |
-
-A new Windows local App installation writes `CORTEX_CLIENT_HOST=127.0.0.1` to
-`config/.env`. Existing installations, ordinary CLI init, and other platforms keep
-their existing defaults and configuration. For intentional LAN-direct clients,
-explicitly set this variable to an appropriate bind address (for example,
-`0.0.0.0` for all IPv4 interfaces) and restart the server. Cortex does not
-configure firewall policy automatically. This setting does not affect Web UI,
-TUI, or other server listeners.
 
 ### Local model gateway
 
@@ -199,21 +189,12 @@ generated and updated gateway YAML, and a moved port into the existing YAML's
 `port:` as well. Editing only the YAML `port:` does not change the port Cortex
 uses. With no port override, YAML merges preserve existing fields.
 
-For a second instance, use a different `CORTEX_HOME` and set **both** gateway
-variables before provider setup or startup. Merely changing `CORTEX_HOME` does not
-isolate the gateway. Choose unused ports for every enabled listener, for example
-in the second instance's `config/.env`:
-
-```dotenv
-CORTEX_GATEWAY_PORT=9881
-CORTEX_GATEWAY_HOME=/absolute/path/to/cortex-second/data/gateway-home
-WEBHOOK_PORT=3101
-CORTEX_CLIENT_PORT=3102
-CORTEX_CLIENT_HOST=127.0.0.1
-CORTEX_TUI_PORT=3103
-CORTEX_UI_HTTP=1
-CORTEX_UI_PORT=3104
-```
+A second instance on the same machine, whether it belongs to another user or to
+the same one, needs only a different `CORTEX_HOME`. Ports are picked
+automatically: `cortex init` writes a free [main port](#main-port) into the
+instance's `config/.env`, and the gateway takes a free port when the server
+starts. Instances of the same OS user share the gateway's files in
+`~/.aistatus` unless `CORTEX_GATEWAY_HOME` gives the second one a private home.
 
 Always launch that instance and its CLI commands with
 `CORTEX_HOME=/absolute/path/to/cortex-second`. Paths in `.env` must be absolute;
@@ -269,6 +250,54 @@ still read as a deprecated fallback.
 | `ANTHROPIC_API_KEY` | Anthropic API key used by Claude Code runs on a metered (`api`) route |
 | `ANTHROPIC_BASE_URL` | Anthropic endpoint for Claude Code runs while the local gateway is down. With the gateway healthy, each run's base URL is its gateway route instead |
 
+### Main port
+
+Each Cortex instance listens on one main port, and every endpoint is served on
+it: the Web UI host for the browser workbench and the desktop and Android apps,
+the webhook routes that hooks, MCP tools, `cortex-signal` and `cortex-browser`
+call, cortex-client connections, the `cortex tui` socket, desktop port
+forwarding and the browser stream.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `CORTEX_UI_PORT` | `26789` | The instance's main port |
+| `CORTEX_UI_HOST` | `127.0.0.1` | Bind address of the main port. Set it to an address remote devices can reach (or `0.0.0.0`) for clients that connect directly over a LAN or Tailscale |
+| `CORTEX_CLIENT_PORT` | unset | Optional second listener for cortex-client connections. When set, clients may use either this port or the main port |
+| `CORTEX_CLIENT_HOST` | Unspecified (all interfaces) | Bind address of the `CORTEX_CLIENT_PORT` listener; has no effect without it |
+
+The routes on the main port:
+
+| Path | Serves |
+|---|---|
+| SPA and `/trpc` | Web UI, desktop app and Android app. Only when `CORTEX_UI_HTTP` is on; otherwise these routes answer 404 |
+| `/webhook/*`, `/hook/*` | Callbacks from hooks, MCP tools, `cortex-signal` and `cortex-browser`. They accept only loopback requests without forwarding headers, so a request that arrives through a tunnel or reverse proxy is refused, and they check the webhook token |
+| `/client`, and any other WebSocket path including `/` | cortex-client connections, so `wss://<tunnel-host>` works as a client URL |
+| `/reverse` | Callback sockets that clients open for file transfers and port forwards |
+| `/tui` | `cortex tui`. Requires the client token (`CORTEX_CLIENT_TOKEN`, sent as `x-cortex-token`) and rejects a cross-site `Origin` |
+| `/forward`, `/api/browser/stream` | Desktop port forwarding and the browser stream |
+
+`cortex init`, `cortex ui enable` and the desktop app's setup keep a configured
+`CORTEX_UI_PORT`. Without one, they write the first free port from 26789 up to
+26999 into `$CORTEX_HOME/config/.env` and report URLs with it. An explicit port
+(`cortex ui enable --port <n>` or the port field of the desktop setup form) must
+be free; otherwise the command fails and nothing is written.
+
+The server takes `CORTEX_UI_PORT` from its process environment, else from
+`$CORTEX_HOME/config/.env`, else uses 26789, and exports the port it uses to the
+agents it starts. Hooks, `cortex-signal`, `cortex-browser`, `cortex tui` and MCP
+tools resolve the port the same way.
+
+If the main port cannot be bound at start, app.js exits with code 78 and prints
+which port is taken, advising to set `CORTEX_UI_PORT` in
+`$CORTEX_HOME/config/.env` to a free port and run `cortex daemon restart`. The
+daemon does not restart it in a loop: `cortex daemon status` shows the child as
+stopped with that reason. The daemon restarts app.js when `.env` changes. The
+desktop app reports that the port is in use and offers a free port in its setup
+form.
+
+Cortex ignores `WEBHOOK_PORT` and `CORTEX_TUI_PORT` and logs a warning once when
+they are set.
+
 ### Web UI and TUI
 
 The Web UI host serves the browser workbench, the desktop app and the mobile
@@ -277,15 +306,13 @@ Cloudflare Access in depth.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `CORTEX_UI_HTTP` | off | `1`, `true`, `on` or `yes` starts the Web UI host. `cortex ui enable` sets it |
-| `CORTEX_UI_PORT` | `3004` | Port of the Web UI host, bound to `127.0.0.1` |
+| `CORTEX_UI_HTTP` | off | `1`, `true`, `on` or `yes` serves the Web UI host's routes on the [main port](#main-port). `cortex ui enable` sets it |
 | `CORTEX_UI_SPA_DIR` | the packaged `web/dist` | Directory of the web app the host serves |
 | `CORTEX_UI_TOKEN_LOGIN` | on | Browser login with the client token or a pairing code, and app pairing with one-time codes. `0`, `false`, `off` or `no` removes the login and pairing routes; already-paired apps keep working |
 | `CORTEX_UI_SESSION_TTL_DAYS` | `30` | Lifetime of a browser login session, in days |
 | `CORTEX_ACCESS_TEAM_DOMAIN`, `CORTEX_ACCESS_AUD`, `CORTEX_ACCESS_CERTS_URL` | — | Cloudflare Access JWT verification for browsers; both of the first two are needed to enable it |
 | `CORTEX_PORT_FORWARD` | on | `0` disables the Web UI's port forwarding to remote machines |
 | `CORTEX_TUI` | on | `0` stops the TUI gateway |
-| `CORTEX_TUI_PORT` | `3003` | Port of the TUI gateway, also the one `cortex tui` connects to |
 
 ### Rate limiting (Slack)
 
@@ -295,12 +322,6 @@ Cloudflare Access in depth.
 | `CORTEX_SLACK_RL_GLOBAL_REFILL_PER_SEC` | `1` | Global refill rate per second |
 | `CORTEX_SLACK_RL_CHANNEL_CAPACITY` | `1` | Per-channel bucket capacity |
 | `CORTEX_SLACK_RL_CHANNEL_REFILL_PER_SEC` | `1` | Per-channel refill rate per second |
-
-### Webhook
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `WEBHOOK_PORT` | `3001` | Port of the loopback webhook server that receives hook, waitpoint, subagent and board callbacks |
 
 ### Data file overrides
 
@@ -854,11 +875,11 @@ Three categories of variables deliberately remain in `.env`:
   settings in a loose sense, but keeping them out of a file that the Web UI can
   read and write keeps the blast radius small.
 - **Variables consumed by child processes** — `CORTEX_HOME`,
-  `CORTEX_PROJECTS_DIR`, `WEBHOOK_PORT`, `DEBUG`, `CORTEX_LANG`, and the data
+  `CORTEX_PROJECTS_DIR`, `CORTEX_UI_PORT`, `DEBUG`, `CORTEX_LANG`, and the data
   file overrides. Hooks, MCP servers, the CLI, and `cortex-client` inherit the
   daemon's environment; a server-side JSON file would never reach them.
 - **Startup topology** — `CORTEX_PLATFORM`, `CORTEX_MACHINE`, `CORTEX_UI_HTTP`,
-  `CORTEX_UI_PORT`, `CORTEX_UI_SPA_DIR`, `CORTEX_UI_TOKEN_LOGIN`. These decide
+  `CORTEX_UI_HOST`, `CORTEX_CLIENT_PORT`, `CORTEX_UI_SPA_DIR`, `CORTEX_UI_TOKEN_LOGIN`. These decide
   which adapters and listeners exist at boot, so hot-reloading them would have
   no meaning; they require a restart by construction.
 

@@ -243,8 +243,10 @@ exists because the agent could otherwise do anything that account can do.
 
 The server's own interfaces are guarded mechanically:
 
-- The webhook listener that MCP tools and hook scripts call (`WEBHOOK_PORT`,
-  default 3001) binds to `127.0.0.1` only, and every route requires the
+- The webhook routes that MCP tools and hook scripts call (`/webhook/*` and
+  `/hook/*` on the [main port](./configuration.md#main-port)) accept only
+  loopback requests that carry no forwarding headers, so a request arriving
+  through a tunnel or reverse proxy is refused, and every route requires the
   `CORTEX_WEBHOOK_TOKEN` bearer token in the `x-cortex-token` header. The one
   exception is `/webhook/signal`, which authenticates each request with a
   secret scoped to a single [waitpoint](./waitpoints.md#security).

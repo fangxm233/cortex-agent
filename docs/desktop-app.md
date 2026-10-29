@@ -40,7 +40,7 @@ The local server always runs on the bundled runtime. When a runtime directory is
 
 The bundled Node.js determines where local installation works: macOS 13.5 or later, Linux x86_64 with glibc 2.28 or later, and Windows 10 or 11 on x86_64. On other systems the app can still connect to an existing server.
 
-Installation continues automatically through initialization, server startup, and connection. A new installation uses this computer's hostname, port 3004, no login service, and the `cortex` terminal command. There is no machine-settings page or **Start Cortex** confirmation on this path. Progress remains one installation row, with technical details in **Activity log**. A new installation opens provider setup at `/setup/providers` for login and a default model before entering the workbench. PI is bundled with Cortex; setup does not ask you to choose backends.
+Installation continues automatically through initialization, server startup, and connection. A new installation uses this computer's hostname, the first free port from 26789 up, no login service, and the `cortex` terminal command. There is no machine-settings page or **Start Cortex** confirmation on this path. Progress remains one installation row, with technical details in **Activity log**. A new installation opens provider setup at `/setup/providers` for login and a default model before entering the workbench. PI is bundled with Cortex; setup does not ask you to choose backends.
 
 If initialization, startup, or connection fails, **Try again** reuses the original setup choices. **Edit settings** opens the repair form; starting from this form can restart the local server to apply an explicitly selected port. Automatic setup preserves a responding server. Installation failures offer retry, not machine settings.
 
@@ -60,7 +60,7 @@ To enable the endpoint on an existing install without the wizard, run one comman
 cortex ui enable
 ```
 
-This generates the client token if needed, sets `CORTEX_UI_HTTP` and `CORTEX_UI_PORT`, and adds the app's origins to `uiCorsOrigins`. Restart the daemon afterwards when it reports that the configuration changed. `cortex ui pair` then prints a one-time pairing code for the first app (see [First connection](#first-connection)). [Server configuration](#server-configuration) describes the same settings by hand.
+This generates the client token if needed, sets `CORTEX_UI_HTTP`, keeps a configured `CORTEX_UI_PORT` or writes the first free port from 26789 up, and adds the app's origins to `uiCorsOrigins`. Restart the daemon afterwards when it reports that the configuration changed. `cortex ui pair` then prints a one-time pairing code for the first app (see [First connection](#first-connection)). [Server configuration](#server-configuration) describes the same settings by hand.
 
 ### Using cortex in a terminal
 
@@ -95,11 +95,11 @@ After a new local installation connects, quitting on this page and reopening the
 
 ## Server configuration
 
-The native shell talks to the server's opt-in Web UI endpoint. The endpoint itself is startup topology, so it stays in `$CORTEX_HOME/config/.env` on the server:
+The native shell talks to the server's opt-in Web UI endpoint on its [main port](./configuration.md#main-port). The endpoint itself is startup topology, so it stays in `$CORTEX_HOME/config/.env` on the server:
 
 ```bash
 CORTEX_UI_HTTP=1
-CORTEX_UI_PORT=3004
+CORTEX_UI_PORT=26789
 ```
 
 The allowed CORS origins are a runtime setting. Add or confirm the `uiCorsOrigins` key in `$CORTEX_HOME/config/settings.json` (see [configuration.md](./configuration.md#configsettingsjson)):
@@ -308,13 +308,15 @@ If you set `CORTEX_HOME`, substitute that directory for `~/.cortex` or
 
 The app also starts a local server at launch, so reopening it retries.
 
+When another process holds the server's port, the server does not start, and `cortex daemon status` shows the reason. The app reports that the port is in use and offers a free port in its setup form.
+
 ### Credentials do not persist
 
 The app saves the connection in its data directory (see [First connection](#first-connection)). When that directory is not writable, fresh local setup cannot finish, and ordinary connections last only for the current process. Make the directory writable, or launch the app with an explicit connection to the running server:
 
 
 ```bash
-CORTEX_SERVER_URL=http://localhost:3004 CORTEX_TOKEN='<client-token>' ./Cortex.AppImage
+CORTEX_SERVER_URL=http://localhost:26789 CORTEX_TOKEN='<client-token>' ./Cortex.AppImage
 ```
 
 Use the value of `CORTEX_CLIENT_TOKEN` in `$CORTEX_HOME/config/.env` (default `~/.cortex/config/.env`) as `<client-token>`. `CORTEX_TOKEN` is the native-shell fallback variable; it does not replace the server setting. This fallback connects to an already-running server and does not start it automatically.

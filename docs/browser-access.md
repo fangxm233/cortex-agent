@@ -42,8 +42,9 @@ When enabled, the transport:
 - gates every `/trpc` request behind an auth check that accepts any of three credentials (see
   [Authentication](#authentication)).
 
-It runs in the same process as the server, binds to `127.0.0.1`, and is meant to be exposed
-to the internet only through a tunnel.
+It runs in the same process as the server on the instance's
+[main port](./configuration.md#main-port) (`CORTEX_UI_PORT`, bound to `127.0.0.1` by default), and
+is meant to be exposed to the internet only through a tunnel.
 
 ## Deployment runbook (source → running server)
 
@@ -103,8 +104,8 @@ adds the native apps' origins to `uiCorsOrigins`. It is safe to repeat, and it r
 configuration changed. To configure the endpoint by hand instead, add to `~/.cortex/config/.env`:
 
 ```bash
-CORTEX_UI_HTTP=1          # opt-in: start the tRPC HTTP + SSE endpoint (required)
-CORTEX_UI_PORT=3004       # optional; defaults to 3004
+CORTEX_UI_HTTP=1          # opt-in: serve the tRPC HTTP + SSE endpoint (required)
+CORTEX_UI_PORT=26789      # the main port; cortex ui enable writes a free one
 ```
 
 This alone is enough to open the workbench from a browser: token login is on by default, so the
@@ -113,8 +114,8 @@ SPA will ask for a pairing code or the `clientToken` and exchange it for a sessi
 a one-time code for the first browser or app (see
 [Pairing codes and connected apps](#pairing-codes-and-connected-apps)).
 
-`CORTEX_UI_HTTP` accepts `1`, `true`, `on`, or `yes`. With it unset, the endpoint — and the
-Web UI transport, along with `@trpc/server` / `jose` — never loads.
+`CORTEX_UI_HTTP` accepts `1`, `true`, `on`, or `yes`. With it unset, the Web UI transport, along
+with `@trpc/server` / `jose`, never loads, and the Web UI routes on the main port answer 404.
 
 ### 5. Restart the daemon to apply
 
@@ -132,7 +133,7 @@ cortex daemon restart
     Restart when the system is idle, and if your Cortex instance runs under an approval policy,
     route the restart through that approval step.
 
-At this point the server is reachable at `http://127.0.0.1:3004` **on the server host only**.
+At this point the server is reachable at `http://127.0.0.1:26789` (or your `CORTEX_UI_PORT`) **on the server host only**.
 Exposing it to a browser is the next section.
 
 ## Authentication
@@ -173,7 +174,7 @@ request.
 browser
   │  https (Cloudflare Access: email / IdP login at the edge)
   ▼
-Cloudflare Tunnel   (cortex-ui.example.com  →  server localhost:3004)
+Cloudflare Tunnel   (cortex-ui.example.com  →  server localhost:26789)
   │  edge injects  Cf-Access-Jwt-Assertion  on every request
   ▼
 agent-server Web UI transport  (verifies the JWT; the browser never holds clientToken)
@@ -184,13 +185,14 @@ agent-server Web UI transport  (verifies the JWT; the browser never holds client
 ### 1. Create a dedicated UI hostname and tunnel route
 
 Point a Cloudflare Tunnel route from a **new** public hostname (for example
-`cortex-ui.example.com`) to the server's loopback endpoint (`http://127.0.0.1:3004`, or your
+`cortex-ui.example.com`) to the server's loopback endpoint (`http://127.0.0.1:26789`, or your
 `CORTEX_UI_PORT`).
 
 !!! danger "Use a separate hostname from the cortex-client endpoint"
     The hostname your remote `cortex-client` instances connect to must **not** be placed behind
     Cloudflare Access — Access would block the WebSocket clients. Always give the browser UI its
-    **own** hostname and apply Access only to that one.
+    **own** hostname and apply Access only to that one. Both hostnames route to the same main
+    port.
 
 ### 2. Add a Cloudflare Access application (account-side ops)
 
@@ -390,6 +392,6 @@ built bundle, then restart.
 **Nothing is reachable at the UI hostname**
 
 1. Confirm `CORTEX_UI_HTTP=1` is set and the daemon was restarted after adding it.
-2. On the server, confirm the endpoint is up: `curl http://127.0.0.1:3004/trpc` should answer
+2. On the server, confirm the endpoint is up: `curl http://127.0.0.1:26789/trpc` (or your `CORTEX_UI_PORT`) should answer
    `401 Unauthorized` (not connection-refused).
 3. Confirm the Cloudflare Tunnel is running and its route points at the correct port.

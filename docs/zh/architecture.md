@@ -58,7 +58,7 @@ L5  entry/         → everything (composition root)
 `orchestration/` 还必须没有导入环。
 
 - **`agent-adapter/`** —— 两个 LLM 后端的抽象（Claude Code 和 PI）。`domain/runs/adapters.ts` 是组装这些适配器的唯一位置。
-- **`platform/`** —— 消息与传输层：Slack 和飞书适配器、TUI 网关、同时运行多个平台的组合适配器（`adapters/`）、Web UI HTTP 宿主（`ui-http/`），以及服务器上的 Chrome 和 agent-browser 进程调用（`browser/`）。
+- **`platform/`** —— 消息与传输层：Slack 和飞书适配器、TUI 网关、同时运行多个平台的组合适配器（`adapters/`）、所有端点共用的实例主端口 HTTP 服务器（`main-http/`）、Web UI HTTP 宿主（`ui-http/`），以及服务器上的 Chrome 和 agent-browser 进程调用（`browser/`）。
 
 另一个目录 **`tui/`** 是 `cortex tui` 运行的 Ink 终端客户端。它只通过 TUI 网关的 WebSocket 与服务器通信，共用网关的协议类型和 i18n 字符串，没有自己的分层规则。
 
@@ -191,7 +191,7 @@ L5  entry/         → everything (composition root)
 | `human-answer-backstop.ts` | 等待人工自由文本回复的频道的叶子注册表，每个进入会话的入口都会查询它，使回复被消费而不是开启新回合 |
 | `routing/message-router.ts` | 平台消息入口：在适配器上注册入站消息处理器，并委托给 orchestrator |
 | `routing/commands/` | `!command` 处理器，每个命令族一个模块：`cancel`、`channel`、`compact`、`cost`、`device`、`lang`、`login`（含 `login-custom`）、`mode`、`nvtop`、`orient`、`restart`、`schedule`、`sendfile`、`session`、`status`、`tail`、`usage`（含 `usage-reset`）。`index.ts` 把命令词——`!agent`、`!backend`、`!model`、`!thinking`、`!new`、`!resume`、`!usage` 等——映射到这些模块 |
-| `routing/webhook.ts` | 回环 webhook 服务器（`WEBHOOK_PORT`，默认 3001）：钩子回调、`cortex-signal`、`cortex-browser` 租约（`browser-webhook.ts`）、子代理、团队和看板回调 |
+| `routing/webhook.ts` | 回环 webhook 路由（主端口上的 `/webhook/*`、`/hook/*`）：钩子回调、`cortex-signal`、`cortex-browser` 租约（`browser-webhook.ts`）、子代理、团队和看板回调 |
 | `routing/hook-bridge.ts` | PreToolUse 钩子 → EventBus 桥接。发布 `plan.submitted` 和 `ask-user.requested` |
 | `routing/hook-bridge-subscribers.ts` | 把问题或提交的计划转为交互记录的订阅者，各个界面将其渲染为卡片 |
 | `interactions/` | AskUserQuestion 流程、计划审批状态机、按钮/模态框动作路由 |
@@ -319,7 +319,7 @@ fast install / pack-install 路径。在空闲维护窗口执行 `cortex daemon 
 
 ## WebSocket 协议（服务器 ↔ 客户端） {#websocket-protocol-server-client}
 
-WebSocket 协议用于**远程设备命令执行**，不承载聊天或 UI 流量。服务器通过 `startClientManager()` 运行 WebSocket 服务器（默认端口 3002，`CORTEX_CLIENT_PORT`）。每个连接都在 `x-cortex-token` 头中出示客户端 token。完整的跨机器方案——部署、网络拓扑和安全——参见 [cross-machine.md](./cross-machine.md)。
+WebSocket 协议用于**远程设备命令执行**，不承载聊天或 UI 流量。服务器在主端口（`CORTEX_UI_PORT`，默认 26789）的 `/client` 或其他未被占用的路径上接受客户端 WebSocket，流的回连 socket 使用 `/reverse`；设置了 `CORTEX_CLIENT_PORT` 时，`startClientManager()` 另开一个监听端口。每个连接都在 `x-cortex-token` 头中出示客户端 token。完整的跨机器方案——部署、网络拓扑和安全——参见 [cross-machine.md](./cross-machine.md)。
 
 ### 消息流 {#message-flow}
 
@@ -340,7 +340,7 @@ WebSocket 协议用于**远程设备命令执行**，不承载聊天或 UI 流�
 
 ## Web UI 协议 {#web-ui-protocol}
 
-浏览器工作台、桌面应用和移动应用都通过同一个 HTTP 宿主（`platform/ui-http/`）与服务器通信，它在 `CORTEX_UI_HTTP` 开启时启动。它监听 `127.0.0.1:3004`（`CORTEX_UI_PORT`）；远程访问经由隧道或局域网代理（参见 [browser-access.md](./browser-access.md) 和 [desktop-app.md](./desktop-app.md)）。
+浏览器工作台、桌面应用和移动应用都通过同一个 HTTP 宿主（`platform/ui-http/`）与服务器通信，它在 `CORTEX_UI_HTTP` 开启时挂载到主端口上。主端口默认监听 `127.0.0.1:26789`（`CORTEX_UI_HOST`、`CORTEX_UI_PORT`；见 [configuration.md](./configuration.md#main-port)）；远程访问经由隧道或局域网代理（参见 [browser-access.md](./browser-access.md) 和 [desktop-app.md](./desktop-app.md)）。
 
 - **tRPC** 位于 `/trpc/` 下。query 和 mutation 是针对 `domain/ui-service/app-router.ts` 中 `AppRouter` 的普通 HTTP 请求；web 应用从 `packages/ui-contract` 获取类型。
 - **实时事件**通过 Server-Sent Events 上的单个 `subscribe` 订阅传递。客户端指定想要的事件类型，可限定到某个项目或会话，服务器经有界队列转发总线上匹配的 `CortexEvent`，客户端跟不上时发送 `ui-subscribe.dropped`。订阅流式文本的客户端会先收到一份进行中的助手消息快照。
@@ -348,7 +348,7 @@ WebSocket 协议用于**远程设备命令执行**，不承载聊天或 UI 流�
 - **其他路由**：文件下载与附件上传（`/api/files/download`、`/api/attachments/upload`）、看板资源（`/api/boards/asset`）、桌面应用下载的 web bundle 更新（`/api/ui-ota/manifest.json`、`/api/ui-ota/bundle.zip`）、原生应用更新清单（`/api/app-update/manifest.json`）、到远程机器的端口转发（`/api/forward/*`，配合 `/forward` WebSocket），以及 agent 浏览器：会话列表、接管和输入文本（`/api/browser/*`），实时画面走 `/api/browser/stream` WebSocket。
 - 同一个宿主还提供构建好的 web 应用，因此浏览器从同一个源加载 UI 及其 API。
 
-TUI 使用端口 3003（`CORTEX_TUI_PORT`）上单独的 WebSocket 网关，钩子和信号则通过端口 3001 上的回环 webhook 到达服务器。
+TUI 用客户端 token 连接同一端口上的 `/tui` WebSocket，钩子和信号则通过那里只接受回环请求的 webhook 路由到达服务器。
 
 ## 事件总线拓扑 {#event-bus-topology}
 

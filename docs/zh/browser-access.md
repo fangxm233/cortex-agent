@@ -38,7 +38,7 @@ Web UI 传输层**内置**于 `@cortex-agent/server`，按需在 `CORTEX_UI_HTTP
   domain 服务（无代理、无 sidecar）；
 - 每个 `/trpc` 请求都经过认证门控，三种凭据任一有效即可放行（见 [认证](#authentication)）。
 
-它与服务器运行在同一进程中，绑定到 `127.0.0.1`，设计上只应通过隧道对外暴露。
+它与服务器运行在同一进程中，位于实例的[主端口](./configuration.md#main-port)上（`CORTEX_UI_PORT`，默认绑定到 `127.0.0.1`），设计上只应通过隧道对外暴露。
 
 ## 部署运行手册（源码 → 运行中的服务器） {#deployment-runbook-source-running-server}
 
@@ -96,16 +96,16 @@ cortex ui enable          # 可选：--port <n>、--home <dir>、--json
 `~/.cortex/config/.env` 中添加：
 
 ```bash
-CORTEX_UI_HTTP=1          # 主动开启：启动 tRPC HTTP + SSE 端点（必需）
-CORTEX_UI_PORT=3004       # 可选，默认为 3004
+CORTEX_UI_HTTP=1          # 主动开启：提供 tRPC HTTP + SSE 端点（必需）
+CORTEX_UI_PORT=26789      # 主端口；cortex ui enable 会写入一个空闲端口
 ```
 
 仅这一项就足以让浏览器打开工作台：token 登录默认开启，SPA 会询问配对码或 `clientToken` 并把它
 换成一个会话（见[用 token 登录的浏览器访问](#browser-access-with-a-token-no-cloudflare)）。
 `cortex ui pair` 会为第一个浏览器或应用打印一次性配对码（见[配对码与已连接的 App](#pairing-codes-and-connected-apps)）。
 
-`CORTEX_UI_HTTP` 接受 `1`、`true`、`on` 或 `yes`。未设置时，该端点——以及 Web UI 传输层
-连同 `@trpc/server` / `jose`——都不会加载。
+`CORTEX_UI_HTTP` 接受 `1`、`true`、`on` 或 `yes`。未设置时，Web UI 传输层连同
+`@trpc/server` / `jose` 都不会加载，主端口上的 Web UI 路由返回 404。
 
 ### 5. 重启守护进程以生效 {#5-restart-the-daemon-to-apply}
 
@@ -122,7 +122,7 @@ cortex daemon restart
     会中断正在运行的智能体。请在系统空闲时重启；如果你的 Cortex 实例运行在审批策略之下，
     请让重启走该审批步骤。
 
-此时服务器**仅在服务器主机上**可通过 `http://127.0.0.1:3004` 访问。把它暴露给浏览器
+此时服务器**仅在服务器主机上**可通过 `http://127.0.0.1:26789`（或你的 `CORTEX_UI_PORT`）访问。把它暴露给浏览器
 是下一节的内容。
 
 ## 认证 {#authentication}
@@ -157,7 +157,7 @@ JWT 路径被禁用，认证门安全降级——未配置的 Access 路径绝�
 浏览器
   │  https（Cloudflare Access：在边缘用邮箱 / IdP 登录）
   ▼
-Cloudflare Tunnel   (cortex-ui.example.com  →  服务器 localhost:3004)
+Cloudflare Tunnel   (cortex-ui.example.com  →  服务器 localhost:26789)
   │  边缘在每个请求上注入  Cf-Access-Jwt-Assertion
   ▼
 agent-server Web UI 传输层  （校验 JWT；浏览器从不持有 clientToken）
@@ -168,12 +168,12 @@ agent-server Web UI 传输层  （校验 JWT；浏览器从不持有 clientToken
 ### 1. 建立专用 UI hostname 与隧道路由 {#1-create-a-dedicated-ui-hostname-and-tunnel-route}
 
 将一条 Cloudflare Tunnel 路由从一个**新的**公开 hostname（例如 `cortex-ui.example.com`）
-指向服务器的 loopback 端点（`http://127.0.0.1:3004`，或你的 `CORTEX_UI_PORT`）。
+指向服务器的 loopback 端点（`http://127.0.0.1:26789`，或你的 `CORTEX_UI_PORT`）。
 
 !!! danger "与 cortex-client 端点使用不同的 hostname"
     你的远程 `cortex-client` 实例所连接的 hostname **绝不能**放在 Cloudflare Access 之后
     ——Access 会挡住这些 WebSocket 客户端。始终给浏览器 UI 一个**独立**的 hostname，
-    只对这一个应用 Access。
+    只对这一个应用 Access。两个 hostname 都路由到同一个主端口。
 
 ### 2. 添加 Cloudflare Access 应用（账户侧运维） {#2-add-a-cloudflare-access-application-account-side-ops}
 
@@ -353,6 +353,6 @@ Cloudflare Access 或桌面应用访问 UI。
 **UI hostname 完全不可达**
 
 1. 确认已设置 `CORTEX_UI_HTTP=1` 且添加后已重启守护进程。
-2. 在服务器上确认端点已启动：`curl http://127.0.0.1:3004/trpc` 应返回 `401 Unauthorized`
+2. 在服务器上确认端点已启动：`curl http://127.0.0.1:26789/trpc`（或你的 `CORTEX_UI_PORT`）应返回 `401 Unauthorized`
    （而非连接拒绝）。
 3. 确认 Cloudflare Tunnel 正在运行且其路由指向正确端口。

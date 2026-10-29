@@ -72,10 +72,10 @@ python train.py; cortex-signal --exit-code $?
 `--exit-code` 把 `$?` 同时转成状态和消息，所以接入只需一行。其余都是可选的：`--message` 给一句话摘要，
 `--member` 说明这是哪个任务（waitpoint 写明了成员时必填），`--data @file` 或 `--data -` 附上日志尾部。
 
-不用 CLI 的话，用 curl 做同样的事：
+不用 CLI 的话，用 curl 做同样的事（`CORTEX_UI_PORT` 不是 26789 时换成你的端口）：
 
 ```bash
-curl -sS -XPOST http://127.0.0.1:3001/webhook/signal \
+curl -sS -XPOST http://127.0.0.1:26789/webhook/signal \
   -H 'content-type: application/json' \
   -d '{"id":"wp_1a2b3c4d5e6f","secret":"…","status":"ok","message":"33,120 steps"}'
 ```
@@ -90,7 +90,7 @@ curl -sS -XPOST http://127.0.0.1:3001/webhook/signal \
 
 ## 在别的机器上 {#on-another-machine}
 
-守护进程的 webhook 只监听回环地址，所以训练机上的任务调不到它。给 `wait_create` 传 `device: "<name>"`，
+守护进程的 webhook 路由只接受回环请求，所以训练机上的任务调不到它们。给 `wait_create` 传 `device: "<name>"`，
 改为落一个文件——守护进程会顺着设备已经保持的那条连接来收取，在一个 sweep 周期内（默认 30s）：
 
 ```bash
@@ -104,8 +104,8 @@ printf '{"id":"wp_1a2b3c4d5e6f","secret":"…","status":"%s","message":"exit=%s"
 要在 JSON 里加上 `"member":"arm2"`——不加的话文件会被拒收并移到 `bad/` 下。设备上不需要安装任何东西。
 设备离线时，文件就留在那里等着。
 
-这个 spool 目录在守护进程本机上同样适用；`cortex-signal` 连不上守护进程时会自动退回到这里，
-所以重启期间写出的信号不会丢。守护进程启动时会清空本地 spool，并重新发送因重启而中断投递的唤醒。
+这个 spool 目录在守护进程本机上同样适用；`cortex-signal` 连不上守护进程，或服务器返回 `401`、`413`、`422`
+以外的错误（例如不认识该 waitpoint 的服务器返回的 `404`，或 `429`）时，会自动退回到这里，所以重启期间写出的信号不会丢。守护进程启动时会清空本地 spool，并重新发送因重启而中断投递的唤醒。
 
 ## `cortex-signal` CLI {#the-cortex-signal-cli}
 
@@ -117,11 +117,11 @@ printf '{"id":"wp_1a2b3c4d5e6f","secret":"…","status":"%s","message":"exit=%s"
 | `--message <text>` | 显示在唤醒消息里的一句话摘要 |
 | `--member <name>` | 这是哪个成员；waitpoint 写明了成员时必填 |
 | `--data <@file\|-\|text>` | 来自文件、stdin 或字面值的额外载荷；作为数据投递，绝不作为指令 |
-| `--url <url>` | 信号端点。默认 `http://127.0.0.1:$WEBHOOK_PORT/webhook/signal` |
-| `--no-spool` | 守护进程不可达时直接失败，而不是写入 spool |
+| `--url <url>` | 信号端点。默认 `http://127.0.0.1:$CORTEX_UI_PORT/webhook/signal`，端口取自环境变量，否则取自该 home 的 `config/.env` |
+| `--no-spool` | 守护进程不可达或拒绝信号时直接失败，而不是写入 spool |
 
 不带参数运行时，它只打印帮助，什么也不发送。信号被接受、waitpoint 早已结算、或信号已写入 spool 时，退出码为 `0`；
-信号被拒绝，或在 `--no-spool` 下守护进程不可达时为 `1`；用法错误或缺少 id 或 secret 时为 `2`。
+服务器返回 `401`、`413` 或 `422`，或在 `--no-spool` 下守护进程不可达或返回其他错误时为 `1`；用法错误或缺少 id 或 secret 时为 `2`。
 spool 位于 `$CORTEX_HOME/tmp/signals/` 下。
 
 HTTP 路由的应答：信号被接受（或重复）返回 `202`，waitpoint 已结算返回 `410`，secret 错误返回 `401`，

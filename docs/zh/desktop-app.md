@@ -40,7 +40,7 @@ Android APK 面向 arm64 设备，并通过 Play Store 之外的方式分发。�
 
 自带的 Node.js 决定了本机安装支持的系统：macOS 13.5 及以上、glibc 2.28 及以上的 x86_64 Linux，以及 x86_64 的 Windows 10 或 11。其他系统仍可连接已有服务器。
 
-安装后会自动继续初始化、启动服务端并连接。全新安装使用本机 hostname、端口 3004，不安装登录自启服务，并添加 `cortex` 终端命令；正常流程没有机器设置页，也无需点击**启动 Cortex**确认。界面始终以一行安装进度展示，技术细节收在**查看运行日志**中。全新安装随后进入 `/setup/providers` 的 Provider 设置页，登录并选择默认模型 后再进入工作台。Cortex 已内置 PI，安装时不询问后端选择。
+安装后会自动继续初始化、启动服务端并连接。全新安装使用本机 hostname、26789 起第一个空闲端口，不安装登录自启服务，并添加 `cortex` 终端命令；正常流程没有机器设置页，也无需点击**启动 Cortex**确认。界面始终以一行安装进度展示，技术细节收在**查看运行日志**中。全新安装随后进入 `/setup/providers` 的 Provider 设置页，登录并选择默认模型 后再进入工作台。Cortex 已内置 PI，安装时不询问后端选择。
 
 初始化、启动或连接失败时，**重试**复用原设置；**修改设置**打开修复表单，从此表单再次启动时可重启本地服务端，以应用明确选择的端口。自动设置会保留正在响应的服务端。安装失败只提供重试，不显示机器设置。
 
@@ -60,7 +60,7 @@ Android APK 面向 arm64 设备，并通过 Play Store 之外的方式分发。�
 cortex ui enable
 ```
 
-它会在需要时生成客户端 token，设置 `CORTEX_UI_HTTP` 与 `CORTEX_UI_PORT`，并把应用的 origin 合并进 `uiCorsOrigins`。当它提示配置已改变时，重启 daemon 生效。随后 `cortex ui pair` 会为第一个应用打印一次性配对码（见[首次连接](#first-connection)）。[服务器配置](#server-configuration)一节说明如何手工完成同样的设置。
+它会在需要时生成客户端 token，设置 `CORTEX_UI_HTTP`，保留已配置的 `CORTEX_UI_PORT`，未配置时写入 26789 起第一个空闲端口，并把应用的 origin 合并进 `uiCorsOrigins`。当它提示配置已改变时，重启 daemon 生效。随后 `cortex ui pair` 会为第一个应用打印一次性配对码（见[首次连接](#first-connection)）。[服务器配置](#server-configuration)一节说明如何手工完成同样的设置。
 
 ### 在终端中使用 cortex {#using-cortex-in-a-terminal}
 
@@ -95,11 +95,11 @@ Provider 设置页**接入 Provider**自上而下依次是：**Claude Code** 卡
 
 ## 服务器配置 {#server-configuration}
 
-原生壳连接服务器上主动启用的 Web UI 端点。端点本身属于启动拓扑，仍留在服务器的 `$CORTEX_HOME/config/.env` 中：
+原生壳连接服务器[主端口](./configuration.md#main-port)上主动启用的 Web UI 端点。端点本身属于启动拓扑，仍留在服务器的 `$CORTEX_HOME/config/.env` 中：
 
 ```bash
 CORTEX_UI_HTTP=1
-CORTEX_UI_PORT=3004
+CORTEX_UI_PORT=26789
 ```
 
 允许的 CORS origin 是运行时设置。在 `$CORTEX_HOME/config/settings.json` 中添加或确认 `uiCorsOrigins` 键（见 [configuration.md](./configuration.md#configsettingsjson)）：
@@ -307,12 +307,14 @@ $runtime = Get-Content "$env:USERPROFILE\.cortex\runtime\selection.json" -Raw | 
 
 应用在每次启动时也会拉起本机服务端，重新打开应用即可重试。
 
+服务端的端口被其他进程占用时，服务端不会启动，`cortex daemon status` 会显示原因。应用会提示端口被占用，并在安装表单中给出一个空闲端口。
+
 ### 凭据无法持久化 {#credentials-do-not-persist}
 
 应用把连接保存在自身数据目录中（见[首次连接](#first-connection)）。该目录不可写时，首次本地安装无法完成，普通连接只在当前进程内有效。请让该目录可写，或启动应用时显式指定已运行的服务端连接：
 
 ```bash
-CORTEX_SERVER_URL=http://localhost:3004 CORTEX_TOKEN='<client-token>' ./Cortex.AppImage
+CORTEX_SERVER_URL=http://localhost:26789 CORTEX_TOKEN='<client-token>' ./Cortex.AppImage
 ```
 
 将 `$CORTEX_HOME/config/.env`（默认为 `~/.cortex/config/.env`）中的 `CORTEX_CLIENT_TOKEN` 值填入 `<client-token>`。`CORTEX_TOKEN` 是原生壳的 fallback 变量，不替代服务器设置。此方式连接已运行的服务端，不会自动启动它。

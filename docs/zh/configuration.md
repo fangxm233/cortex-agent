@@ -98,12 +98,8 @@ $CORTEX_HOME/
 |---|---|---|
 | `CORTEX_MACHINE` | `os.hostname()` | 启动私信的机器标签 |
 | `CORTEX_LANG` | `config/preferences.json`，否则 `en` | 系统生成消息的语言（`en` 或 `zh`）。优先于 `!lang` 写入的偏好 |
-| `CORTEX_CLIENT_PORT` | `3002` | cortex-client 管理器的 WebSocket 端口 |
-| `CORTEX_CLIENT_HOST` | 未指定（所有接口） | 仅控制 cortex-client WebSocket 监听地址；服务器启动时读取 |
 | `CORTEX_CLIENT_TOKEN` | 自动生成 | 远程客户端出示的共享密钥；桌面 App 和 Web UI 也接受它，作为配对码之外的另一种方式。由 `cortex init` 和服务器首次启动生成 |
 | `CORTEX_WEBHOOK_TOKEN` | 自动生成 | 回环 webhook（钩子回调、`cortex-hook ask`）的 Bearer token。生成方式相同 |
-
-全新 Windows 本机 App 安装会在 `config/.env` 中写入 `CORTEX_CLIENT_HOST=127.0.0.1`。已有安装、普通 CLI 初始化和其他平台保留各自的默认值与配置。需要有意启用局域网直连客户端时，须显式将此变量设为合适的绑定地址（例如 `0.0.0.0` 表示所有 IPv4 接口），并重启服务器。Cortex 不自动配置防火墙策略。此设置不影响 Web UI、TUI 或其他服务器监听端口。
 
 ### 本地模型网关 {#local-model-gateway}
 
@@ -120,18 +116,7 @@ $CORTEX_HOME/
 
 健康检查、Claude/PI 路由、usage 查询和 `cortex doctor` 都使用选定的端口。以其他本机网关端口保存的 PI 自定义 provider 会路由到当前网关。显式端口写入生成或更新的网关 YAML，换端口时还会写入现有 YAML 的 `port:`。只改 YAML 的 `port:` 不会改变 Cortex 使用的端口。未显式设置端口时，YAML 合并保留既有字段。
 
-同机第二个实例使用不同的 `CORTEX_HOME`，并在配置 provider 或启动前**同时设置**两个网关变量。仅更换 `CORTEX_HOME` 不会隔离网关。所有启用的监听端口都须错开，例如第二实例的 `config/.env`：
-
-```dotenv
-CORTEX_GATEWAY_PORT=9881
-CORTEX_GATEWAY_HOME=/absolute/path/to/cortex-second/data/gateway-home
-WEBHOOK_PORT=3101
-CORTEX_CLIENT_PORT=3102
-CORTEX_CLIENT_HOST=127.0.0.1
-CORTEX_TUI_PORT=3103
-CORTEX_UI_HTTP=1
-CORTEX_UI_PORT=3104
-```
+同机第二个实例，无论属于另一个用户还是同一用户，只需使用不同的 `CORTEX_HOME`。端口自动选取：`cortex init` 把一个空闲的[主端口](#main-port)写入该实例的 `config/.env`，网关在 server 启动时取一个空闲端口。同一 OS 用户的多个实例共享 `~/.aistatus` 下的网关文件，除非用 `CORTEX_GATEWAY_HOME` 给第二个实例指定独立目录。
 
 启动该实例及运行其 CLI 时，始终指定 `CORTEX_HOME=/absolute/path/to/cortex-second`。`.env` 中路径须写绝对路径，不展开 `~` 或 `$CORTEX_HOME`。
 
@@ -165,21 +150,49 @@ CORTEX_UI_PORT=3104
 | `ANTHROPIC_API_KEY` | Claude Code 在计量（`api`）路由上运行时使用的 Anthropic API 密钥 |
 | `ANTHROPIC_BASE_URL` | 本地网关宕机时 Claude Code 运行使用的 Anthropic endpoint。网关正常时，每次运行的 base URL 是其网关路由 |
 
+### 主端口 {#main-port}
+
+每个 Cortex 实例只监听一个主端口，所有端点都在它上面提供：服务浏览器工作台、桌面 App 和 Android App 的 Web UI 宿主，钩子、MCP 工具、`cortex-signal` 和 `cortex-browser` 调用的 webhook 路由，cortex-client 连接，`cortex tui` 的 socket，桌面端口转发和浏览器画面流。
+
+| 变量 | 默认值 | 用途 |
+|---|---|---|
+| `CORTEX_UI_PORT` | `26789` | 实例的主端口 |
+| `CORTEX_UI_HOST` | `127.0.0.1` | 主端口的绑定地址。远程设备经局域网或 Tailscale 直连时，设为它们能访问的地址（或 `0.0.0.0`） |
+| `CORTEX_CLIENT_PORT` | 未设置 | 可选的第二个 cortex-client 监听端口。设置后，客户端用这个端口或主端口均可 |
+| `CORTEX_CLIENT_HOST` | 未指定（所有接口） | `CORTEX_CLIENT_PORT` 监听器的绑定地址；未设置 `CORTEX_CLIENT_PORT` 时不起作用 |
+
+主端口上的路由：
+
+| 路径 | 用途 |
+|---|---|
+| SPA 与 `/trpc` | Web UI、桌面 App 和 Android App。仅在 `CORTEX_UI_HTTP` 开启时提供，否则这些路由返回 404 |
+| `/webhook/*`、`/hook/*` | 钩子、MCP 工具、`cortex-signal` 和 `cortex-browser` 的回调。只接受不带转发头的回环请求，经隧道或反向代理到达的请求一律拒绝，并校验 webhook token |
+| `/client`，以及包括 `/` 在内的其他任意 WebSocket 路径 | cortex-client 连接，因此 `wss://<tunnel-host>` 可直接作为客户端地址 |
+| `/reverse` | 客户端为文件传输和端口转发另开的回连 socket |
+| `/tui` | `cortex tui`。要求客户端 token（`CORTEX_CLIENT_TOKEN`，经 `x-cortex-token` 发送），并拒绝跨站 `Origin` |
+| `/forward`、`/api/browser/stream` | 桌面端口转发与浏览器画面流 |
+
+`cortex init`、`cortex ui enable` 和桌面 App 的安装设置会保留已配置的 `CORTEX_UI_PORT`。未配置时，它们把 26789 起（至 26999）第一个空闲端口写入 `$CORTEX_HOME/config/.env`，报告的地址也使用该端口。显式指定的端口（`cortex ui enable --port <n>` 或桌面安装表单的端口字段）必须空闲，否则命令失败，不写入任何内容。
+
+服务器依次从进程环境、`$CORTEX_HOME/config/.env` 读取 `CORTEX_UI_PORT`，都没有时使用 26789，并把实际使用的端口导出给它启动的智能体。钩子、`cortex-signal`、`cortex-browser`、`cortex tui` 和 MCP 工具按同样的顺序解析端口。
+
+启动时主端口无法绑定，app.js 以退出码 78 退出，打印被占用的端口，并提示把 `$CORTEX_HOME/config/.env` 中的 `CORTEX_UI_PORT` 设为空闲端口后运行 `cortex daemon restart`。daemon 不会循环重启它：`cortex daemon status` 显示子进程已停止及其原因。`.env` 变化时 daemon 会重启 app.js。桌面 App 会提示端口被占用，并在安装表单中给出一个空闲端口。
+
+Cortex 忽略 `WEBHOOK_PORT` 和 `CORTEX_TUI_PORT`，设置了它们时记录一次警告。
+
 ### Web UI 与 TUI {#web-ui-and-tui}
 
 Web UI 宿主服务浏览器工作台、桌面 App 和手机 App。[浏览器访问](./browser-access.md)详细介绍 token 登录、配对码与 Cloudflare Access。
 
 | 变量 | 默认值 | 用途 |
 |---|---|---|
-| `CORTEX_UI_HTTP` | 关 | `1`、`true`、`on` 或 `yes` 启动 Web UI 宿主。`cortex ui enable` 会设置它 |
-| `CORTEX_UI_PORT` | `3004` | Web UI 宿主的端口，绑定到 `127.0.0.1` |
+| `CORTEX_UI_HTTP` | 关 | `1`、`true`、`on` 或 `yes` 在[主端口](#main-port)上提供 Web UI 宿主的路由。`cortex ui enable` 会设置它 |
 | `CORTEX_UI_SPA_DIR` | 打包的 `web/dist` | 宿主所服务的 web app 目录 |
 | `CORTEX_UI_TOKEN_LOGIN` | 开 | 用客户端 token 或配对码进行浏览器登录，以及用一次性配对码配对应用。`0`、`false`、`off` 或 `no` 会移除登录与配对路由；已配对的应用继续可用 |
 | `CORTEX_UI_SESSION_TTL_DAYS` | `30` | 浏览器登录会话的有效期（天） |
 | `CORTEX_ACCESS_TEAM_DOMAIN`, `CORTEX_ACCESS_AUD`, `CORTEX_ACCESS_CERTS_URL` | — | 面向浏览器的 Cloudflare Access JWT 校验；需要前两个都设置才启用 |
 | `CORTEX_PORT_FORWARD` | 开 | `0` 禁用 Web UI 到远程机器的端口转发 |
 | `CORTEX_TUI` | 开 | `0` 停止 TUI 网关 |
-| `CORTEX_TUI_PORT` | `3003` | TUI 网关的端口，也是 `cortex tui` 连接的端口 |
 
 ### 速率限制（Slack） {#rate-limiting-slack}
 
@@ -189,12 +202,6 @@ Web UI 宿主服务浏览器工作台、桌面 App 和手机 App。[浏览器访
 | `CORTEX_SLACK_RL_GLOBAL_REFILL_PER_SEC` | `1` | 全局每秒补充速率 |
 | `CORTEX_SLACK_RL_CHANNEL_CAPACITY` | `1` | 每频道令牌桶容量 |
 | `CORTEX_SLACK_RL_CHANNEL_REFILL_PER_SEC` | `1` | 每频道每秒补充速率 |
-
-### Webhook {#webhook}
-
-| 变量 | 默认值 | 用途 |
-|---|---|---|
-| `WEBHOOK_PORT` | `3001` | 回环 webhook 服务器的端口，接收钩子、waitpoint、子智能体和看板回调 |
 
 ### 数据文件覆盖 {#data-file-overrides}
 
@@ -505,8 +512,8 @@ config 目录被监视。`settings.json` 的变更去抖 300 毫秒后重新读�
 有三类变量刻意留在 `.env`：
 
 - **密钥与凭据**——`SLACK_BOT_TOKEN`、`SLACK_SIGNING_SECRET`、`SLACK_APP_TOKEN`、`FEISHU_APP_ID`、`FEISHU_APP_SECRET`、`ANTHROPIC_API_KEY`、`CORTEX_CLIENT_TOKEN`、`CORTEX_WEBHOOK_TOKEN`。它们广义上也是设置，但把它们挡在一个 Web UI 可读可写的文件之外，能把影响面压到最小。
-- **由子进程消费的变量**——`CORTEX_HOME`、`CORTEX_PROJECTS_DIR`、`WEBHOOK_PORT`、`DEBUG`、`CORTEX_LANG` 以及数据文件覆盖项。钩子、MCP 服务器、CLI 和 `cortex-client` 都继承守护进程的环境；服务器侧的 JSON 文件根本传不到它们那里。
-- **启动拓扑**——`CORTEX_PLATFORM`、`CORTEX_MACHINE`、`CORTEX_UI_HTTP`、`CORTEX_UI_PORT`、`CORTEX_UI_SPA_DIR`、`CORTEX_UI_TOKEN_LOGIN`。它们决定启动时存在哪些适配器与监听器，热更新对它们没有意义，结构上就必须重启。
+- **由子进程消费的变量**——`CORTEX_HOME`、`CORTEX_PROJECTS_DIR`、`CORTEX_UI_PORT`、`DEBUG`、`CORTEX_LANG` 以及数据文件覆盖项。钩子、MCP 服务器、CLI 和 `cortex-client` 都继承守护进程的环境；服务器侧的 JSON 文件根本传不到它们那里。
+- **启动拓扑**——`CORTEX_PLATFORM`、`CORTEX_MACHINE`、`CORTEX_UI_HTTP`、`CORTEX_UI_HOST`、`CORTEX_CLIENT_PORT`、`CORTEX_UI_SPA_DIR`、`CORTEX_UI_TOKEN_LOGIN`。它们决定启动时存在哪些适配器与监听器，热更新对它们没有意义，结构上就必须重启。
 
 ### 与 .claude/settings.json 同名不同物 {#not-the-same-file-as-claudesettingsjson}
 

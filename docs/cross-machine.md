@@ -33,7 +33,7 @@ event bus, and WebSocket protocol details, see [architecture.md](./architecture.
 │                                 │
 │  client-manager.ts              │
 │  ┌───────────────────────────┐  │
-│  │ WebSocketServer :3002     │  │
+│  │ WebSocket :26789 (/client)│  │
 │  │ devices Map<name, ws>     │  │
 │  │ - hub (local)             │  │
 │  │ - trainer (remote, SSH)   │  │
@@ -43,12 +43,12 @@ event bus, and WebSocket protocol details, see [architecture.md](./architecture.
 │                                 │
 │  MCP core-server                │
 │  ┌───────────────────────────┐  │
-│  │ remote_bash/read/write    │──┼──→ HTTP :3001 → client-manager → WS → device
+│  │ remote_bash/read/write    │──┼──→ HTTP :26789 → client-manager → WS → device
 │  │ remote_edit/glob/grep     │  │
 │  └───────────────────────────┘  │
 └─────────────────────────────────┘
          ▲ WebSocket              ▲ SSH
-         │ (port 3002)            │ (port 22)
+         │ (port 26789)           │ (port 22)
 ┌────────┴────────┐    ┌──────────┴──────────┐
 │ cortex-client   │    │ cortex-client        │
 │ (hub, local)    │    │ (trainer, remote)    │
@@ -57,8 +57,8 @@ event bus, and WebSocket protocol details, see [architecture.md](./architecture.
 ```
 
 Each `cortex-client` instance:
-- Connects to the agent-server's WebSocket server (port 3002), presenting
-  `CORTEX_CLIENT_TOKEN`
+- Connects to the agent-server's [main port](./configuration.md#main-port)
+  (`CORTEX_UI_PORT`, 26789 by default), presenting `CORTEX_CLIENT_TOKEN`
 - Registers itself with a device name on connect (`hello` message)
 - Sends a heartbeat every 5 seconds
 - Receives command messages and executes them on the local machine
@@ -106,7 +106,8 @@ ships the bundle into `~/.cortex/client/current/`, and writes a client config wi
 `serverHost`, `serverPort` and `deviceName`. It does not start the client or create a
 device-side service. It runs from the `agent-server/` directory of a source checkout,
 targets Linux and macOS devices, and takes `--host`, `--device-name` and `--server-host`
-(all required) plus `--server-port` (default 3002):
+(all required) plus `--server-port` (default: the server's `CORTEX_CLIENT_PORT` if set, else
+its main port):
 
 ```bash
 node --import tsx src/domain/remote/client-bootstrap.ts \
@@ -128,14 +129,14 @@ Create `~/.cortex/config/cortex-client.json` on the remote machine:
 ```json
 {
   "serverHost": "192.0.2.10",
-  "serverPort": 3002,
+  "serverPort": 26789,
   "deviceName": "trainer"
 }
 ```
 
 - `serverHost` — the IP or hostname of the agent-server machine, reachable
   from this remote machine
-- `serverPort` — the WebSocket port (default 3002)
+- `serverPort` — the server's main port, or its `CORTEX_CLIENT_PORT` when it sets one
 - `serverUrl` — (optional) a full WebSocket URL the client dials, taking
   precedence over `serverHost`/`serverPort`. Use it for a Cloudflare Tunnel or
   any reverse-proxied route, e.g. `"wss://cortex.example.com"` — this lets a
@@ -215,7 +216,7 @@ Each entry:
 SSH reverse tunnel and inject a loopback WebSocket URL when it launches the
 client. `clientReversePort` optionally selects the loopback port on the remote
 machine; it is valid only with `ssh-reverse`, defaults to the server's client
-port, and must be between 1024 and 65535. An SSH reverse route requires `ssh`.
+port (its main port, or `CORTEX_CLIENT_PORT` when set), and must be between 1024 and 65535. An SSH reverse route requires `ssh`.
 
 An invalid `machines.json` stops the server at startup. When an edit made
 while the server runs fails validation, the server keeps the previous registry
@@ -232,20 +233,30 @@ uninstalls the client on the machine (see the
 ## Network topology
 
 The connection from the remote client to the server requires a TCP path to
-port 3002. Several options exist depending on the network layout.
+the server's main port (`CORTEX_UI_PORT`, 26789 by default). Clients connect on
+the path `/client` or on any other path, including the root `/`. Several options
+exist depending on the network layout.
+
+The main port binds to `127.0.0.1` by default, which suits Cloudflare Tunnel
+and reverse SSH routes. For clients that connect directly over a LAN or
+Tailscale, set `CORTEX_UI_HOST` in the server's `config/.env` to an address the
+device can reach (or `0.0.0.0`). Alternatively, set `CORTEX_CLIENT_PORT` and
+`CORTEX_CLIENT_HOST` to open a separate client listener; clients may then use
+either port. The webhook routes on the main port accept only loopback requests
+regardless of the bind address.
 
 ### Same LAN
 
 The simplest case. Use the server's LAN IP as `serverHost`:
 
 ```json
-{ "serverHost": "192.168.1.100", "serverPort": 3002, "deviceName": "trainer" }
+{ "serverHost": "192.168.1.100", "serverPort": 26789, "deviceName": "trainer" }
 ```
 
 If the connection fails, check the server's firewall:
 
 ```bash
-sudo ufw allow 3002
+sudo ufw allow 26789
 ```
 
 ### Tailscale (recommended for cross-network)
@@ -254,7 +265,7 @@ Tailscale assigns each machine a stable CGNAT IP (`100.x.y.z`) regardless of
 physical network. The client connects to the server's Tailscale IP:
 
 ```json
-{ "serverHost": "100.64.12.34", "serverPort": 3002, "deviceName": "cluster" }
+{ "serverHost": "100.64.12.34", "serverPort": 26789, "deviceName": "cluster" }
 ```
 
 To find the server's Tailscale IP:
@@ -269,14 +280,16 @@ the recommended option for machines on different networks.
 ### Cloudflare Tunnel
 
 When both the server and the client are behind NAT with no public IP, run
-`cloudflared` on the server to expose its WebSocket port through a tunnel, and
+`cloudflared` on the server to expose its main port through a tunnel, and
 point the client at the tunnel hostname with `serverUrl`. The server's
-`cloudflared` ingress maps a hostname to the local WS port:
+`cloudflared` ingress maps a hostname to the main port; the Web UI, the apps
+and clients can share this hostname unless the UI sits behind Cloudflare Access
+(see [Browser Access](./browser-access.md)):
 
 ```yaml
 ingress:
   - hostname: cortex.example.com
-    service: http://localhost:3002
+    service: http://localhost:26789
   - service: http_status:404
 ```
 
@@ -308,7 +321,8 @@ the server as follows:
 ```
 
 The server supervises an OpenSSH master connection that carries
-`-R 127.0.0.1:13002:127.0.0.1:3002` to `user@worker`, with
+`-R 127.0.0.1:13002:127.0.0.1:26789` (the server's main port, or its
+`CORTEX_CLIENT_PORT` when set) to `user@worker`, with
 `ExitOnForwardFailure=yes` and a 15-second keepalive. Before each start it
 frees a stale listener left on the remote port by an earlier tunnel, then
 waits for the SSH control socket and launches the client with
@@ -330,20 +344,20 @@ work because the configured `ssh` value is passed as one OpenSSH host argument.
 A separately supervised SSH tunnel can provide the same network path:
 
 ```bash
-ssh -N -R 127.0.0.1:3002:127.0.0.1:3002 user@server
+ssh -N -R 127.0.0.1:26789:127.0.0.1:26789 user@server
 ```
 
 In that arrangement, configure the client with
-`"serverUrl": "ws://127.0.0.1:3002"` and leave `clientConnection` as `direct`,
+`"serverUrl": "ws://127.0.0.1:26789"` and leave `clientConnection` as `direct`,
 because Cortex does not own the tunnel process.
 
 ### Connection troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Client won't connect | Port 3002 blocked | Check firewall: `sudo ufw allow 3002` |
+| Client won't connect | Main port bound to loopback, or blocked | Set `CORTEX_UI_HOST` (see [Network topology](#network-topology)); check firewall: `sudo ufw allow 26789` |
 | Client connects then disconnects | NAT timeout | Use Tailscale or enable TCP keepalive |
-| SSH works but WebSocket doesn't | SSH only opens port 22 | Open port 3002 or use Tailscale/reverse tunnel |
+| SSH works but WebSocket doesn't | SSH only opens port 22 | Open the main port or use Tailscale/reverse tunnel |
 | Tailscale installed but can't connect | ACLs blocking | Check `tailscale status` and ACL rules |
 | "Device already connected" (code 4002) | Stale connection or duplicate | Kill the old client process on the remote machine |
 | "Unknown device" (code 4005) | `deviceName` not in `machines.json` | Add the machine, or fix `deviceName` |

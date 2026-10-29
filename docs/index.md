@@ -66,4 +66,4 @@ cortex ui enable
 cortex daemon
 ```
 
-See [Quickstart](quickstart.md) for detailed server and chat-platform setup. Once the server is running, open the workbench at `http://127.0.0.1:3004` on the server, use [Browser Access](browser-access.md) to reach it from elsewhere, or connect a native client as described in [Desktop and Android Apps](desktop-app.md).
+See [Quickstart](quickstart.md) for detailed server and chat-platform setup. Once the server is running, open the workbench on the server at the address `cortex ui enable` prints (`http://127.0.0.1:26789` by default), use [Browser Access](browser-access.md) to reach it from elsewhere, or connect a native client as described in [Desktop and Android Apps](desktop-app.md).

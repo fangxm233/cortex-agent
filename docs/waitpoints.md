@@ -81,10 +81,10 @@ line. Everything else is optional: `--message` for a one-line summary, `--member
 this is (required once the waitpoint names its members), `--data @file` or `--data -` to attach a
 log tail.
 
-Without the CLI, the same thing with curl:
+Without the CLI, the same thing with curl (use your `CORTEX_UI_PORT` if it is not 26789):
 
 ```bash
-curl -sS -XPOST http://127.0.0.1:3001/webhook/signal \
+curl -sS -XPOST http://127.0.0.1:26789/webhook/signal \
   -H 'content-type: application/json' \
   -d '{"id":"wp_1a2b3c4d5e6f","secret":"…","status":"ok","message":"33,120 steps"}'
 ```
@@ -101,7 +101,7 @@ when it is over.
 
 ## On another machine
 
-The daemon's webhook listens on loopback only, so a job on a trainer box cannot call it. Pass
+The daemon's webhook routes accept only loopback requests, so a job on a trainer box cannot call them. Pass
 `device: "<name>"` to `wait_create` and drop a file instead — the daemon collects it over the
 connection the device already holds open, within a sweep tick (30s by default):
 
@@ -118,8 +118,9 @@ identity, so a monitor that reused one name would be heard once. For a waitpoint
 offline the files simply wait there.
 
 That spool directory works on the daemon's own machine too, and `cortex-signal` falls back to it
-automatically when it cannot connect to the daemon, so a signal written during a restart is not
-lost. When the daemon starts, it drains the local spool and re-sends any wake whose delivery a
+automatically when it cannot reach the daemon, or when the server answers with an error other than
+`401`, `413` or `422` (for example `404` from a server that does not know the waitpoint, or `429`),
+so a signal written during a restart is not lost. When the daemon starts, it drains the local spool and re-sends any wake whose delivery a
 restart interrupted.
 
 ## The `cortex-signal` CLI
@@ -132,12 +133,13 @@ restart interrupted.
 | `--message <text>` | One-line summary shown in the wake |
 | `--member <name>` | Which member this is; required when the waitpoint names members |
 | `--data <@file\|-\|text>` | Extra payload from a file, stdin, or the literal value; delivered as data, never as instructions |
-| `--url <url>` | Signal endpoint. Default `http://127.0.0.1:$WEBHOOK_PORT/webhook/signal` |
-| `--no-spool` | Fail instead of writing to the spool when the daemon cannot be reached |
+| `--url <url>` | Signal endpoint. Default `http://127.0.0.1:$CORTEX_UI_PORT/webhook/signal`, with the port taken from the environment, else from the home's `config/.env` |
+| `--no-spool` | Fail instead of writing to the spool when the daemon cannot be reached or refuses the signal |
 
 Run with no arguments, it prints its help and sends nothing. It exits `0` when the signal is
 accepted, when the waitpoint had already resolved, and when the signal was spooled; `1` when the
-signal is refused or, with `--no-spool`, the daemon is unreachable; and `2` on a usage error or a
+server answers `401`, `413` or `422`, or, with `--no-spool`, when the daemon is unreachable or
+answers with any other error; and `2` on a usage error or a
 missing id or secret. The spool lives under `$CORTEX_HOME/tmp/signals/`.
 
 The HTTP route answers `202` for an accepted (or duplicate) signal, `410` once the waitpoint has

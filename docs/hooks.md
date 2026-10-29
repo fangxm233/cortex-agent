@@ -318,7 +318,7 @@ its hook output is shown but not injected.
 
 Two interactions need a human in the loop, which the agent process cannot do on
 its own: asking the user a question, and getting a plan approved. Both POST to
-the server's loopback webhook listener (`WEBHOOK_PORT`, default 3001) on
+the server's loopback-only webhook routes on its [main port](./configuration.md#main-port) at
 `/hook/ask-user-question` and `/hook/exit-plan-mode`, authenticated with the
 `CORTEX_WEBHOOK_TOKEN` bearer token in the `x-cortex-token` header, and block on
 the response. A question posted with `blocking: false` returns as soon as the

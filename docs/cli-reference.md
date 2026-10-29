@@ -33,7 +33,9 @@ configs, and generates the `mcp-config*.json` files, `machines.json`,
 `preferences.json` and `agent-state.json`. It also seeds `schedules.json`,
 creates a git repository in `CORTEX_HOME` when `git` is available, and can
 enable the local Web UI and install a system service when those answers ask
-for it.
+for it. It keeps a configured `CORTEX_UI_PORT`, and otherwise writes the first
+free port from 26789 up to 26999 as the instance's
+[main port](./configuration.md#main-port).
 
 After writing configs, it detects local provider credentials and offers
 login, rescan, continue with configured providers, or a warned skip. Login
@@ -79,7 +81,7 @@ Restart the daemon when it reports that the configuration changed: `.env` is
 read once at process start.
 
 Options:
-- `--port <n>` — the port to listen on. Without it, a `CORTEX_UI_PORT` already in `.env` is kept, and `3004` is used when there is none; an invalid port exits 1
+- `--port <n>` — the [main port](./configuration.md#main-port) to listen on; it must be free, otherwise the command exits 1 and writes nothing. Without it, a `CORTEX_UI_PORT` already in `.env` is kept, and the first free port from 26789 up to 26999 is written when there is none; an invalid port exits 1
 - `--home <path>` — set `CORTEX_HOME` (default: `$CORTEX_HOME` or `~/.cortex`)
 - `--json` — print `{ ok, home, url, token, port, changed }`
 
@@ -188,7 +190,10 @@ which is cleaned up, exits 0.
 **`cortex daemon status`**
 
 Print the daemon's PID and uptime and the state of its `app.js` child (PID and
-uptime, `starting...`, or `none`).
+uptime, `starting...`, or `none`). When `app.js` exited because the
+[main port](./configuration.md#main-port) could not be bound, the child shows as
+stopped with that reason; the daemon does not restart it until the
+configuration changes.
 
 **`cortex daemon restart [--hard | --force]`**
 
@@ -210,14 +215,16 @@ only creates the file. It exits 1 when the file cannot be written.
 **`cortex tui [--resume] [--project <id>] [--port <n>]`**
 
 Open the terminal chat client against a running server. The command checks
-that the TUI gateway is listening on `127.0.0.1:<port>` and exits 1 with a hint
+that the server is listening on `127.0.0.1:<port>` and exits 1 with a hint
 to start the daemon when it is not; otherwise it runs the client in the
-terminal and exits with its exit code.
+terminal and exits with its exit code. The client connects to `/tui` on that
+port and authenticates with the client token (`CORTEX_CLIENT_TOKEN` from the
+environment, else from `$CORTEX_HOME/config/.env`).
 
 Options:
 - `--resume` — open the resume-session picker on connect
 - `--project <id>` — start a fresh session in that project
-- `--port <n>` — the gateway port (default: `$CORTEX_TUI_PORT`, else `3003`)
+- `--port <n>` — the server port (default: `CORTEX_UI_PORT` from the environment, else from `$CORTEX_HOME/config/.env`, else `26789`)
 
 **`cortex install latest`**
 
@@ -489,7 +496,7 @@ Options:
 - `--help`, `-h` — show usage; `cortex-browser <command> --help` shows one agent-browser command
 
 Each call asks the daemon for the session's browser over the loopback webhook
-(`http://127.0.0.1:$WEBHOOK_PORT/webhook/browser`, authenticated with `CORTEX_WEBHOOK_TOKEN`). The
+(`http://127.0.0.1:$CORTEX_UI_PORT/webhook/browser`, authenticated with `CORTEX_WEBHOOK_TOKEN`). The
 session comes from `CORTEX_SESSION_ID` (or `CORTEX_EXECUTION_ID`). Agent shells carry all three,
 so the command needs no setup there. `skills`, `help` and `--version` run without a browser.
 
@@ -626,8 +633,8 @@ Options:
 - `--message <text>` — one-line summary shown in the wake message
 - `--member <name>` — which member of a multi-job waitpoint this signal is for
 - `--data <@file|-|text>` — extra payload from a file, stdin, or the literal text; it reaches the agent labelled as data, never as instructions
-- `--url <url>` — daemon signal endpoint (default: `http://127.0.0.1:$WEBHOOK_PORT/webhook/signal`)
-- `--no-spool` — fail instead of spooling to disk when the daemon is unreachable
+- `--url <url>` — daemon signal endpoint (default: `http://127.0.0.1:$CORTEX_UI_PORT/webhook/signal`, with the port from the environment, else from the home's `config/.env`)
+- `--no-spool` — fail instead of spooling to disk when the daemon is unreachable or refuses the signal
 - `--help`, `-h` — show usage
 
 The endpoint is loopback-only and does **not** accept `CORTEX_WEBHOOK_TOKEN`:
@@ -638,7 +645,9 @@ resolve its own waitpoint. To signal from another machine, drop a JSON file in
 
 ### Spooling
 
-If the daemon cannot be reached, the signal is written to
+If the daemon cannot be reached, or the server answers with an error other
+than `401`, `413` or `422` (for example `404` from a server that does not know
+the waitpoint, or `429`), the signal is written to
 `$CORTEX_HOME/tmp/signals/<name>.json` (`.tmp` first, then renamed, so a
 half-written file is never picked up) and the command still exits 0. The
 daemon drains that directory on its next sweep, so a signal sent during a
@@ -649,7 +658,7 @@ restart is delayed, not lost. `--no-spool` turns this off and exits 1 instead.
 | Code | Meaning |
 |---|---|
 | 0 | Accepted, spooled, or the waitpoint was already resolved |
-| 1 | Refused (bad secret, unknown id, rate-limited) or unreachable with `--no-spool` |
+| 1 | Refused with `401` (bad secret), `413` (body too large) or `422` (missing or unlisted member), or, with `--no-spool`, unreachable or any other error |
 | 2 | Usage error (missing id/secret, unknown flag, missing value, bad `--status` or `--exit-code`, unreadable `--data` file) |
 
 An already-resolved waitpoint exits 0 on purpose: a retrying script should not

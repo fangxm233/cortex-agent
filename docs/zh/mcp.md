@@ -196,7 +196,7 @@ PI 的 bridge 根据会话自身的环境计算出相同的逻辑选择，直接
 
 用户提供的 stdio MCP 条目在两种后端下都是独立的子进程，Claude Code 会话还会把 Cortex 自有的 MCP 服务器也作为子进程运行。无论服务器跑在哪里，Cortex MCP 工具都不会直接触及 agent-server 的进程内状态（WebSocket 连接、运行中的会话、waitpoint）。它们通过两条路径通信：
 
-1. **Loopback webhook** — 大多数工具向服务器位于 `http://127.0.0.1:<WEBHOOK_PORT>`（默认 3001）的 webhook 发送 POST 请求，在 `x-cortex-token` 请求头中携带 `CORTEX_WEBHOOK_TOKEN` bearer token 进行认证。远程机器工具使用 `/webhook/remote-command`，它在 `agent-server/src/orchestration/routing/webhook.ts` 中的处理程序把请求转发给 `client-manager.sendCommand()`，再经 WebSocket 发送到设备。子智能体、团队、看板、waitpoint、Web 投递（`ui-file`、`ui-view`、`ui-decision`）和交互（`/hook/ask-user-question`、`/hook/exit-plan-mode`）工具各有自己的路由。
+1. **Loopback webhook** — 大多数工具向服务器位于 `http://127.0.0.1:<CORTEX_UI_PORT>`（主端口，默认 26789）的 webhook 发送 POST 请求，在 `x-cortex-token` 请求头中携带 `CORTEX_WEBHOOK_TOKEN` bearer token 进行认证。远程机器工具使用 `/webhook/remote-command`，它在 `agent-server/src/orchestration/routing/webhook.ts` 中的处理程序把请求转发给 `client-manager.sendCommand()`，再经 WebSocket 发送到设备。子智能体、团队、看板、waitpoint、Web 投递（`ui-file`、`ui-view`、`ui-decision`）和交互（`/hook/ask-user-question`、`/hook/exit-plan-mode`）工具各有自己的路由。
 
 2. **读取存储** — `cost_query` 通过与主服务器相同的仓库层读取费用记录（`data/costs.jsonl`），`query_executions` 读取执行注册表（`data/executions.json`）。两者都不写入。
 
@@ -243,7 +243,7 @@ Cortex 内置服务器根据以下变量构建每个会话的上下文。在 Cla
 | `CORTEX_SESSION_ID` | 会话上下文 | 交互工具、`cortex_context`、waitpoint、Web 投递 |
 | `CORTEX_PROJECT`, `CORTEX_BACKEND`, `CORTEX_MODEL`, `CORTEX_PROVIDER`, `CORTEX_THINKING`, `CORTEX_MODE` | 会话上下文 | `cortex_context` |
 | `CORTEX_SCHEDULE_TASK_ID`, `CORTEX_CALLBACK_SOURCE` | 定时或回调触发的运行时设置 | `cortex_context` |
-| `CORTEX_WEBHOOK_TOKEN`, `WEBHOOK_PORT` | 服务器环境 | 所有调用 loopback webhook 的工具 |
+| `CORTEX_WEBHOOK_TOKEN`, `CORTEX_UI_PORT` | 服务器环境 | 所有调用 loopback webhook 的工具 |
 | `CORTEX_MCP_BUNDLES` | 后端进程的 composition | 内置服务器中的能力组选择 |
 | `CORTEX_MCP_TOOL_ALLOWLIST` | agent 角色或子智能体 spawn | 工具注册过滤 |
 | `CORTEX_CLAUDE_MODEL`, `CORTEX_SUBAGENT_PI_MODELS`, `CORTEX_SUBAGENT_CLAUDE_MODELS` | 会话模型与模型目录 | `agent` 和 `worker_spawn` 的模型说明 |
@@ -254,6 +254,6 @@ Cortex 内置服务器根据以下变量构建每个会话的上下文。在 Cla
 
 MCP 工具赋予智能体在远程机器上执行 shell 命令、读写文件、委派给子智能体和 worker，以及向聊天平台发消息的能力。安全假设如下：
 
-- `cortex-client` 的 WebSocket 端口（3002）要求每个连接都提供 `CORTEX_CLIENT_TOKEN`，但仍最好不要暴露到公网：使用 Tailscale、VPN、隧道或仅绑定 localhost（网络拓扑选项见 [cross-machine.md](./cross-machine.md)）。
-- Webhook HTTP 端口（3001）只绑定到 `127.0.0.1`，并要求 `CORTEX_WEBHOOK_TOKEN`——MCP 服务器通过 loopback 而不是网络与之通信。
+- 主端口上的 `cortex-client` WebSocket 连接要求提供 `CORTEX_CLIENT_TOKEN`，但该端口仍最好不要暴露到公网：使用 Tailscale、VPN、隧道或默认的仅绑定 localhost（网络拓扑选项见 [cross-machine.md](./cross-machine.md)）。
+- Webhook 路由只接受不带转发头的回环请求，并要求 `CORTEX_WEBHOOK_TOKEN`——MCP 服务器通过 loopback 而不是网络与之通信。
 - 智能体运行在 [safety-and-approvals.md](./safety-and-approvals.md) 所述的同一套影响范围安全边界之内。MCP 工具不会让高权限操作豁免于该边界。

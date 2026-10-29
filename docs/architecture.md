@@ -62,7 +62,7 @@ L5  entry/         → everything (composition root)
 `orchestration/` must also be free of import cycles.
 
 - **`agent-adapter/`** — the two-LLM-backend abstraction (Claude Code and PI). `domain/runs/adapters.ts` is the one place the adapters are assembled.
-- **`platform/`** — the messaging and transport layer: the Slack and Feishu adapters, the TUI gateway, the composite adapter that runs several platforms at once (`adapters/`), the Web UI HTTP host (`ui-http/`), and the server's Chrome and the agent-browser process runner (`browser/`).
+- **`platform/`** — the messaging and transport layer: the Slack and Feishu adapters, the TUI gateway, the composite adapter that runs several platforms at once (`adapters/`), the HTTP server on the instance's main port that every endpoint shares (`main-http/`), the Web UI HTTP host (`ui-http/`), and the server's Chrome and the agent-browser process runner (`browser/`).
 
 A further directory, **`tui/`**, is the Ink terminal client that `cortex tui` runs. It talks to the server only over the TUI gateway's WebSocket, sharing the gateway's protocol types and the i18n strings, and has no layer rule of its own.
 
@@ -196,7 +196,7 @@ layer) is detailed in [hooks.md](./hooks.md).
 | `human-answer-backstop.ts` | Leaf registry of channels waiting on a human's free-text reply, consulted by every entry into a session so the answer is consumed instead of opening a turn |
 | `routing/message-router.ts` | Platform message entry point: registers the inbound message handler on the adapter and delegates to the orchestrator |
 | `routing/commands/` | `!command` handlers, one module per family: `cancel`, `channel`, `compact`, `cost`, `device`, `lang`, `login` (with `login-custom`), `mode`, `nvtop`, `orient`, `restart`, `schedule`, `sendfile`, `session`, `status`, `tail`, `usage` (with `usage-reset`). `index.ts` maps the command words — `!agent`, `!backend`, `!model`, `!thinking`, `!new`, `!resume`, `!usage` and the rest — to them |
-| `routing/webhook.ts` | The loopback webhook server (`WEBHOOK_PORT`, default 3001): hook callbacks, `cortex-signal`, `cortex-browser` leases (`browser-webhook.ts`), subagent, team and board callbacks |
+| `routing/webhook.ts` | The loopback webhook routes (`/webhook/*`, `/hook/*` on the main port): hook callbacks, `cortex-signal`, `cortex-browser` leases (`browser-webhook.ts`), subagent, team and board callbacks |
 | `routing/hook-bridge.ts` | PreToolUse hook → EventBus bridge. Publishes `plan.submitted` and `ask-user.requested` |
 | `routing/hook-bridge-subscribers.ts` | Subscribers that turn a question or a submitted plan into an interaction record, which each surface renders as a card |
 | `interactions/` | AskUserQuestion flow, plan approval state machine, button/modal action routing |
@@ -334,7 +334,7 @@ Each adapter translates its backend's events into the unified `NormalizedEvent` 
 
 ## WebSocket Protocol (Server ↔ Client)
 
-The WebSocket protocol is used for **remote device command execution**, not for chat or UI traffic. The server runs a WebSocket server (default port 3002, `CORTEX_CLIENT_PORT`) via `startClientManager()`. Every connection presents the client token in the `x-cortex-token` header. For the full cross-machine story — deployment, network topology, and security — see [cross-machine.md](./cross-machine.md).
+The WebSocket protocol is used for **remote device command execution**, not for chat or UI traffic. The server accepts client WebSockets on its main port (`CORTEX_UI_PORT`, default 26789) at `/client` or any other unclaimed path, with `/reverse` for the callback sockets of streams; `startClientManager()` adds a separate listener when `CORTEX_CLIENT_PORT` is set. Every connection presents the client token in the `x-cortex-token` header. For the full cross-machine story — deployment, network topology, and security — see [cross-machine.md](./cross-machine.md).
 
 ### Message Flow
 
@@ -355,7 +355,7 @@ The client (`client/src/client.ts`) is a lightweight WebSocket daemon that maint
 
 ## Web UI Protocol
 
-The browser workbench, the desktop app and the mobile app all talk to the server through one HTTP host (`platform/ui-http/`), started when `CORTEX_UI_HTTP` is on. It listens on `127.0.0.1:3004` (`CORTEX_UI_PORT`); remote access goes through a tunnel or a LAN proxy (see [browser-access.md](./browser-access.md) and [desktop-app.md](./desktop-app.md)).
+The browser workbench, the desktop app and the mobile app all talk to the server through one HTTP host (`platform/ui-http/`), mounted on the main port when `CORTEX_UI_HTTP` is on. The main port listens on `127.0.0.1:26789` by default (`CORTEX_UI_HOST`, `CORTEX_UI_PORT`; see [configuration.md](./configuration.md#main-port)); remote access goes through a tunnel or a LAN proxy (see [browser-access.md](./browser-access.md) and [desktop-app.md](./desktop-app.md)).
 
 - **tRPC** under `/trpc/`. Queries and mutations are plain HTTP requests against the `AppRouter` in `domain/ui-service/app-router.ts`; the web app gets its types from `packages/ui-contract`.
 - **Live events** use one `subscribe` subscription over Server-Sent Events. The client names the event types it wants, optionally scoped to a project or session, and the server forwards matching `CortexEvent`s from the bus through a bounded queue, sending `ui-subscribe.dropped` if the client falls behind. A subscriber to streamed text first receives a snapshot of the assistant message in progress.
@@ -363,7 +363,7 @@ The browser workbench, the desktop app and the mobile app all talk to the server
 - **Other routes**: file download and attachment upload (`/api/files/download`, `/api/attachments/upload`), board assets (`/api/boards/asset`), the web-bundle update the desktop app downloads (`/api/ui-ota/manifest.json`, `/api/ui-ota/bundle.zip`), the native app update manifest (`/api/app-update/manifest.json`), port forwarding to remote machines (`/api/forward/*`, with the `/forward` WebSocket), and the agent browser: its sessions, takeover and typed text (`/api/browser/*`) and the live view over the `/api/browser/stream` WebSocket.
 - The same host serves the built web app, so a browser loads the UI and its API from one origin.
 
-The TUI uses a separate WebSocket gateway on port 3003 (`CORTEX_TUI_PORT`), and hooks and signals reach the server through the loopback webhook on port 3001.
+The TUI connects to the `/tui` WebSocket on the same port with the client token, and hooks and signals reach the server through the loopback-only webhook routes there.
 
 ## Event Bus Topology
 

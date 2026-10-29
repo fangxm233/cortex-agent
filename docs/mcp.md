@@ -375,7 +375,7 @@ connections, running sessions, waitpoints) directly, wherever their server
 runs. They communicate through two paths:
 
 1. **Loopback webhook** — most tools POST to the server's webhook at
-   `http://127.0.0.1:<WEBHOOK_PORT>` (default 3001), authenticated with the
+   `http://127.0.0.1:<CORTEX_UI_PORT>` (the main port, default 26789), authenticated with the
    `CORTEX_WEBHOOK_TOKEN` bearer token in the `x-cortex-token` header. Remote
    machine tools use `/webhook/remote-command`, whose handler in
    `agent-server/src/orchestration/routing/webhook.ts` forwards the request to
@@ -462,7 +462,7 @@ same values are passed to the in-process server directly.
 | `CORTEX_SESSION_ID` | Session context | Interaction tools, `cortex_context`, waitpoints, Web delivery |
 | `CORTEX_PROJECT`, `CORTEX_BACKEND`, `CORTEX_MODEL`, `CORTEX_PROVIDER`, `CORTEX_THINKING`, `CORTEX_MODE` | Session context | `cortex_context` |
 | `CORTEX_SCHEDULE_TASK_ID`, `CORTEX_CALLBACK_SOURCE` | Set for scheduled or callback-triggered runs | `cortex_context` |
-| `CORTEX_WEBHOOK_TOKEN`, `WEBHOOK_PORT` | Server environment | Every tool that calls the loopback webhook |
+| `CORTEX_WEBHOOK_TOKEN`, `CORTEX_UI_PORT` | Server environment | Every tool that calls the loopback webhook |
 | `CORTEX_MCP_BUNDLES` | Backend process composition | Bundle selection in the bundled server |
 | `CORTEX_MCP_TOOL_ALLOWLIST` | Agent role or subagent spawn | Tool registration filter |
 | `CORTEX_CLAUDE_MODEL`, `CORTEX_SUBAGENT_PI_MODELS`, `CORTEX_SUBAGENT_CLAUDE_MODELS` | Session model and model catalog | The `agent` and `worker_spawn` model descriptions |
@@ -475,13 +475,13 @@ MCP tools give the agent the ability to execute shell commands on remote
 machines, read and write files, delegate to subagents and workers, and post to
 the chat platforms. The security posture assumes:
 
-- The `cortex-client` WebSocket port (3002) requires `CORTEX_CLIENT_TOKEN` on
-  every connection, and is still best kept off the public internet: use
-  Tailscale, a VPN, a tunnel, or localhost-only binding (see
+- `cortex-client` WebSocket connections on the main port require
+  `CORTEX_CLIENT_TOKEN`, and the port is still best kept off the public
+  internet: use Tailscale, a VPN, a tunnel, or the default localhost-only binding (see
   [cross-machine.md](./cross-machine.md) for network topology options).
-- The webhook HTTP port (3001) is bound to `127.0.0.1` only and requires
-  `CORTEX_WEBHOOK_TOKEN` — MCP servers talk to it via loopback, not over the
-  network.
+- The webhook routes accept only loopback requests without forwarding headers
+  and require `CORTEX_WEBHOOK_TOKEN` — MCP servers talk to them via loopback,
+  not over the network.
 - The agent operates within the same blast-radius safety boundaries documented
   in [safety-and-approvals.md](./safety-and-approvals.md). MCP tools do not
   exempt a high-privilege operation from that boundary.

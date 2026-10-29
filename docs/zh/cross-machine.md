@@ -23,7 +23,7 @@ agent-server 进程（负责运行智能体 session、聊天平台和调度）�
 │                                 │
 │  client-manager.ts              │
 │  ┌───────────────────────────┐  │
-│  │ WebSocketServer :3002     │  │
+│  │ WebSocket :26789 (/client)│  │
 │  │ devices Map<name, ws>     │  │
 │  │ - hub (local)             │  │
 │  │ - trainer (remote, SSH)   │  │
@@ -33,12 +33,12 @@ agent-server 进程（负责运行智能体 session、聊天平台和调度）�
 │                                 │
 │  MCP core-server                │
 │  ┌───────────────────────────┐  │
-│  │ remote_bash/read/write    │──┼──→ HTTP :3001 → client-manager → WS → device
+│  │ remote_bash/read/write    │──┼──→ HTTP :26789 → client-manager → WS → device
 │  │ remote_edit/glob/grep     │  │
 │  └───────────────────────────┘  │
 └─────────────────────────────────┘
          ▲ WebSocket              ▲ SSH
-         │ (port 3002)            │ (port 22)
+         │ (port 26789)           │ (port 22)
 ┌────────┴────────┐    ┌──────────┴──────────┐
 │ cortex-client   │    │ cortex-client        │
 │ (hub, local)    │    │ (trainer, remote)    │
@@ -47,7 +47,7 @@ agent-server 进程（负责运行智能体 session、聊天平台和调度）�
 ```
 
 每个 `cortex-client` 实例：
-- 连接 agent-server 的 WebSocket 服务器（端口 3002），并出示 `CORTEX_CLIENT_TOKEN`
+- 连接 agent-server 的[主端口](./configuration.md#main-port)（`CORTEX_UI_PORT`，默认 26789），并出示 `CORTEX_CLIENT_TOKEN`
 - 连接时以设备名注册自己（`hello` 消息）
 - 每 5 秒发送一次心跳
 - 接收命令消息并在本机执行
@@ -73,7 +73,7 @@ agent-server 进程（负责运行智能体 session、聊天平台和调度）�
 
 新的本地桌面安装会在 init 期间显式请求准备客户端。服务器包中携带由同一份源码构建出的两个客户端文件；init 把它们准备到 `<CORTEX_HOME>/client/current/` 下，并创建本机客户端配置。服务器在 `client/local-install.json` 中记录所有权，并在启动自己的客户端时恢复被中断的准备过程。已有的、没有所有权记录的客户端文件或用户手动修改过的配置不会被接管。普通 init 和远程连接不会请求这项准备。本机客户端使用服务器的 Node 和所选环境，loopback WebSocket URL 与 token 在启动时注入。仅重新打开 App 会保留正在运行的守护进程；客户端的恢复由服务器启动流程负责。
 
-远程设备上不通过 npm 安装任何东西，唯一的要求是 Node.js。服务器的 bootstrap 脚本负责安装远程设备上的文件——它检查 SSH 和 Node.js，把 bundle 传到 `~/.cortex/client/current/`，并写入包含 `serverHost`、`serverPort` 和 `deviceName` 的客户端配置。它不会启动客户端，也不会在设备侧创建服务。该脚本在源码 checkout 的 `agent-server/` 目录下运行，面向 Linux 和 macOS 设备，接受 `--host`、`--device-name` 和 `--server-host`（均为必填）以及 `--server-port`（默认 3002）：
+远程设备上不通过 npm 安装任何东西，唯一的要求是 Node.js。服务器的 bootstrap 脚本负责安装远程设备上的文件——它检查 SSH 和 Node.js，把 bundle 传到 `~/.cortex/client/current/`，并写入包含 `serverHost`、`serverPort` 和 `deviceName` 的客户端配置。它不会启动客户端，也不会在设备侧创建服务。该脚本在源码 checkout 的 `agent-server/` 目录下运行，面向 Linux 和 macOS 设备，接受 `--host`、`--device-name` 和 `--server-host`（均为必填）以及 `--server-port`（默认：服务器设置了 `CORTEX_CLIENT_PORT` 时取该值，否则取其主端口）：
 
 ```bash
 node --import tsx src/domain/remote/client-bootstrap.ts \
@@ -91,13 +91,13 @@ node --import tsx src/domain/remote/client-bootstrap.ts \
 ```json
 {
   "serverHost": "192.0.2.10",
-  "serverPort": 3002,
+  "serverPort": 26789,
   "deviceName": "trainer"
 }
 ```
 
 - `serverHost` — agent-server 机器的 IP 或主机名，需从这台远程机器可达
-- `serverPort` — WebSocket 端口（默认 3002）
+- `serverPort` — 服务器的主端口；服务器设置了 `CORTEX_CLIENT_PORT` 时也可用该端口
 - `serverUrl` —（可选）客户端拨号使用的完整 WebSocket URL，优先级高于 `serverHost`/`serverPort`。用于 Cloudflare Tunnel 或任何经反向代理的路由，例如 `"wss://cortex.example.com"`——这样客户端就能连上没有公网 IP 的服务器（见下文 Cloudflare Tunnel）
 - `clientToken` — 服务器的 `CORTEX_CLIENT_TOKEN` 共享密钥；缺少它时 WS 升级会被 `401` 拒绝。服务器启动客户端时会自动注入，因此只有临时手动启动的诊断进程才需要在这里设置
 - `deviceName` — 本机的唯一名称，需与服务器 `machines.json` 中的键一致。默认为本机主机名
@@ -142,26 +142,28 @@ node --import tsx src/domain/remote/client-bootstrap.ts \
 - `win`（可选）— Windows 目标设为 `true`（会改变 SSH 命令语法）
 - `clientCommand`（可选）— 服务器（通过 SSH）在该机器上启动客户端所用的命令。默认为 `node "$HOME/.cortex/client/current/client.mjs"`（Linux）或 `node "%USERPROFILE%\.cortex\client\current\client.mjs"`（Windows）。当 `node` 不在该机器**非登录** SSH 的 PATH 上时需要覆盖它——最常见的是 `nvm` 安装，node 位于 `~/.nvm/...` 下；这时写绝对 node 路径，例如 `"/home/u/.nvm/versions/node/v20.19.5/bin/node /home/u/.cortex/client/current/client.mjs"`。服务器会用自己的 token 注入以及 `nohup`/`echo $!`（Linux）或 `cmd.exe` 包裹的 WMI（Windows）启动机制来包裹这条命令。
 
-`clientConnection` 用于选择路由。默认值 `direct` 使用 `cortex-client.json` 中的 URL。设为 `ssh-reverse` 时，服务器会维护一条 SSH 反向隧道，并在启动客户端时注入 loopback WebSocket URL。`clientReversePort` 可选，用于指定远程机器上的 loopback 端口；它只在 `ssh-reverse` 下有效，默认等于服务器的客户端端口，取值必须在 1024 到 65535 之间。SSH 反向路由要求配置 `ssh`。
+`clientConnection` 用于选择路由。默认值 `direct` 使用 `cortex-client.json` 中的 URL。设为 `ssh-reverse` 时，服务器会维护一条 SSH 反向隧道，并在启动客户端时注入 loopback WebSocket URL。`clientReversePort` 可选，用于指定远程机器上的 loopback 端口；它只在 `ssh-reverse` 下有效，默认等于服务器的客户端端口（主端口；设置了 `CORTEX_CLIENT_PORT` 时为该端口），取值必须在 1024 到 65535 之间。SSH 反向路由要求配置 `ssh`。
 
 `machines.json` 无效时，服务器在启动阶段就会停止。服务器运行期间所做的修改若未通过校验，服务器会保留先前的注册表，并发送一条管理员通知。该文件通过 `fs.watch()` 监视，普通的注册表读取方会在几百毫秒内看到更新。托管客户端的路由字段在客户端启动开始时生成快照，因此修改 `clientConnection`、`clientReversePort` 或对应的 `ssh` 目标需要重启服务器。删除条目在同一次重载中生效：服务器会停止该机器的 SSH 反向隧道，并取消其待执行的客户端重启。`cortex client remove --device <name>` 会删除条目，同时停止并卸载该机器上的客户端（参见 [CLI 参考](./cli-reference.md)）。
 
 ## 网络拓扑 {#network-topology}
 
-远程客户端到服务器的连接需要一条通往 3002 端口的 TCP 路径。根据网络布局，有以下几种选择。
+远程客户端到服务器的连接需要一条通往服务器主端口（`CORTEX_UI_PORT`，默认 26789）的 TCP 路径。客户端连接路径 `/client`，或包括根路径 `/` 在内的其他任意路径。根据网络布局，有以下几种选择。
+
+主端口默认绑定 `127.0.0.1`，适用于 Cloudflare Tunnel 和 SSH 反向路由。客户端经局域网或 Tailscale 直连时，在服务器的 `config/.env` 中把 `CORTEX_UI_HOST` 设为设备能访问的地址（或 `0.0.0.0`）。也可以设置 `CORTEX_CLIENT_PORT` 和 `CORTEX_CLIENT_HOST` 另开一个客户端监听端口，客户端用任一端口均可。无论绑定地址如何，主端口上的 webhook 路由都只接受回环请求。
 
 ### 同一局域网 {#same-lan}
 
 最简单的情况。把服务器的局域网 IP 作为 `serverHost`：
 
 ```json
-{ "serverHost": "192.168.1.100", "serverPort": 3002, "deviceName": "trainer" }
+{ "serverHost": "192.168.1.100", "serverPort": 26789, "deviceName": "trainer" }
 ```
 
 如果连接失败，检查服务器的防火墙：
 
 ```bash
-sudo ufw allow 3002
+sudo ufw allow 26789
 ```
 
 ### Tailscale（跨网络推荐） {#tailscale-recommended-for-cross-network}
@@ -169,7 +171,7 @@ sudo ufw allow 3002
 无论物理网络如何，Tailscale 都会为每台机器分配一个稳定的 CGNAT IP（`100.x.y.z`）。客户端连接服务器的 Tailscale IP：
 
 ```json
-{ "serverHost": "100.64.12.34", "serverPort": 3002, "deviceName": "cluster" }
+{ "serverHost": "100.64.12.34", "serverPort": 26789, "deviceName": "cluster" }
 ```
 
 查询服务器的 Tailscale IP：
@@ -182,12 +184,12 @@ Tailscale 无需端口转发即可穿透 NAT 和防火墙，是位于不同网�
 
 ### Cloudflare Tunnel {#cloudflare-tunnel}
 
-当服务器和客户端都位于 NAT 之后、没有公网 IP 时，在服务器上运行 `cloudflared`，通过隧道暴露其 WebSocket 端口，再用 `serverUrl` 让客户端指向隧道主机名。服务器的 `cloudflared` ingress 把主机名映射到本地 WS 端口：
+当服务器和客户端都位于 NAT 之后、没有公网 IP 时，在服务器上运行 `cloudflared`，通过隧道暴露其主端口，再用 `serverUrl` 让客户端指向隧道主机名。服务器的 `cloudflared` ingress 把主机名映射到主端口；除非 UI 放在 Cloudflare Access 之后（见[浏览器访问](./browser-access.md)），Web UI、应用和客户端可以共用这个主机名：
 
 ```yaml
 ingress:
   - hostname: cortex.example.com
-    service: http://localhost:3002
+    service: http://localhost:26789
   - service: http_status:404
 ```
 
@@ -215,7 +217,7 @@ ingress:
 }
 ```
 
-服务器会监督一条到 `user@worker` 的 OpenSSH master 连接，承载 `-R 127.0.0.1:13002:127.0.0.1:3002`，并设置 `ExitOnForwardFailure=yes` 和 15 秒 keepalive。每次启动前，它会先释放早先隧道遗留在远程端口上的陈旧 listener，然后等待 SSH control socket 就绪，再以 `CORTEX_SERVER_URL=ws://127.0.0.1:13002` 启动客户端。远程 listener 只绑定 loopback。隧道故障有独立的重试循环，退避时间从 1 秒到 30 秒，客户端则保持常规的 WebSocket 重连行为。在 SSH 隧道内仍然必须提供 token。control socket 存放在 `$CORTEX_HOME/data/client-ssh-tunnels/` 下，每个客户端启动时所用的路由记录在 `$CORTEX_HOME/data/client-routes.json` 中，因此仍运行在与当前配置不符的路由上的客户端会被停止并重新启动。
+服务器会监督一条到 `user@worker` 的 OpenSSH master 连接，承载 `-R 127.0.0.1:13002:127.0.0.1:26789`（服务器的主端口；设置了 `CORTEX_CLIENT_PORT` 时为该端口），并设置 `ExitOnForwardFailure=yes` 和 15 秒 keepalive。每次启动前，它会先释放早先隧道遗留在远程端口上的陈旧 listener，然后等待 SSH control socket 就绪，再以 `CORTEX_SERVER_URL=ws://127.0.0.1:13002` 启动客户端。远程 listener 只绑定 loopback。隧道故障有独立的重试循环，退避时间从 1 秒到 30 秒，客户端则保持常规的 WebSocket 重连行为。在 SSH 隧道内仍然必须提供 token。control socket 存放在 `$CORTEX_HOME/data/client-ssh-tunnels/` 下，每个客户端启动时所用的路由记录在 `$CORTEX_HOME/data/client-routes.json` 中，因此仍运行在与当前配置不符的路由上的客户端会被停止并重新启动。
 
 如果默认端口在远程机器上已被占用，可以改用其他 `clientReversePort`。`~/.ssh/config` 中的 SSH alias 和 `ProxyCommand` 条目可以直接使用，因为配置的 `ssh` 值会作为单个 OpenSSH host 参数传入。
 
@@ -224,18 +226,18 @@ ingress:
 由其他进程单独监督的 SSH 隧道也能提供同样的网络路径：
 
 ```bash
-ssh -N -R 127.0.0.1:3002:127.0.0.1:3002 user@server
+ssh -N -R 127.0.0.1:26789:127.0.0.1:26789 user@server
 ```
 
-这种方式下，把客户端配置为 `"serverUrl": "ws://127.0.0.1:3002"`，并让 `clientConnection` 保持 `direct`，因为隧道进程不归 Cortex 管理。
+这种方式下，把客户端配置为 `"serverUrl": "ws://127.0.0.1:26789"`，并让 `clientConnection` 保持 `direct`，因为隧道进程不归 Cortex 管理。
 
 ### 连接故障排查 {#connection-troubleshooting}
 
 | 症状 | 可能原因 | 解决方法 |
 |---|---|---|
-| 客户端无法连接 | 3002 端口被阻断 | 检查防火墙：`sudo ufw allow 3002` |
+| 客户端无法连接 | 主端口只绑定了回环地址，或被阻断 | 设置 `CORTEX_UI_HOST`（见[网络拓扑](#network-topology)）；检查防火墙：`sudo ufw allow 26789` |
 | 客户端连上后又断开 | NAT 超时 | 使用 Tailscale 或启用 TCP keepalive |
-| SSH 可用但 WebSocket 不可用 | 只开放了 22 端口 | 开放 3002 端口，或使用 Tailscale/反向隧道 |
+| SSH 可用但 WebSocket 不可用 | 只开放了 22 端口 | 开放主端口，或使用 Tailscale/反向隧道 |
 | 已安装 Tailscale 但无法连接 | ACL 阻断 | 检查 `tailscale status` 和 ACL 规则 |
 | "Device already connected"（代码 4002） | 陈旧连接或重复客户端 | 终止远程机器上的旧客户端进程 |
 | "Unknown device"（代码 4005） | `deviceName` 不在 `machines.json` 中 | 添加该机器，或修正 `deviceName` |

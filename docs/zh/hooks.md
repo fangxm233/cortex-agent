@@ -174,7 +174,7 @@ bus 如何处理 stdout 取决于 `result`：
 
 ## hook-bridge：经 HTTP 阻塞的调用 {#the-hook-bridge-blocking-calls-over-http}
 
-有两类交互需要人参与其中，而智能体进程自己无法完成：向用户提问，以及让计划获得批准。二者都向服务器的 loopback webhook 监听端口（`WEBHOOK_PORT`，默认 3001）POST 到 `/hook/ask-user-question` 和 `/hook/exit-plan-mode`，在 `x-cortex-token` 请求头中携带 `CORTEX_WEBHOOK_TOKEN` bearer token 进行认证，并阻塞等待响应。以 `blocking: false` 发出的提问会在卡片弹出后立即返回。
+有两类交互需要人参与其中，而智能体进程自己无法完成：向用户提问，以及让计划获得批准。二者都向服务器[主端口](./configuration.md#main-port)上只接受 loopback 请求的 webhook 路由 POST 到 `/hook/ask-user-question` 和 `/hook/exit-plan-mode`，在 `x-cortex-token` 请求头中携带 `CORTEX_WEBHOOK_TOKEN` bearer token 进行认证，并阻塞等待响应。以 `blocking: false` 发出的提问会在卡片弹出后立即返回。
 
 智能体经 `cortex_ask_user` 与 `cortex_plan_exit` 两个 MCP 工具接入这个 bridge；钩子脚本则经 `cortex-hook-api.mjs` 或 `cortex-hook ask` CLI 接入（见[在钩子里向用户提问](#asking-the-user-from-a-hook)）。拥有这些交互工具的 Cortex 会话中不包含 Claude 原生的 `AskUserQuestion` 和 `ExitPlanMode`，因此不需要任何钩子去拦截它们。
 

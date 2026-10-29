@@ -147,7 +147,7 @@ Cortex 以启动它的用户的权限运行。它没有自带任何提权路径�
 
 服务器自身的接口有机械防护：
 
-- MCP 工具和 hook 脚本调用的 webhook 监听器（`WEBHOOK_PORT`，默认 3001）只绑定 `127.0.0.1`，且每个路由都要求在 `x-cortex-token` 请求头中携带 `CORTEX_WEBHOOK_TOKEN` bearer token。唯一的例外是 `/webhook/signal`，它用限定于单个 [waitpoint](./waitpoints.md#security) 的 secret 对每个请求做认证。
+- MCP 工具和 hook 脚本调用的 webhook 路由（[主端口](./configuration.md#main-port)上的 `/webhook/*` 与 `/hook/*`）只接受不带转发头的回环请求，经隧道或反向代理到达的请求一律拒绝，且每个路由都要求在 `x-cortex-token` 请求头中携带 `CORTEX_WEBHOOK_TOKEN` bearer token。唯一的例外是 `/webhook/signal`，它用限定于单个 [waitpoint](./waitpoints.md#security) 的 secret 对每个请求做认证。
 - 每个 `cortex-client` WebSocket 连接都必须出示 `CORTEX_CLIENT_TOKEN`；缺少 token 或 token 错误时以 HTTP 401 拒绝。两个 token 在缺失时都会生成到 `$CORTEX_HOME/config/.env` 中。远程客户端以启动它的用户身份运行。参见 [cross-machine.md](./cross-machine.md#security-boundary)。
 - `status-md-guard` hook 会拒绝让项目的 `STATUS.md` 或 `ISSUES.md`、或某个记忆 `AGENTS.md` 索引超出大小上限的编辑（参见 [hooks.md](./hooks.md#hook-scripts)）。
 
