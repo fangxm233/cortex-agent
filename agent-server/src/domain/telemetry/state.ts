@@ -9,6 +9,9 @@ export interface PendingUpgrade {
   startedAt: string;
 }
 
+/** `fresh`: the funnel began with this install; `existing`: the install predates it. */
+export type FunnelBaseline = 'fresh' | 'existing';
+
 /** Small cross-boot facts; survives a telemetry wipe (it holds nothing worth deleting). */
 export interface TelemetryState {
   lastHeartbeatAt: string | null;
@@ -16,11 +19,16 @@ export interface TelemetryState {
   lastVersion: string | null;
   funnelSent: string[];
   pendingUpgrade: PendingUpgrade | null;
+  funnelBaseline: FunnelBaseline | null;
 }
 
 const EMPTY: TelemetryState = {
-  lastHeartbeatAt: null, lastVersion: null, funnelSent: [], pendingUpgrade: null,
+  lastHeartbeatAt: null, lastVersion: null, funnelSent: [], pendingUpgrade: null, funnelBaseline: null,
 };
+
+function baselineOf(raw: unknown): FunnelBaseline | null {
+  return raw === 'fresh' || raw === 'existing' ? raw : null;
+}
 
 export function readTelemetryState(file: string = STATE_FILE): TelemetryState {
   try {
@@ -29,6 +37,7 @@ export function readTelemetryState(file: string = STATE_FILE): TelemetryState {
       ...EMPTY,
       ...raw,
       funnelSent: Array.isArray(raw.funnelSent) ? raw.funnelSent.filter((s) => typeof s === 'string') : [],
+      funnelBaseline: baselineOf(raw.funnelBaseline),
     };
   } catch {
     return { ...EMPTY };

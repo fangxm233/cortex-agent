@@ -152,7 +152,7 @@ function registerHelloDevice(ws: WebSocket, msg: HelloFrame, remoteAddress: stri
     connectedAt: new Date(), lastHeartbeat: new Date(), bundleHash, ws,
   });
   log.info(`Device connected: ${device} (${platform})`);
-  recordRemoteClientConnected();
+  recordRemoteClientConnected(device);
   void emitCortexEvent('cortex:client.connected', { device }).catch(() => {});
   applyReportedGpuCount(device, typeof msg.gpuCount === 'number' ? msg.gpuCount : null);
   try { updateHooks?.onHello(device, bundleHash); } catch (e) {

@@ -18,6 +18,8 @@ export interface TelemetryServiceOptions {
   now?: () => number;
   /** Delay after boot before the first heartbeat or rollup upload. */
   firstDelayMs?: number;
+  /** Funnel steps polled rather than signalled; run at start and on every tick. */
+  collectFunnel?: () => Promise<void>;
 }
 
 interface Running {
@@ -129,6 +131,7 @@ async function finalizeAll(at: number): Promise<void> {
 export async function telemetryTick(): Promise<void> {
   if (!isTelemetryActive()) return wipeLocalTelemetry();
   runHooks((hook) => hook.persist);
+  await running?.options.collectFunnel?.().catch(() => undefined);
   if (!running || now() - running.bootAt < firstDelayMs(running.options)) return;
   await finalizeAll(now());
   await queueHeartbeatIfDue();
@@ -151,6 +154,7 @@ export function startTelemetry(options: TelemetryServiceOptions): void {
   backoff = new UploadBackoff(() => now());
   if (!isTelemetryActive()) return wipeLocalTelemetry();
   scheduleFlush(STARTUP_FLUSH_DELAY_MS);
+  void options.collectFunnel?.().catch(() => undefined);
 }
 
 /** Shutdown: persist aggregates; queued events wait for the next boot. */

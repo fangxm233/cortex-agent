@@ -14,7 +14,7 @@ let restore: () => void = () => {};
 afterEach(() => {
   wipeLocalTelemetry();
   restore();
-  updateTelemetryState(() => ({ lastHeartbeatAt: null, lastVersion: null, funnelSent: [], pendingUpgrade: null }));
+  updateTelemetryState(() => ({ lastHeartbeatAt: null, lastVersion: null, funnelSent: [], pendingUpgrade: null, funnelBaseline: null }));
 });
 
 function upgrades() {

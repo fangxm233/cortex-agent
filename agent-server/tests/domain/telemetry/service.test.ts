@@ -16,7 +16,7 @@ afterEach(() => {
   wipeLocalTelemetry();
   restore?.();
   restore = null;
-  updateTelemetryState(() => ({ lastHeartbeatAt: null, lastVersion: null, funnelSent: [], pendingUpgrade: null }));
+  updateTelemetryState(() => ({ lastHeartbeatAt: null, lastVersion: null, funnelSent: [], pendingUpgrade: null, funnelBaseline: null }));
 });
 
 function heartbeat(): HeartbeatEvent {

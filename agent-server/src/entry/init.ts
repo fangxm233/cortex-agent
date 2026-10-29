@@ -24,6 +24,7 @@ import { createLogger } from '@core/log.js';
 import { INSTALL_ROOT, DEFAULTS_DIR, DATA_DIR } from '@core/paths.js';
 import { applyInitTelemetry, parseInitTelemetryAnswer } from '@domain/telemetry/init-answer.js';
 import { recordFunnelStep } from '@domain/telemetry/funnel.js';
+import { settleFunnelBaseline } from '@domain/telemetry/baseline.js';
 import type { InitTelemetryAnswer } from '@domain/telemetry/schema.js';
 import { writeUsageSharing, type UsageSharingUpdate } from '@domain/costs/aistatus-config.js';
 import { t, setLocale, normalizeLocale, detectSystemLocale, type Locale } from '../core/i18n.js';
@@ -1454,6 +1455,15 @@ export function writeInitConfigs(paths: InitPaths, answers: InitAnswers, force: 
   seedSchedules(paths, overwrite);
 }
 
+/** The home's directories and Git history; records whether this init created the home (the funnel baseline). */
+function createHome(paths: InitPaths): void {
+  const freshHome = !existsSync(path.join(paths.CONFIG_DIR, 'machines.json'));
+  const gitAvailable = ensureGitInstalled();
+  createDirectories(paths);
+  if (gitAvailable) ensureGitRepo(paths.DATA_DIR);
+  settleFunnelBaseline({ freshHome, file: path.join(paths.STORE_DIR, 'telemetry', 'state.json') });
+}
+
 async function runInitSteps(
   paths: InitPaths,
   force: boolean,
@@ -1475,9 +1485,7 @@ async function runInitSteps(
   emit({ step: 'backends', state: 'ok' });
 
   // 3. Create the home; Git history is optional on macOS/Linux.
-  const gitAvailable = ensureGitInstalled();
-  createDirectories(paths);
-  if (gitAvailable) ensureGitRepo(paths.DATA_DIR);
+  createHome(paths);
   emit({ step: 'home', state: 'ok', home: paths.DATA_DIR });
 
   // 4. Explicit client intent is durable before config writes; prepare never starts a process.

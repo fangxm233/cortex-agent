@@ -174,14 +174,19 @@ export const SERVER_FUNNEL_STEPS = [
   'server_init_completed', 'provider_authed', 'first_session', 'first_turn_completed',
   'first_remote_client', 'first_worker', 'first_schedule',
 ] as const;
+/** Not steps: flags on an install's funnel. `existing_install`: it predates its funnel. */
+export const SERVER_FUNNEL_MARKERS = ['existing_install'] as const;
 export const SETUP_FAILURE_CLASSES = ['network', 'permission', 'disk', 'timeout', 'cancelled', 'other'] as const;
 
 export const FunnelEventSchema = z.object({
   type: z.literal('funnel'),
   at: timestamp,
   source: z.enum(['desktop-setup', 'server']),
-  step: z.enum([...DESKTOP_SETUP_STEPS, ...SERVER_FUNNEL_STEPS]),
-  /** provider_authed: the backend; *_failed: one of SETUP_FAILURE_CLASSES; otherwise null. */
+  step: z.enum([...DESKTOP_SETUP_STEPS, ...SERVER_FUNNEL_STEPS, ...SERVER_FUNNEL_MARKERS]),
+  /**
+   * provider_authed: the backend; *_failed: one of SETUP_FAILURE_CLASSES; init_completed:
+   * `existing` when setup reused a home instead of creating one; otherwise null.
+   */
   detail: IDENT.nullable(),
 });
 export type FunnelEvent = z.infer<typeof FunnelEventSchema>;

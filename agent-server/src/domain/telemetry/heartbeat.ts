@@ -22,7 +22,7 @@ export interface HeartbeatSources {
 type Account = AuthStatusSnapshot['accounts'][number];
 type DevicePlatform = keyof HeartbeatEvent['clientPlatforms'];
 
-function usable(account: Account): boolean {
+export function usable(account: Account): boolean {
   return account.state === 'logged-in' || account.state === 'expiring';
 }
 

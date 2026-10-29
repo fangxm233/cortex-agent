@@ -13,8 +13,10 @@ export function countFeature(name: FeatureCounter, by = 1): void {
   updateRollup((rollup) => { rollup.features[name] = (rollup.features[name] ?? 0) + by; });
 }
 
+/** A user message from any entry; the first one also means the user has a session. */
 export function countMessage(channel: MessageChannel): void {
   updateRollup((rollup) => { rollup.messagesByChannel[channel] = (rollup.messagesByChannel[channel] ?? 0) + 1; });
+  recordFunnelStep('first_session');
 }
 
 /** A chat-platform conduit's channel bucket (`slack:…`, `feishu:…`, `tui-…`). */
@@ -77,7 +79,9 @@ export function recordScheduleCreated(count = 1): void {
   recordFunnelStep('first_schedule');
 }
 
-export function recordRemoteClientConnected(): void {
+/** A client other than this machine's own (`CORTEX_MACHINE`, which the local client is named after). */
+export function recordRemoteClientConnected(device: string, localDevice = process.env.CORTEX_MACHINE): void {
+  if (device === localDevice) return;
   countFeature('remote_client_connected');
   recordFunnelStep('first_remote_client');
 }

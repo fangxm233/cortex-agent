@@ -12,7 +12,8 @@ import { captureChildExitFromEnv } from '@domain/telemetry/child-exit.js';
 import { installDailyUpload } from '@domain/telemetry/daily-upload.js';
 import { recordErrorLog } from '@domain/telemetry/error-digest.js';
 import { subscribeTelemetryToBus } from '@domain/telemetry/bus-collector.js';
-import { recordFunnelStep } from '@domain/telemetry/funnel.js';
+import { settleFunnelBaselineAtBoot } from '@domain/telemetry/baseline.js';
+import { recordFunnelStep, recordProviderAuthed } from '@domain/telemetry/funnel.js';
 import { installWebReportSink, recordEventLoopLag } from '@domain/telemetry/usage.js';
 import { onLoginSuccess } from '@domain/auth/login-flow.js';
 import type { EventBus } from '@events/event-bus.js';
@@ -44,6 +45,7 @@ export function installEarlyTelemetry(): void {
   installDailyUpload();
   setErrorLogSink(recordErrorLog);
   captureChildExitFromEnv();
+  settleFunnelBaselineAtBoot();
   confirmUpgradeAtBoot();
 }
 
@@ -59,7 +61,10 @@ export const telemetryEventLoopObserver = (reading: { p99Ms: number }): void => 
 
 export function startTelemetryService(): void {
   const sources = heartbeatSources();
-  startTelemetry({ collectHeartbeat: () => buildHeartbeat(sources) });
+  startTelemetry({
+    collectHeartbeat: () => buildHeartbeat(sources),
+    collectFunnel: () => recordProviderAuthed(sources.authStatus),
+  });
 }
 
 export { stopTelemetry as stopTelemetryService };
