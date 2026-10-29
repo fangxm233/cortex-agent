@@ -1,5 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'http';
+import type { Duplex } from 'stream';
 import * as crypto from 'crypto';
 import type { PlatformAdapter } from '../../adapter.js';
 import type {
@@ -78,7 +79,7 @@ export class TuiGatewayAdapter implements PlatformAdapter {
   };
 
   private _wss: WebSocketServer | null = null;
-  private _port: number;
+  private _port: number | null;
   private _host: string;
   private _noopOutbound = false;
   private _connections = new Map<string, TuiConnection>();
@@ -92,8 +93,12 @@ export class TuiGatewayAdapter implements PlatformAdapter {
   private _actionHandlers = new Map<string, (ctx: ActionContext) => Promise<void>>();
   private _modalHandlers = new Map<string, (ctx: ModalSubmitContext) => Promise<void>>();
 
+  /**
+   * Without a port the gateway binds nothing: the daemon's main server hands it `/tui` upgrades
+   * (handleUpgrade) after checking the token. A port gives it a listener of its own (tests).
+   */
   constructor(opts?: { port?: number; host?: string }) {
-    this._port = opts?.port ?? (Number(process.env.CORTEX_TUI_PORT) || 3003);
+    this._port = opts?.port ?? null;
     this._host = opts?.host ?? '127.0.0.1';
   }
 
@@ -124,9 +129,38 @@ export class TuiGatewayAdapter implements PlatformAdapter {
   // ── Lifecycle ───────────────────────────────────────────────────
 
   async start(): Promise<void> {
-    // Bind WebSocket server — listen on 'listening' / 'error' for async binding
-    this._wss = new WebSocketServer({ port: this._port, host: this._host });
+    if (this._port === null) {
+      this._wss = new WebSocketServer({ noServer: true });
+      this._wireServer(this._wss);
+      log.info('TUI gateway ready on the main port');
+      return;
+    }
+    await this._listen(this._port);
+  }
 
+  /** Accept a `/tui` WebSocket the main server has already authenticated. */
+  handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {
+    const wss = this._wss;
+    if (!wss) {
+      socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+    wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+  }
+
+  private _wireServer(wss: WebSocketServer): void {
+    wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
+      this._handleConnection(ws, req);
+    });
+    wss.on('error', (err: Error) => {
+      log.error('WebSocket server error:', err.message);
+    });
+  }
+
+  /** Bind a listener of the gateway's own — listen on 'listening' / 'error' for async binding. */
+  private async _listen(port: number): Promise<void> {
+    this._wss = new WebSocketServer({ port, host: this._host });
     try {
       await new Promise<void>((resolve, reject) => {
         this._wss!.once('listening', () => resolve());
@@ -135,22 +169,14 @@ export class TuiGatewayAdapter implements PlatformAdapter {
     } catch (err: any) {
       this._wss = null;
       if (err.code === 'EADDRINUSE' || err.message?.includes('EADDRINUSE') || err.message?.includes('in use')) {
-        log.warn(`TUI port ${this._port} in use — adapter is no-op outbound`);
+        log.warn(`TUI port ${port} in use — adapter is no-op outbound`);
         this._noopOutbound = true;
         return;
       }
       throw err;
     }
-
-    this._wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
-      this._handleConnection(ws, req);
-    });
-
-    this._wss.on('error', (err: Error) => {
-      log.error('WebSocket server error:', err.message);
-    });
-
-    log.info(`TUI gateway listening on ws://${this._host}:${this._port}`);
+    this._wireServer(this._wss);
+    log.info(`TUI gateway listening on ws://${this._host}:${port}`);
   }
 
   async stop(): Promise<void> {

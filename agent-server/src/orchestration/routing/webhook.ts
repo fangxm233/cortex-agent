@@ -2,7 +2,7 @@ import { createLogger } from '@core/log.js';
 import { recordWebhookCall } from '@domain/telemetry/usage.js';
 import { getSettings } from '@core/settings.js';
 import { AUTH_HEADER, getWebhookToken, timingSafeEqualStr } from '@core/auth.js';
-import * as http from 'http';
+import type * as http from 'http';
 import * as crypto from 'crypto';
 import { readFileSync } from 'fs';
 import { sendCommand, isDeviceOnline, getOnlineDevices } from '@domain/remote/client-manager.js';
@@ -25,8 +25,6 @@ import { sendAgentView } from '../agent-view-send.js';
 import { sendAgentDecisions } from '../agent-decision-send.js';
 
 const log = createLogger('webhook');
-
-const PORT = parseInt(process.env.WEBHOOK_PORT || '3001', 10);
 
 type Res = http.ServerResponse;
 type RequestHandler = (req: http.IncomingMessage, res: Res) => void;
@@ -413,6 +411,7 @@ function findRoute(method: string | undefined, url: string | undefined): Request
   return routes && url && Object.hasOwn(routes, url) ? routes[url] : null;
 }
 
+/** The webhook routes, mounted on the main server's `/webhook/` and `/hook/` paths (local requests only). */
 function createWebhookHandler(): RequestHandler {
   return (req, res) => {
     // A benchmark trial's server serves the one route its launcher drives and refuses the rest.
@@ -437,14 +436,4 @@ function createWebhookHandler(): RequestHandler {
   };
 }
 
-function startWebhookServer() {
-  const server = http.createServer(createWebhookHandler());
-
-  server.listen(PORT, '127.0.0.1', () => {
-    log.info(`Listening on 127.0.0.1:${PORT}`);
-  });
-
-  return server;
-}
-
-export { startWebhookServer, createWebhookHandler };
+export { createWebhookHandler };

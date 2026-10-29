@@ -8,6 +8,7 @@ import { makeRenderStdout, newRenderStats, writesPerSecond, type RenderStats } f
 import { WsClient } from './ws-client.js';
 import { isHandshakeAck, isSessionSwitched, isUiQueryResult } from '../platform/tui/protocol.js';
 import { CORTEX_VERSION } from '../core/version.js';
+import { TUI_PATH, parsePort, resolveClientToken, resolveMainPort } from '../core/main-port.js';
 import { t, setLocale, normalizeLocale } from '../core/i18n.js';
 import { loadLang } from '../domain/system/preferences.js';
 import type { TuiFrame } from '../platform/tui/protocol.js';
@@ -22,7 +23,7 @@ interface TuiArgs {
 }
 
 function parseArgs(argv: string[]): TuiArgs {
-  const args: TuiArgs = { resume: false, project: null, port: 3003 };
+  const args: TuiArgs = { resume: false, project: null, port: resolveMainPort() };
 
   for (let i = 2; i < argv.length; i++) {
     switch (argv[i]) {
@@ -33,7 +34,7 @@ function parseArgs(argv: string[]): TuiArgs {
         args.project = argv[++i] ?? null;
         break;
       case '--port':
-        args.port = parseInt(argv[++i] ?? '3003', 10);
+        args.port = parsePort(argv[++i]) ?? args.port;
         break;
     }
   }
@@ -219,8 +220,9 @@ async function main(): Promise<void> {
       client.markSessionId(lastSessionId);
     }
 
-    client.connect(`ws://127.0.0.1:${args.port}`, {
+    client.connect(`ws://127.0.0.1:${args.port}${TUI_PATH}`, {
       clientVersion: CORTEX_VERSION,
+      token: resolveClientToken(),
       project: args.project,
       onStateChange: (s) => {
         connectionState = s;

@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { WebSocket, WebSocketServer } from 'ws';
+import { WebSocket } from 'ws';
 import { _testSetRegistry } from '../src/domain/remote/machine-registry.js';
 import {
   getOnlineDevices, isDeviceOnline, sendCommand, setClientUpdateHooks, setHubLifecycleHooks,
-  startClientManager, stopClientManager,
+  startClientManager, stopClientManager, getClientListenerAddress,
 } from '../src/domain/remote/client-manager.js';
 
 const hooks = vi.hoisted(() => ({ emit: vi.fn().mockResolvedValue([]) }));
@@ -31,15 +31,9 @@ afterEach(async () => {
 });
 
 async function startHub(host = '127.0.0.1'): Promise<number> {
-  const on = vi.spyOn(WebSocketServer.prototype, 'on');
   startClientManager(0, host);
-  const index = on.mock.calls.findIndex(([event]) => event === 'connection');
-  const server = on.mock.contexts[index] as WebSocketServer;
-  on.mockRestore();
-  await vi.waitFor(() => expect(server.address()).toBeTruthy());
-  const address = server.address();
-  if (!address || typeof address === 'string') throw new Error('Expected TCP listener');
-  return address.port;
+  await vi.waitFor(() => expect(getClientListenerAddress()).toBeTruthy());
+  return getClientListenerAddress()!.port;
 }
 
 async function hello(port: number, device: string, host = '127.0.0.1'): Promise<WebSocket> {

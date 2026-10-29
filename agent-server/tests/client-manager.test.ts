@@ -9,7 +9,9 @@ vi.mock('@core/hook-bus.js', () => ({
   emitCortexEvent: hookBus.emitCortexEvent,
 }));
 import { WebSocket, WebSocketServer } from 'ws';
+import type { AddressInfo } from 'node:net';
 import {
+  getClientListenerAddress,
   getOnlineDevices,
   isDeviceOnline,
   sendCommand,
@@ -96,21 +98,15 @@ afterAll(() => {
   try { stopClientManager(); } catch {}
 });
 
-async function listenOnHost(host?: string): Promise<WebSocketServer> {
-  const on = vi.spyOn(WebSocketServer.prototype, 'on');
+async function listenOnHost(host?: string): Promise<AddressInfo> {
   startClientManager(await findEphemeralPort(), host);
-  const index = on.mock.calls.findIndex(([event]) => event === 'connection');
-  const server = on.mock.contexts[index] as WebSocketServer;
-  on.mockRestore();
-  await waitFor(() => !!server.address());
-  return server;
+  await waitFor(() => !!getClientListenerAddress());
+  return getClientListenerAddress()!;
 }
 
 test.each([undefined, '127.0.0.1', '0.0.0.0'])('actual client listener honors host %s without changing authentication', async host => {
   onTestFinished(() => stopClientManager());
-  const server = await listenOnHost(host);
-  const address = server.address();
-  assert.ok(address && typeof address === 'object');
+  const address = await listenOnHost(host);
   if (host) assert.equal(address.address, host);
   else assert.ok(['::', '0.0.0.0'].includes(address.address));
   const ws = await connectDevice(address.port, 'host-contract');
@@ -122,9 +118,7 @@ test('an explicitly selected LAN interface remains available for direct clients'
   const lan = Object.values(networkInterfaces()).flat().find(address => address?.family === 'IPv4' && !address.internal);
   if (!lan) { t.skip(); return; }
   onTestFinished(() => stopClientManager());
-  const server = await listenOnHost(lan.address);
-  const address = server.address();
-  assert.ok(address && typeof address === 'object');
+  const address = await listenOnHost(lan.address);
   assert.equal(address.address, lan.address);
   const ws = new WebSocket(`ws://${lan.address}:${address.port}`, { headers: authHeaders });
   await new Promise<void>((resolve, reject) => { ws.once('open', resolve); ws.once('error', reject); });
@@ -149,20 +143,18 @@ test('Windows native answers persist through cold/recovery dotenv loading to the
     const env: NodeJS.ProcessEnv = {};
     loadRuntimeDotenv(join(paths.CONFIG_DIR, '.env'), env);
     assert.equal(env.CORTEX_CLIENT_HOST, '127.0.0.1', phase);
-    const server = await listenOnHost(env.CORTEX_CLIENT_HOST);
-    const address = server.address();
-    assert.ok(address && typeof address === 'object');
+    const address = await listenOnHost(env.CORTEX_CLIENT_HOST);
     assert.equal(address.address, '127.0.0.1', phase);
     await stopClientManager();
   }
 });
 
-test('app passes the persisted host to only the client manager after runtime dotenv loading', () => {
-  const source = readFileSync(new URL('../src/entry/app.ts', import.meta.url), 'utf8');
-  const call = "startClientManager(parseInt(process.env.CORTEX_CLIENT_PORT || '3002', 10), process.env.CORTEX_CLIENT_HOST)";
-  assert.ok(source.includes(call));
-  assert.ok(source.indexOf('loadRuntimeDotenv(path.join(CONFIG_DIR') < source.indexOf(call));
-  assert.equal(source.match(/process\.env\.CORTEX_CLIENT_HOST/g)?.length, 1);
+test('the persisted host reaches only the legacy client listener, after runtime dotenv loading', () => {
+  const app = readFileSync(new URL('../src/entry/app.ts', import.meta.url), 'utf8');
+  const wiring = readFileSync(new URL('../src/entry/main-http-wiring.ts', import.meta.url), 'utf8');
+  assert.ok(wiring.includes('if (legacyPort) startClientManager(legacyPort, env.CORTEX_CLIENT_HOST);'));
+  assert.ok(app.indexOf('loadRuntimeDotenv(path.join(CONFIG_DIR') < app.indexOf('startClientHub(main)'));
+  assert.equal(`${app}${wiring}`.match(/\.CORTEX_CLIENT_HOST/g)?.length, 1);
 });
 
 test('sendCommand rejects immediately with "not online" for unknown device', async () => {
@@ -767,9 +759,7 @@ test('a hello from another machine never records its PID', async (t) => {
   mkdirSync(STORE_DIR, { recursive: true });
   writeFileSync(join(STORE_DIR, 'client-pids.json'), '{}');
   t.onTestFinished(async () => { await stopClientManager(); _testReset(); });
-  const server = await listenOnHost(lan.address);
-  const address = server.address();
-  assert.ok(address && typeof address === 'object');
+  const address = await listenOnHost(lan.address);
 
   await helloWithPid(`ws://${lan.address}:${address.port}`, 'direct', 7575);
 

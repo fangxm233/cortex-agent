@@ -25,7 +25,7 @@ test('cortex-workers registers the five worker tools, each proxied to /webhook/t
   await new Promise<void>(r => http.listen(0, '127.0.0.1', r));
   const port = (http.address() as AddressInfo).port;
   const server = await createBundledServer(['cortex-workers'], toolContextFromEnv({
-    WEBHOOK_PORT: String(port), CORTEX_WEBHOOK_TOKEN: 't', CORTEX_SESSION_ID: 'lead-1',
+    CORTEX_UI_PORT: String(port), CORTEX_WEBHOOK_TOKEN: 't', CORTEX_SESSION_ID: 'lead-1',
     CORTEX_SUBAGENT_PI_MODELS: JSON.stringify([{ backend: 'pi', provider: 'deepseek', id: 'deepseek-v4-flash' }]),
   }));
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
@@ -80,7 +80,7 @@ test('cortex-worker-report registers only mark_routine, proxied to /webhook/team
   await new Promise<void>(r => http.listen(0, '127.0.0.1', r));
   const port = (http.address() as AddressInfo).port;
   const server = await createBundledServer(['cortex-worker-report'], toolContextFromEnv({
-    WEBHOOK_PORT: String(port), CORTEX_WEBHOOK_TOKEN: 't', CORTEX_SESSION_ID: 'worker-1',
+    CORTEX_UI_PORT: String(port), CORTEX_WEBHOOK_TOKEN: 't', CORTEX_SESSION_ID: 'worker-1',
   }));
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'worker-report-test', version: '1.0.0' });

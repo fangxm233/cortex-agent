@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
+import { resolveMainPort } from '@core/main-port.js';
 import { DAEMON_PID_FILE, DAEMON_CHILD_PID_FILE, RESTART_TRIGGER_FILE } from '@core/paths.js';
 import { readRebuildProgress } from '@core/rebuild-progress.js';
 import { formatDuration } from '@core/format-duration.js';
@@ -75,7 +76,6 @@ export async function handleSystemDaemonStatus(
   const childPid = readPidFile(DAEMON_CHILD_PID_FILE);
   const childAlive = childPid !== null && isProcessAlive(childPid);
   const childUptime = childPid !== null ? getProcessUptime(childPid) : null;
-  const uiPort = process.env.CORTEX_UI_PORT ? parseInt(process.env.CORTEX_UI_PORT, 10) : null;
 
   processes.push({
     name: 'cortex-server',
@@ -83,7 +83,8 @@ export async function handleSystemDaemonStatus(
     status: childPid === null ? 'stopped' : childAlive ? 'running' : 'unknown',
     pid: childPid,
     uptime: childUptime,
-    port: uiPort || 3117, // 3117 = default main port
+    // The server publishes the port it bound in its own env.
+    port: resolveMainPort(process.env, null),
   });
 
   // ── Last restart info — read .restart mtime if present ──

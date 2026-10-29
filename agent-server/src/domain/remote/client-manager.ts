@@ -1,5 +1,8 @@
 import { WebSocketServer, WebSocket } from 'ws';
+import * as http from 'http';
 import type { IncomingMessage } from 'http';
+import type { AddressInfo } from 'net';
+import type { Duplex } from 'stream';
 import * as crypto from 'crypto';
 import { applyReportedGpuCount, getMachineRegistry } from './machine-registry.js';
 import { AUTH_HEADER, getClientToken, timingSafeEqualStr } from '@core/auth.js';
@@ -68,6 +71,7 @@ const pendingCommands = new Map<string, PendingCommand>();
 let wss: WebSocketServer | null = null;
 let heartbeatCheckInterval: ReturnType<typeof setInterval> | null = null;
 let clientManagerPort: number | null = null;
+let standaloneListener: http.Server | null = null;
 
 const SHUTDOWN_REASON = 'Server shutting down';
 const HEARTBEAT_TIMEOUT_MS = 15_000; // 3 missed 5s heartbeats
@@ -270,7 +274,28 @@ function evictStaleDevices(): void {
   }
 }
 
-function startClientManager(port: number, host?: string): void {
+/**
+ * Accept a cortex-client WebSocket handed over by an HTTP server's `upgrade` event — the daemon's
+ * main server, or the legacy standalone listener. The token is checked first (verifyClient), so an
+ * unauthenticated handshake is refused with 401 before any WebSocket exists.
+ */
+function handleClientUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {
+  const server = wss;
+  if (!server) {
+    socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+  server.handleUpgrade(req, socket, head, (ws) => server.emit('connection', ws, req));
+}
+
+/**
+ * Start the hub. `port` is the one local clients and SSH reverse routes dial. With `listen`, the
+ * hub also binds its own listener on that port (and `host`; unset means every interface) — the
+ * dedicated client port older installs' remote clients still use. Without it, clients reach the hub
+ * only through handleClientUpgrade on the main port.
+ */
+function startClientManager(port: number, host?: string, opts: { listen?: boolean } = { listen: true }): void {
   if (wss) {
     log.warn('Already running');
     return;
@@ -279,14 +304,30 @@ function startClientManager(port: number, host?: string): void {
   clientManagerPort = port;
   lifecycleHooks?.onStart();
 
-  wss = new WebSocketServer({ port, host, verifyClient: verifyClientToken });
-  log.info(`WebSocket server started on port ${port}`);
+  wss = new WebSocketServer({ noServer: true, verifyClient: verifyClientToken });
   wss.on('connection', onConnection);
   wss.on('error', (err) => {
     log.error(`Server error: ${err.message}`);
   });
+  if (opts.listen !== false) startStandaloneListener(port, host);
+  else log.info(`Client hub started (clients connect on port ${port})`);
 
   heartbeatCheckInterval = setInterval(evictStaleDevices, 5000);
+}
+
+/** A listener of the hub's own; a failed bind is logged and the main port keeps serving clients. */
+function startStandaloneListener(port: number, host?: string): void {
+  const listener = http.createServer((_req, res) => { res.writeHead(426); res.end('Upgrade Required'); });
+  listener.on('upgrade', (req, socket, head) => handleClientUpgrade(req, socket, head as Buffer));
+  listener.on('error', (err) => log.error(`Client listener on port ${port} failed: ${err.message}`));
+  listener.listen(port, host, () => log.info(`WebSocket server started on port ${port}`));
+  standaloneListener = listener;
+}
+
+/** Bound address of the hub's own listener, or null when it has none (tests). */
+function getClientListenerAddress(): AddressInfo | null {
+  const address = standaloneListener?.address();
+  return address && typeof address === 'object' ? address : null;
 }
 
 async function stopClientManager(): Promise<void> {
@@ -307,6 +348,8 @@ async function stopClientManager(): Promise<void> {
   const server = wss;
   wss = null;
   if (server) server.close();
+  standaloneListener?.close();
+  standaloneListener = null;
   await lifecycleHooks?.onStop();
   clientManagerPort = null;
   if (server) log.info('WebSocket server stopped');
@@ -333,7 +376,7 @@ function isDeviceOnline(device: string): boolean {
   return devices.has(device);
 }
 
-/** The port the hub listens on, or null while it is stopped. */
+/** The port local clients and SSH reverse routes dial, or null while the hub is stopped. */
 function getClientManagerPort(): number | null {
   return clientManagerPort;
 }
@@ -381,6 +424,8 @@ function sendCommand(device: string, command: CommandParams): Promise<any> {
 export {
   startClientManager,
   stopClientManager,
+  handleClientUpgrade,
+  getClientListenerAddress,
   getOnlineDevices,
   isDeviceOnline,
   getClientManagerPort,

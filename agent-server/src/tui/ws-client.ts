@@ -16,6 +16,8 @@ export interface WsClientOpts {
   clientVersion: string;
   /** Optional project for initial handshake */
   project?: string | null;
+  /** The server's client token, sent as `x-cortex-token` on the WebSocket handshake. */
+  token?: string;
   /** Called for every parsed frame received */
   onFrame?: (frame: TuiFrame) => void;
   /** Called when connection closes or fails */
@@ -57,7 +59,7 @@ export class WsClient {
   private _doConnect(): void {
     if (this._closed) return;
     this._setState('connecting');
-    this._ws = new WebSocket(this._address);
+    this._ws = new WebSocket(this._address, this._opts.token ? { headers: { 'x-cortex-token': this._opts.token } } : undefined);
 
     this._ws.on('open', () => {
       this._retryCount = 0;

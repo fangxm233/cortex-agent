@@ -19,7 +19,7 @@ const pendingRequests = new Map<string, PendingRequest>();
 
 let _bus: EventBus | null = null;
 
-/** Called once from app.ts during startup, before startWebhookServer(). */
+/** Called once from app.ts during startup, before the webhook routes are mounted. */
 function initHookBridge(bus: EventBus): void {
   _bus = bus;
 }

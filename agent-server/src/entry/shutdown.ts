@@ -33,7 +33,7 @@ export interface ShutdownHandles {
   scheduler: { stop(): void };
   retention: { stop(): Promise<void> };
   platformConnections?: { stop(): Promise<void> } | null;
-  uiHttpServer?: { close(): Promise<void> } | null;
+  mainHttpServer?: { close(): Promise<void> } | null;
   stopModelsWatcher?: (() => void) | null;
   stopBoardWatcher?: (() => void) | null;
 }
@@ -59,7 +59,7 @@ function serviceSteps(h: ShutdownHandles): ShutdownStep[] {
     // A device's Chrome is on someone else's machine and is not ours to kill on the way out; the next
     // acquire re-verifies, so leaving it running costs a window and nothing else.
     { name: 'device browsers', run: forgetDeviceBrowsers },
-    { name: 'web ui', run: () => h.uiHttpServer?.close() },
+    { name: 'http server', run: () => h.mainHttpServer?.close() },
     { name: 'disk monitor', run: stopDiskMonitor },
     { name: 'event-loop monitor', run: stopEventLoopMonitor },
   ];

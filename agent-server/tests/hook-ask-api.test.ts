@@ -4,7 +4,7 @@ import http from 'node:http';
 import { AddressInfo } from 'node:net';
 import { askUser } from '../defaults/hooks/cortex-hook-api.mjs';
 
-const ENV_KEYS = ['WEBHOOK_PORT', 'CORTEX_WEBHOOK_TOKEN', 'CORTEX_HOOK_CHANNEL', 'SLACK_CHANNEL', 'CORTEX_HOOK_SESSION_ID'];
+const ENV_KEYS = ['CORTEX_UI_PORT', 'CORTEX_WEBHOOK_TOKEN', 'CORTEX_HOOK_CHANNEL', 'SLACK_CHANNEL', 'CORTEX_HOOK_SESSION_ID'];
 let savedEnv: Record<string, string | undefined> = {};
 
 beforeEach(() => {
@@ -43,7 +43,7 @@ const QUESTIONS = [{ question: 'Clean up?', header: 'Disk', options: [{ label: '
 
 test('askUser posts to the webhook with env channel, token, and normalized level', async () => {
   const stub = await startStub({ answers: { 'Clean up?': 'Yes' } });
-  process.env.WEBHOOK_PORT = String(stub.port);
+  process.env.CORTEX_UI_PORT = String(stub.port);
   process.env.CORTEX_WEBHOOK_TOKEN = 'tok-lib';
   process.env.CORTEX_HOOK_CHANNEL = 'C_LIB';
 
@@ -62,7 +62,7 @@ test('askUser posts to the webhook with env channel, token, and normalized level
 
 test('askUser prefers an explicit channel over the env and falls back SLACK_CHANNEL', async () => {
   const stub = await startStub({ answers: {} });
-  process.env.WEBHOOK_PORT = String(stub.port);
+  process.env.CORTEX_UI_PORT = String(stub.port);
   process.env.SLACK_CHANNEL = 'C_SLACK_ENV';
 
   await askUser({ questions: QUESTIONS });
@@ -75,7 +75,7 @@ test('askUser prefers an explicit channel over the env and falls back SLACK_CHAN
 
 test('askUser forwards sessionId-only requests (server resolves the channel)', async () => {
   const stub = await startStub({ answers: {} });
-  process.env.WEBHOOK_PORT = String(stub.port);
+  process.env.CORTEX_UI_PORT = String(stub.port);
   process.env.CORTEX_HOOK_SESSION_ID = 'sid-env-1';
 
   await askUser({ questions: QUESTIONS });
@@ -96,7 +96,7 @@ test('askUser throws on an invalid level without any HTTP call', async () => {
 
 test('askUser passes the bridge timeout error through untouched', async () => {
   const stub = await startStub({ error: 'timeout', answers: {} });
-  process.env.WEBHOOK_PORT = String(stub.port);
+  process.env.CORTEX_UI_PORT = String(stub.port);
   process.env.CORTEX_HOOK_CHANNEL = 'C_TO';
 
   const result = await askUser({ questions: QUESTIONS });

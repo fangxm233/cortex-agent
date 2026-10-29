@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { formatError, formatHelp, type HelpSpec } from '@core/cli-utils.js';
 import { AUTH_HEADER } from '@core/auth.js';
 import { isMainModule } from '@core/utils.js';
+import { mainPortUrl, resolveMainPort } from '@core/main-port.js';
 import {
   agentBrowserArgs, agentBrowserBaseEnv, agentBrowserCallEnv, isTabGone, resolveAgentBrowserBin,
   AgentBrowserMissingError, SESSION_VIEWPORT_ARGS,
@@ -239,7 +240,7 @@ async function lease(
   options: Required<Pick<BrowserCliOptions, 'post' | 'writeErr'>> & { slowNoticeMs: number },
   env: NodeJS.ProcessEnv, sessionId: string, device: string | null,
 ): Promise<LeaseData> {
-  const port = env.WEBHOOK_PORT || '3001';
+  const port = resolveMainPort(env);
   const url = `http://127.0.0.1:${port}/webhook/browser`;
   const notice = setTimeout(() => {
     options.writeErr(`cortex-browser: starting the browser${device ? ` on ${device}` : ''}…\n`);
@@ -321,7 +322,7 @@ export async function runBrowserCli(argv: string[], options: BrowserCliOptions =
       }
     }
     if (run.stderr) writeErr(run.stderr);
-    await post(`http://127.0.0.1:${env.WEBHOOK_PORT || '3001'}/webhook/browser`, { action: 'report', sessionId },
+    await post(`${mainPortUrl(env)}/webhook/browser`, { action: 'report', sessionId },
       { [AUTH_HEADER]: env.CORTEX_WEBHOOK_TOKEN || '' }).catch(() => undefined);
     return run.code;
   } catch (error) {

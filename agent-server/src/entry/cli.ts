@@ -4,6 +4,7 @@ import * as net from 'net';
 import { fileURLToPath } from 'url';
 import { existsSync, readdirSync, readFileSync, unlinkSync } from 'fs';
 import { isMainModule } from '@core/utils.js';
+import { resolveMainPort } from '@core/main-port.js';
 import { formatDuration } from '@core/format-duration.js';
 import {
   INSTALL_ROOT, DATA_DIR, DAEMON_PID_FILE, DAEMON_CHILD_PID_FILE, RESTART_TRIGGER_FILE,
@@ -90,7 +91,7 @@ export function tuiPortListening(port: number): Promise<boolean> {
 /** Execute the `cortex tui` subcommand: check daemon liveness, fork Ink client. */
 export async function cmdTui(args: string[]): Promise<void> {
   const opts = parseTuiArgs(args);
-  const port = opts.port ?? (Number(process.env.CORTEX_TUI_PORT) || 3003);
+  const port = opts.port ?? resolveMainPort();
 
   if (!await tuiPortListening(port)) {
     process.stderr.write(
@@ -106,14 +107,11 @@ export async function cmdTui(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  const childArgs: string[] = [];
+  const childArgs = ['--port', String(port)];
   if (opts.resume) childArgs.push('--resume');
   if (opts.project) { childArgs.push('--project', opts.project); }
 
-  const child = fork(TUI_JS, childArgs, {
-    stdio: 'inherit',
-    env: { ...process.env, CORTEX_TUI_PORT: String(port) },
-  });
+  const child = fork(TUI_JS, childArgs, { stdio: 'inherit' });
   child.on('exit', code => process.exit(code ?? 0));
   await new Promise<never>(() => {}); // keep alive until child exits
 }

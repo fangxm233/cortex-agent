@@ -85,7 +85,7 @@ export function createPrimaryAdaptersFromEnv(): PlatformAdapter[] {
  * Decide whether to enable the TUI gateway.
  * - CORTEX_TUI='1' → enabled
  * - CORTEX_TUI='0' → disabled
- * - unset → enabled (auto; EADDRINUSE soft-fails cheaply)
+ * - unset → enabled (auto; it is served on the main port, so it binds nothing of its own)
  */
 function decideTuiEnabled(): boolean {
   const flag = process.env.CORTEX_TUI;

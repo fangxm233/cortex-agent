@@ -3,6 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { formatError, formatHelp, cliError, readStdinSync, type HelpSpec, type CliResult } from '@core/cli-utils.js';
 import { isMainModule } from '@core/utils.js';
+import { mainPortUrl } from '@core/main-port.js';
 
 interface ParsedArgs {
   help: boolean;
@@ -35,7 +36,7 @@ const HELP: HelpSpec = {
     { flag: '--message <text>', description: 'One-line summary shown in the wake message' },
     { flag: '--member <name>', description: 'Which member of a multi-job waitpoint this is (required when it names members)' },
     { flag: '--data <@file|->', description: 'Extra payload from a file or stdin (treated as data, not instructions)' },
-    { flag: '--url <url>', description: 'Daemon signal endpoint', default: 'http://127.0.0.1:$WEBHOOK_PORT/webhook/signal' },
+    { flag: '--url <url>', description: 'Daemon signal endpoint', default: 'http://127.0.0.1:$CORTEX_UI_PORT/webhook/signal (port from the env, else the home .env)' },
     { flag: '--no-spool', description: 'Fail instead of spooling to disk when the daemon is unreachable' },
     { flag: '--help, -h', description: 'Show this help' },
   ],
@@ -163,8 +164,7 @@ export async function runSignalCli(argv: string[], options: SignalCliOptions = {
     const data = readData(parsed.data);
     if (data !== undefined) payload.data = data;
 
-    const port = env.WEBHOOK_PORT || '3001';
-    const url = parsed.url ?? `http://127.0.0.1:${port}/webhook/signal`;
+    const url = parsed.url ?? `${mainPortUrl(env)}/webhook/signal`;
     const post = options.post ?? httpPost;
 
     let response: { status: number; body: any };

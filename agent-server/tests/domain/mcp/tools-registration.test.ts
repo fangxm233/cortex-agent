@@ -7,7 +7,7 @@ import { toolContextFromEnv } from '../../../src/domain/mcp/tools/context.js';
 vi.mock('../../../src/core/loopback-http.js', () => ({ requestLoopbackJson: vi.fn() }));
 const requestMock = vi.mocked(requestLoopbackJson);
 
-const ctx = toolContextFromEnv({ WEBHOOK_PORT: '4321', CORTEX_WEBHOOK_TOKEN: 'unit-token' });
+const ctx = toolContextFromEnv({ CORTEX_UI_PORT: '4321', CORTEX_WEBHOOK_TOKEN: 'unit-token' });
 
 function captureRemoteTools(): Map<string, any[]> {
   const tools = new Map<string, any[]>();

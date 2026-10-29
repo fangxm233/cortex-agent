@@ -4,9 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { parseClientKind } from '@domain/telemetry/client-kind.js';
 import { CLIENT_KIND_HEADER } from '@domain/telemetry/schema.js';
 import { createAppRouter } from '@domain/ui-service/app-router.js';
-import { createUiHttpServer, createAuthorizer } from '@platform/ui-http/ui-http-server.js';
+import { createUiHttpHandler, createUiHttpServer, createAuthorizer } from '@platform/ui-http/ui-http-server.js';
 import type {
-  Authorizer, CustomRouteHandler, DeviceTokenMatcher, UiHttpServer,
+  Authorizer, CustomRouteHandler, DeviceTokenMatcher, UiHttpHandler, UiHttpHandlerOptions, UiHttpServer,
 } from '@platform/ui-http/ui-http-server.js';
 import { createUiSessionStore, DEFAULT_SESSION_TTL_MS } from '@platform/ui-http/ui-session.js';
 import {
@@ -33,6 +33,7 @@ import { openDevicePort, closeDevicePort, listDevicePorts } from '@domain/remote
 import { accessVerifierFromEnv, type AccessJwtVerifier } from '@platform/ui-http/access-jwt.js';
 import type { UiService } from '@domain/ui-service/types.js';
 import { getClientToken } from '@core/auth.js';
+import { DEFAULT_MAIN_PORT } from '@core/main-port.js';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { WORKSPACE_DIR, STORE_DIR, resolveWorkspaceRelPath } from '@core/paths.js';
@@ -41,9 +42,6 @@ import { isUiHttpEnabled } from './ui-http-gate.js';
 import { resolveMemoryFilePath } from '@domain/ui-service/query/memory.js';
 
 const log = createLogger('ui-http');
-
-/** Default TCP port for the Web UI tRPC endpoint (loopback-only; exposure is via a tunnel). */
-const DEFAULT_UI_PORT = 3004;
 
 /** Where browser sessions survive a daemon restart. Written 0600 by the store. */
 const SESSIONS_FILE = path.join(STORE_DIR, 'ui-sessions.json');
@@ -148,91 +146,113 @@ function createUiAuth(
   };
 }
 
+/** Custom routes beyond auth: files, OTA, app update, port discovery and the agent browser. */
+function uiCustomRoutes(
+  spaDir: string | undefined, browserRoutes: Record<string, CustomRouteHandler>,
+): Record<string, CustomRouteHandler> {
+  return {
+    // Composer uploads, workspace downloads and board assets.
+    ...createFileRoutes({
+      attachmentsDir: path.join(WORKSPACE_DIR, 'attachments'),
+      resolveWorkspaceRelPath,
+      projectContextDir: (projectId) => projectStore.get(projectId)?.contextDir,
+      resolveMemoryFilePath,
+    }),
+    // Frontend OTA: serves the built SPA as a manifest + ZIP bundle so the desktop shell can
+    // self-update its frontend. Empty (disabled) when the SPA is not built. Same auth gate as tRPC.
+    ...createOtaRoutes(spaDir),
+    // App shell self-update: advertises the newest GitHub release carrying native app assets
+    // (capped at this server's version) so the shell can offer a one-prompt update. JSON only —
+    // the binaries download straight from the GitHub CDN. Same auth gate as tRPC.
+    // A dev server never advertises app releases: see AppUpdateRouteOptions.devMode.
+    ...createAppUpdateRoutes({ devMode: isUpdateDevMode() }),
+    // Listening-port discovery for the desktop port forward: tells the shell which loopback
+    // services exist here so the Ports list can offer them. Same auth gate as tRPC.
+    ...createForwardRoutes(),
+    // The same discovery and mapping for ports that live on a connected device instead of here.
+    // A device is outbound-only, so the server asks it to dial back and hands out a loopback port
+    // that stands in for the remote one.
+    ...createDevicePortRoutes({
+      listDevices: getOnlineDevices,
+      runOnDevice: async (device, command) => {
+        const result = await sendCommand(device, { action: 'bash', params: { command }, timeout: 10_000 });
+        return typeof result?.stdout === 'string' ? result.stdout : '';
+      },
+      openDevicePort,
+      closeDevicePort,
+      listDevicePorts,
+    }),
+    ...browserRoutes,
+  };
+}
+
+function logUiEnabled(where: string, spaDir: string | undefined, corsOrigins: string[], access: boolean, tokenLogin: boolean): void {
+  log.info(
+    `Web UI enabled — tRPC HTTP+SSE on ${where}` +
+      (spaDir ? ` (SPA: ${spaDir})` : ' (SPA: not built — non-tRPC paths 404)') +
+      (corsOrigins.length > 0 ? ` (CORS allow-list: ${corsOrigins.join(', ')})` : '') +
+      (access ? ' (Cloudflare Access JWT path enabled)' : '') +
+      (tokenLogin ? ' (browser token login enabled)' : ' (browser token login disabled)'),
+  );
+}
+
 /**
- * Build the AppRouter from the injected UiService and start the Web UI HTTP+SSE transport-host
- * on CORTEX_UI_PORT (default 3004), bound 127.0.0.1, behind the x-cortex-token gate, serving the
- * built SPA same-origin. Returns the running server handle, or null when the CORTEX_UI_HTTP env
- * gate is off (clean skip). The caller owns the handle and must call close() on shutdown.
+ * Everything the UI handler needs, built from the injected UiService and the env: the AppRouter,
+ * the auth gate (x-cortex-token, a session cookie, or Cloudflare Access), the custom routes and the
+ * agent-browser stream. Null when the CORTEX_UI_HTTP gate is off.
  */
-export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null {
+function buildUiHttpOptions(opts: StartUiHttpOptions, where: string): UiHttpHandlerOptions | null {
   const env = opts.env ?? process.env;
   if (!isUiHttpEnabled(env)) return null;
-
-  // parseInt(undefined/'')→NaN falls back; a valid 0 (ephemeral, for tests) is preserved.
-  const parsedPort = parseInt(env.CORTEX_UI_PORT ?? '', 10);
-  const port = Number.isNaN(parsedPort) ? DEFAULT_UI_PORT : parsedPort;
-  const router = createAppRouter(opts.uiService);
   const corsOrigins = opts.corsOrigins ?? (() => getSettings().uiCorsOrigins);
-  const initialCorsOrigins = typeof corsOrigins === 'function' ? corsOrigins() : corsOrigins;
   const spaDir = opts.spaDir ?? env.CORTEX_UI_SPA_DIR ?? defaultSpaDir();
   // Cloudflare Access JWT verifier (the browser auth path), built from CORTEX_ACCESS_TEAM_DOMAIN +
   // CORTEX_ACCESS_AUD (optional CORTEX_ACCESS_CERTS_URL). Unset → undefined, and the gate degrades
   // to token-only.
   const verifyAccessJwt = accessVerifierFromEnv(env);
   const getToken = opts.getToken ?? getClientToken;
-
   const auth = createUiAuth(env, getToken, verifyAccessJwt);
-  const { authorize, tokenLogin } = auth;
-
   // The agent's browser, live in the app: session list, takeover, typed text, and the stream itself.
   const browserStream = createBrowserStream({
     listSessions: listBrowserSessions, streamPort, setTakeover, isTakenOver, insertText,
   });
-
-  log.info(
-    `Web UI enabled — starting tRPC HTTP+SSE on 127.0.0.1:${port}` +
-      (spaDir ? ` (SPA: ${spaDir})` : ' (SPA: not built — non-tRPC paths 404)') +
-      (initialCorsOrigins.length > 0 ? ` (CORS allow-list: ${initialCorsOrigins.join(', ')})` : '') +
-      (verifyAccessJwt ? ' (Cloudflare Access JWT path enabled)' : '') +
-      (tokenLogin ? ' (browser token login enabled)' : ' (browser token login disabled)'),
-  );
-  return createUiHttpServer({
-    router,
+  const initialCorsOrigins = typeof corsOrigins === 'function' ? corsOrigins() : corsOrigins;
+  logUiEnabled(where, spaDir, initialCorsOrigins, !!verifyAccessJwt, auth.tokenLogin);
+  return {
+    router: createAppRouter(opts.uiService),
     getToken,
     matchDeviceToken: auth.matchDeviceToken,
-    port,
-    host: '127.0.0.1',
     spaDir,
     corsOrigins,
-    authorize,
+    authorize: auth.authorize,
     createContext: (req) => ({ client: parseClientKind(req.headers[CLIENT_KIND_HEADER]) }),
     publicRoutes: auth.publicRoutes,
-    customRoutes: {
-      ...auth.routes,
-      // Composer uploads, workspace downloads and board assets.
-      ...createFileRoutes({
-        attachmentsDir: path.join(WORKSPACE_DIR, 'attachments'),
-        resolveWorkspaceRelPath,
-        projectContextDir: (projectId) => projectStore.get(projectId)?.contextDir,
-        resolveMemoryFilePath,
-      }),
-      // Frontend OTA: serves the built SPA as a manifest + ZIP bundle so the desktop shell can
-      // self-update its frontend. Empty (disabled) when the SPA is not built. Same auth gate as tRPC.
-      ...createOtaRoutes(spaDir),
-      // App shell self-update: advertises the newest GitHub release carrying native app assets
-      // (capped at this server's version) so the shell can offer a one-prompt update. JSON only —
-      // the binaries download straight from the GitHub CDN. Same auth gate as tRPC.
-      // A dev server never advertises app releases: see AppUpdateRouteOptions.devMode.
-      ...createAppUpdateRoutes({ devMode: isUpdateDevMode() }),
-      // Listening-port discovery for the desktop port forward: tells the shell which loopback
-      // services exist here so the Ports list can offer them. Same auth gate as tRPC.
-      ...createForwardRoutes(),
-      // The same discovery and mapping for ports that live on a connected device instead of here.
-      // A device is outbound-only, so the server asks it to dial back and hands out a loopback port
-      // that stands in for the remote one (plan/embedded-browser.md §18).
-      ...createDevicePortRoutes({
-        listDevices: getOnlineDevices,
-        runOnDevice: async (device, command) => {
-          const result = await sendCommand(device, { action: 'bash', params: { command }, timeout: 10_000 });
-          return typeof result?.stdout === 'string' ? result.stdout : '';
-        },
-        openDevicePort,
-        closeDevicePort,
-        listDevicePorts,
-      }),
-      ...browserStream.routes,
-    },
+    customRoutes: { ...auth.routes, ...uiCustomRoutes(spaDir, browserStream.routes) },
     upgradeRoutes: { [BROWSER_STREAM_PATH]: browserStream },
     portForward: env.CORTEX_PORT_FORWARD !== '0',
-  });
+  };
+}
+
+/**
+ * The Web UI's request and upgrade handlers, for the daemon to mount on its main server. Null when
+ * the CORTEX_UI_HTTP env gate is off (clean skip). The caller owns the handler's close().
+ */
+export function createUiHttp(opts: StartUiHttpOptions, where: string): UiHttpHandler | null {
+  const options = buildUiHttpOptions(opts, where);
+  return options ? createUiHttpHandler(options) : null;
+}
+
+/**
+ * The Web UI on a server of its own, on CORTEX_UI_PORT (default: the main port's default), bound
+ * 127.0.0.1. Used by the standalone dev script and tests; the daemon serves the UI from its main
+ * server instead (createUiHttp). Returns null when the CORTEX_UI_HTTP env gate is off. The caller
+ * owns the handle and must call close() on shutdown.
+ */
+export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null {
+  const env = opts.env ?? process.env;
+  // parseInt(undefined/'')→NaN falls back; a valid 0 (ephemeral, for tests) is preserved.
+  const parsedPort = parseInt(env.CORTEX_UI_PORT ?? '', 10);
+  const port = Number.isNaN(parsedPort) ? DEFAULT_MAIN_PORT : parsedPort;
+  const options = buildUiHttpOptions(opts, `127.0.0.1:${port}`);
+  return options ? createUiHttpServer({ ...options, port, host: '127.0.0.1' }) : null;
 }

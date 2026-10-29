@@ -5,7 +5,8 @@ import type { PlatformAdapter } from '@platform/index.js';
 // Gate for the in-core Web UI transport: static import is @trpc-free (node builtins + an erased
 // type only); the transport (which pulls @trpc/server + jose) is dynamic-imported inside the gate,
 // gated on CORTEX_UI_HTTP, so it stays runtime-lazy for Slack/TUI-only installs.
-import { startUiHttpIfEnabled } from '@entry/ui-http-gate.js';
+import { createUiHttpIfEnabled } from '@entry/ui-http-gate.js';
+import { createMainServer, listenOrExit, startClientHub } from '@entry/main-http-wiring.js';
 import { startClientHotReloadJob, startStoreArchiveJob } from '@entry/boot-jobs.js';
 import { createHotReloadingAdapter } from '@entry/admin-channel-hot-reload.js';
 import { WORKSPACE_DIR, CONFIG_DIR, DATA_DIR, STORE_DIR } from '@core/paths.js';
@@ -13,7 +14,7 @@ import { loadRuntimeDotenv } from '@core/runtime-env.js';
 import { migrateEnvToSettings } from '@core/settings-migration.js';
 import { tryAcquireSingletonLock, releaseSingletonLock } from '@core/singleton-lock.js';
 import { engines } from '@domain/runs/engines.js';
-import { startWebhookServer } from '@orch/routing/webhook.js';
+import { createWebhookHandler } from '@orch/routing/webhook.js';
 import * as executionRegistry from '@domain/executions/registry.js';
 import { initHookBridge, setOnStale } from '@orch/routing/hook-bridge.js';
 import { interactionRecords } from '@orch/interactions/interaction-records.js';
@@ -38,7 +39,6 @@ import { startPlatformAdapters } from './platform-connect.js';
 import { subscribeDaemonNotices } from './daemon-notice.js';
 import { startGateway } from '@domain/costs/gateway-manager.js';
 import { prewarmPiSdk } from '@core/pi-sdk.js';
-import { startClientManager } from '@domain/remote/client-manager.js';
 import { startAllRemoteClients, releaseUnregisteredDevices } from '@domain/remote/client-lifecycle.js';
 import { initClientHotReload } from '@domain/remote/client-hot-reload.js';
 import { createServerUpdateCoordinator } from '@domain/system/server-update-check.js';
@@ -232,8 +232,8 @@ function prewarmPiBackend(): void {
 }
 
 // --- Singleton lock ---
-// app.js owns ports 3001 (webhook) / 3002 (client-manager); a second instance would
-// crash-loop on EADDRINUSE. The daemon's own daemon.pid lock only guards the supervisor
+// app.js owns this home's main port (CORTEX_UI_PORT); a second instance on the same home would
+// fail to bind it. The daemon's own daemon.pid lock only guards the supervisor
 // layer and does nothing for `cortex start` (which forks app.js directly, bypassing the
 // daemon). Acquire our own app.pid lock here, as early as possible, to fail fast before
 // any heavy initialization or port binding. Stale locks (previous owner SIGKILL'd / crashed,
@@ -245,7 +245,7 @@ if (appLock.acquired) {
 } else {
   log.error(
     `Another Cortex app.js is already running (PID ${appLock.holderPid}, lockfile ${APP_PID_FILE}).\n` +
-    `         Refusing to start a second instance — it already holds ports 3001/3002; this process would crash on EADDRINUSE.\n` +
+    `         Refusing to start a second instance — it already serves this home and holds its main port (CORTEX_UI_PORT).\n` +
     `         Inspect with \`cortex daemon status\`, or stop the running instance before retrying.`,
   );
   process.exit(1);
@@ -260,6 +260,12 @@ installEarlyTelemetry();
 // become externally visible. Provider-state extraction runs before schedule cleanup.
 await runMigrations({ onMigrationFailure: recordMigrationFailure });
 markBootPhase('migrations');
+// A migration may add settings to .env (the port an older install was reached on); pick up the
+// keys it added before anything reads them.
+loadRuntimeDotenv(path.join(CONFIG_DIR, '.env'));
+// The one HTTP server: Web UI, webhook routes, cortex-client and TUI sockets. Each part is mounted
+// as it starts; the port is bound with the UI below.
+const main = createMainServer();
 reloadAgentState();
 await migrateBuiltinJobSchedules();
 // Before any Claude spawn: a fresh Cortex Claude config dir takes its model/effort/context
@@ -361,6 +367,7 @@ if (tuiGateway) {
   // Conduit resolver inversion: the registry's channel lookup resolves ephemeral TUI conduits
   // via the gateway's in-memory state (previously the gateway imported the store directly).
   sessionStore.registerConduitResolver((conduitId) => tuiGateway.lookupConduit(conduitId)?.sessionId ?? null);
+  main.server.mountTui((req, socket, head) => tuiGateway.handleUpgrade(req, socket, head));
 }
 
 // --- Wire hot-reload admin notifiers ---
@@ -445,7 +452,7 @@ registerInteractionHandlers(adapter);
 registerMessageHandler(adapter, { dispatchCommand, handleMessageEdit });
 
 // --- Graceful shutdown ---
-// Boot fills in the platform connections, the Web UI host and the models watcher as it starts them.
+// Boot fills in the platform connections, the HTTP server and the models watcher as it starts them.
 const shutdownHandles: ShutdownHandles = {
   bus, outboundQueue: oq, scheduler, retention: retentionController,
 };
@@ -493,10 +500,15 @@ installSigtermShutdown(shutdownHandles);
   // transport — so an unset flag means @trpc/server + jose never enter the runtime graph. app.ts
   // statically imports only the import-free gate, keeping its static graph @trpc-free.
   try {
-    shutdownHandles.uiHttpServer = await startUiHttpIfEnabled(uiService);
+    const ui = await createUiHttpIfEnabled(uiService, `${main.host}:${main.port}`);
+    if (ui) main.server.mountUi(ui);
   } catch (e) {
     log.warn(`CORTEX_UI_HTTP is set but the Web UI transport failed to load: ${(e as Error).message}`);
   }
+  // Bound with the UI so the port answers once the UI can serve; a port that cannot be bound ends
+  // this process here, before any platform connects.
+  await listenOrExit(main);
+  shutdownHandles.mainHttpServer = main.server;
   markBootPhase('uiHttp');
 
   // Binds the TUI gateway; Slack/Feishu connect in the background with bounded retries, and a
@@ -587,7 +599,7 @@ installSigtermShutdown(shutdownHandles);
   markBootPhase('projects');
 
   prewarmPiBackend();
-  startClientManager(parseInt(process.env.CORTEX_CLIENT_PORT || '3002', 10), process.env.CORTEX_CLIENT_HOST);
+  startClientHub(main);
 
   startClientHotReloadJob(
     getSettings().clientHotReloadEnabled,
@@ -622,7 +634,7 @@ installSigtermShutdown(shutdownHandles);
     }
   });
 
-  startWebhookServer();
+  main.server.mountWebhook(createWebhookHandler());
 
   // S13: register hook-bridge event subscribers (bodies extracted to orch/routing/hook-bridge-subscribers.ts)
   registerHookBridgeSubscribers(bus, adapter, planApprovals);

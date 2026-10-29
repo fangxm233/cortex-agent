@@ -10,7 +10,7 @@ let tmpDir: string;
 beforeAll(async () => { tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortex-signal-cli-')); });
 afterAll(async () => { await fs.rm(tmpDir, { recursive: true, force: true }); });
 
-const ENV = { CORTEX_SIGNAL_ID: 'wp_abcdef123456', CORTEX_SIGNAL_SECRET: 's3cret', WEBHOOK_PORT: '3001' };
+const ENV = { CORTEX_SIGNAL_ID: 'wp_abcdef123456', CORTEX_SIGNAL_SECRET: 's3cret', CORTEX_UI_PORT: '3001' };
 
 function capturing(status = 202, body: any = { accepted: true, fired: true }) {
   const calls: Array<{ url: string; body: any }> = [];

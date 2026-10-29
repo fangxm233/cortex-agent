@@ -119,7 +119,7 @@ export function registerWaitpointTools(server: McpServer, ctx: CortexToolContext
           ttlMs: typeof args.expires_in_hours === 'number' ? args.expires_in_hours * 3600_000 : undefined,
           device: args.device,
         });
-        const port = Number(new URL(ctx.webhookBaseUrl).port || 3001);
+        const port = Number(new URL(ctx.webhookBaseUrl).port);
         const members: string[] = Array.isArray(data.quorum?.members) ? data.quorum.members : [];
         const recipe = buildSignalRecipe(data.id, data.secret, port, args.device ?? null, members);
         return ok({

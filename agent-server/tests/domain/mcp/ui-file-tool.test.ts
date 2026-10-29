@@ -30,7 +30,7 @@ async function withSendFile(run: (call: (args: Body) => Promise<any>, received: 
   });
   await new Promise<void>(r => http.listen(0, '127.0.0.1', r));
   const ctx = toolContextFromEnv({
-    WEBHOOK_PORT: String((http.address() as AddressInfo).port),
+    CORTEX_UI_PORT: String((http.address() as AddressInfo).port),
     CORTEX_WEBHOOK_TOKEN: 't', CORTEX_SESSION_ID: 'sess-ui',
   });
   const server = new McpServer({ name: 'test-web', version: '0' });

@@ -7,7 +7,7 @@ const LEASE = {
   device: 'server', cdpEndpoint: 'http://127.0.0.1:9222', abSession: 'cortex-s1-server',
   bin: '/opt/ab', env: { PATH: '/bin', AGENT_BROWSER_SOCKET_DIR: '/run/ab' },
 };
-const ENV = { CORTEX_SESSION_ID: 's1', CORTEX_WEBHOOK_TOKEN: 'tok', WEBHOOK_PORT: '3999' };
+const ENV = { CORTEX_SESSION_ID: 's1', CORTEX_WEBHOOK_TOKEN: 'tok', CORTEX_UI_PORT: '3999' };
 
 function usage(argv: string[]): string {
   try { parseBrowserArgs(argv); } catch (e) { if (e instanceof BrowserUsageError) return e.message; throw e; }

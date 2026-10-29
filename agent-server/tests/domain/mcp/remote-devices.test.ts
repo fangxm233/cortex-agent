@@ -15,7 +15,7 @@ import {
 
 vi.mock('../../../src/core/loopback-http.js', () => ({ requestLoopbackJson: vi.fn() }));
 const requestMock = vi.mocked(requestLoopbackJson);
-const ctx = toolContextFromEnv({ WEBHOOK_PORT: '4321', CORTEX_WEBHOOK_TOKEN: 'unit-token' });
+const ctx = toolContextFromEnv({ CORTEX_UI_PORT: '4321', CORTEX_WEBHOOK_TOKEN: 'unit-token' });
 const MACHINES_FILE = path.join(CONFIG_DIR, 'machines.json');
 const REMOTE_TOOLS = ['remote_bash', 'remote_read', 'remote_write', 'remote_edit', 'remote_glob', 'remote_grep'];
 

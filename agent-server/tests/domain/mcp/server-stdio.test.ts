@@ -107,7 +107,7 @@ test('bundle load and registration failures do not remove healthy registrations'
 
 test('two bundled servers in one process keep their session contexts apart', async () => {
   await withQaWebhook(async (port, received) => {
-    const env = { WEBHOOK_PORT: String(port), CORTEX_WEBHOOK_TOKEN: 'in-process' };
+    const env = { CORTEX_UI_PORT: String(port), CORTEX_WEBHOOK_TOKEN: 'in-process' };
     const [alpha, beta] = await Promise.all([
       createBundledServer(['cortex-web'], toolContextFromEnv({ ...env, CORTEX_SESSION_ID: 'session-alpha' })),
       createBundledServer(['cortex-web'], toolContextFromEnv({ ...env, CORTEX_SESSION_ID: 'session-beta' })),
@@ -185,7 +185,7 @@ test('built cortex-web exposes file, view, decision and board tools to a web ses
         html: '<h1>hi</h1>', caption: 'by seed', height: 420, width: 'wide',
       }]);
     }, {
-      WEBHOOK_PORT: String(port),
+      CORTEX_UI_PORT: String(port),
       CORTEX_WEBHOOK_TOKEN: 'stdio-token',
       CORTEX_SESSION_ID: 'stdio-web-session',
     });
@@ -210,7 +210,7 @@ test('send_decision proxies the decision batch to the daemon webhook', async () 
       assert.equal(empty.isError, true, 'an empty batch is refused before it reaches the daemon');
       assert.equal(received.length, 1);
     }, {
-      WEBHOOK_PORT: String(port),
+      CORTEX_UI_PORT: String(port),
       CORTEX_WEBHOOK_TOKEN: 'stdio-token',
       CORTEX_SESSION_ID: 'stdio-web-session',
     });
@@ -230,7 +230,7 @@ test('send_view refuses ambiguous input before it reaches the daemon', async () 
       }
       assert.deepEqual(received, [], 'a malformed call never reaches the daemon');
     }, {
-      WEBHOOK_PORT: String(port),
+      CORTEX_UI_PORT: String(port),
       CORTEX_WEBHOOK_TOKEN: 'stdio-token',
       CORTEX_SESSION_ID: 'stdio-web-session',
     });

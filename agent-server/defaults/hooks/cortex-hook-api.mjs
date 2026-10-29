@@ -13,7 +13,8 @@ function resolveLevel(level) {
 }
 
 function postJson(path, payload, timeoutMs) {
-  const port = parseInt(process.env.WEBHOOK_PORT || '3001', 10);
+  // The server puts its main port in the env of everything it spawns, hooks included.
+  const port = parseInt(process.env.CORTEX_UI_PORT || '26789', 10);
   const body = JSON.stringify(payload);
   return new Promise((resolve, reject) => {
     const req = http.request({

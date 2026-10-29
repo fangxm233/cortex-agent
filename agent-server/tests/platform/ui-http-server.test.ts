@@ -11,6 +11,7 @@ import { createAuthorizer, createUiHttpServer } from '@platform/ui-http/ui-http-
 import { createAccessJwtVerifier, accessVerifierFromEnv } from '@platform/ui-http/access-jwt.js';
 import type { AccessJwtVerifier } from '@platform/ui-http/access-jwt.js';
 import { startUiHttpServer } from '@entry/start-ui-http.js';
+import { DEFAULT_MAIN_PORT } from '@core/main-port.js';
 import { UI_OTA_MANIFEST_PATH, UI_OTA_BUNDLE_PATH } from '@platform/ui-http/ui-ota.js';
 import { APP_UPDATE_MANIFEST_PATH } from '@platform/ui-http/app-update.js';
 import { WORKSPACE_DIR, DATA_DIR, STORE_DIR } from '@core/paths.js';
@@ -494,11 +495,10 @@ describe('entry wiring: env gate, AppRouter binding, live CORS, OTA, file routes
     assert.equal(inst, null);
   });
 
-  test('env gate: enabled binds 127.0.0.1 and defaults to port 3004', async () => {
-    // Intent: with CORTEX_UI_HTTP set and CORTEX_UI_PORT unset, the wiring targets the default 3004.
-    // 3004 is a fixed real port, so on a dev box where a live daemon already holds 3004 the bind
-    // throws EADDRINUSE for :3004 — which still proves the default is 3004. Accept either a clean
-    // bind to 127.0.0.1:3004, or an EADDRINUSE naming :3004.
+  test('env gate: enabled binds 127.0.0.1 and defaults to the main port', async () => {
+    // Intent: with CORTEX_UI_HTTP set and CORTEX_UI_PORT unset, the wiring targets DEFAULT_MAIN_PORT.
+    // It is a fixed real port, so where another server already holds it the bind throws
+    // EADDRINUSE naming it — which still proves the default. Accept either outcome.
     const inst = startUiHttpServer({ uiService: makeFakeUiService(), getToken: () => TOKEN, env: { CORTEX_UI_HTTP: '1' } });
     assert.ok(inst, 'expected a server when enabled');
     servers.push(inst!);
@@ -506,15 +506,15 @@ describe('entry wiring: env gate, AppRouter binding, live CORS, OTA, file routes
       await awaitListening(inst!.server);
     } catch (e) {
       const msg = String((e as Error).message ?? e);
-      assert.ok(msg.includes('EADDRINUSE') && msg.includes('3004'),
-        `expected a clean bind to 3004 or an EADDRINUSE on :3004, got: ${msg}`);
+      assert.ok(msg.includes('EADDRINUSE') && msg.includes(String(DEFAULT_MAIN_PORT)),
+        `expected a clean bind to ${DEFAULT_MAIN_PORT} or an EADDRINUSE on it, got: ${msg}`);
       return;
     }
     const addr = inst!.server.address();
     assert.ok(addr && typeof addr !== 'string');
     assert.equal((addr as { address: string }).address, '127.0.0.1');
-    assert.equal((addr as { port: number }).port, 3004);
-    await inst!.close(); // free 3004 immediately — don't hold a fixed port until afterAll
+    assert.equal((addr as { port: number }).port, DEFAULT_MAIN_PORT);
+    await inst!.close(); // free the port immediately — don't hold a fixed port until afterAll
   });
 
   test('query: HTTP query roundtrip returns real data from the injected UiService', async () => {

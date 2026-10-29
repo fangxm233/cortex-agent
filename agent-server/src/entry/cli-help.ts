@@ -62,7 +62,7 @@ export function getTuiHelp(): string {
     'Options:',
     '  --resume              Open the resume-session picker on connect',
     '  --project <id>        Start a fresh session in the named project',
-    '  --port <n>            Override TUI port (default: 3003, or CORTEX_TUI_PORT)',
+    '  --port <n>            Server port (default: CORTEX_UI_PORT from the environment or .env, else 26789)',
     '  --help, -h            Show this help',
   ].join('\n');
 }

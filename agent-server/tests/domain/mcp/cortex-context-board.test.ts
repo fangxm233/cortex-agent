@@ -61,7 +61,7 @@ test('the board field asked of the daemon carries exactly id, title and dir', as
   t.onTestFinished(() => new Promise<void>(resolve => server.close(() => resolve())));
   const port = (server.address() as AddressInfo).port;
 
-  const scope = await resolveCortexContext(toolContextFromEnv({ CORTEX_SESSION_ID: 's1', WEBHOOK_PORT: String(port) }));
+  const scope = await resolveCortexContext(toolContextFromEnv({ CORTEX_SESSION_ID: 's1', CORTEX_UI_PORT: String(port) }));
   assert.deepEqual(scope.board, BOARD);
   assert.deepEqual(Object.keys(scope.board!).sort(), ['dir', 'id', 'title']);
   assert.deepEqual(asked, [{ url: '/webhook/board', body: { sessionId: 's1', action: 'status' } }]);

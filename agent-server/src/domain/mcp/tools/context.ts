@@ -3,6 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { parseMcpToolAllowlist, MCP_TOOL_ALLOWLIST_ENV } from '@core/mcp-tool-gate.js';
 import { decodeSubagentModels, type SubagentModelOption } from '@core/agents/subagent/catalog.js';
 import { requestLoopbackJson } from '@core/loopback-http.js';
+import { mainPortUrl } from '@core/main-port.js';
 
 /**
  * Everything a Cortex MCP tool needs to know about the session it serves.
@@ -27,7 +28,7 @@ export interface CortexToolContext {
   subagentClaudeModels: SubagentModelOption[];
   scheduleTaskId: string | null;
   callbackSource: string | null;
-  /** Daemon webhook root, e.g. `http://127.0.0.1:3001`. */
+  /** Daemon webhook root on the main port, e.g. `http://127.0.0.1:26789`. */
   webhookBaseUrl: string;
   /** Shared secret for the daemon webhook gate (`x-cortex-token`). Empty when unavailable. */
   webhookToken: string;
@@ -37,15 +38,8 @@ export interface CortexToolContext {
   toolAllowlist: ReadonlySet<string> | null;
 }
 
-export const DEFAULT_WEBHOOK_PORT = 3001;
-
 function optional(value: string | undefined): string | null {
   return value === undefined || value === '' ? null : value;
-}
-
-function positiveInt(value: string | undefined, fallback: number): number {
-  const parsed = parseInt(value ?? '', 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 /**
@@ -76,7 +70,8 @@ export function toolContextFromEnv(env: NodeJS.ProcessEnv = process.env): Cortex
     subagentClaudeModels: decodeSubagentModels(env.CORTEX_SUBAGENT_CLAUDE_MODELS),
     scheduleTaskId: optional(env.CORTEX_SCHEDULE_TASK_ID),
     callbackSource: optional(env.CORTEX_CALLBACK_SOURCE),
-    webhookBaseUrl: `http://127.0.0.1:${positiveInt(env.WEBHOOK_PORT, DEFAULT_WEBHOOK_PORT)}`,
+    // Always spawned by the server, which puts its port in the env.
+    webhookBaseUrl: mainPortUrl(env, null),
     webhookToken: env.CORTEX_WEBHOOK_TOKEN || '',
     slackBotToken: optional(env.SLACK_BOT_TOKEN),
     toolAllowlist: parseMcpToolAllowlist(env[MCP_TOOL_ALLOWLIST_ENV]),

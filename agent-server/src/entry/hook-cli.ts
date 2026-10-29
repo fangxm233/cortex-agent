@@ -11,6 +11,7 @@ import {
 import { runHookProcess } from '@core/hook-exec.js';
 import { defaultHookScriptDirs, type HookScriptDirs } from '@core/hook-scripts.js';
 import { isMainModule } from '@core/utils.js';
+import { mainPortUrl } from '@core/main-port.js';
 import { normalizeAskLevel } from '../platform/interactive-builder.js';
 import { setHookEnabled } from '@store/hook-writer.js';
 import {
@@ -417,8 +418,7 @@ function mapAskResponse(resp: { status: number; body: any }): CliResult {
 async function handleAsk(context: HandlerContext): Promise<CliResult> {
   const questions = parseAskQuestions(context.parsed);
   const body = buildAskBody(context.parsed, questions);
-  const port = parseInt(process.env.WEBHOOK_PORT || '3001', 10);
-  const url = `http://127.0.0.1:${port}/hook/ask-user-question`;
+  const url = `${mainPortUrl()}/hook/ask-user-question`;
   const headers = { 'x-cortex-token': process.env.CORTEX_WEBHOOK_TOKEN || '' };
   return mapAskResponse(await context.options.askPost(url, body, headers));
 }
