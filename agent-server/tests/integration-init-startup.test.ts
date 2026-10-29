@@ -218,6 +218,10 @@ test('Test 1: cortex init creates valid directory structure (non-interactive)', 
       assert.equal(existsSync(path.join(tempDir, 'config', retired)), false, retired);
     }
 
+    // The main port is settled at init: the first free port from 26789 up, never one in use.
+    const mainPort = Number(/^CORTEX_UI_PORT=(\d+)$/m.exec(readFileSync(path.join(tempDir, 'config', '.env'), 'utf8'))?.[1]);
+    assert.ok(mainPort >= 26789 && mainPort <= 26999, `CORTEX_UI_PORT=${mainPort}`);
+
     // Assert machines.json exists and contains local machine entry
     const machinesJsonPath = path.join(tempDir, 'config', 'machines.json');
     assert.ok(existsSync(machinesJsonPath),

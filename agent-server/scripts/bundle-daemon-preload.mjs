@@ -30,7 +30,9 @@ function observeBoot(stream) {
   };
 }
 
-installGuards(record, ports);
+// `cortex init` probes the main-port search range (26789-26999) for a free port to record.
+const mainPortSearch = Array.from({ length: 211 }, (_, i) => 26789 + i);
+installGuards(record, [...ports, ...mainPortSearch]);
 record('process-start', { argv: process.argv, execArgv: process.execArgv, sourceMaps: process.sourceMapsEnabled,
   gatewayPort, gatewayHome: process.env.CORTEX_GATEWAY_HOME,
   cwd: process.cwd(), home: process.env.HOME, cortexHome: process.env.CORTEX_HOME, npmPrefix: process.env.npm_config_prefix,

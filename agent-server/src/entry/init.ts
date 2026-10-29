@@ -31,7 +31,7 @@ import { t, setLocale, normalizeLocale, detectSystemLocale, type Locale } from '
 import { CLIENT_TOKEN_ENV } from '@core/auth.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import { cmdFeishu, upsertEnvContents } from './feishu-login.js';
-import { enableLocalUi, readEnvValue, type LocalUiResult } from './local-ui.js';
+import { enableLocalUi, ensureMainPort, readEnvValue, type LocalUiResult } from './local-ui.js';
 import type { CliResult } from '@core/cli-utils.js';
 import { parseClientListenHost, parseLocalClientAnswer, withInitLocalClient, type LocalClientAnswer } from './init-local-client.js';
 
@@ -1495,8 +1495,12 @@ async function runInitSteps(
   // 5. Gateway usage and telemetry — omitted scripted answers preserve the existing choices.
   applySharingChoices(paths, answers, options);
 
-  // 5b. Local Web UI endpoint — opt-in, driven by the desktop setup wizard. Must run after the
-  //     .env exists so the generated client token is the one the native app is handed back.
+  // 5b. The main port: a configured one is kept, otherwise the first free port from 26789 up is
+  //     written, so a second install on this machine starts without a manual choice.
+  await ensureMainPort({ configDir: paths.CONFIG_DIR, port: answers.localUi?.port });
+
+  // 5c. Local Web UI endpoint on that port — opt-in, driven by the desktop setup wizard. Must run
+  //     after the .env exists so the generated client token is the one the native app is handed back.
   let localUi: LocalUiResult | null = null;
   if (answers.localUi?.enabled) {
     localUi = await enableLocalUi({ configDir: paths.CONFIG_DIR, port: answers.localUi.port });

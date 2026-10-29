@@ -77,7 +77,7 @@ export function getUiHelp(): string {
       { name: 'pair', description: 'Print a one-time pairing code (10 minutes) for a new app or browser' },
     ],
     options: [
-      { flag: '--port <port>', description: 'enable: TCP port to serve the Web UI on', default: 'the configured CORTEX_UI_PORT, else 3004' },
+      { flag: '--port <port>', description: 'enable: TCP port this install serves on (must be free)', default: 'the configured CORTEX_UI_PORT, else the first free port from 26789' },
       { flag: '--home <path>', description: 'CORTEX_HOME to use', default: '$CORTEX_HOME or ~/.cortex' },
       { flag: '--json', description: 'Print the result as JSON (enable: endpoint, token, change state; pair: code, expiry)' },
       { flag: '--help, -h', description: 'Show this help' },

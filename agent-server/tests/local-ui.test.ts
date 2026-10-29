@@ -5,11 +5,9 @@ import * as os from 'node:os';
 import * as fs from 'node:fs';
 import * as dotenv from 'dotenv';
 
-import {
-  enableLocalUi,
-  LOCAL_UI_ORIGINS,
-  DEFAULT_LOCAL_UI_PORT,
-} from '../src/entry/local-ui.js';
+import * as net from 'node:net';
+import { enableLocalUi, ensureMainPort, LOCAL_UI_ORIGINS } from '../src/entry/local-ui.js';
+import { DEFAULT_MAIN_PORT, findFreeMainPort } from '../src/core/main-port.js';
 
 const tempDirs: string[] = [];
 
@@ -37,20 +35,21 @@ afterEach(() => {
 
 test('enableLocalUi provisions env, tokens and CORS origins on a bare config dir', async () => {
   const configDir = makeConfigDir();
+  const expected = await findFreeMainPort();
 
   const result = await enableLocalUi({ configDir });
 
   const env = readEnv(configDir);
   assert.equal(env.CORTEX_UI_HTTP, '1');
-  assert.equal(env.CORTEX_UI_PORT, String(DEFAULT_LOCAL_UI_PORT));
+  assert.equal(env.CORTEX_UI_PORT, String(expected));
   assert.match(env.CORTEX_CLIENT_TOKEN, /^[0-9a-f]{64}$/);
   assert.match(env.CORTEX_WEBHOOK_TOKEN, /^[0-9a-f]{64}$/);
 
   assert.deepEqual(readSettings(configDir).uiCorsOrigins, [...LOCAL_UI_ORIGINS]);
 
-  assert.equal(result.url, `http://127.0.0.1:${DEFAULT_LOCAL_UI_PORT}`);
+  assert.equal(result.url, `http://127.0.0.1:${expected}`);
   assert.equal(result.token, env.CORTEX_CLIENT_TOKEN);
-  assert.equal(result.port, DEFAULT_LOCAL_UI_PORT);
+  assert.equal(result.port, expected);
   assert.equal(result.changed, true);
 });
 
@@ -144,4 +143,60 @@ test('enableLocalUi rejects a settings.json that is not a JSON object', async ()
   fs.writeFileSync(path.join(configDir, 'settings.json'), '["not", "an", "object"]');
 
   await assert.rejects(() => enableLocalUi({ configDir }), /JSON object/);
+});
+
+// ── The main port: kept, picked free, or refused ──────────────────────────────────
+
+async function hold(): Promise<{ port: number; release: () => Promise<unknown> }> {
+  const server = net.createServer();
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+  return { port: (server.address() as net.AddressInfo).port, release: () => new Promise((r) => server.close(r)) };
+}
+
+test('without a configured port the first free one is written, then kept', async () => {
+  const configDir = makeConfigDir();
+  const expected = await findFreeMainPort();
+  assert.deepEqual(await ensureMainPort({ configDir }), { port: expected, changed: true });
+  assert.equal(readEnv(configDir).CORTEX_UI_PORT, String(expected));
+  assert.deepEqual(await ensureMainPort({ configDir }), { port: expected, changed: false });
+});
+
+test('a configured port is kept even while it is bound (its own server holds it)', async () => {
+  const configDir = makeConfigDir();
+  const held = await hold();
+  try {
+    fs.writeFileSync(path.join(configDir, '.env'), `CORTEX_UI_PORT=${held.port}\n`);
+    assert.deepEqual(await ensureMainPort({ configDir }), { port: held.port, changed: false });
+    assert.deepEqual(await ensureMainPort({ configDir, port: held.port }), { port: held.port, changed: false });
+  } finally { await held.release(); }
+});
+
+test('an explicit port held by another process is refused and nothing is written', async () => {
+  const configDir = makeConfigDir();
+  fs.writeFileSync(path.join(configDir, '.env'), 'CORTEX_UI_PORT=26789\n');
+  const held = await hold();
+  try {
+    await assert.rejects(ensureMainPort({ configDir, port: held.port }), new RegExp(`Port ${held.port} is already in use`));
+    await assert.rejects(enableLocalUi({ configDir, port: held.port }), /already in use/);
+    assert.equal(readEnv(configDir).CORTEX_UI_PORT, '26789');
+  } finally { await held.release(); }
+});
+
+test('a running server on this home without a configured port keeps the default it serves on', async () => {
+  const configDir = makeConfigDir();
+  const storeDir = path.join(path.dirname(configDir), 'data');
+  fs.mkdirSync(storeDir, { recursive: true });
+  fs.writeFileSync(path.join(storeDir, 'app.pid'), String(process.pid));
+  assert.deepEqual(await ensureMainPort({ configDir }), { port: DEFAULT_MAIN_PORT, changed: true });
+  assert.equal(readEnv(configDir).CORTEX_UI_PORT, String(DEFAULT_MAIN_PORT));
+});
+
+test('the explicit port honours CORTEX_UI_HOST from .env when checking it is free', async () => {
+  const configDir = makeConfigDir();
+  const held = await hold();
+  try {
+    // Held on 127.0.0.1; the probe binds the configured host, which conflicts on the same port.
+    fs.writeFileSync(path.join(configDir, '.env'), 'CORTEX_UI_HOST=127.0.0.1\n');
+    await assert.rejects(ensureMainPort({ configDir, port: held.port }), /already in use/);
+  } finally { await held.release(); }
 });

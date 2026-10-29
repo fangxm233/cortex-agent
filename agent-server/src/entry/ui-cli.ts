@@ -21,7 +21,7 @@ function usageError(message: string, opts: { validValues: string[]; hint: string
  * `cortex ui enable` — make this install reachable by the Cortex desktop app.
  *
  * The native shell needs three things that a plain `cortex init` leaves off (the endpoint is
- * opt-in): the Web UI HTTP transport switched on, a port, and the shell's own origins allowed for
+ * opt-in): the Web UI HTTP transport switched on, a settled port, and the shell's own origins allowed for
  * CORS. This wraps all three plus token generation into one idempotent command, so both the desktop
  * setup wizard and an operator repairing an older install use the same path.
  *
@@ -34,7 +34,7 @@ async function runEnable(args: string[]): Promise<CliResult> {
   const port = portRaw === undefined ? undefined : Number(portRaw);
   if (port !== undefined && (!Number.isInteger(port) || port < 1 || port > 65535)) {
     return usageError(`Invalid --port: '${portRaw}'.`, {
-      validValues: ['an integer in 1-65535'], hint: 'cortex ui enable --port 3004',
+      validValues: ['an integer in 1-65535'], hint: 'cortex ui enable --port 26790',
     });
   }
 

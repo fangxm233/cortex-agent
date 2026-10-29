@@ -2,9 +2,11 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import * as net from 'node:net';
 import path from 'node:path';
 import {
-  DEFAULT_MAIN_PORT, envFilePath, mainPortUrl, parsePort, resolveClientToken, resolveMainPort, warnRetiredPortEnv,
+  DEFAULT_MAIN_PORT, MAIN_PORT_SEARCH_END, envFilePath, findFreeMainPort, isPortFree, mainPortUrl, parsePort,
+  resolveClientToken, resolveMainPort, warnRetiredPortEnv,
 } from '../../src/core/main-port.js';
 
 function homeWithEnv(text: string | null): string {
@@ -63,4 +65,40 @@ test('the client token falls back to the home .env', () => {
   assert.equal(resolveClientToken({ CORTEX_HOME: home }), 'from-file');
   assert.equal(resolveClientToken({ CORTEX_HOME: home, CORTEX_CLIENT_TOKEN: 'from-env' }), 'from-env');
   assert.equal(envFilePath({ CORTEX_HOME: home }), path.join(home, 'config', '.env'));
+});
+
+// ── Free-port pick ─────────────────────────────────────────────────────────────
+
+async function holdPort(): Promise<{ port: number; release: () => Promise<unknown> }> {
+  const server = net.createServer();
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+  return { port: (server.address() as net.AddressInfo).port, release: () => new Promise((r) => server.close(r)) };
+}
+
+test('a bound port is not free; a released one is', async () => {
+  const held = await holdPort();
+  assert.equal(await isPortFree(held.port), false);
+  await held.release();
+  assert.equal(await isPortFree(held.port), true);
+});
+
+test('the pick skips ports already bound and returns the next free one', async () => {
+  const held = await holdPort();
+  try {
+    const picked = await findFreeMainPort('127.0.0.1', held.port, held.port + 20);
+    assert.ok(picked > held.port && picked <= held.port + 20, String(picked));
+    assert.equal(await isPortFree(picked), true);
+  } finally { await held.release(); }
+});
+
+test('a range with no free port is an error naming CORTEX_UI_PORT', async () => {
+  const held = await holdPort();
+  try {
+    await assert.rejects(findFreeMainPort('127.0.0.1', held.port, held.port), /No free port .*CORTEX_UI_PORT/);
+  } finally { await held.release(); }
+});
+
+test('the default search starts at 26789 and stays below every ephemeral range', () => {
+  assert.equal(DEFAULT_MAIN_PORT, 26789);
+  assert.ok(MAIN_PORT_SEARCH_END < 32768);
 });

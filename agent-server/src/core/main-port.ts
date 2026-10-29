@@ -1,4 +1,5 @@
 import * as fs from 'node:fs';
+import * as net from 'node:net';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as dotenv from 'dotenv';
@@ -15,6 +16,9 @@ export const MAIN_HOST_ENV = 'CORTEX_UI_HOST';
 export const DEFAULT_MAIN_HOST = '127.0.0.1';
 /** WebSocket path of the `cortex tui` client on the main port. */
 export const TUI_PATH = '/tui';
+/** Last port tried when a free main port is picked: 26789-26999 is unassigned by IANA and below
+ *  every platform's ephemeral range. */
+export const MAIN_PORT_SEARCH_END = 26999;
 /** Set only on installs whose remote clients still dial the old dedicated client port. */
 export const LEGACY_CLIENT_PORT_ENV = 'CORTEX_CLIENT_PORT';
 
@@ -74,4 +78,27 @@ export function warnRetiredPortEnv(env: NodeJS.ProcessEnv, warn: (message: strin
     warn(`${name} is no longer used and is ignored: every endpoint is served on ${MAIN_PORT_ENV} `
       + `(${resolveMainPort(env)}). Remove ${name} from your environment or ${envFilePath(env)}.`);
   }
+}
+
+/** Whether `port` can be bound on `host` right now. Any bind error (in use, reserved, forbidden)
+ *  counts as not free. */
+export function isPortFree(port: number, host: string = DEFAULT_MAIN_HOST): Promise<boolean> {
+  return new Promise((resolve) => {
+    const probe = net.createServer();
+    probe.unref();
+    probe.once('error', () => resolve(false));
+    probe.listen({ port, host, exclusive: true }, () => probe.close(() => resolve(true)));
+  });
+}
+
+/** The first port from `from` up to `to` that can be bound on `host`. */
+export async function findFreeMainPort(
+  host: string = DEFAULT_MAIN_HOST,
+  from: number = DEFAULT_MAIN_PORT,
+  to: number = MAIN_PORT_SEARCH_END,
+): Promise<number> {
+  for (let port = from; port <= to; port++) {
+    if (await isPortFree(port, host)) return port;
+  }
+  throw new Error(`No free port between ${from} and ${to}; set ${MAIN_PORT_ENV} to a free port and retry.`);
 }

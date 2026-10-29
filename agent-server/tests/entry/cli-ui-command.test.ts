@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import * as fs from 'node:fs';
+import * as net from 'node:net';
 import * as dotenv from 'dotenv';
 
 import { runCli } from '../../src/entry/cli.js';
+import { findFreeMainPort } from '../../src/core/main-port.js';
 import { createPairingStore, PAIRING_FILE_NAME } from '../../src/platform/ui-http/ui-pairing.js';
 
 const tempDirs: string[] = [];
@@ -24,19 +26,21 @@ afterEach(() => {
 test('ui enable --json reports the endpoint the native app should connect to', async () => {
   const home = makeHome();
 
+  const expected = await findFreeMainPort();
   const result = await runCli(['ui', 'enable', '--home', home, '--json']);
 
   assert.equal(result.exitCode, 0, result.stderr);
   const payload = JSON.parse(result.stdout);
   assert.equal(payload.ok, true);
-  assert.equal(payload.url, 'http://127.0.0.1:3004');
-  assert.equal(payload.port, 3004);
+  assert.equal(payload.url, `http://127.0.0.1:${expected}`, 'the first free port from 26789 up');
+  assert.equal(payload.port, expected);
   assert.match(payload.token, /^[0-9a-f]{64}$/);
   assert.equal(payload.changed, true);
   assert.equal(payload.home, home);
 
   const env = dotenv.parse(fs.readFileSync(path.join(home, 'config', '.env'), 'utf-8'));
   assert.equal(env.CORTEX_UI_HTTP, '1');
+  assert.equal(env.CORTEX_UI_PORT, String(expected));
   assert.equal(env.CORTEX_CLIENT_TOKEN, payload.token);
 });
 
@@ -74,7 +78,7 @@ test('ui enable prints a human summary when --json is absent', async () => {
   const result = await runCli(['ui', 'enable', '--home', home]);
 
   assert.equal(result.exitCode, 0);
-  assert.match(result.stdout, /http:\/\/127\.0\.0\.1:3004/);
+  assert.match(result.stdout, /http:\/\/127\.0\.0\.1:\d+/);
   assert.doesNotMatch(result.stdout, /[0-9a-f]{64}/, 'the token must not be printed in plain output');
 });
 
@@ -108,4 +112,19 @@ test('ui rejects an unknown subcommand and lists both valid ones', async () => {
   assert.equal(result.exitCode, 1);
   assert.match(result.stderr, /enable/);
   assert.match(result.stderr, /pair/);
+});
+
+test('ui enable --port refuses a port another process holds', async () => {
+  const home = makeHome();
+  const holder = net.createServer();
+  await new Promise<void>((resolve) => holder.listen(0, '127.0.0.1', () => resolve()));
+  const { port } = holder.address() as net.AddressInfo;
+  try {
+    const result = await runCli(['ui', 'enable', '--home', home, '--port', String(port), '--json']);
+    assert.equal(result.exitCode, 1);
+    assert.match(result.stderr, new RegExp(`Port ${port} is already in use`));
+    assert.equal(fs.existsSync(path.join(home, 'config', '.env')), false, 'nothing is written');
+  } finally {
+    await new Promise((resolve) => holder.close(resolve));
+  }
 });
