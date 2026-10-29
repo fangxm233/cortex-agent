@@ -308,6 +308,7 @@ pub fn run() {
             if let Some(dir) = telemetry::telemetry_dir(app.handle()) {
                 telemetry::install_panic_hook(dir, app.package_info().version.to_string());
             }
+            setup::telemetry::retry_pending(app.handle());
             #[cfg(not(target_os = "android"))]
             if uninstall::launch().is_some() {
                 uninstall::open_window(app, desktop_title_bar_mode())?;

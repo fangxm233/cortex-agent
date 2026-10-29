@@ -31,17 +31,29 @@ fn is_uuid(value: &str) -> bool {
     uuid::Uuid::parse_str(value).is_ok() && value.len() == 36
 }
 
+pub fn install_id_file(dir: &Path) -> PathBuf {
+    dir.join(INSTALL_ID_FILE)
+}
+
+/// The install id saved in `file`, when it holds one.
+pub fn read_install_id(file: &Path) -> Option<String> {
+    let saved = std::fs::read_to_string(file).ok()?.trim().to_ascii_lowercase();
+    is_uuid(&saved).then_some(saved)
+}
+
+/// Save `id` to `file`, best effort.
+pub fn write_install_id(file: &Path, id: &str) {
+    let _ = file.parent().map_or(Ok(()), std::fs::create_dir_all).and_then(|_| std::fs::write(file, format!("{id}\n")));
+}
+
 /// The random install id, created on first use. Carries no machine or user information.
 pub fn install_id(dir: &Path) -> String {
-    let file = dir.join(INSTALL_ID_FILE);
-    if let Ok(saved) = std::fs::read_to_string(&file) {
-        let saved = saved.trim().to_ascii_lowercase();
-        if is_uuid(&saved) {
-            return saved;
-        }
+    let file = install_id_file(dir);
+    if let Some(saved) = read_install_id(&file) {
+        return saved;
     }
     let id = uuid::Uuid::new_v4().to_string();
-    let _ = std::fs::create_dir_all(dir).and_then(|_| std::fs::write(&file, format!("{id}\n")));
+    write_install_id(&file, &id);
     id
 }
 

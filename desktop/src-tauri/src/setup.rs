@@ -271,6 +271,9 @@ pub struct SetupProbe {
 /// Inspect the machine: toolchain versions, any existing install, and whether it is new enough.
 #[tauri::command]
 pub async fn setup_probe(app: AppHandle) -> Result<SetupProbe, String> {
+    if let Some(home) = cortex_home() {
+        telemetry::align_with_home(&app, &home, home_initialized(&home));
+    }
     telemetry::report(&app, telemetry::Step::SetupStarted, None);
     tauri::async_runtime::spawn_blocking(probe_machine)
         .await
@@ -456,7 +459,7 @@ fn run_init(
 }
 
 /// `cortex ui enable --json` — the repair path for an install that predates the wizard, or one whose
-/// Web UI endpoint was never switched on.
+/// Web UI endpoint was never switched on. It stands in for init on a home that already exists.
 #[tauri::command]
 pub async fn setup_enable_ui(
     app: AppHandle,
@@ -464,9 +467,14 @@ pub async fn setup_enable_ui(
     bin: String,
     port: Option<u16>,
 ) -> Result<UiEndpoint, String> {
-    tauri::async_runtime::spawn_blocking(move || enable_ui(&app, &run, &bin, port))
+    let handle = app.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || enable_ui(&app, &run, &bin, port))
         .await
-        .map_err(|e| format!("SETUP_TASK_FAILED: UI: {e}"))?
+        .map_err(|e| format!("SETUP_TASK_FAILED: UI: {e}"))
+        .and_then(|r| r);
+    use telemetry::Step::{InitCompleted, InitFailed};
+    telemetry::report_result(&handle, &result, (InitCompleted, Some("existing")), InitFailed);
+    result
 }
 
 fn ui_enable_args(port: Option<u16>) -> Vec<String> {

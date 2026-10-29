@@ -5,8 +5,8 @@
 //! Each step goes once per install and carries a failure class, never error text. The steps are
 //! sent unless `CORTEX_TELEMETRY=0` or `DO_NOT_TRACK` in the shell's environment silences them, as
 //! they do the server; the user's choice is offered after install, by the server it sets up.
-//! Sending is fire-and-forget on its own thread with a short timeout; it can neither block nor fail
-//! setup.
+//! Sending happens on its own thread with a short timeout; it can neither block nor fail setup. A
+//! step the collector did not answer stays queued and is sent again on the next launch.
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -46,13 +46,26 @@ impl Step {
     }
 }
 
-/// What the shell remembers between launches: the UI language and the steps sent.
+/// A step reported but not yet answered by the collector, kept to be sent again.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingStep {
+    pub step: String,
+    pub detail: Option<String>,
+    pub at: String,
+}
+
+/// What the shell remembers between launches: the UI language, the steps sent and those queued.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct FunnelState {
     pub lang: Option<String>,
     pub sent: Vec<String>,
+    pub pending: Vec<PendingStep>,
 }
+
+/// Where the server home keeps its install id, relative to the home.
+const HOME_INSTALL_ID: &str = "data/telemetry/install-id";
 
 pub fn load_state(dir: &Path) -> FunnelState {
     std::fs::read_to_string(dir.join(STATE_FILE))
@@ -66,21 +79,37 @@ fn save_state(dir: &Path, state: &FunnelState) {
     let _ = std::fs::create_dir_all(dir).and_then(|_| std::fs::write(dir.join(STATE_FILE), json));
 }
 
-/// Mark `step` sent and say whether it should go out now (not sent before).
-pub fn claim_step(dir: &Path, step: Step) -> Option<FunnelState> {
-    let _guard = STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+fn lock_state() -> std::sync::MutexGuard<'static, ()> {
+    STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Queue `step` unless this install already reported it; the queued entry is what goes out.
+pub fn claim_step(dir: &Path, step: Step, detail: Option<&str>, at: &str) -> Option<PendingStep> {
+    let _guard = lock_state();
     let mut state = load_state(dir);
-    if state.sent.iter().any(|s| s == step.name()) {
+    if state.sent.iter().chain(state.pending.iter().map(|p| &p.step)).any(|s| s == step.name()) {
         return None;
     }
-    state.sent.push(step.name().to_string());
+    let entry = PendingStep { step: step.name().to_string(), detail: detail.map(str::to_string), at: at.to_string() };
+    state.pending.push(entry.clone());
     save_state(dir, &state);
-    Some(state)
+    Some(entry)
+}
+
+/// The collector answered for `step`: it leaves the queue for good.
+pub fn mark_sent(dir: &Path, step: &str) {
+    let _guard = lock_state();
+    let mut state = load_state(dir);
+    state.pending.retain(|p| p.step != step);
+    if !state.sent.iter().any(|s| s == step) {
+        state.sent.push(step.to_string());
+    }
+    save_state(dir, &state);
 }
 
 /// Remember the setup screen's language for the steps still to come.
 pub fn set_lang(dir: &Path, lang: String) {
-    let _guard = STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = lock_state();
     let mut state = load_state(dir);
     state.lang = Some(lang);
     save_state(dir, &state);
@@ -162,7 +191,7 @@ pub struct Host {
 
 /// One funnel event about to be sent.
 pub struct FunnelEvent<'a> {
-    pub step: Step,
+    pub step: &'a str,
     pub detail: Option<&'a str>,
     pub lang: Option<&'a str>,
     pub at: &'a str,
@@ -180,15 +209,32 @@ pub fn batch_json(host: &Host, install_id: &str, event: &FunnelEvent<'_>) -> ser
             "arch": host.arch, "nodeMajor": null, "uiLang": ui_lang(lang),
         },
         "events": [{
-            "type": "funnel", "at": now, "source": "desktop-setup", "step": step.name(), "detail": detail,
+            "type": "funnel", "at": now, "source": "desktop-setup", "step": step, "detail": detail,
         }],
     })
 }
 
-fn post(endpoint: &str, body: serde_json::Value) {
-    let Ok(client) = crate::ota::build_http_client_with_timeout(SEND_TIMEOUT) else { return };
-    // Best effort: an unreachable endpoint loses this step, nothing more.
-    let _ = client.post(endpoint).json(&body).send();
+/// Whether the collector settled a batch: stored (2xx) or refused for good (4xx, as the server's
+/// uploader reads it). Anything else is worth sending again.
+pub fn answered(status: u16) -> bool {
+    (200..300).contains(&status) || (400..500).contains(&status)
+}
+
+fn post(endpoint: &str, body: serde_json::Value) -> bool {
+    let Ok(client) = crate::ota::build_http_client_with_timeout(SEND_TIMEOUT) else { return false };
+    client.post(endpoint).json(&body).send().is_ok_and(|response| answered(response.status().as_u16()))
+}
+
+/// Send one queued step; it leaves the queue once the collector answered.
+fn deliver(host: &Host, dir: &Path, endpoint: &str, entry: &PendingStep) -> bool {
+    let id = crate::telemetry::install_id(dir);
+    let lang = load_state(dir).lang;
+    let event = FunnelEvent { step: &entry.step, detail: entry.detail.as_deref(), lang: lang.as_deref(), at: &entry.at };
+    let delivered = post(endpoint, batch_json(host, &id, &event));
+    if delivered {
+        mark_sent(dir, &entry.step);
+    }
+    delivered
 }
 
 fn host(app: &AppHandle) -> Host {
@@ -225,24 +271,64 @@ fn funnel_dir(app: &AppHandle) -> Option<PathBuf> {
     crate::telemetry::telemetry_dir(app)
 }
 
-/// Report one setup step in the background. `detail` is a failure class or nothing.
+/// Report one setup step in the background. `detail` is a failure class, `existing`, or nothing.
 pub fn report(app: &AppHandle, step: Step, detail: Option<&'static str>) {
     let (Some(dir), Some(endpoint)) = (funnel_dir(app), ENDPOINT) else { return };
     let app = app.clone();
     std::thread::spawn(move || {
-        let Some(state) = claim_step(&dir, step) else { return };
-        let id = crate::telemetry::install_id(&dir);
         let at = crate::telemetry::iso_utc(std::time::SystemTime::now());
-        let event = FunnelEvent { step, detail, lang: state.lang.as_deref(), at: &at };
-        post(endpoint.trim(), batch_json(&host(&app), &id, &event));
+        let Some(entry) = claim_step(&dir, step, detail, &at) else { return };
+        deliver(&host(&app), &dir, endpoint.trim(), &entry);
+    });
+}
+
+/// Send again, in the background, the steps an earlier launch could not deliver. Stops at the
+/// first that still fails; the rest wait for the next launch.
+pub fn retry_pending(app: &AppHandle) {
+    let (Some(dir), Some(endpoint)) = (funnel_dir(app), ENDPOINT) else { return };
+    if load_state(&dir).pending.is_empty() {
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let host = host(&app);
+        for entry in load_state(&dir).pending {
+            if !deliver(&host, &dir, endpoint.trim(), &entry) {
+                break;
+            }
+        }
     });
 }
 
 /// Report a step's outcome: `ok` on success, `failed` with the error's class otherwise.
 pub fn report_outcome<T>(app: &AppHandle, result: &Result<T, String>, ok: Step, failed: Step) {
+    report_result(app, result, (ok, None), failed);
+}
+
+/// `report_outcome` for a success that carries a detail.
+pub fn report_result<T>(app: &AppHandle, result: &Result<T, String>, ok: (Step, Option<&'static str>), failed: Step) {
     match result {
-        Ok(_) => report(app, ok, None),
+        Ok(_) => report(app, ok.0, ok.1),
         Err(error) => report(app, failed, Some(failure_class(error))),
+    }
+}
+
+/// One install id for the shell and a server home that setup reuses: adopt the home's, or give an
+/// initialized home that has none this shell's. A home that init has yet to create gets the
+/// shell's id through the init answers instead.
+pub fn align_install_id(dir: &Path, home: &Path, initialized: bool) {
+    let home_file = home.join(HOME_INSTALL_ID);
+    match crate::telemetry::read_install_id(&home_file) {
+        Some(id) => crate::telemetry::write_install_id(&crate::telemetry::install_id_file(dir), &id),
+        None if initialized => crate::telemetry::write_install_id(&home_file, &crate::telemetry::install_id(dir)),
+        None => {}
+    }
+}
+
+/// `align_install_id` against the shell's own telemetry folder.
+pub fn align_with_home(app: &AppHandle, home: &Path, initialized: bool) {
+    if let Some(dir) = crate::telemetry::telemetry_dir(app) {
+        align_install_id(&dir, home, initialized);
     }
 }
 
