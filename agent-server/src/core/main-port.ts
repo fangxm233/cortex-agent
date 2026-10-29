@@ -63,6 +63,13 @@ export function mainPortUrl(env: NodeJS.ProcessEnv = process.env, file: string |
   return `http://127.0.0.1:${resolveMainPort(env, file)}`;
 }
 
+/** The port remote clients dial: the separate client listener when the install kept one
+ *  (`CORTEX_CLIENT_PORT`), otherwise the main port. Same rule as the server's client manager. */
+export function resolveClientPort(env: NodeJS.ProcessEnv = process.env, file: string | null = envFilePath(env)): number {
+  const legacy = parsePort(env[LEGACY_CLIENT_PORT_ENV]) ?? parsePort(file ? readEnvFileValue(file, LEGACY_CLIENT_PORT_ENV) : undefined);
+  return legacy ?? resolveMainPort(env, file);
+}
+
 /** The client token from the process env, else the home's `.env` (the TUI runs from a plain shell). */
 export function resolveClientToken(env: NodeJS.ProcessEnv = process.env, file = envFilePath(env)): string {
   return (env.CORTEX_CLIENT_TOKEN || readEnvFileValue(file, 'CORTEX_CLIENT_TOKEN') || '').trim();

@@ -6,7 +6,7 @@ import * as net from 'node:net';
 import path from 'node:path';
 import {
   DEFAULT_MAIN_PORT, MAIN_PORT_SEARCH_END, envFilePath, findFreeMainPort, isPortFree, mainPortUrl, parsePort,
-  resolveClientToken, resolveMainPort, warnRetiredPortEnv,
+  resolveClientPort, resolveClientToken, resolveMainPort, warnRetiredPortEnv,
 } from '../../src/core/main-port.js';
 
 function homeWithEnv(text: string | null): string {
@@ -101,4 +101,13 @@ test('a range with no free port is an error naming CORTEX_UI_PORT', async () => 
 test('the default search starts at 26789 and stays below every ephemeral range', () => {
   assert.equal(DEFAULT_MAIN_PORT, 26789);
   assert.ok(MAIN_PORT_SEARCH_END < 32768);
+});
+
+test('clients dial the kept client port when there is one, else the main port', () => {
+  const plain = homeWithEnv('CORTEX_UI_PORT=26790\n');
+  assert.equal(resolveClientPort({ CORTEX_HOME: plain }), 26790);
+  const kept = homeWithEnv('CORTEX_UI_PORT=3004\nCORTEX_CLIENT_PORT=3002\n');
+  assert.equal(resolveClientPort({ CORTEX_HOME: kept }), 3002);
+  assert.equal(resolveClientPort({ CORTEX_HOME: plain, CORTEX_CLIENT_PORT: '4002' }), 4002);
+  assert.equal(resolveClientPort({}, null), DEFAULT_MAIN_PORT);
 });

@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { createLogger } from '@core/log.js';
+import { resolveClientPort } from '@core/main-port.js';
 import { resolveBundle } from './client-hot-reload.js';
 import { sshExec, SSH_BASE_OPTIONS } from './ssh-exec.js';
 
@@ -23,7 +24,7 @@ if (!serverHost) {
   log.error('--server-host is required');
   process.exit(1);
 }
-const serverPort = getArg('--server-port') || '3002';
+const serverPort = getArg('--server-port') || String(resolveClientPort());
 
 if (!sshHost) {
   log.error(`Usage (from agent-server/): node --import tsx src/domain/remote/client-bootstrap.ts --host user@host --device-name NAME [options]
@@ -32,7 +33,7 @@ Options:
   --host <user@host>        SSH target (required)
   --device-name <name>      Device name for cortex-client (required)
   --server-host <host>      Cortex server IP (required)
-  --server-port <port>      Cortex server WS port (default: 3002)
+  --server-port <port>      Cortex server WS port (default: this server's CORTEX_CLIENT_PORT if set, else its CORTEX_UI_PORT, else 26789)
 `);
   process.exit(1);
 }

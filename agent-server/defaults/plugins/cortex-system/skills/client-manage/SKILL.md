@@ -4,8 +4,8 @@ description: "Use when creating, deploying, updating, or troubleshooting cortex-
 allowed-tools: Read, Write, Edit, Bash, mcp__cortex-core__remote_bash, mcp__cortex-core__remote_read, mcp__cortex-core__remote_write, mcp__cortex-core__remote_edit, mcp__cortex-core__remote_glob, mcp__cortex-core__remote_grep
 metadata:
   author: "Cortex"
-  version: "1.4.1"
-  date: "2026-10-22"
+  version: "1.4.2"
+  date: "2026-10-29"
 ---
 
 # Client Manage
@@ -18,14 +18,22 @@ The server (`client-manager.ts`) starts clients automatically. Your job is to en
 
 ```
 cortex-agent-server ──SSH──► starts cortex-client on remote device
-        ▲                                    │
-        │  WebSocket  wss://<tunnel-host>     │
-        │  (or ws://<serverHost>:3002 on LAN) │
-        └────────────────────────────────────┘
+        ▲                                      │
+        │  WebSocket  wss://<tunnel-host>      │
+        │  (or ws://<serverHost>:26789 on LAN) │
+        └──────────────────────────────────────┘
       (client initiates this connection back to server)
 ```
 
 **Critical:** The WebSocket connection is initiated FROM the remote device TO the server. The client's target is resolved from `serverUrl` (a full `wss://`/`ws://` URL — used for Cloudflare Tunnel / cross-NAT) or `ws://<serverHost>:<serverPort>` (LAN/Tailscale), and that target MUST be reachable from the remote device. When both server and client are behind NAT, expose the server's WS port via a Cloudflare Tunnel and set the client's `serverUrl` to `wss://<tunnel-host>`. The server's SSH access to the device is separate — it's used for lifecycle management (start/kill/update) but not for the real-time command channel.
+
+## The server's WS port
+
+Clients connect to the server's main port: `CORTEX_UI_PORT` in the server's `.env`, `26789` by default (`cortex init` picks the next free port when that one is taken). Read it with `grep CORTEX_UI_PORT ~/.cortex/config/.env` on the server. If that `.env` also sets `CORTEX_CLIENT_PORT`, the server keeps a separate client listener on that port as well, bound to `CORTEX_CLIENT_HOST`, and either port works.
+
+The main port listens on `127.0.0.1` unless `CORTEX_UI_HOST` says otherwise. For a direct LAN or Tailscale connection, set `CORTEX_UI_HOST` to an address the device can reach (or `0.0.0.0`) and restart the server; a Cloudflare Tunnel or reverse SSH route works with the default.
+
+In the examples below, `26789` stands for that port.
 
 ## Authentication (WS bearer token)
 
@@ -47,8 +55,8 @@ A remote client gets the token automatically when the server spawns it over SSH 
 
 The client resolves its server URL by precedence (`server-url.ts`): `CORTEX_SERVER_URL` env > config `serverUrl` > `ws://<serverHost>:<serverPort>`.
 
-- `serverUrl` — **Preferred for cross-NAT / cross-network.** A full WebSocket URL the client dials. When both server and client are behind NAT (no public IP), expose the server's WS port through a **Cloudflare Tunnel** and point every client at `wss://<tunnel-host>` (e.g. the server runs `cloudflared` with an ingress `<tunnel-host> → http://localhost:3002`). The client dials outbound over wss/443 — no inbound or public IP needed on either side. If set, `serverHost`/`serverPort` are ignored.
-- `serverHost` / `serverPort` — Legacy LAN/same-machine path: `ws://serverHost:serverPort` (default port 3002). `serverHost` must be an IP the remote device can reach (LAN IP, Tailscale IP, or `127.0.0.1` for same-machine). Use only when there is a direct/Tailscale route; for NAT-to-NAT use `serverUrl`.
+- `serverUrl` — **Preferred for cross-NAT / cross-network.** A full WebSocket URL the client dials. When both server and client are behind NAT (no public IP), expose the server's WS port through a **Cloudflare Tunnel** and point every client at `wss://<tunnel-host>` (e.g. the server runs `cloudflared` with an ingress `<tunnel-host> → http://localhost:26789`). The client dials outbound over wss/443 — no inbound or public IP needed on either side. If set, `serverHost`/`serverPort` are ignored.
+- `serverHost` / `serverPort` — LAN/same-machine path: `ws://serverHost:serverPort` (the server's WS port, see above). `serverHost` must be an IP the remote device can reach (LAN IP, Tailscale IP, or `127.0.0.1` for same-machine). Use only when there is a direct/Tailscale route; for NAT-to-NAT use `serverUrl`.
 - `clientToken` — The server's `CORTEX_CLIENT_TOKEN` (see Authentication). Required unless injected via the `CORTEX_CLIENT_TOKEN` env at launch.
 - `deviceName` — Must match the name in `machines.json` on the server.
 
@@ -66,7 +74,7 @@ The bidirectional path must work:
 
 ```
 server → remote:  SSH (server starts/kills/updates client)
-remote → server:  WebSocket to <serverHost>:3002 (client connects back)
+remote → server:  WebSocket to <serverHost>:26789 (client connects back)
 ```
 
 ### Verify the Return Path
@@ -74,7 +82,7 @@ remote → server:  WebSocket to <serverHost>:3002 (client connects back)
 When bootstrapping a new device or debugging connection issues, ALWAYS verify the remote device can reach the server's WebSocket port:
 
 ```bash
-ssh user@host "timeout 3 bash -c 'echo > /dev/tcp/<serverHost>/3002' 2>&1 && echo REACHABLE || echo UNREACHABLE"
+ssh user@host "timeout 3 bash -c 'echo > /dev/tcp/<serverHost>/26789' 2>&1 && echo REACHABLE || echo UNREACHABLE"
 ```
 
 ### How to Fix Connectivity
@@ -82,11 +90,11 @@ ssh user@host "timeout 3 bash -c 'echo > /dev/tcp/<serverHost>/3002' 2>&1 && ech
 | Situation | Fix |
 |-----------|-----|
 | Both sides behind NAT (no public IP) | Expose the server WS through a Cloudflare Tunnel; set client `serverUrl` to `wss://<tunnel-host>` (preferred when neither side is publicly reachable) |
-| Same LAN, unreachable | Check firewall: `sudo ufw allow 3002` on server |
+| Same LAN, unreachable | Check that `CORTEX_UI_HOST` is not loopback, then the firewall: `sudo ufw allow 26789` on server |
 | Different network | Use Tailscale IP (works through NAT) or a Cloudflare Tunnel `serverUrl` |
-| STCP tunnel only | Use Tailscale or set up reverse SSH: `ssh -R 3002:localhost:3002 user@host` on server |
+| STCP tunnel only | Use Tailscale or set up reverse SSH: `ssh -R 26789:localhost:26789 user@host` on server |
 | Tailscale but unreachable | `tailscale status` — ensure both devices are connected, check ACLs |
-| Can SSH but can't TCP | SSH works on port 22 only. Either open port 3002 or use Tailscale / Cloudflare Tunnel / reverse tunnel |
+| Can SSH but can't TCP | SSH works on port 22 only. Either open the server's WS port or use Tailscale / Cloudflare Tunnel / reverse tunnel |
 
 ### Determine the Right serverHost
 
@@ -142,7 +150,7 @@ First, determine the correct `serverHost` (see Connectivity section above). Then
 ssh user@host 'mkdir -p ~/.cortex/config && cat > ~/.cortex/config/cortex-client.json << EOF
 {
   "serverHost": "<REACHABLE_IP>",
-  "serverPort": 3002,
+  "serverPort": 26789,
   "deviceName": "<device-name>"
 }
 EOF'
@@ -153,7 +161,7 @@ Or use `mcp__cortex-core__remote_write` if the device is already reachable via a
 ### 4. Verify connectivity
 
 ```bash
-ssh user@host "timeout 3 bash -c 'echo > /dev/tcp/<serverHost>/3002' 2>&1 && echo REACHABLE || echo UNREACHABLE"
+ssh user@host "timeout 3 bash -c 'echo > /dev/tcp/<serverHost>/26789' 2>&1 && echo REACHABLE || echo UNREACHABLE"
 ```
 
 ### 5. Start or restart the server
