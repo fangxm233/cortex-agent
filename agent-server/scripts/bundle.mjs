@@ -38,7 +38,7 @@ const runtimeEntries = [...new Set([
   'dist/tui/index.js', 'dist/domain/mcp/bundled-server.js',
   'dist/agent-adapter/claude/remote-mcp-proxy.js',
   // Publicly inspectable seams for the installed-package smoke test (not extra npm bins).
-  'dist/core/pi-sdk.js', 'dist/domain/auth/cc-auth-cli.js',
+  'dist/core/pi-sdk.js', 'dist/domain/auth/cc-auth-cli.js', 'dist/domain/mcp/feishu/client.js',
 ])];
 const entries = Object.fromEntries(runtimeEntries.map(rel => [rel.slice(0, -3), path.join(root, rel)]));
 entries['vendor/aistatus/gateway-cli'] = gatewayEntry;

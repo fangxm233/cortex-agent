@@ -40,11 +40,17 @@ function wasmLocation(source) {
     'fileURLToPath(new URL("vendor/quickjs.wasm", __cortexPackageRoot))');
   return needsImport ? source.prepend('import { fileURLToPath } from "node:url";\n') : source;
 }
+// Lark's CommonJS build reads __dirname at load time to find its package.json, and ESM chunks have
+// no __dirname. The var stays inside esbuild's CommonJS wrapper; the SDK reports version "unknown".
+function larkDirname(source, file) {
+  if (!file.endsWith(path.join('@larksuiteoapi', 'node-sdk', 'lib', 'index.js'))) return source;
+  return source.prepend('var __dirname = require("node:url").fileURLToPath(new URL("vendor/@larksuiteoapi/node-sdk/lib/", __cortexPackageRoot));\n');
+}
 function transformSource(source, file, { root, piRoot, aiRoot }) {
   if (file.endsWith('/ink/build/reconciler.js')) source = replaceOnce(source, "process.env['DEV'] === 'true'", 'false', file);
   if (file.startsWith(path.join(root, 'dist/'))) source = serverSource(source, file, root);
   if (file.startsWith(piRoot + path.sep)) source = logicalUrl(source, 'vendor/pi/' + posix(path.relative(piRoot, file)));
-  return wasmLocation(nodeOnlyImports(source, file, aiRoot));
+  return larkDirname(wasmLocation(nodeOnlyImports(source, file, aiRoot)), file);
 }
 export function bundleCompatibility(roots, { sourcemap = false } = {}) {
   return {
