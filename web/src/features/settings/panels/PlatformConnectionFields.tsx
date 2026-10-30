@@ -44,8 +44,9 @@ function FieldInput({ field, draft, disabled, onChange }: FieldProps) {
     popupClassName="settings-surface settings-select-popup" disabled={disabled}
     onValueChange={value => onChange(field.key, value)} style={psFieldStyle(disabled)}
     options={[{ value: 'feishu', label: L.setFeishu }, { value: 'lark', label: L.setLarkInternational }]} />;
+  // Browsers ignore `off` on password inputs and fill a saved login, which reads as an unsaved edit.
   return <input id={`ps-${field.key}`} name={field.key} type={field.secret ? 'password' : 'text'}
-    value={value} autoComplete="off" spellCheck={false} maxLength={4096} disabled={locked}
+    value={value} autoComplete={field.secret ? 'new-password' : 'off'} spellCheck={false} maxLength={4096} disabled={locked}
     placeholder={field.secret ? (field.present ? L.psStored : L.psNotStored) : undefined}
     onChange={e => onChange(field.key, e.target.value)} style={psFieldStyle(locked)} />;
 }

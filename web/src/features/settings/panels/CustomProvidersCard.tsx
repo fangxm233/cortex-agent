@@ -138,7 +138,7 @@ function EndpointFields({ draft, errors, set }: Omit<FieldsProps, 'creating'>) {
       </SFieldRow>
       <SFieldRow label={L.cpvFieldKey} hint={L.cpvKeyHint}>
         <input
-          data-cpv-field="key" type="password" value={draft.apiKey} placeholder={L.cpvKeyPlaceholder}
+          data-cpv-field="key" type="password" autoComplete="new-password" value={draft.apiKey} placeholder={L.cpvKeyPlaceholder}
           onChange={(e) => set({ apiKey: e.target.value })}
           style={S_CONTROL_STYLE}
         />

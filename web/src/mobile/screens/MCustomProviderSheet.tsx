@@ -66,7 +66,7 @@ function ConnectionFields({ draft, errors, set }: ProviderFieldsProps) {
         onChange={e => set({ upstreamUrl: e.target.value })} style={CONTROL_STYLE} />
     </Field>
     <Field label={L.cpvFieldKey} hint={L.cpvKeyHint}>
-      <input data-cpv-field="key" type="password" value={draft.apiKey} placeholder={L.cpvKeyPlaceholder}
+      <input data-cpv-field="key" type="password" autoComplete="new-password" value={draft.apiKey} placeholder={L.cpvKeyPlaceholder}
         onChange={e => set({ apiKey: e.target.value })} style={CONTROL_STYLE} />
     </Field>
     <Field label={L.cpvFieldModels} hint={customProviderFieldErrorCopy(errors.models, L) ?? L.cpvModelsHint} danger={!!errors.models}>
