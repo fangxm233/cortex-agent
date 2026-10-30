@@ -92,12 +92,13 @@ function button(html: string, label: string): string | null {
   return html.match(new RegExp(`<button[^>]*aria-label="${label}"[^>]*>`))?.[0] ?? null;
 }
 
-function renderChat(running: boolean, sendEnabled: boolean): string {
+function renderChat(running: boolean, sendEnabled: boolean, composerValue = ''): string {
   return renderToStaticMarkup(
     <MChatView
       {...baseProps}
       status={{ running, tone: running ? 'running' : 'idle', text: 'status' }}
       rows={[]}
+      composerValue={composerValue}
       sendEnabled={sendEnabled}
       onStop={running ? () => {} : undefined}
     />,
@@ -222,14 +223,22 @@ describe('mobile attachment error actions', () => {
 });
 
 describe('MChatView send controls', () => {
-  it('keeps Send reachable beside Stop while a turn is running', () => {
-    const html = renderChat(true, true);
-    expect(button(html, 'Send')).not.toBeNull();
+  it('shows only Stop while a turn is running and the input is empty', () => {
+    const html = renderChat(true, false);
+    expect(button(html, 'Send')).toBeNull();
     expect(button(html, 'Stop')).not.toBeNull();
   });
 
-  it('disables Send while running when there is nothing to send', () => {
-    expect(button(renderChat(true, false), 'Send')).toContain('disabled');
+  it('swaps Stop for Send while running once there is a draft', () => {
+    const html = renderChat(true, true, 'steer');
+    expect(button(html, 'Stop')).toBeNull();
+    expect(button(html, 'Send')).not.toContain('disabled');
+  });
+
+  it('keeps a disabled Send when idle with nothing to send', () => {
+    const html = renderChat(false, false);
+    expect(button(html, 'Stop')).toBeNull();
+    expect(button(html, 'Send')).toContain('disabled');
   });
 });
 

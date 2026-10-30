@@ -698,7 +698,8 @@ function MChatComposer({ props, shellRef, overlay, selection }: {
       shellRef={shellRef}
       placeholder={props.composerPlaceholder ?? (props.attachments.length > 0 ? L.chatAttachPlaceholder : L.chatComposerPh)}
       value={props.composerValue} onChange={props.onComposerChange} onSend={props.onSend} sendEnabled={props.sendEnabled}
-      running={props.status.running} onStop={props.onStop} stopEnabled={props.stopEnabled}
+      running={props.status.running} hasDraft={!!props.composerValue.trim() || props.attachments.length > 0}
+      onStop={props.onStop} stopEnabled={props.stopEnabled}
       leading={takenOver ? undefined : <ComposerLeading onClick={() => overlay.toggle('attach')} />}
       tools={takenOver ? null : <ComposerTools selection={props.selection} view={selection} clean={props.cleanDraft} />}
       above={<ComposerAbove props={props} overlay={overlay} />}

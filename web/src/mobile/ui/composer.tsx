@@ -51,30 +51,10 @@ const circleKeyBase: CSSProperties = {
   boxSizing: 'border-box', border: 'none', padding: 0,
 };
 
-/** Send beside Stop while a turn runs: a quiet gray key, so the ink Stop stays the one decision. */
-function SecondarySendKey({ enabled, onSend, size = 36 }: {
-  enabled: boolean;
-  onSend?: () => void;
-  size?: number;
-}): JSX.Element {
-  const vocab = useVocabOptional();
-  return (
-    <button
-      type="button"
-      aria-label={vocab.cmSend}
-      disabled={!enabled}
-      onClick={onSend}
-      style={{ ...circleKeyBase, width: size, height: size, background: 'var(--proto-gray)', opacity: enabled ? 1 : 0.45, cursor: enabled ? 'pointer' : 'default' }}
-    >
-      <SendGlyph size={14} color={MC.ink} />
-    </button>
-  );
-}
-
-/** The ink key: Send (an arrow) or, while a turn runs, Stop (a square). Disarmed it fades to a faint
- *  gray disc — still in place, plainly not the thing to press. No glow either way. */
-function PrimaryKey({ running, enabled, onSend, onStop, size = 36 }: {
-  running: boolean;
+/** The ink key: Send (an arrow) or Stop (a square). Disarmed it fades to a faint gray disc — still in
+ *  place, plainly not the thing to press. No glow either way. */
+function PrimaryKey({ stop, enabled, onSend, onStop, size = 36 }: {
+  stop: boolean;
   enabled: boolean;
   onSend?: () => void;
   onStop?: () => void;
@@ -84,16 +64,29 @@ function PrimaryKey({ running, enabled, onSend, onStop, size = 36 }: {
   return (
     <button
       type="button"
-      aria-label={running ? vocab.stop : vocab.cmSend}
+      aria-label={stop ? vocab.stop : vocab.cmSend}
       disabled={!enabled}
-      onClick={running ? onStop : onSend}
+      onClick={stop ? onStop : onSend}
       data-armed={enabled ? 'true' : 'false'}
       style={{ ...circleKeyBase, width: size, height: size,
         background: enabled ? MC.inkSolid : 'var(--proto-line-3)',
         cursor: enabled ? 'pointer' : 'default' }}
     >
-      {running ? <span style={{ width: 11, height: 11, background: MC.inkSolidFg, borderRadius: 2.5 }} /> : <SendGlyph size={15} />}
+      {stop ? <span style={{ width: 11, height: 11, background: MC.inkSolidFg, borderRadius: 2.5 }} /> : <SendGlyph size={15} />}
     </button>
+  );
+}
+
+/** Mid-turn the one key is Stop while the field is empty and turns into Send as soon as there is
+ *  something to send — the server injects it into the live turn. */
+function SendOrStopKey({ props, size }: {
+  props: Pick<MComposerProps, 'running' | 'hasDraft' | 'value' | 'sendEnabled' | 'stopEnabled' | 'onSend' | 'onStop'>;
+  size: number;
+}): JSX.Element {
+  const stop = (props.running ?? false) && !(props.hasDraft ?? !!props.value?.trim());
+  return (
+    <PrimaryKey stop={stop} enabled={stop ? props.stopEnabled ?? true : props.sendEnabled ?? true}
+      onSend={props.onSend} onStop={props.onStop} size={size} />
   );
 }
 
@@ -127,6 +120,8 @@ export interface MComposerProps {
   onChange?: (value: string) => void;
   onSend?: () => void;
   running?: boolean;
+  /** Text or attachments in the draft; defaults to non-blank `value`. */
+  hasDraft?: boolean;
   onStop?: () => void;
   stopEnabled?: boolean;
   lineUnit?: string;
@@ -202,13 +197,11 @@ function ExpandButton({ onClick }: { onClick: () => void }): JSX.Element {
  *  — the chips carry the push themselves (an empty spacer would also claim a gap on each side, and
  *  on a phone toolbar those pixels are width the engine chip needs). */
 function ComposerToolbar(props: MComposerProps): JSX.Element {
-  const running = props.running ?? false;
   return (
     <div data-composer-toolbar style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10 }}>
       {props.leading}
       <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: '0 1 auto' }}>{props.tools}</span>
-      {running && <SecondarySendKey enabled={props.sendEnabled ?? true} onSend={props.onSend} size={32} />}
-      <PrimaryKey running={running} enabled={running ? props.stopEnabled ?? true : props.sendEnabled ?? true} onSend={props.onSend} onStop={props.onStop} size={34} />
+      <SendOrStopKey props={props} size={34} />
     </div>
   );
 }
@@ -250,6 +243,7 @@ export interface ComposerFullscreenProps {
   onSend?: () => void;
   sendEnabled?: boolean;
   running?: boolean;
+  hasDraft?: boolean;
   onStop?: () => void;
   stopEnabled?: boolean;
   onCollapse: () => void;
@@ -302,7 +296,6 @@ function FullscreenTools({ props, insertSlash }: {
   props: ComposerFullscreenProps;
   insertSlash: () => void;
 }): JSX.Element {
-  const running = props.running ?? false;
   const vocab = useVocabOptional();
   return (
     <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px 8px 14px', borderTop: `1px solid ${MC.divider}` }}>
@@ -311,8 +304,7 @@ function FullscreenTools({ props, insertSlash }: {
       <span style={{ marginLeft: 'auto', flex: 'none', whiteSpace: 'nowrap', fontSize: 12, color: MC.muted, fontVariantNumeric: 'tabular-nums' }}>
         {composerCountLabel(props.value, props.lineUnit ?? vocab.chatLineUnit, props.charUnit ?? vocab.chatCharUnit)}
       </span>
-      {running && <SecondarySendKey enabled={props.sendEnabled ?? true} onSend={props.onSend} size={32} />}
-      <PrimaryKey running={running} enabled={running ? props.stopEnabled ?? true : props.sendEnabled ?? true} onSend={props.onSend} onStop={props.onStop} size={34} />
+      <SendOrStopKey props={props} size={34} />
     </div>
   );
 }

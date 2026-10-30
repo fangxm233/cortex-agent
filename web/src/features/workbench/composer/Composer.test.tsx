@@ -194,15 +194,20 @@ describe('Composer send cluster', () => {
     act(() => tree.unmount());
   });
 
-  it('shows only Stop mid-turn until there is something to send, then send as the outlined secondary', () => {
+  it('shows only Stop mid-turn while the input is empty and only Send once there is a draft', () => {
     const tree = mountComposer(vi.fn(), { running: true });
+    const input = () => tree.root.findByProps({ 'data-composer-input': true });
     expect(tree.root.findAllByProps({ 'data-action': 'send' })).toHaveLength(0);
-    expect(tree.root.findAllByProps({ 'data-action': 'stop' })).toHaveLength(1);
-    act(() => tree.root.findByProps({ 'data-composer-input': true }).props.onChange({ target: { value: 'steer' } }));
-    expect(send(tree).props.style.background).toBe('transparent');
     const stop = tree.root.findByProps({ 'data-action': 'stop' });
     expect(stop.props.style.background).toBe('var(--ink-solid-bg)');
     expect(stop.findByType('span').props.style.borderRadius).toBe(2);
+    act(() => input().props.onChange({ target: { value: 'steer' } }));
+    expect(tree.root.findAllByProps({ 'data-action': 'stop' })).toHaveLength(0);
+    expect(send(tree).props.disabled).toBe(false);
+    expect(send(tree).props.style.background).toBe('var(--ink-solid-bg)');
+    act(() => input().props.onChange({ target: { value: '  ' } }));
+    expect(tree.root.findAllByProps({ 'data-action': 'send' })).toHaveLength(0);
+    expect(tree.root.findAllByProps({ 'data-action': 'stop' })).toHaveLength(1);
     act(() => tree.unmount());
   });
 });

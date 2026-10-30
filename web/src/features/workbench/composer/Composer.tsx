@@ -193,6 +193,9 @@ export function Composer({
 
   const hasAttachments = attachments.length > 0;
   const canSend = composerSend.canSend;
+  const hasDraft = composer.trim().length > 0 || hasAttachments;
+  // Stop unmounts under a resting pointer once a draft appears, so its mouseleave never fires.
+  useEffect(() => { setBtnHover(false); }, [hasDraft]);
   // The card's hairline firms up one step while focus is inside it, when the draft is sendable, and
   // while the slash palette is anchored to it. Deliberately neutral: the composer holds focus almost
   // all the time, so an accent ring here would be a permanent one, and the ink send button already
@@ -371,10 +374,9 @@ export function Composer({
 
             {/* Toolbar: ＋ menu left; agent, model, context ring and Send/Stop right.
                 While a turn is running the composer still sends — the server injects the text into
-                the live turn rather than queuing it behind that turn. Send therefore comes back as
-                the secondary action next to Stop as soon as there is something to send, which
-                makes the keyboard behaviour (⏎ mid-turn) visible instead of accidental; with an
-                empty input mid-turn it would only be a disabled circle, so Stop stands alone. */}
+                the live turn rather than queuing it behind that turn. So mid-turn the one key is
+                Stop while the input is empty and becomes Send as soon as there is a draft; esc
+                still stops. */}
             <ComposerActionRow
               onAttach={() => fileInputRef.current?.click()}
               onCommands={() => { composerSend.openCommands(); setSlashOpen(true); }}
@@ -389,7 +391,7 @@ export function Composer({
               contextControl={contextControl}
               sendControl={(
                 <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  {(!running || canSend) && <button
+                  {(!running || hasDraft) && <button
                     type="button"
                     className={MENU_FOCUS}
                     data-action="send"
@@ -403,10 +405,9 @@ export function Composer({
                       height: 30,
                       padding: 0,
                       borderRadius: '50%',
-                      // Idle: the ink circle when there is something to send, a faint gray disc when
-                      // there is not. Running: outlined/secondary so Stop stays the primary action.
-                      background: running ? 'transparent' : canSend ? 'var(--ink-solid-bg)' : 'var(--proto-line)',
-                      border: running ? '1px solid var(--proto-line-3)' : 'none',
+                      // The ink circle when there is something to send, a faint gray disc when not.
+                      background: canSend ? 'var(--ink-solid-bg)' : 'var(--proto-line)',
+                      border: 'none',
                       boxSizing: 'border-box',
                       display: 'flex',
                       alignItems: 'center',
@@ -415,11 +416,11 @@ export function Composer({
                     }}
                   >
                     <svg
-                      width={running ? 12 : 13}
-                      height={running ? 12 : 13}
+                      width={13}
+                      height={13}
                       viewBox="0 0 14 14"
                       fill="none"
-                      stroke={running ? 'var(--proto-ink)' : canSend ? 'var(--ink-solid-fg)' : 'var(--proto-faint)'}
+                      stroke={canSend ? 'var(--ink-solid-fg)' : 'var(--proto-faint)'}
                       strokeWidth="1.8"
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -428,7 +429,7 @@ export function Composer({
                       <path d="M7 12V2M3 6l4-4 4 4" />
                     </svg>
                   </button>}
-                  {running && (
+                  {running && !hasDraft && (
                     <button
                       type="button"
                       className={MENU_FOCUS}
