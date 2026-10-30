@@ -63,6 +63,36 @@ test('gateway.yaml owns the mode list of an endpoint it declares', async () => {
   assert.deepEqual(deepseek.models, []);
 });
 
+test('Claude Code and PI\'s anthropic are separate routes, each with only its own modes', async () => {
+  const snapshot = await handleModelsCatalog(DEPS, {}, readers({
+    claudeModels: async () => [{ id: 'claude-opus-9', displayName: null, maxInputTokens: null, effortLevels: null }],
+    piModels: async () => [{ provider: 'anthropic', model: 'claude-pi-only' }],
+    gatewayModes: () => ({ anthropic: ['plan', 'pi-anthropic', 'relay'] }),
+  }));
+  const anthropic = snapshot.routes.filter((route) => route.endpoint === 'anthropic');
+  assert.deepEqual(anthropic.map((route) => [route.backend, route.provider, route.modes]), [
+    ['claude', null, ['plan', 'relay']],
+    ['pi', 'anthropic', ['pi-anthropic']],
+  ]);
+  assert.equal(anthropic[0].models.includes('claude-pi-only'), false, 'PI\'s models stay on PI\'s route');
+  assert.deepEqual(anthropic[1].models, ['claude-pi-only']);
+});
+
+test('PI\'s anthropic falls back to its generated mode, and gateway.yaml alone can declare it', async () => {
+  const scanned = await handleModelsCatalog(DEPS, {}, readers({
+    piModels: async () => [{ provider: 'anthropic', model: 'claude-opus-4-7' }],
+    gatewayModes: () => ({ anthropic: ['plan'] }),
+  }));
+  const pi = scanned.routes.find((route) => route.backend === 'pi' && route.provider === 'anthropic');
+  assert.deepEqual(pi?.modes, ['pi-anthropic']);
+  const declaredOnly = await handleModelsCatalog(DEPS, {}, readers({
+    claudeAvailable: () => false,
+    gatewayModes: () => ({ anthropic: ['plan', 'pi-anthropic'] }),
+  }));
+  assert.deepEqual(declaredOnly.routes.map((route) => [route.backend, route.provider, route.source]),
+    [['pi', 'anthropic', 'gateway']]);
+});
+
 test('PI pairs group into one route per provider and dedupe', async () => {
   const snapshot = await handleModelsCatalog(DEPS, {}, readers({
     piModels: async () => [

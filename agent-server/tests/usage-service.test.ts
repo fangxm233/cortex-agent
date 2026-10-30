@@ -72,6 +72,18 @@ describe('UsageService', () => {
     assert.equal(vi.mocked(fetch).mock.calls.filter(([input]) => String(input).includes('/quota?')).length, 1);
   });
 
+  test('a gateway quota reading taken on PI\'s anthropic route is not shown as Claude Code\'s', async () => {
+    const fetch = gatewayFetch([], [], [{
+      provider: 'anthropic', mode: 'pi-anthropic', observed_at: 1_786_000_000,
+      windows: [{ type: 'five_hour', utilization: 0.9, resets_at: 1_787_428_800 }],
+    }]);
+    const { service } = serviceWith({ fetch });
+
+    const row = (await service.collect()).find((record) => record.provider === 'anthropic');
+
+    assert.deepEqual(row?.windows ?? [], []);
+  });
+
   // ── dynamic discovery ────────────────────────────────────────
 
   test('a provider the gateway never reports gets no row at all', async () => {

@@ -1,5 +1,6 @@
 import { AsyncMutex } from '@core/async-mutex.js';
 import { readGatewayYaml } from '@core/gateway-generator.js';
+import { gatewayRouteModes } from '@core/gateway-routes.js';
 import { effectiveBackendSessionId, sessionStore, type Session } from '@store/session-registry-repo.js';
 import { GATEWAY_CONFIG_PATH } from '../pi-providers/gateway-route-store.js';
 import {
@@ -105,8 +106,7 @@ function validateRoute(
   request: ApplySelectionRequest, current: EngineSelection, target: EngineSelection,
 ): ApplySelectionResult | null {
   const gateway = (request.readGateway ?? (() => readGatewayYaml(GATEWAY_CONFIG_PATH)))();
-  const endpoint = target.backend === 'claude' ? 'anthropic' : target.provider!;
-  const modes = Object.keys(gateway?.endpoints?.[endpoint] ?? {});
+  const modes = gatewayRouteModes(gateway?.endpoints, target);
   const validName = typeof target.mode === 'string' && SAFE_NAME.test(target.mode);
   if (!validName || (gateway && !modes.includes(target.mode))) return refuse(current, 'invalid-mode', modes);
   return null;

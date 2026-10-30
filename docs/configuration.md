@@ -395,7 +395,7 @@ unstar models. For backend details, see [backends.md](./backends.md).
 | `default.provider` | string or null | yes | `null` for Claude; an explicit provider id for PI, such as `openai-codex`, `deepseek`, or a [custom provider](./backends.md#custom-providers) |
 | `default.model` | string | yes | Non-empty model identifier, as the backend names it |
 | `default.thinking` | string or null | yes | Backend-native reasoning level; `null` uses the backend's default |
-| `default.mode` | string | yes | Gateway route, such as `plan` or `api` for Claude; PI uses its provider name |
+| `default.mode` | string | yes | Gateway route, such as `plan` or `api` for Claude; PI uses its provider name (`pi-anthropic` for PI's `anthropic` provider) |
 | `favorites` | object[] | yes | Ordered model references, each with `backend`, `provider`, and `model`. Each model identity occurs at most once |
 
 Favorites store model identities, not thinking levels or routes. The default

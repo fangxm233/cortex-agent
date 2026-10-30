@@ -270,7 +270,7 @@ Web UI 宿主服务浏览器工作台、桌面 App 和手机 App。[浏览器访
 | `default.provider` | string 或 null | 是 | Claude 为 `null`；PI 必须指定 provider id，例如 `openai-codex`、`deepseek` 或[自定义 provider](./backends.md#custom-providers) |
 | `default.model` | string | 是 | 非空模型标识符，按后端命名 |
 | `default.thinking` | string 或 null | 是 | 后端原生思考档位；`null` 使用后端默认值 |
-| `default.mode` | string | 是 | 网关路由，例如 Claude 的 `plan` 或 `api`；PI 使用 provider 名称 |
+| `default.mode` | string | 是 | 网关路由，例如 Claude 的 `plan` 或 `api`；PI 使用 provider 名称（PI 的 `anthropic` provider 为 `pi-anthropic`） |
 | `favorites` | object[] | 是 | 按顺序存放模型引用，每项包含 `backend`、`provider`、`model`。同一模型身份最多出现一次 |
 
 收藏只保存模型身份，不保存思考档位或路由。默认模型不必在收藏中，收藏列表也可以为空。Claude 的 `thinking` 接受 `low`/`medium`/`high`/`xhigh`/`max`；PI 接受 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`。

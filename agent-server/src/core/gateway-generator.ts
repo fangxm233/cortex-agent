@@ -11,6 +11,7 @@ import { createLogger } from './log.js';
 import { AISTATUS_DIR, CONFIG_DIR } from './paths.js';
 import { gatewayYamlPort } from './gateway-config.js';
 import { activeGatewayConfig } from './gateway-endpoint.js';
+import { gatewayEndpointFor, gatewayRouteModes, piGatewayMode } from './gateway-routes.js';
 import { loadPiDefaultModels, loadPiSdk, piUserAuthPath, piUserModelsPath } from './pi-sdk.js';
 
 const log = createLogger('gateway-generator');
@@ -261,7 +262,9 @@ export interface DiscoverEndpointsOptions {
  * - Claude Code plan mode: only when Claude Code holds a subscription login.
  * - Claude Code api mode: only when a real ANTHROPIC_API_KEY is available.
  * - PI providers: those PI reports usable auth for. Each provider becomes one endpoint with
- *   `mode = endpoint = provider name`. `gatewayManaged` is true only if the provider has a known
+ *   `mode = endpoint = provider name`, except PI's `anthropic`, whose mode is `pi-anthropic` so it
+ *   stays apart from Claude Code's modes in the shared section (see gateway-routes.ts).
+ *   `gatewayManaged` is true only if the provider has a known
  *   upstream URL in PI_PROVIDER_UPSTREAM (otherwise the model is discovered but gateway.yaml entry is
  *   skipped).
  */
@@ -321,7 +324,7 @@ async function discoverClaudeEndpoints(options: DiscoverEndpointsOptions): Promi
 function piEndpoint(provider: string, models: string[], defaultModel: string | undefined): DiscoveredEndpoint {
   const upstream = PI_PROVIDER_UPSTREAM[provider];
   return {
-    mode: provider,
+    mode: piGatewayMode(provider),
     endpoint: provider,
     base_url: upstream?.url ?? '',
     auth_style: upstream?.auth_style ?? 'bearer',
@@ -340,9 +343,6 @@ async function discoverPiEndpoints(options: DiscoverEndpointsOptions): Promise<D
     if (!byProvider.has(provider)) byProvider.set(provider, []);
     byProvider.get(provider)!.push(model);
   }
-  // anthropic is covered by the Claude Code path (with the user's OAuth subscription tier). If PI
-  // also reports anthropic, skip — the Claude path is authoritative for plan mode.
-  byProvider.delete('anthropic');
   if (byProvider.size === 0) return [];
   const defaults = await (options.piDefaultModels ?? (() => loadPiDefaultModels()))();
   return [...byProvider].map(([provider, models]) => piEndpoint(provider, models, defaults[provider]));
@@ -691,12 +691,13 @@ export function validateModelsAgainstGateway(
 
 function validateModelRoute(entry: Record<string, unknown>, endpoints: EndpointMap): GatewayValidationIssue[] {
   const provider = typeof entry.provider === 'string' ? entry.provider : undefined;
-  const endpoint = entry.backend === 'claude' ? 'anthropic' : provider;
+  const ref = { backend: entry.backend === 'claude' ? 'claude' as const : 'pi' as const, provider: provider ?? null };
+  const endpoint = gatewayEndpointFor(ref);
   const mode = typeof entry.mode === 'string' ? entry.mode : '';
   const model = String(entry.model ?? '(unknown)');
   if (!endpoint) return [{ model, mode, reason: 'PI model is missing a provider (cannot resolve gateway endpoint)' }];
-  const routes = endpoints[endpoint] ?? {};
-  const available = mode ? !!routes[mode] : Object.keys(routes).length > 0;
+  const modes = gatewayRouteModes(endpoints, ref);
+  const available = mode ? modes.includes(mode) : modes.length > 0;
   if (available) return [];
   return [{ model, mode, provider, reason: `endpoint "${endpoint}" has no configured ${mode ? `mode "${mode}"` : 'route'} in gateway.yaml` }];
 }

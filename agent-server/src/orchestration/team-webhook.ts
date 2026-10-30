@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { createLogger } from '@core/log.js';
+import { piGatewayMode } from '@core/gateway-routes.js';
 import type { Backend } from '@core/types/agent-types.js';
 import type { Session } from '@store/session-registry-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
@@ -163,7 +164,7 @@ function resolveWorkerSelection(lead: Session, data: Record<string, any>, deps: 
   return {
     ...base, backend, provider, model: ref.model,
     thinking: spec.thinking ?? base.thinking,
-    mode: backend === 'pi' && provider !== base.provider ? provider ?? base.mode : base.mode,
+    mode: backend === 'pi' && provider && provider !== base.provider ? piGatewayMode(provider) : base.mode,
   };
 }
 

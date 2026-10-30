@@ -445,7 +445,7 @@ The execution environment is a separate choice; see
 A selection is saved on the session. Choosing a model restores that model's
 remembered thinking and route; without a memory, thinking is null, Claude uses
 the first Anthropic route in `gateway.yaml` (`plan` if none is declared), and PI
-uses its provider name. User changes update the model's memory. A fresh Web
+uses its provider name (`pi-anthropic` for PI's `anthropic` provider). User changes update the model's memory. A fresh Web
 conversation starts from the last selected engine on this host.
 
 A conversation with history cannot change backend. The picker disables models
@@ -454,7 +454,12 @@ on the other backend; a new draft can choose either backend.
 **Route** is the gateway endpoint's billing lane: for example, `plan` for an
 Anthropic subscription or `api` for a metered key. The picker offers routes
 declared for the endpoint in `gateway.yaml`, and hides the route choice when
-only one is available. The model catalog supplies each endpoint's backend,
+only one is available. Claude Code and PI's built-in `anthropic` provider share
+the `anthropic` section of `gateway.yaml` but are separate entries in the
+catalog: PI's provider uses only its own route, `pi-anthropic`, which passes
+PI's Anthropic login through, and Claude Code uses every other route in that
+section. When both are signed in, each keeps its own models, favorites, quota
+and rate limits. The model catalog supplies each endpoint's backend,
 provider, routes, and models. Thinking levels use the backend's range, narrowed
 to the model's own levels where PI reports them.
 
