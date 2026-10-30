@@ -28,6 +28,9 @@ describe('matchesAccel', () => {
   it('rejects a bare key when a modifier is required', () => {
     expect(matchesAccel(key({ key: 'b' }), 'mod+b')).toBe(false);
   });
+  it('ignores a keydown without a key, as Chrome sends when picking an autofill entry', () => {
+    expect(matchesAccel(key({ key: undefined }), 'f11')).toBe(false);
+  });
 });
 
 const menus: MenuDef[] = [

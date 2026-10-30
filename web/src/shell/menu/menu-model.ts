@@ -51,7 +51,7 @@ export function matchesAccel(event: KeyboardLike, accel: string): boolean {
   if (mod !== (event.metaKey || event.ctrlKey)) return false;
   if (shift !== event.shiftKey) return false;
   if (alt !== event.altKey) return false;
-  return event.key.toLowerCase() === key;
+  return event.key?.toLowerCase() === key;
 }
 
 export type MenuNode =

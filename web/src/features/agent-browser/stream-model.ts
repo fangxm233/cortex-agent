@@ -100,7 +100,7 @@ export interface KeyLike extends ModifierState {
 export function routeKey(e: KeyLike): 'page' | 'paste' | 'app' {
   if (e.isComposing || e.key === 'Process' || e.key === 'Dead' || e.key === 'Unidentified') return 'app';
   const mod = e.metaKey || e.ctrlKey;
-  const k = e.key.toLowerCase();
+  const k = e.key?.toLowerCase();
   if (mod && k === 'v') return 'paste';
   if (mod) return k === 'a' || k === 'z' || k === 'y' ? 'page' : 'app';
   if (e.key === 'F11') return 'app';

@@ -67,7 +67,7 @@ export function buildNotesVm(notes: NoteInfo[], now: number, L: NotesTimeWords):
 }
 
 export function isNotesShortcut(event: ShortcutLike): boolean {
-  return (event.metaKey || event.ctrlKey) && event.shiftKey && !event.altKey && event.key.toLowerCase() === 'n';
+  return (event.metaKey || event.ctrlKey) && event.shiftKey && !event.altKey && event.key?.toLowerCase() === 'n';
 }
 
 export const NOTES_SHEET_WIDTH = 380;

@@ -13,7 +13,7 @@ export function useCommandPalette(): {
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey)) {
+      if ((e.metaKey || e.ctrlKey) && e.key?.toLowerCase() === 'k') {
         e.preventDefault();
         setOpen((prev) => !prev);
       }
