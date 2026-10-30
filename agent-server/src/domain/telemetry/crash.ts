@@ -28,12 +28,20 @@ function errorNameOf(error: unknown): string {
   return typeof error === 'object' && error !== null ? 'NonErrorObject' : `Non${typeof error}`;
 }
 
+let crashPhase = 'running';
+
+/** What the process is doing, reported with thrown values that carry no message or stack of their
+ *  own. Callers pass static labels only (`shutdown:<step>`), never user content or paths. */
+export function setCrashPhase(phase: string): void {
+  crashPhase = phase;
+}
+
 /** Name, message and stack of whatever was thrown, before redaction. */
 export function describeThrown(error: unknown): Pick<CrashInput, 'errorName' | 'message' | 'stack'> {
   if (error instanceof Error) {
     return { errorName: errorNameOf(error), message: error.message ?? '', stack: error.stack ?? '' };
   }
-  return { errorName: errorNameOf(error), message: '', stack: '' };
+  return { errorName: errorNameOf(error), message: `phase:${crashPhase}`, stack: '' };
 }
 
 /** Redact and shape a crash; the group key comes from the redacted stack. */
