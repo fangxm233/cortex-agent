@@ -13,6 +13,10 @@ vi.mock('@slack/bolt', () => ({
     async start(): Promise<void> {}
     async stop(): Promise<void> {}
   },
+  SocketModeReceiver: class {
+    client = { on() {} };
+  },
+  LogLevel: { INFO: 'info' },
 }));
 
 const ENV_KEYS = [

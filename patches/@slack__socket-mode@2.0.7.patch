@@ -1,19 +1,36 @@
 diff --git a/dist/src/SocketModeClient.js b/dist/src/SocketModeClient.js
-index b2b7476608251711f7fcc5f88dd0d7bba94b0f09..51c2980ae156c6287db7023a0497a2a2be556eb6 100644
+index b2b7476608251711f7fcc5f88dd0d7bba94b0f09..33db3bd086785a94295e5bc2df03ba7aeae38a2e 100644
 --- a/dist/src/SocketModeClient.js
 +++ b/dist/src/SocketModeClient.js
-@@ -104,7 +104,9 @@ class SocketModeClient extends eventemitter3_1.EventEmitter {
+@@ -104,7 +104,11 @@ class SocketModeClient extends eventemitter3_1.EventEmitter {
          this.on('close', () => {
              // Underlying WebSocket connection was closed, possibly reconnect.
              if (!this.shuttingDown && this.autoReconnectEnabled) {
 -                this.delayReconnectAttempt(this.start);
 +                this.delayReconnectAttempt(this.start).catch((err) => {
 +                    this.logger.debug(`Reconnect attempt ended without a connection: ${err}`);
++                    if (!this.shuttingDown)
++                        this.emit('reconnect_failed', err);
 +                });
              }
              else {
                  // If reconnect is disabled or user explicitly called `disconnect()`, emit a disconnected state.
-@@ -188,7 +190,7 @@ class SocketModeClient extends eventemitter3_1.EventEmitter {
+@@ -124,9 +128,13 @@ class SocketModeClient extends eventemitter3_1.EventEmitter {
+         // python equiv: SocketModeClient.connect
+         this.shuttingDown = false;
+         this.logger.debug('Starting Socket Mode session ...');
++        const url = await this.retrieveWSSURL();
++        if (this.shuttingDown) {
++            throw new Error('Socket Mode client was disconnected while starting');
++        }
+         // create a socket connection using SlackWebSocket
+         this.websocket = new SlackWebSocket_1.SlackWebSocket({
+-            url: await this.retrieveWSSURL(),
++            url,
+             // web socket events relevant to this client will be emitted into the instance of this class
+             // see bottom of constructor for where we bind to these events
+             client: this,
+@@ -188,7 +196,7 @@ class SocketModeClient extends eventemitter3_1.EventEmitter {
          this.numOfConsecutiveReconnectionFailures += 1;
          const msBeforeRetry = this.clientPingTimeoutMS * this.numOfConsecutiveReconnectionFailures;
          this.logger.debug(`Before trying to reconnect, this client will wait for ${msBeforeRetry} milliseconds`);
@@ -22,7 +39,7 @@ index b2b7476608251711f7fcc5f88dd0d7bba94b0f09..51c2980ae156c6287db7023a0497a2a2
              setTimeout(() => {
                  if (this.shuttingDown) {
                      this.logger.debug('Client shutting down, will not attempt reconnect.');
-@@ -196,7 +198,7 @@ class SocketModeClient extends eventemitter3_1.EventEmitter {
+@@ -196,7 +204,7 @@ class SocketModeClient extends eventemitter3_1.EventEmitter {
                  else {
                      this.logger.debug('Continuing with reconnect...');
                      this.emit(State.Reconnecting);

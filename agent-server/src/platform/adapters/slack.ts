@@ -1,4 +1,4 @@
-import { App } from '@slack/bolt';
+import type { App } from '@slack/bolt';
 import type { WebClient } from '@slack/web-api';
 import type { PlatformAdapter } from '../adapter.js';
 import type {
@@ -24,6 +24,7 @@ import { TokenBucketRateLimiter } from '../utils/rate-limiter.js';
 import { createLogger } from '@core/log.js';
 import type { OutputStream, OpenOutputStreamOpts } from '../output-stream.js';
 import { SlackOutputStream } from './slack-output-stream.js';
+import { SlackConnection } from './slack-connection.js';
 import { ProjectConduitsStore } from './project-conduits.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -83,6 +84,7 @@ export class SlackAdapter implements PlatformAdapter {
     maxThreadDepth: 1,
   };
 
+  private connection: SlackConnection;
   private app: App;
   private client: WebClient;
   private config: SlackAdapterConfig;
@@ -106,12 +108,8 @@ export class SlackAdapter implements PlatformAdapter {
 
   constructor(config: SlackAdapterConfig) {
     this.config = config;
-    this.app = new App({
-      token: config.botToken,
-      signingSecret: config.signingSecret,
-      socketMode: true,
-      appToken: config.appToken,
-    });
+    this.connection = new SlackConnection(config);
+    this.app = this.connection.app;
     this.client = this.app.client;
 
     // Rate limiter defaults: conservative (40-60% of Slack Tier 3 limits).
@@ -160,11 +158,11 @@ export class SlackAdapter implements PlatformAdapter {
   // --- Lifecycle ---
 
   async start(): Promise<void> {
-    await this.app.start();
+    await this.connection.start();
   }
 
   async stop(): Promise<void> {
-    await this.app.stop();
+    await this.connection.stop();
   }
 
   // --- Event registration ---

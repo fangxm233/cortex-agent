@@ -49,6 +49,7 @@
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@sinclair/typebox": "^0.34.49",
     "@slack/bolt": "^4.6.0",
+    "@slack/logger": "^4.0.1",
     "@slack/web-api": "^7.14.1",
     "@trpc/server": "^11",
     "agent-browser": "0.39.1",
