@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import { CONFIG_DIR } from '@core/paths.js';
 import { atomicWrite } from '@core/atomic-write.js';
 import { readGatewayYaml } from '@core/gateway-generator.js';
+import { gatewayEndpointFor, gatewayRouteModes } from '@core/gateway-routes.js';
 import {
   modelKey, validateModelRef, validateEngineSelection,
   type EngineSelection, type ModelRef, type ModelsFile,
@@ -78,10 +79,11 @@ export async function removeFavorite(configDir: string, args: MutateArgs<'models
 
 function validateDefault(selection: EngineSelection, readGateway: GatewayReader): void {
   validateEngineSelection(selection);
-  const endpoint = selection.backend === 'claude' ? 'anthropic' : selection.provider;
   const gateway = readGateway();
-  const modes = Object.keys(gateway?.endpoints?.[endpoint] ?? {});
-  if (gateway && !modes.includes(selection.mode)) throw invalid(`Unknown mode '${selection.mode}' for ${endpoint}`);
+  const modes = gatewayRouteModes(gateway?.endpoints, selection);
+  if (gateway && !modes.includes(selection.mode)) {
+    throw invalid(`Unknown mode '${selection.mode}' for ${gatewayEndpointFor(selection)}`);
+  }
 }
 
 export async function setDefaultModel(

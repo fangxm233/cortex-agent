@@ -195,6 +195,23 @@ test('route check uses the target provider and rejects invalid remembered modes 
     .toMatchObject({ ok: true, provider: 'other', mode: 'other' });
 });
 
+test('Claude Code and PI\'s anthropic never borrow each other\'s modes in the shared section', async () => {
+  const shared = { endpoints: { anthropic: { 'pi-anthropic': {}, plan: {}, relay: {} } } } as never;
+  const readGateway = () => shared;
+  const api = await fresh();
+  const piAnthropic = { channel: 'web:a', backend: 'pi' as const, provider: 'anthropic', model: 'claude-opus-4-7', readGateway };
+  expect(await api.applyChannelSelection({ ...piAnthropic, mode: 'plan' }))
+    .toMatchObject({ ok: false, reason: 'invalid-mode', allowed: ['pi-anthropic'] });
+  expect(await api.applyChannelSelection(piAnthropic))
+    .toMatchObject({ ok: true, provider: 'anthropic', mode: 'pi-anthropic' });
+  session = null;
+  const claudeModel = { channel: 'web:b', model: 'opus', readGateway };
+  expect(await api.applyChannelSelection({ ...claudeModel, mode: 'pi-anthropic' }))
+    .toMatchObject({ ok: false, reason: 'invalid-mode', allowed: ['plan', 'relay'] });
+  expect(await api.applyChannelSelection({ ...claudeModel, model: 'sonnet' }))
+    .toMatchObject({ ok: true, backend: 'claude', mode: 'plan' });
+});
+
 test('unreadable gateway permits a safe route; injected gateway controls first Claude route', async () => {
   const api = await fresh();
   expect(await api.applyChannelSelection({ channel: 'web:a', mode: 'custom', readGateway: () => null }))

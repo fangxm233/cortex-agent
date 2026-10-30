@@ -6,6 +6,10 @@ import {
 import { hasClaudeCredential } from '@core/claude-credentials.js';
 import { readGatewayYaml } from '@core/gateway-generator.js';
 import {
+  ANTHROPIC_ENDPOINT, gatewayEndpointFor, piGatewayMode, PI_ANTHROPIC_MODE, routeModes,
+  type GatewayRouteRef,
+} from '@core/gateway-routes.js';
+import {
   defaultCustomProviderStores,
   listCustomProviders,
   GATEWAY_CONFIG_PATH,
@@ -27,12 +31,16 @@ import type { ModelCatalogRoute, ModelCatalogSnapshot, UiServiceDeps, QueryParam
  * wants the catalog should pay.
  */
 
-/** The Claude ENDPOINT is a constant of the backend — only its model list is discovered. */
-const CLAUDE_ENDPOINT = 'anthropic';
+/** The Claude route is a constant of the backend — only its model list is discovered. */
+const CLAUDE_ROUTE: GatewayRouteRef = { backend: 'claude', provider: null };
 
-/** Mirrors gateway-generator's rule for a PI provider with no gateway section: mode = endpoint. */
-function defaultModes(endpoint: string, backend: 'claude' | 'pi'): string[] {
-  return backend === 'claude' ? ['plan'] : [endpoint];
+function piRoute(provider: string): GatewayRouteRef {
+  return { backend: 'pi', provider };
+}
+
+/** Mirrors gateway-generator for a route gateway.yaml declares no mode for: the mode it would write. */
+function defaultModes(ref: GatewayRouteRef): string[] {
+  return ref.backend === 'claude' ? ['plan'] : [piGatewayMode(ref.provider!)];
 }
 
 type GatewayReader = () => Record<string, string[]>;
@@ -46,33 +54,43 @@ function readGatewayModes(): Record<string, string[]> {
   );
 }
 
+/** A later source only contributes model ids it is the first to know about; the route's own
+ *  identity (backend, provider, source) is owned by whoever declared it first. */
+function mergeRouteModels(
+  route: ModelCatalogRoute, models: readonly string[], modelThinking: Record<string, string[]>,
+): void {
+  for (const model of models) if (!route.models.includes(model)) route.models.push(model);
+  const known = route.modelThinking!;
+  for (const [model, levels] of Object.entries(modelThinking)) {
+    if (!(model in known)) known[model] = levels;
+  }
+}
+
+/**
+ * Routes are keyed by engine identity, not by gateway section: Claude Code and PI's `anthropic`
+ * provider share the `anthropic` section yet are separate routes, each offered only its own modes.
+ */
 class RouteBuilder {
   private readonly routes = new Map<string, ModelCatalogRoute>();
 
   constructor(private readonly gatewayModes: Record<string, string[]>) {}
 
   add(
-    endpoint: string,
-    backend: 'claude' | 'pi',
+    ref: GatewayRouteRef,
     source: ModelCatalogRoute['source'],
     models: readonly string[],
     modelThinking: Record<string, string[]> = {},
   ): void {
-    const existing = this.routes.get(endpoint);
-    if (existing) {
-      // A later source only contributes model ids it is the first to know about; the route's own
-      // identity (backend, provider, source) is owned by whoever declared it first.
-      for (const model of models) if (!existing.models.includes(model)) existing.models.push(model);
-      for (const [model, levels] of Object.entries(modelThinking)) {
-        if (!(model in existing.modelThinking)) existing.modelThinking[model] = levels;
-      }
-      return;
-    }
-    this.routes.set(endpoint, {
+    const key = JSON.stringify([ref.backend, ref.provider]);
+    const existing = this.routes.get(key);
+    if (existing) return mergeRouteModels(existing, models, modelThinking);
+    const endpoint = gatewayEndpointFor(ref)!;
+    const declared = routeModes(ref, this.gatewayModes[endpoint] ?? []);
+    this.routes.set(key, {
       endpoint,
-      backend,
-      provider: backend === 'pi' ? endpoint : null,
-      modes: this.gatewayModes[endpoint] ?? defaultModes(endpoint, backend),
+      backend: ref.backend,
+      provider: ref.provider,
+      modes: declared.length > 0 ? declared : defaultModes(ref),
       models: [...models],
       source,
       modelThinking: { ...modelThinking },
@@ -113,12 +131,9 @@ export async function handleModelsCatalog(
     readers.customProviders
     ?? (() => listCustomProviders(deps.customProviderStores ?? defaultCustomProviderStores()));
   for (const provider of customProviders()) {
-    builder.add(provider.name, 'pi', 'custom', provider.models.map((model) => model.id));
+    builder.add(piRoute(provider.name), 'custom', provider.models.map((model) => model.id));
   }
-  for (const endpoint of Object.keys(gatewayModes)) {
-    if (endpoint !== CLAUDE_ENDPOINT) builder.add(endpoint, 'pi', 'gateway', []);
-    else if (claudeAvailable) builder.add(endpoint, 'claude', 'gateway', []);
-  }
+  addGatewayRoutes(builder, gatewayModes, claudeAvailable);
   const piPeek = readers.piPeek ?? (() => piProviderDiscovery.peekModels());
   return {
     routes: builder.build(),
@@ -137,9 +152,26 @@ async function addClaudeRoute(builder: RouteBuilder, readers: ModelsCatalogReade
   const claudeModels = readers.claudeModels ?? (() => anthropicModelDiscovery.ensure());
   const claude = await claudeModels();
   builder.add(
-    CLAUDE_ENDPOINT, 'claude', 'builtin',
+    CLAUDE_ROUTE, 'builtin',
     anthropicModelIds(claude, ANTHROPIC_MODELS), anthropicModelThinking(claude),
   );
+}
+
+/**
+ * Routes known only from gateway.yaml. The shared `anthropic` section stands for Claude Code's
+ * route (behind its credential gate) and, once PI's own mode is declared there, PI's provider.
+ */
+function addGatewayRoutes(
+  builder: RouteBuilder, gatewayModes: Record<string, string[]>, claudeAvailable: boolean,
+): void {
+  for (const [endpoint, modes] of Object.entries(gatewayModes)) {
+    if (endpoint !== ANTHROPIC_ENDPOINT) {
+      builder.add(piRoute(endpoint), 'gateway', []);
+      continue;
+    }
+    if (claudeAvailable) builder.add(CLAUDE_ROUTE, 'gateway', []);
+    if (modes.includes(PI_ANTHROPIC_MODE)) builder.add(piRoute(endpoint), 'gateway', []);
+  }
 }
 
 /**
@@ -161,6 +193,6 @@ async function addPiRoutes(builder: RouteBuilder, readers: ModelsCatalogReaders)
     thinkingByProvider.set(pair.provider, levels);
   }
   for (const [provider, models] of byProvider) {
-    builder.add(provider, 'pi', 'pi', models, thinkingByProvider.get(provider) ?? {});
+    builder.add(piRoute(provider), 'pi', models, thinkingByProvider.get(provider) ?? {});
   }
 }

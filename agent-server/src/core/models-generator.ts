@@ -43,7 +43,7 @@ function selectionForChoice(models: ModelEntry[], choice: ModelChoice): EngineSe
   if (!entry) throw new Error(`(mode="${choice.mode}", model="${choice.model}") not found among discovered models`);
   return {
     backend: entry.backend, provider: entry.backend === 'pi' ? entry.endpoint : null,
-    model: entry.model, thinking: null, mode: entry.backend === 'pi' ? entry.endpoint : entry.mode,
+    model: entry.model, thinking: null, mode: entry.mode,
   };
 }
 

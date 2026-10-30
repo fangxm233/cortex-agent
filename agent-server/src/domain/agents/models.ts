@@ -1,5 +1,6 @@
 import type { Backend } from '@core/types/agent-types.js';
 import { readGatewayYaml } from '@core/gateway-generator.js';
+import { gatewayRouteModes, piGatewayMode } from '@core/gateway-routes.js';
 import { modelsRepo } from '@store/models-repo.js';
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
 import { GATEWAY_CONFIG_PATH } from '../pi-providers/gateway-route-store.js';
@@ -55,14 +56,13 @@ export function selectionForModel(ref: ModelRef): EngineSelection {
   return { ...copyRef(ref), ...(memory ?? { thinking: null, mode: firstModelRoute(ref) }) };
 }
 
-/** PI's generated route is its provider. Claude uses gateway declaration order. */
+/** PI uses its provider's generated route. Claude uses gateway declaration order. */
 export function firstModelRoute(
   ref: ModelRef,
   readGateway = () => readGatewayYaml(GATEWAY_CONFIG_PATH),
 ): string {
-  if (ref.backend === 'pi') return ref.provider!;
-  const modes = readGateway()?.endpoints?.anthropic;
-  return Object.keys(modes ?? {})[0] ?? 'plan';
+  if (ref.backend === 'pi') return piGatewayMode(ref.provider!);
+  return gatewayRouteModes(readGateway()?.endpoints, ref)[0] ?? 'plan';
 }
 
 function explicitRef(ref: string): ModelRef | null {

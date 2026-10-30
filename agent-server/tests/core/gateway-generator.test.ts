@@ -150,16 +150,29 @@ test('loadPiDefaultModels: an unloadable table yields no defaults', async () => 
   assert.deepEqual(await loadPiDefaultModels('file:///nonexistent/pi/dist/index.js'), {});
 });
 
-test('discoverEndpoints: PI providers become one endpoint each, anthropic deferred to Claude path', async () => {
+test('discoverEndpoints: PI providers become one endpoint each', async () => {
   stubPiSdk([
-    { provider: 'anthropic', id: 'claude-opus-4-7' },
     { provider: 'deepseek', id: 'deepseek-v4-flash' },
     { provider: 'deepseek', id: 'deepseek-v4-pro' },
   ]);
   const eps = await discoverEndpoints(['pi'], NO_MODEL_DISCOVERY);
-  assert.deepEqual(eps.map((e) => e.mode), ['deepseek']);
+  assert.deepEqual(eps.map((e) => [e.endpoint, e.mode]), [['deepseek', 'deepseek']]);
   assert.deepEqual(eps[0].models, ['deepseek-v4-flash', 'deepseek-v4-pro']);
   assert.equal(eps[0].gatewayManaged, true);
+});
+
+test('discoverEndpoints: PI\'s anthropic gets its own mode beside Claude Code\'s plan', async () => {
+  stubPiSdk([{ provider: 'anthropic', id: 'claude-opus-4-7' }]);
+  const eps = await discoverEndpoints(undefined, NO_MODEL_DISCOVERY);
+  assert.deepEqual(eps.map((e) => [e.endpoint, e.mode]), [['anthropic', 'plan'], ['anthropic', 'pi-anthropic']]);
+  const pi = eps.find((e) => e.mode === 'pi-anthropic')!;
+  assert.deepEqual([pi.base_url, pi.keys, pi.passthrough], ['https://api.anthropic.com', [], true],
+    'PI\'s own credential is passed through, never a managed key');
+  const merged = mergeGatewayConfig(eps, {
+    top: {}, endpoints: { anthropic: { anthropic: { base_url: 'https://relay.example', auth_style: 'anthropic' } } },
+  });
+  assert.deepEqual(Object.keys(merged.endpoints.anthropic), ['anthropic', 'plan', 'pi-anthropic'],
+    'a hand-made relay mode named "anthropic" is left alone');
 });
 
 // ─── generateGatewayYaml: filter gatewayManaged=false ──────────
@@ -452,6 +465,13 @@ test('favorite provider endpoint must exist even if another endpoint has a route
   const dir = tmpDir();
   writeModels(dir, defaultModel, [{ backend: 'pi', provider: 'unknown', model: 'missing' }]);
   assert.deepEqual(validateModelsAgainstGateway(GW, dir).map(i => i.model), ['missing']);
+});
+test('a PI anthropic favorite needs PI\'s own mode, not one of Claude Code\'s', () => {
+  const dir = tmpDir();
+  writeModels(dir, defaultModel, [{ backend: 'pi', provider: 'anthropic', model: 'claude-opus-4-7' }]);
+  assert.deepEqual(validateModelsAgainstGateway(GW, dir).map(i => i.model), ['claude-opus-4-7']);
+  const withPi = { ...GW, anthropic: { ...GW.anthropic, 'pi-anthropic': { base_url: 'x', auth_style: 'bearer' } } };
+  assert.deepEqual(validateModelsAgainstGateway(withPi, dir), []);
 });
 test('missing PI provider is reported', () => {
   const dir = tmpDir();

@@ -6,6 +6,7 @@ import { t } from '@core/i18n.js';
 import { createLogger } from '@core/log.js';
 import { providerStateRepo } from '@store/provider-state-repo.js';
 import { gatewayUrl as liveGatewayUrl } from '@core/gateway-endpoint.js';
+import { PI_ANTHROPIC_MODE } from '@core/gateway-routes.js';
 import { claudeAccountClient } from './claude-account.js';
 import { codexAccountClient } from './codex-account.js';
 import { readDaemonOAuthProviders, subscriptionModesFor } from './subscription-modes.js';
@@ -212,7 +213,8 @@ function parseGatewayQuota(payload: unknown): GatewayQuotaSnapshot | null {
     throw new Error('gateway quota response has no provider rows');
   }
   const provider = payload.providers.find((row) => isRecord(row) && row.provider === ANTHROPIC_PROVIDER);
-  if (!provider) return null;
+  // The gateway keeps one Anthropic slot; a reading from PI's own route describes PI's account.
+  if (!provider || provider.mode === PI_ANTHROPIC_MODE) return null;
   if (!Array.isArray(provider.windows)) throw new Error('gateway quota windows are invalid');
   const observedAt = finiteNumber(provider.observed_at);
   if (observedAt === null || observedAt < 0) throw new Error('gateway quota observation time is invalid');

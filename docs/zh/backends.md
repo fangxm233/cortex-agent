@@ -175,11 +175,11 @@ cortex auth status --json
 
 Web 和移动端输入框的引擎选择器在根层列出收藏模型，显示模型名与记住的思考档位，按 backend 和 provider 分组。打开完整模型列表可选择其他模型，也可用每行的星标收藏或取消收藏。思考档位包含默认选项，保存为 `null`，由后端决定。`/model` 打开模型选择。执行环境是独立选项，见 [configuration.md](./configuration.md#choosing-an-environment-per-conversation)。
 
-选择保存在会话上。选模型会恢复该模型记住的思考档位与路由；没有记忆时，thinking 为 null，Claude 使用 `gateway.yaml` 中第一条 Anthropic 路由（未声明时用 `plan`），PI 使用 provider 名称。用户修改选择时更新模型记忆。新建 Web 对话从本机上一次选定的引擎开始。
+选择保存在会话上。选模型会恢复该模型记住的思考档位与路由；没有记忆时，thinking 为 null，Claude 使用 `gateway.yaml` 中第一条 Anthropic 路由（未声明时用 `plan`），PI 使用 provider 名称（PI 的 `anthropic` provider 为 `pi-anthropic`）。用户修改选择时更新模型记忆。新建 Web 对话从本机上一次选定的引擎开始。
 
 有历史的对话不能切换后端。选择器会禁用另一后端的模型；新草稿可以任选后端。
 
-**路由**是 gateway 端点的计费通道，例如 Anthropic 订阅的 `plan` 或计量密钥的 `api`。选择器只提供该端点在 `gateway.yaml` 中声明的路由，只有一条时隐藏路由选择。模型目录提供各 endpoint 的 backend、provider、路由和模型。思考档位取后端的值域；PI 提供模型自身档位时，按该范围收窄。
+**路由**是 gateway 端点的计费通道，例如 Anthropic 订阅的 `plan` 或计量密钥的 `api`。选择器只提供该端点在 `gateway.yaml` 中声明的路由，只有一条时隐藏路由选择。Claude Code 与 PI 内置的 `anthropic` provider 共用 `gateway.yaml` 的 `anthropic` 段，但在模型目录里是两条独立的条目：PI 的 provider 只用自己的路由 `pi-anthropic`，透传 PI 自己的 Anthropic 登录；Claude Code 使用该段中的其余路由。两者都登录时，各自的模型、收藏、额度和限流互不混用。模型目录提供各 endpoint 的 backend、provider、路由和模型。思考档位取后端的值域；PI 提供模型自身档位时，按该范围收窄。
 
 **设置 → 模型** 管理默认模型与收藏列表。平台频道通过以下命令使用同样的选择规则：
 
