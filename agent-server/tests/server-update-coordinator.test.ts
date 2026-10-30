@@ -8,11 +8,17 @@ import {
   reportServerUpdateInstalled,
 } from '../src/domain/system/update-ui-state.js';
 import { handleSystemApplyUpdate } from '../src/domain/ui-service/mutate/system.js';
+import { runFile, type ExecResult } from '../src/core/exec-async.js';
 
 const settings = vi.hoisted(() => ({ serverUpdateDisable: false, serverAutoUpdate: false }));
 vi.mock('../src/core/settings.js', () => ({ getSettings: () => settings }));
+vi.mock('../src/core/exec-async.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/core/exec-async.js')>(), runFile: vi.fn(),
+}));
 const available = { status: 'available', update: { version: '9999.1.1' } };
-const failed = { status: 'error', reason: 'check_failed' };
+const failed = (failure: string, detail?: string) => ({
+  status: 'error', reason: 'check_failed', failure, ...(detail ? { detail } : {}),
+});
 const tick = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
 
 function fixture(fallback: UpdatePrompt = { ask: async () => null }, fallbackMs = 600_000) {
@@ -110,12 +116,16 @@ describe('shared server update discovery', () => {
     expect(f.installWhenIdle).toHaveBeenCalledTimes(1);
   });
 
-  it.each(['null', 'invalid', 'reject'])('reports a fresh %s lookup failure despite pending consent', async (failure) => {
+  it.each([
+    ['null', failed('bad_version')],
+    ['invalid', failed('bad_version', 'invalid')],
+    ['reject', failed('exception:Error', 'registry down')],
+  ])('reports a fresh %s lookup failure despite pending consent', async (failure, expected) => {
     const f = fixture();
     await f.coordinator.check();
     if (failure === 'reject') f.getLatest.mockRejectedValueOnce(new Error('registry down'));
     else f.getLatest.mockResolvedValueOnce(failure === 'null' ? null : 'invalid');
-    expect(await f.coordinator.check()).toEqual(failed);
+    expect(await f.coordinator.check()).toEqual(expected);
     expect(f.getLatest).toHaveBeenCalledTimes(2);
     expect(f.ask).toHaveBeenCalledTimes(1);
     expect(f.installWhenIdle).not.toHaveBeenCalled();
@@ -198,17 +208,21 @@ describe('shared server update discovery', () => {
     expect(f.ask).not.toHaveBeenCalled();
   });
 
-  it.each([null, '', 'not-a-version'])('reports failed/invalid lookup %s as error, never current', async (value) => {
+  it.each([
+    [null, failed('bad_version')],
+    ['', failed('bad_version')],
+    ['not-a-version', failed('bad_version', 'not-a-version')],
+  ])('reports failed/invalid lookup %s as bad_version, never current', async (value, expected) => {
     const f = fixture();
     f.getLatest.mockResolvedValue(value);
-    expect(await f.coordinator.check()).toEqual(failed);
+    expect(await f.coordinator.check()).toEqual(expected);
     expect(f.ask).not.toHaveBeenCalled();
   });
 
   it('catches discovery exceptions and permits retry', async () => {
     const f = fixture();
-    f.getLatest.mockRejectedValueOnce(new Error('network down'));
-    expect(await f.coordinator.check()).toEqual(failed);
+    f.getLatest.mockRejectedValueOnce(new TypeError('network down'));
+    expect(await f.coordinator.check()).toEqual(failed('exception:TypeError', 'network down'));
     expect(await f.coordinator.check()).toEqual(available);
   });
 
@@ -219,7 +233,7 @@ describe('shared server update discovery', () => {
     f.getLatest.mockImplementation(() => new Promise((done) => { resolve = done; }));
     const check = f.coordinator.check();
     await vi.advanceTimersByTimeAsync(15_001);
-    expect(await check).toEqual(failed);
+    expect(await check).toEqual(failed('timeout'));
     resolve('9999.1.1');
     await tick();
     expect(f.ask).not.toHaveBeenCalled();
@@ -228,7 +242,7 @@ describe('shared server update discovery', () => {
   it('reports persistence exceptions as errors before opening a prompt', async () => {
     const f = fixture();
     f.saveState.mockImplementation(() => { throw new Error('disk full'); });
-    expect(await f.coordinator.check()).toEqual(failed);
+    expect(await f.coordinator.check()).toEqual(failed('exception:Error', 'disk full'));
     expect(f.ask).not.toHaveBeenCalled();
   });
 
@@ -255,7 +269,7 @@ describe('shared server update discovery', () => {
   it('contains asynchronous prompt failures rather than leaking a rejection', async () => {
     const f = fixture();
     f.ask.mockRejectedValue(new Error('prompt failed'));
-    expect(await f.coordinator.check()).toEqual(failed);
+    expect(await f.coordinator.check()).toEqual(failed('exception:Error', 'prompt failed'));
     await tick();
     expect(getServerUpdateStatus()).toMatchObject({ state: 'failed', error: 'prompt failed' });
     expect(f.installWhenIdle).not.toHaveBeenCalled();
@@ -333,9 +347,59 @@ describe('server auto-update', () => {
   it('reports a failed install start and retries on the next check', async () => {
     const f = fixture();
     f.installWhenIdle.mockImplementationOnce(() => { throw new Error('spawn failed'); });
-    expect(await f.coordinator.check()).toEqual(failed);
+    expect(await f.coordinator.check()).toEqual(failed('exception:Error', 'spawn failed'));
     expect(getServerUpdateStatus()).toEqual({ state: 'failed', available: '9999.1.1', error: 'spawn failed' });
     expect(await f.coordinator.check()).toEqual(autoAvailable);
     expect(f.installWhenIdle).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('default npm registry lookup', () => {
+  const npmFailed = { ok: false, code: 1, signal: null, timedOut: false, stdout: '' } as const;
+
+  function lookup(result: Partial<ExecResult>) {
+    vi.mocked(runFile).mockResolvedValueOnce({ ...npmFailed, stderr: '', ...result } as ExecResult);
+    const prompt = createUiUpdatePrompt({ ask: async () => null }, { fallbackMs: 600_000 });
+    return createServerUpdateCoordinator({ prompt, installWhenIdle: vi.fn(), loadState: () => ({}), saveState: vi.fn() })
+      .check();
+  }
+
+  it('reports the npm exit code with a redacted tail of its stderr', async () => {
+    const stderr = [
+      'npm verbose early line that falls outside the tail',
+      'npm error code ECONNRESET',
+      'npm error network request to https://registry.npmjs.org/@cortex-agent%2fserver failed, reason: socket hang up',
+      'npm error network This is a problem related to network connectivity.',
+      'npm error network In most cases you are behind a proxy or have bad network settings.',
+      'npm error network',
+      'npm error A complete log of this run can be found in: /Users/someone/.npm/_logs/debug-0.log',
+    ].join('\n');
+    const result = await lookup({ stderr });
+    expect(result).toMatchObject({ status: 'error', reason: 'check_failed', failure: 'npm_exit:1' });
+    expect(result.detail).toContain('npm error code ECONNRESET');
+    expect(result.detail).toContain('https://<host>/@cortex-agent%2fserver');
+    expect(result.detail).not.toContain('early line');
+    expect(result.detail).not.toContain('/Users/someone');
+  });
+
+  it('reports a killed npm by its signal', async () => {
+    expect(await lookup({ code: null, signal: 'SIGKILL' })).toEqual(failed('npm_exit:SIGKILL'));
+  });
+
+  it('reports the runner timeout as a timeout', async () => {
+    expect(await lookup({ code: null, signal: 'SIGTERM', timedOut: true })).toEqual(failed('timeout'));
+  });
+
+  it('reports npm that could not start', async () => {
+    expect(await lookup({ code: null, error: 'spawn npm ENOENT' })).toEqual(failed('npm_spawn', 'spawn npm ENOENT'));
+  });
+
+  it('reports unexpected output as a bad version', async () => {
+    expect(await lookup({ ok: true, code: 0, stdout: 'npm warn config ignored\n' }))
+      .toEqual(failed('bad_version', 'npm warn config ignored'));
+  });
+
+  it('reads the published version on success', async () => {
+    expect(await lookup({ ok: true, code: 0, stdout: '9999.1.1\n' })).toEqual(available);
   });
 });

@@ -2,7 +2,8 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { spawn } from 'node:child_process';
 import { ServerUpdateCoordinator } from './server-update-coordinator.js';
-import { runFile } from '@core/exec-async.js';
+import { UpdateLookupError } from './server-update-failure.js';
+import { runFile, type ExecResult } from '@core/exec-async.js';
 import { npmInvocation, withServerNpmPrefix } from '@core/utils.js';
 import type { UpdateChoice, UpdatePrompt } from './update-prompt.js';
 import { loadUpdateState, saveUpdateState, type UpdateState } from './update-state.js';
@@ -27,7 +28,8 @@ export function isUpdateDevMode(): boolean {
 
 export interface CheckServerUpdateDeps {
   prompt: UpdatePrompt;
-  /** May be async: the default implementation shells out to `npm view` without blocking. */
+  /** May be async: the default implementation shells out to `npm view` without blocking.
+   *  Throws `UpdateLookupError` to say why the lookup failed. */
   getLatest?: () => string | null | Promise<string | null>;
   /** Install an agreed version once no turn is running. Overrides `idle`. */
   installWhenIdle?: (version: string) => void;
@@ -50,13 +52,24 @@ async function defaultGetLatest(): Promise<string | null> {
     // Outside any project checkout, so a local .npmrc cannot redirect the registry lookup.
     cwd: os.tmpdir(),
   });
-  if (!result.ok) return null;
+  if (!result.ok) throw lookupFailure(result);
   const version = result.stdout.trim();
   return version || null;
 }
 
+function lookupFailure(result: ExecResult): UpdateLookupError {
+  if (result.timedOut) return new UpdateLookupError('timeout', stderrTail(result.stderr));
+  if (result.error) return new UpdateLookupError('npm_spawn', result.error);
+  return new UpdateLookupError(`npm_exit:${result.code ?? result.signal}`, stderrTail(result.stderr));
+}
+
 /** Keep the reported stderr small enough to sit in a dialog and in the status snapshot. */
 const INSTALL_STDERR_CAP = 2000;
+
+/** npm prints the actual error in its last few stderr lines. */
+function stderrTail(stderr: string): string {
+  return stderr.trim().split('\n').slice(-6).join('\n').trim();
+}
 
 function describeInstallFailure(
   code: number | null,
@@ -64,7 +77,7 @@ function describeInstallFailure(
   stderr: string,
 ): string {
   const how = signal !== null ? `killed by ${signal}` : `exited with code ${code}`;
-  const tail = stderr.trim().split('\n').slice(-6).join('\n').trim();
+  const tail = stderrTail(stderr);
   return tail ? `npm install -g ${how}\n${tail}` : `npm install -g ${how}`;
 }
 

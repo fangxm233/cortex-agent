@@ -612,7 +612,10 @@ installSigtermShutdown(shutdownHandles);
   // probe is async (runFile), so neither blocks the event loop.
   const runUpdateCheck = async (): Promise<void> => {
     const result = await serverUpdateCoordinator.check();
-    if (result.status === 'error') log.error(`Server auto-update check failed: ${result.reason}`);
+    if (result.status !== 'error') return;
+    // log.error feeds the telemetry error digest, so it carries only the failure class; npm's words stay local.
+    log.error(`Server auto-update check failed: ${result.failure ?? result.reason}`);
+    if (result.detail) log.warn(`Server auto-update check detail: ${result.detail}`);
   };
   const bootUpdateCheck = setTimeout(() => { void runUpdateCheck(); }, 60_000);
   bootUpdateCheck.unref?.();

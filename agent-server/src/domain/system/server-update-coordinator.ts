@@ -1,6 +1,7 @@
 import { compareCalVer } from '@core/calver.js';
 import { getSettings } from '@core/settings.js';
 import { CORTEX_VERSION } from '@core/version.js';
+import { checkFailed, failureOf } from './server-update-failure.js';
 import type { UpdateChoice, UpdatePrompt } from './update-prompt.js';
 import type { UpdateState } from './update-state.js';
 import {
@@ -11,10 +12,15 @@ export interface SystemUpdateCheckResult {
   status: 'available' | 'current' | 'skipped' | 'error';
   update?: { version: string };
   reason?: string;
+  /** Why an `error` happened: `timeout`, `npm_exit:<code>`, `npm_spawn`, `bad_version` or `exception:<name>`. */
+  failure?: string;
+  /** Redacted explanation of `failure` (npm's stderr tail, an error message). Never sent to telemetry. */
+  detail?: string;
 }
 
 export interface ServerUpdateCoordinatorDeps {
   prompt: UpdatePrompt;
+  /** Throws `UpdateLookupError` to say why the lookup failed. */
   getLatest: () => string | null | Promise<string | null>;
   /** Install `version` once no turn is running; reports its own progress and failure. */
   installWhenIdle: (version: string) => void;
@@ -29,18 +35,21 @@ interface PendingPrompt {
   answer: Promise<UpdateChoice | null>;
 }
 
-const CHECK_FAILED: SystemUpdateCheckResult = { status: 'error', reason: 'check_failed' };
 const DISCOVERY_TIMEOUT_MS = 15_000;
+const TIMED_OUT = Symbol('timed out');
+const VERSION_RE = /^\d+\.\d+\.\d+(?:-\d+)?$/;
 
 function available(version: string): SystemUpdateCheckResult {
   return { status: 'available', update: { version } };
 }
 
 /** Bound discovery independently of consent, including an injected/stalled registry probe. */
-async function boundedLatest(getLatest: ServerUpdateCoordinatorDeps['getLatest']): Promise<string | null> {
+async function boundedLatest(
+  getLatest: ServerUpdateCoordinatorDeps['getLatest'],
+): Promise<string | null | typeof TIMED_OUT> {
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<null>((resolve) => {
-    timer = setTimeout(() => resolve(null), DISCOVERY_TIMEOUT_MS);
+  const timeout = new Promise<typeof TIMED_OUT>((resolve) => {
+    timer = setTimeout(() => resolve(TIMED_OUT), DISCOVERY_TIMEOUT_MS);
     timer.unref?.();
   });
   try {
@@ -55,7 +64,7 @@ export class ServerUpdateCoordinator {
   private inFlight: Promise<SystemUpdateCheckResult> | null = null;
   private pending: PendingPrompt | null = null;
   private latestVersion: string | null = null;
-  private promptFailed = false;
+  private promptFailure: SystemUpdateCheckResult | null = null;
   private decision: Promise<UpdateChoice | null> = Promise.resolve(null);
 
   constructor(private readonly deps: ServerUpdateCoordinatorDeps) {}
@@ -63,7 +72,7 @@ export class ServerUpdateCoordinator {
   check(): Promise<SystemUpdateCheckResult> {
     if (this.inFlight) return this.inFlight;
     this.inFlight = this.discover()
-      .catch(() => CHECK_FAILED)
+      .catch(failureOf)
       .finally(() => { this.inFlight = null; });
     return this.inFlight;
   }
@@ -90,7 +99,8 @@ export class ServerUpdateCoordinator {
 
   private async lookup(): Promise<SystemUpdateCheckResult> {
     const version = await boundedLatest(this.deps.getLatest);
-    if (!version || !/^\d+\.\d+\.\d+(?:-\d+)?$/.test(version)) return CHECK_FAILED;
+    if (version === TIMED_OUT) return checkFailed('timeout');
+    if (!version || !VERSION_RE.test(version)) return checkFailed('bad_version', version ?? undefined);
     // Consent may have started installation while the registry request was in flight.
     const reason = this.skipReason();
     if (reason) return { status: 'skipped', reason };
@@ -117,7 +127,7 @@ export class ServerUpdateCoordinator {
     } catch (error) {
       reportServerUpdateFailed(error instanceof Error ? error.message : String(error));
       this.decision = Promise.resolve(null);
-      return CHECK_FAILED;
+      return failureOf(error);
     }
     this.decision = Promise.resolve('apply');
     return { ...available(version), reason: 'auto_install' };
@@ -138,11 +148,11 @@ export class ServerUpdateCoordinator {
     // ask() synchronously publishes the existing UI prompt before discovery can return.
     const answer = this.deps.prompt.ask({ latestVersion: version });
     this.pending = { version, answer };
-    this.promptFailed = false;
+    this.promptFailure = null;
     this.decision = this.handleDecision(this.pending, prompted);
     // Observe an immediately rejected prompt, without ever awaiting user consent.
     await Promise.resolve();
-    return this.promptFailed ? CHECK_FAILED : available(version);
+    return this.promptFailure ?? available(version);
   }
 
   private async handleDecision(
@@ -162,7 +172,7 @@ export class ServerUpdateCoordinator {
 
   private failDecision(pending: PendingPrompt, error: unknown): null {
     if (this.pending !== pending) return null;
-    this.promptFailed = true;
+    this.promptFailure = failureOf(error);
     reportServerUpdateFailed(error instanceof Error ? error.message : String(error));
     return null;
   }
