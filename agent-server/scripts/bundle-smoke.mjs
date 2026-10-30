@@ -140,6 +140,11 @@ await check('Claude CLI auth probe through server spawn adapter', async () => {
     return { loggedOut: true, error: error.message };
   }
 });
+await check('Feishu SDK loads and builds a client (no network)', async () => {
+  const { createFeishuClient } = await load('dist/domain/mcp/feishu/client.js');
+  const client = createFeishuClient({ appId: 'bundle-smoke', appSecret: 'bundle-smoke' });
+  assert.equal(typeof client.request, 'function');
+});
 await check('hook-cli list', () => bin('cortex-hook', ['list']));
 
 const owned = new Set();
@@ -209,7 +214,8 @@ try {
     throw new Error('Isolated gateway did not become ready');
   });
   await check('TUI WebSocket upgrade on the main port needs the client token', async () => {
-    const { WebSocket: Ws } = createRequire(path.join(root, 'package.json'))('ws');
+    // The bundle inlines ws and does not install it; the harness brings its own client.
+    const { WebSocket: Ws } = createRequire(import.meta.url)('ws');
     const open = headers => new Promise((resolve) => {
       const ws = new Ws('ws://127.0.0.1:17304/tui', { headers });
       const timer = setTimeout(() => { ws.terminate(); resolve('timeout'); }, 5000);
