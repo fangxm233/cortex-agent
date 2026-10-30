@@ -62,11 +62,18 @@ function boltConsoleLogger(): BoltLogger {
   return logger;
 }
 
-/** The App Bolt builds for `socketMode: true`, with the receiver built here so its client is reachable. */
+/** The App Bolt builds for `socketMode: true`, with the receiver built here so its client is reachable.
+ *  socket-mode's own apps.connections.open retries keep its defaults, with the wait between them
+ *  capped and a hung request cut off. */
 function buildSocketApp(config: SlackConnectionConfig, tuning: SlackConnectionTuning) {
   const logger = tuning.logger ?? boltConsoleLogger();
   const apiUrl: WebClientOptions = tuning.slackApiUrl ? { slackApiUrl: tuning.slackApiUrl } : {};
-  const socketApi: WebClientOptions = { ...apiUrl, logger };
+  const socketApi: WebClientOptions = {
+    ...apiUrl,
+    logger,
+    timeout: 30_000,
+    retryConfig: { retries: 100, factor: 1.3, maxTimeout: MAX_RETRY_DELAY_MS },
+  };
   const receiver = new SocketModeReceiver({
     appToken: config.appToken,
     logger: tuning.logger,
