@@ -43,7 +43,7 @@ function DestinationEditor(props: RuntimeProps) {
     <SSubheading>{L.psRouting}</SSubheading>
     <div style={{ paddingTop: 8 }}>
       <SFieldRow label={label} hint={<>{L.psRouteHint} {props.platform === 'feishu' && L.psFeishuRouteHint}</>}>
-        <input name={key} value={draft} maxLength={256} disabled={locked} aria-label={label}
+        <input name={key} value={draft} maxLength={256} disabled={locked} aria-label={label} autoComplete="off"
           onChange={e => setDraft(e.target.value)} aria-invalid={!valid} style={psFieldStyle(locked)} />
       </SFieldRow>
     </div>

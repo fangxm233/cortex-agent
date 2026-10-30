@@ -42,6 +42,14 @@ test('blank secrets preserve existing values and explicit clear is a null patch'
   });
 });
 
+test('credential inputs opt out of browser password autofill', () => {
+  const view = render(props());
+  expect(view.root.findByProps({ name: 'FEISHU_APP_SECRET' }).props.autoComplete).toBe('new-password');
+  expect(view.root.findByProps({ name: 'FEISHU_APP_ID' }).props.autoComplete).toBe('off');
+  expect(view.root.findByProps({ name: 'feishuAdminChannel' }).props.autoComplete).toBe('off');
+  view.unmount();
+});
+
 test('typing a replacement submits the exact patch and clears the password input after save', async () => {
   const p = props(); const view = render(p);
   const input = () => view.root.findByProps({ name: 'FEISHU_APP_SECRET' });
