@@ -202,8 +202,11 @@ export const TurnHealthRowSchema = z.object({
   billing: z.enum(['plan', 'api']).nullable(),
   /** API kind of a custom provider (e.g. openai-completions); null otherwise. */
   customApi: IDENT.nullable(),
+  /** `rateLimited`: turns Cortex paused on a provider rate or usage limit. A rate-limit error that
+   *  ends the turn counts under `failed`, with failure class `rate_limit`. */
   outcomes: z.object({ completed: count, failed: count, cancelled: count, rateLimited: count }),
   failures: z.partialRecord(z.enum(TURN_FAILURE_CLASSES), count),
+  /** Provider requests the backend re-sent within the turn after a transient error. */
   retries: count,
   fallbacks: count,
   ttftMs: histogram('ttftMs'),
