@@ -211,7 +211,7 @@ describe('buildUsageView', () => {
     const vm = buildUsageView([
       row('cheap', { billing: 'api', spend: { today: 0, month: 1 } }),
       row('pricey', { billing: 'api', spend: { today: 0, month: 90 } }),
-      row('covered', { billing: 'subscription' }),
+      row('covered', { billing: 'subscription', freshness: 'never' }),
       row('metered-with-quota', {
         billing: 'api', freshness: 'stale', observedAt: NOW - 5,
         windows: [{ type: 'five_hour', utilization: 0.1, resetsAt: null }],
@@ -221,6 +221,24 @@ describe('buildUsageView', () => {
     expect(vm.providers.map((provider) => provider.provider)).toEqual([
       'metered-with-quota', 'covered', 'pricey', 'cheap',
     ]);
+  });
+
+  it('hides a row with nothing to show but keeps rows with spend, a pending quota or a note', () => {
+    const row = (
+      provider: string,
+      extra: Partial<SystemUsageStatus[number]>,
+    ): SystemUsageStatus[number] => ({
+      provider, displayName: provider, modes: [], freshness: 'unsupported',
+      observedAt: null, windows: [], ...extra,
+    });
+    const vm = buildUsageView([
+      row('empty-subscription', { billing: 'subscription' }),
+      row('metered', { billing: 'api', spend: { today: 0, month: 1 } }),
+      row('pending', { billing: 'subscription', freshness: 'never' }),
+      row('noted', { billing: 'subscription', note: 'quota read failed' }),
+    ], null, NOW, 'en');
+
+    expect(vm.providers.map((provider) => provider.provider).sort()).toEqual(['metered', 'noted', 'pending']);
   });
 
   it('passes an unknown provider through without inventing or dropping it', () => {

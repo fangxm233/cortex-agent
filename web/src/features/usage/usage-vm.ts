@@ -391,6 +391,13 @@ function providerCompare(a: ProviderUsage, b: ProviderUsage): number {
     || usageRowKey(a).localeCompare(usageRowKey(b));
 }
 
+/** A row with no quota source, spend, reset or note has nothing to show, e.g. a subscription
+ *  whose provider exposes no usage at all. */
+function hasContent(view: ProviderUsageView): boolean {
+  return view.quotaState !== 'unsupported' || view.windows.length > 0 || view.spend !== null
+    || view.resets !== null || view.note !== undefined;
+}
+
 export function buildUsageView(
   status: ProviderUsage[] | null | undefined,
   providerRateLimits: ProviderRateLimits | null,
@@ -400,6 +407,7 @@ export function buildUsageView(
   return {
     providers: [...(status ?? [])]
       .sort(providerCompare)
-      .map((record) => buildProvider(record, providerRateLimits, nowSec, lang)),
+      .map((record) => buildProvider(record, providerRateLimits, nowSec, lang))
+      .filter(hasContent),
   };
 }
