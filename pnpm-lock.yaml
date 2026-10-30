@@ -9,6 +9,11 @@ overrides:
 
 packageExtensionsChecksum: sha256-/IuDnAt3jpnIKMky/5pYDF6/BhjrluQtP4Kn+8APeYM=
 
+patchedDependencies:
+  '@slack/socket-mode@2.0.7':
+    hash: 89459bf81e10f3e3bee1845377e0c7cc332565d64bcbb6b8548fafe1c5d3de15
+    path: patches/@slack__socket-mode@2.0.7.patch
+
 importers:
 
   .: {}
@@ -5519,7 +5524,7 @@ snapshots:
     dependencies:
       '@slack/logger': 4.0.1
       '@slack/oauth': 3.0.5
-      '@slack/socket-mode': 2.0.7
+      '@slack/socket-mode': 2.0.7(patch_hash=89459bf81e10f3e3bee1845377e0c7cc332565d64bcbb6b8548fafe1c5d3de15)
       '@slack/types': 2.22.0
       '@slack/web-api': 7.19.0
       '@types/express': 5.0.6
@@ -5549,7 +5554,7 @@ snapshots:
       - debug
       - supports-color
 
-  '@slack/socket-mode@2.0.7':
+  '@slack/socket-mode@2.0.7(patch_hash=89459bf81e10f3e3bee1845377e0c7cc332565d64bcbb6b8548fafe1c5d3de15)':
     dependencies:
       '@slack/logger': 4.0.1
       '@slack/web-api': 7.19.0

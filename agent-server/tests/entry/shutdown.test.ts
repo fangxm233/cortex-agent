@@ -1,7 +1,10 @@
-import { test } from 'vitest';
+import { afterEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { runShutdown, shutdownSteps, type ShutdownHandles } from '../../src/entry/shutdown.js';
 import { registerFlushable } from '../../src/core/json-repository.js';
+import { describeThrown, setCrashPhase } from '../../src/domain/telemetry/crash.js';
+
+afterEach(() => setCrashPhase('running'));
 
 function handles(calls: string[]): ShutdownHandles {
   return {
@@ -20,6 +23,13 @@ test('runShutdown runs every step in order, past a failing one', async () => {
     { name: 'c', run: () => { ran.push('c'); } },
   ]);
   assert.deepEqual(ran, ['a', 'b', 'c']);
+});
+
+test('each shutdown step runs under its own crash phase', async () => {
+  const phases: string[] = [];
+  const record = () => { phases.push(describeThrown(undefined).message); };
+  await runShutdown([{ name: 'platforms', run: record }, { name: 'http server', run: record }]);
+  assert.deepEqual(phases, ['phase:shutdown:platforms', 'phase:shutdown:http server']);
 });
 
 test('timers and the outbound loop stop before the stores drain; the gateway goes last', () => {

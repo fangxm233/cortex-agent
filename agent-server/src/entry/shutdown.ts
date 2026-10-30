@@ -6,6 +6,7 @@ import { flushAllRepositories } from '@core/json-repository.js';
 import { engines } from '@domain/runs/engines.js';
 import { stopBuiltinJobs } from '@domain/scheduling/builtin-jobs.js';
 import { stopTelemetry } from '@domain/telemetry/service.js';
+import { setCrashPhase } from '@domain/telemetry/crash.js';
 import { stopClientManager } from '@domain/remote/client-manager.js';
 import { stopMachineRegistryWatcher } from '@domain/remote/machine-registry.js';
 import { stopAllDevicePorts } from '@domain/remote/device-port.js';
@@ -90,6 +91,7 @@ export function shutdownSteps(h: ShutdownHandles): ShutdownStep[] {
 
 export async function runShutdown(steps: ShutdownStep[]): Promise<void> {
   for (const step of steps) {
+    setCrashPhase(`shutdown:${step.name}`);
     try {
       await step.run();
     } catch (error) {

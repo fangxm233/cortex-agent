@@ -53,7 +53,7 @@ and the Web UI forwards it through the server the next time the app starts.
 |---|---|
 | `component` | `server`, `daemon`, `web`, `desktop` or `android` |
 | `kind` | `uncaughtException`, `unhandledRejection`, `childExit` (the server process exited and the daemon restarted it), `renderError` and `windowError` (Web UI), or `panic` (desktop and Android app) |
-| `errorName`, `message`, `stack` | Error type, plus the message and stack trace after [redaction](#how-text-is-redacted). Messages are cut to 300 characters and stacks to 30 frames |
+| `errorName`, `message`, `stack` | Error type, plus the message and stack trace after [redaction](#how-text-is-redacted). Messages are cut to 300 characters and stacks to 30 frames. When the server or daemon throws or rejects with something other than an `Error`, which has no message or stack of its own, the message gives the process phase instead: `phase:running`, or `phase:shutdown:<step>` while the server is shutting down |
 | `groupKey` | Groups reports of the same crash: the error type plus the first frame in Cortex's own code (`TypeError@dist/domain/x.js#run`), the Web UI asset file, or the panic location (`panic@src/setup.rs:123`) |
 | `uptimeS` | Seconds the process had been running |
 | `route` | Web UI only: the route pattern, such as `/m/session/:sessionId`. A concrete path is never sent |

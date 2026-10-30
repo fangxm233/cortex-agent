@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, test } from 'vitest';
 import { admitCrash, CRASH_DAILY_LIMIT } from '@domain/telemetry/crash-limits.js';
-import { buildCrashEvent, captureCrash, describeThrown } from '@domain/telemetry/crash.js';
+import { buildCrashEvent, captureCrash, describeThrown, setCrashPhase } from '@domain/telemetry/crash.js';
 import { captureChildExitFromEnv, encodeChildExit } from '@domain/telemetry/child-exit.js';
 import { takeOutbox } from '@domain/telemetry/outbox.js';
 import { CrashEventSchema } from '@domain/telemetry/schema.js';
@@ -14,6 +14,7 @@ import { enableTelemetryForTest } from './helpers.js';
 
 let restore: (() => void) | null = null;
 afterEach(() => {
+  setCrashPhase('running');
   wipeLocalTelemetry();
   restore?.();
   restore = null;
@@ -48,6 +49,18 @@ test('a thrown value becomes a redacted, schema-valid crash event', () => {
   assert.equal(event.errorName, 'TypeError');
   assert.doesNotMatch(event.message + event.stack, new RegExp(os.homedir()));
   assert.equal(describeThrown('a string').errorName, 'Nonstring');
+});
+
+test('a non-Error rejection reports the process phase as its message, outside its group', () => {
+  const rejection = () => buildCrashEvent({ component: 'server', kind: 'unhandledRejection', ...describeThrown(undefined) });
+  const running = rejection();
+  assert.equal(running.message, 'phase:running');
+  setCrashPhase('shutdown:platforms');
+  const stopping = rejection();
+  assert.equal(stopping.message, 'phase:shutdown:platforms');
+  assert.equal(stopping.groupKey, 'Nonundefined@unknown');
+  assert.equal(stopping.groupKey, running.groupKey);
+  assert.equal(describeThrown(new Error('boom')).message, 'boom', 'an Error keeps its own message');
 });
 
 test('captured crashes land in the outbox only while active, rate-limited', () => {

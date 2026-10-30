@@ -35,7 +35,7 @@ Cortex 会发送匿名的崩溃报告和使用统计，用来修复崩溃，并�
 |---|---|
 | `component` | `server`、`daemon`、`web`、`desktop` 或 `android` |
 | `kind` | `uncaughtException`、`unhandledRejection`、`childExit`（服务端进程退出后由守护进程重启）、`renderError` 和 `windowError`（Web UI），或 `panic`（桌面和 Android 应用） |
-| `errorName`、`message`、`stack` | 错误类型，以及经过[脱敏](#how-text-is-redacted)的消息和调用栈。消息截断为 300 个字符，调用栈最多 30 帧 |
+| `errorName`、`message`、`stack` | 错误类型，以及经过[脱敏](#how-text-is-redacted)的消息和调用栈。消息截断为 300 个字符，调用栈最多 30 帧。服务端或守护进程抛出或拒绝的值不是 `Error` 时，它没有自己的消息和调用栈，消息改为进程所处的阶段：`phase:running`，或服务端关闭期间的 `phase:shutdown:<step>` |
 | `groupKey` | 把同一种崩溃归为一组：错误类型加上 Cortex 自身代码中的第一帧（`TypeError@dist/domain/x.js#run`）、Web UI 的资源文件，或 panic 发生的位置（`panic@src/setup.rs:123`） |
 | `uptimeS` | 进程已运行的秒数 |
 | `route` | 仅 Web UI：路由模式，如 `/m/session/:sessionId`。从不发送具体路径 |
