@@ -16,6 +16,15 @@ export function parseModelFallbackEvent(raw: any): ModelFallbackEvent | null {
   return { type: 'model_fallback', originalModel, fallbackModel };
 }
 
+export type ApiRetryEvent = Extract<NormalizedEvent, { type: 'api_retry' }>;
+
+/** Claude Code's `system`/`api_retry` stdout line: one per retried API call. */
+export function parseApiRetryEvent(raw: any): ApiRetryEvent | null {
+  if (raw?.type !== 'system' || raw.subtype !== 'api_retry') return null;
+  if (typeof raw.attempt !== 'number') return null;
+  return { type: 'api_retry', attempt: raw.attempt, error: typeof raw.error === 'string' ? raw.error : null };
+}
+
 // ── Token-level streaming (`--include-partial-messages`) ────────────────────────────────────────
 //
 // With that flag the CLI interleaves `stream_event` lines into stdout while a block is being

@@ -308,6 +308,7 @@ export class Turn {
           // machine-readable twin, for observers that want the fact rather than the prose.
           case 'context_compacted':
           case 'model_fallback':
+          case 'api_retry':
           case 'phase':
           case 'engine_started':
           case 'foreground_result':

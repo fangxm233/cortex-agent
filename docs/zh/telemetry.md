@@ -95,7 +95,7 @@ Cortex 记录了但没有导致崩溃的错误不逐条发送，而是汇总进�
 
 | 部分 | 统计内容 |
 |---|---|
-| 回合健康度 | 每个后端、provider、模型和付费方式一行（最多 100 行）。每行包含完成、失败、取消和触发限流的回合数；失败分类（`auth`、`rate_limit`、`network`、`adapter_crash`、`timeout`、`other`）；重试次数；模型回退次数；完成回合的首个输出耗时；回合时长；回合结束时的上下文占用；自动和手动压缩次数；以及输入、输出、缓存读取和缓存写入的 token 数。`customApi` 给出自定义 provider 的 API 类型，如 `openai-completions` |
+| 回合健康度 | 每个后端、provider、模型和付费方式一行（最多 100 行）。每行包含完成、失败和取消的回合数，以及触发限流的回合数（因 provider 限流或用量上限而被 Cortex 暂停的回合；以限流错误结束的回合计为失败，分类为 `rate_limit`）；失败分类（`auth`、`rate_limit`、`network`、`adapter_crash`、`timeout`、`other`）；重试次数（回合内后端在临时错误后重新发送 provider 请求的次数）；模型回退次数；完成回合的首个输出耗时；回合时长；回合结束时的上下文占用；自动和手动压缩次数；以及输入、输出、缓存读取和缓存写入的 token 数。`customApi` 给出自定义 provider 的 API 类型，如 `openai-completions` |
 | 功能 | 创建会话、启动 worker、运行子智能体、打开看板、创建和触发定时任务、创建和触发等待点、使用浏览器会话的次数；以及提交、批准和驳回计划，提问和回答问题，服务端所在机器以外的机器连上来的次数 |
 | 工具 | 每个[规范化](#how-names-are-normalized)后的工具名的调用次数和出错次数（最多 200 个工具） |
 | 入口 | 各渠道的消息数（`desktop`、`android`、`browser`、`feishu`、`slack`、`tui`、`other`），以及各 Web UI 操作（如 `sessions.send`）的调用次数 |

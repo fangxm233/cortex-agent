@@ -62,6 +62,9 @@ export type NormalizedEvent =
   | { type: 'plan_written'; toolUseId: string; path: string; content: string }
   | { type: 'context_compacted'; trigger: string; preTokens?: number }
   | { type: 'model_fallback'; originalModel: string; fallbackModel: string }
+  // The backend retried a failed provider API call inside the turn (PI `auto_retry_start`, Claude
+  // Code `system`/`api_retry`). One event per retry; `error` is the backend's reason, if it gave one.
+  | { type: 'api_retry'; attempt: number; error: string | null }
   | ({ type: 'context_usage' } & ContextUsage)
   | { type: 'rate_limit'; raw: unknown }
   | CostRecordEvent

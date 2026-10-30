@@ -66,6 +66,7 @@ void function normalizedEventExhaustive(event: NormalizedEvent): string {
     case 'plan_written': return event.path;
     case 'context_compacted': return event.trigger;
     case 'model_fallback': return `${event.originalModel}:${event.fallbackModel}`;
+    case 'api_retry': return String(event.attempt);
     case 'context_usage': return String(event.contextWindow);
     case 'rate_limit': return 'rate_limit';
     case 'cost_record': return event.provider;

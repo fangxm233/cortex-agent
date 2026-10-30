@@ -99,6 +99,19 @@ test('failures are classified; user cancels and supersedes are counted; worker a
   assert.equal(classifyTurnFailure('claude exited with code 1'), 'adapter_crash');
   assert.equal(classifyTurnFailure('429 Too Many Requests'), 'rate_limit');
   assert.equal(classifyTurnFailure('something odd'), 'other');
+  assert.equal(classifyTurnFailure('PI turn idle for 60min'), 'timeout');
+  assert.equal(classifyTurnFailure('Claude turn idle for 60min'), 'timeout');
+});
+
+test('retries count the backend\'s own API retries, not non-fatal errors', () => {
+  const run = createRunTelemetry(request());
+  run.observer.onEvent({ type: 'api_retry', attempt: 1, error: 'overloaded_error', phase: 'foreground' });
+  run.observer.onEvent({ type: 'api_retry', attempt: 2, error: null, phase: 'foreground' });
+  run.observer.onEvent({ type: 'api_retry', attempt: 3, error: null, phase: 'foreground' });
+  run.observer.onEvent({ type: 'error', message: 'extension error', fatal: false });
+  run.observer.onEvent({ type: 'error', message: 'injection refused: busy', fatal: false });
+  run.finish({ status: 'completed', durationS: 3 });
+  assert.equal(rollup().turns['claude||claude-opus-4-7|plan'].retries, 3);
 });
 
 test('UI ops, messages by app, webhook features and browser leases', () => {

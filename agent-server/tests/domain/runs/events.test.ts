@@ -37,6 +37,7 @@ function sample(kind: NormalizedEvent['type']): NormalizedEvent {
     case 'plan_written': return { type: 'plan_written', toolUseId: 'tu-5', path: '/p/plan.md', content: 'plan' };
     case 'context_compacted': return { type: 'context_compacted', trigger: 'auto', preTokens: 1000 };
     case 'model_fallback': return { type: 'model_fallback', originalModel: 'a', fallbackModel: 'b' };
+    case 'api_retry': return { type: 'api_retry', attempt: 2, error: 'overloaded_error' };
     case 'context_usage': return { type: 'context_usage', usedTokens: 10, contextWindow: 100, percent: 10, accuracy: 'exact' };
     case 'rate_limit': return { type: 'rate_limit', raw: { message: '429' } };
     case 'cost_record':
@@ -56,7 +57,7 @@ function sample(kind: NormalizedEvent['type']): NormalizedEvent {
 
 const PHASED_KINDS: NormalizedEvent['type'][] = [
   'assistant_text', 'assistant_delta', 'tool_use', 'tool_result', 'todo_update',
-  'plan_written', 'context_compacted', 'model_fallback',
+  'plan_written', 'context_compacted', 'model_fallback', 'api_retry',
   'context_usage', 'subagent_activity', 'subagent_end',
 ];
 

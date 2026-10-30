@@ -292,7 +292,7 @@ class ClaudeSession implements TurnHost {
   private startTurnIdleTimer(): void {
     this.turnIdleTimer = setTimeout(() => {
       log.info(`Session ${this.sessionId.substring(0, 8)} turn idle for 60min, killing`);
-      this.kill();
+      this.kill(new Error('Claude turn idle for 60min'));
     }, TURN_IDLE_TIMEOUT);
   }
 
@@ -394,14 +394,16 @@ class ClaudeSession implements TurnHost {
     this.proc.on('close', () => clearTimeout(graceTimer));
   }
 
-  kill(): boolean {
+  /** Kill the process. The open turn rejects as cancelled (a Stop), or with `turnError` when the
+   *  caller names another reason (the idle watchdog fails the turn instead). */
+  kill(turnError?: Error): boolean {
     if (this.idleTimer) clearTimeout(this.idleTimer);
     if (this.turnIdleTimer) clearTimeout(this.turnIdleTimer);
     // Sink intentionally NOT cleared: handleProcessClose (via the SIGTERM 'close' event)
     // delivers the background-task interruption to it, then clears it.
     if (!this.proc || this.proc.exitCode !== null) return false;
     this.alive = false;
-    this.turns.markCurrentTurnKilled();
+    this.turns.markCurrentTurnKilled(turnError);
     if (this.supervision) {
       this.supervision.cancel('cancel');
       return true;
