@@ -82,7 +82,7 @@ const HANDLERS: Partial<Record<RunEvent['type'], (stats: RunStats, event: never)
     stats.compactions[event.trigger === 'manual' ? 'manual' : 'auto'] += 1;
   },
   model_fallback: (stats) => { stats.fallbacks += 1; },
-  error: (stats, event: Extract<RunEvent, { type: 'error' }>) => { if (!event.fatal) stats.retries += 1; },
+  api_retry: (stats) => { stats.retries += 1; },
   subagent_end: (stats, event: Extract<RunEvent, { type: 'subagent_end' }>) => {
     stats.subagents[SUBAGENT_END[event.status] ?? 'failed'] += 1;
   },

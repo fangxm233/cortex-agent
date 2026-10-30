@@ -48,8 +48,9 @@ export function createPIEventParserState(): PIEventParserState {
  * NormalizedEvents.
  *
  * Dropped events (return []): turn_start, turn_end, message_start, agent_start,
- * queue_update, compaction_end, auto_retry_start/end, unsupported message_update events,
+ * queue_update, compaction_end, auto_retry_end, unsupported message_update events,
  * fire-and-forget extension_ui_request.
+ * auto_retry_start (PI scheduled a retry of a failed provider call) emits one api_retry.
  * message_end emits a turn_progress heartbeat (non-terminal, state.turnProgressCount++).
  * compaction_start emits a context_compacted event (user notification); compaction_end is dropped
  * to avoid a duplicate notice. Session identity and context usage are not events here: the
@@ -109,6 +110,8 @@ export function piEventToNormalized(
     return subagentUsageEvents(ev['report'], state);
   }
 
+  if (type === 'auto_retry_start') return handleAutoRetryStart(ev);
+
   // --- extension_error → error (non-fatal) ---
   if (type === 'extension_error') {
     const errVal = ev['error'];
@@ -123,7 +126,7 @@ export function piEventToNormalized(
   }
 
   // Silently drop all other events (turn_start/end, message_start, agent_start,
-  // queue_update, compaction_end, auto_retry_start/end).
+  // queue_update, compaction_end, auto_retry_end).
   return [];
 }
 
@@ -160,6 +163,13 @@ function handleThinkingUpdate(ev: Record<string, unknown>, ame: Record<string, u
     return [{ type: 'assistant_thinking', text, ...(blockId !== undefined ? { blockId } : {}) }];
   }
   return blockId !== undefined ? [{ type: 'assistant_thinking_delta', text, blockId }] : [];
+}
+
+function handleAutoRetryStart(ev: Record<string, unknown>): NormalizedEvent[] {
+  const attempt = ev['attempt'];
+  if (typeof attempt !== 'number') return [];
+  const error = typeof ev['errorMessage'] === 'string' ? ev['errorMessage'] : null;
+  return [{ type: 'api_retry', attempt, error }];
 }
 
 function handleMessageUpdate(ev: Record<string, unknown>): NormalizedEvent[] {

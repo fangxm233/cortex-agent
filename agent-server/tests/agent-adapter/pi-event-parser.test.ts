@@ -396,19 +396,26 @@ test('extension_ui_request: missing id or method → []', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 6. PI internal retry lifecycle — never a terminal Cortex event
+// 6. PI internal retry lifecycle — each scheduled retry is one api_retry, never terminal
 // ---------------------------------------------------------------------------
 
-test('auto_retry_start and auto_retry_end are non-terminal lifecycle events', () => {
+test('auto_retry_start becomes one api_retry; auto_retry_end is dropped', () => {
   const state = freshState();
   assert.deepEqual(
     piEventToNormalized(ev({
       type: 'auto_retry_start',
       attempt: 1,
+      maxAttempts: 3,
+      delayMs: 2000,
       errorMessage: 'Codex error: Our servers are currently overloaded.',
     }), state),
-    [],
+    [{ type: 'api_retry', attempt: 1, error: 'Codex error: Our servers are currently overloaded.' }],
   );
+  assert.deepEqual(
+    piEventToNormalized(ev({ type: 'auto_retry_start', attempt: 2 }), state),
+    [{ type: 'api_retry', attempt: 2, error: null }],
+  );
+  assert.deepEqual(piEventToNormalized(ev({ type: 'auto_retry_start' }), state), []);
   assert.deepEqual(
     piEventToNormalized(ev({ type: 'auto_retry_end', success: true, attempt: 1 }), state),
     [],

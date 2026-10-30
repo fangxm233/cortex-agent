@@ -46,6 +46,7 @@ export type RunEvent =
   | ({ type: 'context_usage'; phase: RunPhase } & ContextUsage)
   | { type: 'context_compacted'; trigger: string; preTokens?: number; phase: RunPhase }
   | { type: 'model_fallback'; originalModel: string; fallbackModel: string; phase: RunPhase }
+  | { type: 'api_retry'; attempt: number; error: string | null; phase: RunPhase }
   | {
       type: 'subagent_activity'; parentToolUseId: string; subagentType: string | null;
       kind: 'assistant' | 'tool_result'; phase: RunPhase;
@@ -152,6 +153,7 @@ export function toRunEvent(event: NormalizedEvent, phase: RunPhase): RunEvent {
     case 'context_compacted':
       return { ...event, phase };
     case 'model_fallback':
+    case 'api_retry':
       return { ...event, phase };
     case 'context_usage':
       return { ...event, phase };

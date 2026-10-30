@@ -152,6 +152,25 @@ test('a callback that throws does not stop the turn from settling', async () => 
   assert.equal((await promise).finalOutput, 'done');
 });
 
+test('each api_retry system line reaches the open turn as one retry', async () => {
+  const { machine } = makeMachine();
+  const retries: unknown[] = [];
+  const { promise } = startTurn(machine, { onApiRetry: (event: unknown) => retries.push(event) });
+  // Shape emitted by Claude Code 2.1.280 for each API retry.
+  machine.handleLine(line({
+    type: 'system', subtype: 'api_retry', attempt: 1, max_retries: 10, retry_delay_ms: 520,
+    error_status: 529, error: 'overloaded_error', session_id: 'sess-0001',
+  }));
+  machine.handleLine(line({ type: 'system', subtype: 'api_retry', attempt: 2, error_status: null }));
+  machine.handleLine(line({ type: 'system', subtype: 'api_retry' }));
+  machine.handleLine(result());
+  await promise;
+  assert.deepEqual(retries, [
+    { attempt: 1, error: 'overloaded_error' },
+    { attempt: 2, error: null },
+  ]);
+});
+
 test('a non-JSON line is ignored and does not settle anything', () => {
   const { machine } = makeMachine();
   const { outcome } = startTurn(machine);

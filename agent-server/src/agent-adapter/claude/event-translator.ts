@@ -1,7 +1,7 @@
 import type { AgentResult, ContextUsage, ToolResultImage } from '@core/types/agent-types.js';
 import type { NormalizedEvent, ToolUseSubagent } from '../normalize/event-types.js';
 import { parseTodoWrite } from '@core/todo.js';
-import type { ModelFallbackEvent } from './event-parser.js';
+import type { ApiRetryEvent, ModelFallbackEvent } from './event-parser.js';
 import type { SubagentEndStatus } from './bg-task-tracker.js';
 import type { UserMessage } from '../types.js';
 
@@ -51,6 +51,7 @@ export interface ClaudeTurnCallbacks {
   ) => void) | null;
   onCompact?: ((info: { trigger: string; preTokens?: number }) => void) | null;
   onModelFallback?: ((event: Omit<ModelFallbackEvent, 'type'>) => void) | null;
+  onApiRetry?: ((event: Omit<ApiRetryEvent, 'type'>) => void) | null;
   onContextUsage?: ((usage: ContextUsage) => void) | null;
   onSubagentActivity?: ((
     parentToolUseId: string, subagentType: string | null, kind: SubagentActivityKind,
@@ -106,6 +107,8 @@ export function claudeTurnCallbacks(push: (event: NormalizedEvent) => void): Cla
       push({ type: 'context_compacted', trigger: info.trigger, preTokens: info.preTokens }),
     onModelFallback: (event: Omit<ModelFallbackEvent, 'type'>) =>
       push({ type: 'model_fallback', ...event }),
+    onApiRetry: (event: Omit<ApiRetryEvent, 'type'>) =>
+      push({ type: 'api_retry', ...event }),
     onContextUsage: (usage: ContextUsage) =>
       push({ type: 'context_usage', ...usage }),
     onProgress: (p: { num_turns?: number } | null) => {

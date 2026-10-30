@@ -20,7 +20,7 @@ import {
   formatEvent,
   createStreamDeltaState,
   parseStreamEvent,
-  parseModelFallbackEvent,
+  type ApiRetryEvent,
   type ModelFallbackEvent,
   type StreamDeltaState,
 } from './event-parser.js';
@@ -33,6 +33,7 @@ import {
 } from './event-translator.js';
 import { ClaudeContextUsageTracker } from './context-usage.js';
 import { activeClaudeCaptureRegistry } from './active-capture-registry.js';
+import { reportSystemLine } from './system-lines.js';
 
 const log = createLogger('claude-bridge');
 
@@ -73,6 +74,7 @@ export interface PendingTurn {
   ) => void) | null;
   onCompact: ((info: { trigger: string; preTokens?: number }) => void) | null;
   onModelFallback: ((event: Omit<ModelFallbackEvent, 'type'>) => void) | null;
+  onApiRetry: ((event: Omit<ApiRetryEvent, 'type'>) => void) | null;
   onContextUsage: ((usage: ContextUsage) => void) | null;
   /** OC-11 / §17 G4-SA5: one census call per native-subagent line, carrying only the linkage. */
   onSubagentActivity: ((
@@ -297,6 +299,7 @@ export class ClaudeTurnMachine {
       onToolResult: options.onToolResult || null,
       onCompact: options.onCompact || null,
       onModelFallback: options.onModelFallback || null,
+      onApiRetry: options.onApiRetry || null,
       onContextUsage: options.onContextUsage || null,
       onSubagentActivity: options.onSubagentActivity || null,
       onSubagentEnd: options.onSubagentEnd || null,
@@ -406,6 +409,7 @@ export class ClaudeTurnMachine {
       onContextUsage: (usage: ContextUsage) =>
         this.deliverContinuation(sink => sink.onContextUsage?.(usage)),
       onModelFallback: null,
+      onApiRetry: null,
     };
   }
 
@@ -619,15 +623,6 @@ export class ClaudeTurnMachine {
     catch (e) { log.warn('onSubagentActivity threw:', (e as Error).message); }
   }
 
-  private emitModelFallback(data: any): void {
-    const event = parseModelFallbackEvent(data);
-    const callback = this.currentTurn?.onModelFallback;
-    if (!event || !callback) return;
-    try {
-      callback({ originalModel: event.originalModel, fallbackModel: event.fallbackModel });
-    } catch (e) { log.warn('onModelFallback threw:', (e as Error).message); }
-  }
-
   handleLine(line: string) {
     if (!line) return;
     this.host.resetIdleTimer();
@@ -652,19 +647,9 @@ export class ClaudeTurnMachine {
     try {
       const data = parsed;
       if (!isJson) throw new Error('not json');
-      // Context compaction boundary: invalidate the old provider-call cursor immediately, then
-      // surface the boundary to the active turn so observers (e.g. Slack) can notify.
+      // A compaction boundary invalidates the old provider-call cursor before the turn hears of it.
       if (data.type === 'system' && data.subtype === 'compact_boundary') this.emitContextUsage(data);
-      if (data.type === 'system' && data.subtype === 'compact_boundary' && this.currentTurn?.onCompact) {
-        const meta = data.compact_metadata ?? {};
-        try {
-          this.currentTurn.onCompact({
-            trigger: typeof meta.trigger === 'string' ? meta.trigger : 'auto',
-            preTokens: typeof meta.pre_tokens === 'number' ? meta.pre_tokens : undefined,
-          });
-        } catch (e) { log.warn('onCompact threw:', (e as Error).message); }
-      }
-      this.emitModelFallback(data);
+      reportSystemLine(this.currentTurn, data);
       if (data.type === 'rate_limit_event' && data.rate_limit_info) {
         const mode = this.host.anthropicBaseUrl?.match(/\/m\/([^/]+)\//)?.[1] || undefined;
         this.host.reportRateLimit(data.rate_limit_info, {
