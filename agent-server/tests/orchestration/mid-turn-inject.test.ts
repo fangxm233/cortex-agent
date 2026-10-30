@@ -213,6 +213,12 @@ test('isInjectableMessage: a synthetic wake/callback must open its own turn, not
   assert.equal(isInjectableMessage({ text: 'a child finished', senderId: SYNTHETIC_CALLBACK_SENDER }), false);
 });
 
+test('isInjectableMessage: a file-only message qualifies, a blank one without files does not', () => {
+  assert.equal(isInjectableMessage({ text: '', senderId: 'U1', hasFiles: true }), true);
+  assert.equal(isInjectableMessage({ text: '  ', senderId: 'U1' }), false);
+  assert.equal(isInjectableMessage({ text: '', senderId: 'U1', hasFiles: false }), false);
+});
+
 // --- Fallback: everything that must keep today's conduit-queue behaviour ---
 
 test('no live execution on the channel → not injected without preparing platform files', async () => {
@@ -428,6 +434,49 @@ test('mid-turn DEBUG prompt includes the image path sent through the adapter', a
     r.persisted[0].agentMessage,
     `[User sent 1 image(s). Read these files to view them:\n${path.join(WORKSPACE_DIR, 'attachments', 'a.png')}\n]\n\nskip the rest`,
   );
+});
+
+test('an image sent without text folds into the live turn instead of waiting behind it', async () => {
+  const run = fakeRun();
+  const r = recorder({}, run);
+  const attachments = [{ name: 'a.png', path: 'workspace/attachments/a.png', size: 3, mimeType: 'image/png', type: 'image' as const }];
+
+  assert.equal(await tryInjectIntoLiveTurn(r.deps, { ...baseCtx, text: '', attachments }), true);
+  assert.deepEqual(run.injectedMessages[0].attachments, [
+    { mimeType: 'image/png', path: path.join(WORKSPACE_DIR, 'attachments', 'a.png') },
+  ]);
+  assert.deepEqual(r.published[0].attachments, attachments);
+
+  await run.deliver('', true);
+  assert.equal(r.delivered.length, 1, 'the empty-text ack still commits the pending row');
+});
+
+test('platform files alone make a message injectable before they are downloaded', async () => {
+  const run = fakeRun();
+  const r = recorder({}, run);
+  const platformPath = '/tmp/feishu-shot.png';
+
+  assert.equal(await tryInjectIntoLiveTurn(r.deps, {
+    ...baseCtx,
+    text: '',
+    hasPlatformFiles: true,
+    prepareBackendAttachments: async () => [{ mimeType: 'image/png', path: platformPath }],
+  }), true);
+  assert.deepEqual(run.injectedMessages[0].attachments, [{ mimeType: 'image/png', path: platformPath }]);
+});
+
+test('a file-only message whose files all failed to download takes the queue', async () => {
+  const run = fakeRun();
+  const r = recorder({}, run);
+
+  assert.equal(await tryInjectIntoLiveTurn(r.deps, {
+    ...baseCtx,
+    text: '',
+    hasPlatformFiles: true,
+    prepareBackendAttachments: async () => [],
+  }), false);
+  assert.deepEqual(run.injectedMessages, [], 'a blank message is never written into the turn');
+  assert.deepEqual(r.published, []);
 });
 
 test('lazy platform files join Web attachments for backend injection without changing transcript metadata', async () => {

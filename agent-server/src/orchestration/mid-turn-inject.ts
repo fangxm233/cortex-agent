@@ -54,17 +54,21 @@ export interface MidTurnInjectCtx {
   /** The inbound platform message id — the ledger turn's key. */
   messageId: string;
   attachments?: AttachmentMeta[];
+  /** The inbound message carries platform files `prepareBackendAttachments` will download, so a
+   *  message with no text still qualifies before they are fetched. */
+  hasPlatformFiles?: boolean;
   /** A clean session's workspace: the files are copied into its `inputs/` and given from there. */
   workspace?: string | null;
   /** Lazily download platform-native files only after an injectable target is selected. */
   prepareBackendAttachments?: () => Promise<UserMessage['attachments']>;
 }
 
-/** Only plain human messages may fold into an in-flight turn. Commands and synthetic session
- * re-entry messages own separate dispatch semantics; edits kill the live execution before routing. */
-export function isInjectableMessage(opts: { text: string; senderId: string }): boolean {
+/** Only plain human messages — text, files, or both — may fold into an in-flight turn. Commands
+ * and synthetic session re-entry messages own separate dispatch semantics; edits kill the live
+ * execution before routing. */
+export function isInjectableMessage(opts: { text: string; senderId: string; hasFiles?: boolean }): boolean {
   const text = (opts.text ?? '').trim();
-  if (!text) return false;
+  if (!text && !opts.hasFiles) return false;
   if (text.startsWith('!')) return false;
   if (opts.senderId === SYNTHETIC_CALLBACK_SENDER) return false;
   return true;
@@ -121,13 +125,16 @@ export async function tryInjectIntoLiveTurn(
   deps: MidTurnInjectDeps,
   ctx: MidTurnInjectCtx,
 ): Promise<boolean> {
-  if (!isInjectableMessage(ctx) || !ctx.sessionId) return false;
+  const hasFiles = !!ctx.attachments?.length || !!ctx.hasPlatformFiles;
+  if (!isInjectableMessage({ text: ctx.text, senderId: ctx.senderId, hasFiles }) || !ctx.sessionId) return false;
   const target = selectInjectRun(deps.getLiveExecutions(ctx.channel), ctx.sessionId);
   if (!target) return false;
   const platformAttachments = ctx.prepareBackendAttachments
     ? await ctx.prepareBackendAttachments()
     : undefined;
   const message = await prepareBackendMessage(ctx, platformAttachments);
+  // Every file of a text-less message failed to arrive: the queued turn reports that instead.
+  if (!message.text.trim() && !message.attachments) return false;
   const record = buildPendingRecord(deps, ctx, message, ctx.sessionId, target.backend, deps.now());
   const outcome = await target.run.steer(message, record.id);
   if (outcome === 'refused') return false;

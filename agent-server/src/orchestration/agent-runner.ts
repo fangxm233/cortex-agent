@@ -12,7 +12,7 @@ import { registerSessionRecord } from '@domain/sessions/session-lifecycle.js';
 import { createLogger } from '@core/log.js';
 import { isDebugMode } from '@core/debug-mode.js';
 import { publishSessionDebugUpdated } from './session-events.js';
-import { isInjectableMessage, tryInjectIntoLiveTurn } from './mid-turn-inject.js';
+import { isInjectableMessage, tryInjectIntoLiveTurn, type MidTurnInjectCtx } from './mid-turn-inject.js';
 import { runRegistry } from '@core/run-registry.js';
 import { prepareConversationRequest } from './conversation-request.js';
 import { openTurn, buildInjectDeps } from './turn/turn.js';
@@ -143,7 +143,8 @@ export class AgentRunner {
    */
   private async _tryInjectReal(ctx: AgentRunnerCtx, loadPlatformFiles: PlatformFileLoader): Promise<boolean> {
     try {
-      if (!isInjectableMessage({ text: ctx.userMessage || '', senderId: ctx.message.senderId })) return false;
+      const hasFiles = ctx.hasFiles || !!ctx.message.webAttachments?.length;
+      if (!isInjectableMessage({ text: ctx.userMessage || '', senderId: ctx.message.senderId, hasFiles })) return false;
       if (!runRegistry.hasChannel(ctx.channel)) return false;
       const sessionId = await getSessionAsync(ctx.channel);
       if (!sessionId) return false;
@@ -159,11 +160,8 @@ export class AgentRunner {
         ...(ctx.message.systemOrigin ? { systemOrigin: ctx.message.systemOrigin } : {}),
         messageId: ctx.message.ref.messageId,
         attachments: ctx.message.webAttachments,
-        prepareBackendAttachments: async () => (await loadPlatformFiles()).files.map((file) => ({
-          mimeType: file.mimetype,
-          path: file.localPath,
-          name: file.name,
-        })),
+        hasPlatformFiles: ctx.hasFiles,
+        prepareBackendAttachments: platformAttachmentLoader(loadPlatformFiles),
       });
     } catch (e) {
       // Never let the injection attempt break routing — fall back to the queue.
@@ -275,6 +273,15 @@ function mergeAttachments(
 function turnOrigin(message: IncomingMessage): string {
   const origin = (message.raw as { deliveryOrigin?: unknown } | null | undefined)?.deliveryOrigin;
   return typeof origin === 'string' && origin ? origin : 'platform';
+}
+
+/** Platform files in the backend attachment shape, downloaded only when first asked for. */
+function platformAttachmentLoader(load: PlatformFileLoader): NonNullable<MidTurnInjectCtx['prepareBackendAttachments']> {
+  return async () => (await load()).files.map((file) => ({
+    mimeType: file.mimetype,
+    path: file.localPath,
+    name: file.name,
+  }));
 }
 
 function createPlatformFileLoader(ctx: AgentRunnerCtx): PlatformFileLoader {
