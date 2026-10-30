@@ -89,6 +89,8 @@ export interface PendingTurn {
   rawStream: Writable;
   txtStream: Writable;
   killed: boolean;
+  /** Why the turn was killed, when it was not a cancel (the idle watchdog). */
+  killError?: Error;
   /** True for a synthetic turn opened to capture a background-task continuation
    *  (the spontaneous turn the CLI emits after a run_in_background task finishes). */
   spontaneous?: boolean;
@@ -752,7 +754,7 @@ export class ClaudeTurnMachine {
         // (single-fire; the resolve path never ran because no result event arrived).
         this.notifyBgInterrupted(true);
       } else if (turn.killed) {
-        turn.reject(new CancelledError());
+        turn.reject(turn.killError ?? new CancelledError());
       } else {
         const result = extractResult(turn.resultData, this.host.sessionId, code || 1, stderr,
           turn.planFilePath, turn.enteredPlanMode, turn.exitedPlanMode, turn.finalOutput, turn.longestOutput);
@@ -777,7 +779,10 @@ export class ClaudeTurnMachine {
     return this.bgTracker.hasPending() || this.pendingInjections.length > 0 || this.injectionContinuationArmed;
   }
 
-  markCurrentTurnKilled(): void {
-    if (this.currentTurn) this.currentTurn.killed = true;
+  /** The open turn rejects as cancelled when its process closes, or with `reason` if given. */
+  markCurrentTurnKilled(reason?: Error): void {
+    if (!this.currentTurn) return;
+    this.currentTurn.killed = true;
+    this.currentTurn.killError = reason;
   }
 }

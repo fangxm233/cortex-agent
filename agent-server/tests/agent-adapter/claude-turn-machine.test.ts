@@ -419,6 +419,15 @@ test('a killed turn rejects with CancelledError when the process closes', async 
   assert.equal(machine.currentTurn, null);
 });
 
+test('a turn killed with a reason rejects with that reason, not as cancelled', async () => {
+  const { machine } = makeMachine();
+  const { promise } = startTurn(machine);
+  machine.markCurrentTurnKilled(new Error('Claude turn idle for 60min'));
+  machine.abortTurnOnProcessClose(null, '');
+  await assert.rejects(promise, (e: unknown) =>
+    e instanceof Error && !(e instanceof CancelledError) && e.message === 'Claude turn idle for 60min');
+});
+
 test('a process that dies mid-turn rejects with its stderr, even on exit code 0', async () => {
   const { machine, calls } = makeMachine();
   const { promise } = startTurn(machine);

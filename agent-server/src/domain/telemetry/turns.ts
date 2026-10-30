@@ -30,13 +30,21 @@ interface RunStats {
   subagents: { completed: number; failed: number; cancelled: number };
 }
 
+// "turn idle for": both adapters' watchdog message when a turn produced nothing for an hour.
+const TIMEOUT = /tim(?:ed? ?out|eout)|\bturn idle for\b/i;
+const ADAPTER_CRASH = /exited with code|process exited|spawn|SIGSEGV|SIGABRT|killed|crash/i;
+
+/** First matching rule wins, so the order is the precedence. */
+const FAILURE_RULES: [FailureClass, (message: string) => boolean][] = [
+  ['auth', (message) => !!classifyAuthError(message)],
+  ['rate_limit', isApiRateLimitError],
+  ['timeout', (message) => TIMEOUT.test(message)],
+  ['network', (message) => isRetryableError(new Error(message))],
+  ['adapter_crash', (message) => ADAPTER_CRASH.test(message)],
+];
+
 export function classifyTurnFailure(message: string): FailureClass {
-  if (classifyAuthError(message)) return 'auth';
-  if (isApiRateLimitError(message)) return 'rate_limit';
-  if (/tim(?:ed? ?out|eout)/i.test(message)) return 'timeout';
-  if (isRetryableError(new Error(message))) return 'network';
-  if (/exited with code|process exited|spawn|SIGSEGV|SIGABRT|killed|crash/i.test(message)) return 'adapter_crash';
-  return 'other';
+  return FAILURE_RULES.find(([, matches]) => matches(message))?.[0] ?? 'other';
 }
 
 function billingOf(request: RunRequest): 'plan' | 'api' {

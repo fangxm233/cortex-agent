@@ -1,7 +1,7 @@
 import { engineSpecFixture, type EngineSpecFixtureInput } from '../engine-spec-fixture.js';
 
 
-import { beforeAll, test } from 'vitest';
+import { beforeAll, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -31,6 +31,7 @@ import {
   EMPTY_MCP_CONFIG,
   MCP_CONFIG,
   INTERACTION_BRIDGE_TOOLS,
+  TURN_IDLE_TIMEOUT,
 } from '../../src/agent-adapter/claude/defaults.js';
 import {
   setActivePlanFile,
@@ -1056,6 +1057,19 @@ test('Claude print surfaces one valid model_refusal_fallback event from snake_ca
   assert.deepEqual(fallbacks, [{
     originalModel: 'claude-fable-5[1m]', fallbackModel: 'claude-opus-4-8[1m]',
   }]);
+});
+
+test('the turn idle watchdog fails a stalled turn instead of cancelling it', async (t) => {
+  vi.useFakeTimers();
+  t.onTestFinished(() => { vi.useRealTimers(); });
+  const { session, cleanup } = compactTestSession();
+  t.onTestFinished(cleanup);
+  session.proc.kill = () => true;
+  const promise = session.sendMessage('hello', {});
+  promise.catch(() => {});
+  vi.advanceTimersByTime(TURN_IDLE_TIMEOUT);
+  session.handleProcessClose(null);
+  await assert.rejects(promise, (e: any) => e.message === 'Claude turn idle for 60min' && e.cancelled !== true);
 });
 
 // --- ClaudeAdapter.open — EngineSpec.env.unsets reaches the child ---

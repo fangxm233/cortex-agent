@@ -99,6 +99,8 @@ test('failures are classified; user cancels and supersedes are counted; worker a
   assert.equal(classifyTurnFailure('claude exited with code 1'), 'adapter_crash');
   assert.equal(classifyTurnFailure('429 Too Many Requests'), 'rate_limit');
   assert.equal(classifyTurnFailure('something odd'), 'other');
+  assert.equal(classifyTurnFailure('PI turn idle for 60min'), 'timeout');
+  assert.equal(classifyTurnFailure('Claude turn idle for 60min'), 'timeout');
 });
 
 test('retries count the backend\'s own API retries, not non-fatal errors', () => {
