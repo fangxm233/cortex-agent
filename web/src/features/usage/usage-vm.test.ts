@@ -167,7 +167,7 @@ describe('buildUsageView', () => {
     });
   });
 
-  it('leaves the lifetime total empty when the gateway reported none', () => {
+  it('leaves the 90-day total empty on a row stored without one', () => {
     const vm = buildUsageView([
       {
         provider: 'deepseek', displayName: 'DeepSeek', modes: ['deepseek'], freshness: 'unsupported',

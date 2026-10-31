@@ -388,12 +388,12 @@ function SpendBlock({ provider, L }: { provider: ProviderUsageView; L: Vocab }) 
   if (!provider.spend) return null;
   return (
     <section data-usage-spend={provider.provider} style={{ padding: `0 ${PAD_X} 10px` }}>
-      <div style={{ ...LABEL, borderTop: RULE, paddingTop: 10 }}>{L.usageMobileGatewaySpend}</div>
+      <div style={{ ...LABEL, borderTop: RULE, paddingTop: 10 }}>{L.usageMobileSpend}</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 8 }}>
         <span style={SPEND}>{provider.spend.today} <small>{L.usageMobileToday}</small></span>
         <span style={SPEND}>{provider.spend.month} <small>{L.usageMobileMonth}</small></span>
         {provider.spend.all !== null && (
-          <span style={SPEND}>{provider.spend.all} <small>{L.usageMobileAllTime}</small></span>
+          <span style={SPEND}>{provider.spend.all} <small>{L.usageMobileLast90Days}</small></span>
         )}
       </div>
     </section>

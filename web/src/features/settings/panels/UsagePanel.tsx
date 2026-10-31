@@ -412,11 +412,11 @@ function SpendRow({ provider }: { provider: ProviderUsageView }) {
   if (!provider.spend) return null;
   return (
     <div data-usage-spend={provider.provider} style={{ ...WINDOW_LINE, padding: ROW_STYLE.padding }}>
-      <span style={WINDOW_NAME}>{L.usageGatewaySpend}</span>
+      <span style={WINDOW_NAME}>{L.usageSpend}</span>
       <span style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 18, rowGap: 4 }}>
         <SpendFigure value={provider.spend.today} caption={L.usageToday} />
         <SpendFigure value={provider.spend.month} caption={L.usageMonth} />
-        {provider.spend.all !== null && <SpendFigure value={provider.spend.all} caption={L.usageAllTime} />}
+        {provider.spend.all !== null && <SpendFigure value={provider.spend.all} caption={L.usageLast90Days} />}
       </span>
     </div>
   );
@@ -433,7 +433,7 @@ function quotaRows(provider: ProviderUsageView, usage: ReturnType<typeof useUsag
   return rows;
 }
 
-/** Quota windows, banked resets and gateway spend share one run of rows under the provider. */
+/** Quota windows, banked resets and spend share one run of rows under the provider. */
 function ProviderRows({ provider, usage }: { provider: ProviderUsageView; usage: ReturnType<typeof useUsage> }) {
   const L = useVocab();
   const rows = quotaRows(provider, usage, L);

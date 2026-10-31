@@ -84,13 +84,13 @@ function textOf(node: { children: unknown[] }): string {
 }
 
 describe('MUsageView spend', () => {
-  it('adds the lifetime total only when the gateway reports one', () => {
+  it('adds the 90-day total only when the row carries one', () => {
     const renderer = create(view());
     const spend = (provider: string) => textOf(renderer.root.findByProps({ 'data-usage-spend': provider }));
 
     expect(spend('deepseek')).toContain('$9.50 Last 30 days');
-    expect(spend('deepseek')).toContain('$120.50 All time');
-    expect(spend('zai')).not.toContain('All time');
+    expect(spend('deepseek')).toContain('$120.50 Last 90 days');
+    expect(spend('zai')).not.toContain('Last 90 days');
   });
 });
 

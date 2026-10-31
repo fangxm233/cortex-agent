@@ -255,13 +255,13 @@ describe('desktop Settings Usage panel', () => {
     act(() => renderer.unmount());
   });
 
-  it('shows today, the last 30 days, and the lifetime total only when the gateway reports one', () => {
+  it('shows today, the last 30 days, and the last 90 days only when the row carries that total', () => {
     const renderer = mount();
     const stats = (provider: string) => renderer.root.findByProps({ 'data-usage-spend': provider })
       .findAll((node) => typeof node.type === 'string' && node.props['data-usage-spend-figure'] !== undefined)
       .map((figure) => [figure.props['data-usage-spend-value'], figure.props['data-usage-spend-figure']]);
 
-    expect(stats('deepseek')).toEqual([['$1.25', 'today'], ['$9.50', 'last 30 days'], ['$120.50', 'all time']]);
+    expect(stats('deepseek')).toEqual([['$1.25', 'today'], ['$9.50', 'last 30 days'], ['$120.50', 'last 90 days']]);
     expect(stats('zai')).toEqual([['$0.00', 'today'], ['$2.00', 'last 30 days']]);
   });
 

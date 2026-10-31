@@ -77,7 +77,7 @@ export interface ProviderSpendView {
   today: string;
   /** Rolling 30 days. */
   month: string;
-  /** Null when the gateway reports no lifetime total. */
+  /** The last 90 days; null on a row stored before that total was read. */
   all: string | null;
 }
 
