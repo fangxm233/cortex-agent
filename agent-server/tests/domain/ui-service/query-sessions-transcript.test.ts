@@ -344,6 +344,19 @@ test('a pending interaction older than the TTL derives to expired even when the 
   assert.equal(out.turns[0].messages[1].interaction?.status, 'expired');
 });
 
+test('a live non-blocking ask stays pending past the TTL', async () => {
+  const old = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const history: SessionHistory = {
+    sessionId: 's3b',
+    events: [
+      { type: 'user', text: 'go', ts: old, turnIndex: 0 },
+      { type: 'interaction', id: 'req-3b', kind: 'ask-user', status: 'pending', payload: { questions: QUESTIONS, blocking: false }, text: 'A or B?', ts: old, turnIndex: 0 },
+    ],
+  };
+  const out = await handleSessionsTranscript(makeInteractionDeps(history, ['req-3b']), { sessionId: 's3b' });
+  assert.equal(out.turns[0].messages[1].interaction?.status, 'pending');
+});
+
 test('a resolved interaction materializes final status + result and never re-derives', async () => {
   const now = new Date().toISOString();
   const history: SessionHistory = {

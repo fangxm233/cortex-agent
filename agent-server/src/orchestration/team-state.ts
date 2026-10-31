@@ -161,7 +161,8 @@ export interface WorkerViewDeps {
 const defaultViewDeps: WorkerViewDeps = {
   isRunning: (id) => sessionState(id).running,
   isQueued: (channel) => conduitQueues.has(channel),
-  pendingInteractions: (channel) => interactionRecords.getPendingByChannel(channel),
+  // A non-blocking ask never expires and does not stall the worker, so it is not "waiting".
+  pendingInteractions: (channel) => interactionRecords.getPendingByChannel(channel).filter((e) => e.payload.blocking !== false),
   openWaitpoints: (id, channel) => countOpenWaitpoints(id, channel),
   history: (id) => conversationHistory.getHistory(id, { includeToolDebug: false }),
   now: () => Date.now(),

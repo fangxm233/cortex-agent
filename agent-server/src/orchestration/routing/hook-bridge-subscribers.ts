@@ -55,11 +55,10 @@ export function registerHookBridgeSubscribers(
     const ev = e as Extract<CortexEvent, { type: 'ask-user.requested' }>;
     if (ev.dryRun) return; // smoke-test: event is journalled, skip Slack post
     try {
-      const group = askUserQuestion.createHookGroup(ev.requestId, ev.channel, ev.sessionId, ev.questions, ev.extensionUiId, ev.level ?? null);
       const nonBlocking = ev.blocking === false;
+      const group = askUserQuestion.createHookGroup(ev.requestId, ev.channel, ev.sessionId, ev.questions, ev.extensionUiId, ev.level ?? null, !nonBlocking);
       askUserQuestion.registerHookResolver(ev.requestId, (data) => {
-        // Clearing the pending entry first keeps the TTL sweep off an answered non-blocking card;
-        // its resolve is a no-op, so nothing downstream depends on the return value.
+        // A non-blocking ask has no pending bridge entry, so this resolve is a no-op for it.
         resolveHookRequest(ev.requestId, data);
         if (!nonBlocking) return;
         const text = askAnswerMessageText(data?.answers ?? {});

@@ -37,8 +37,11 @@ function formatGroupResponse(group) {
 
 // --- State management ---
 
+/** A non-blocking ask has no waiting caller, so its group never expires. */
 function isExpired(record) {
-  return !record || (Date.now() - record.createdAt) > ASK_USER_QUESTION_TTL_MS;
+  if (!record) return true;
+  if (record.blocking === false) return false;
+  return (Date.now() - record.createdAt) > ASK_USER_QUESTION_TTL_MS;
 }
 
 function getGroup(groupId) {
@@ -57,8 +60,9 @@ const pendingHookResolvers = new Map();
 /** Create a question group from a PreToolUse hook request (not from Claude output).
  *  @param extensionUiId — original PI extension_ui_request id; when set, tryResolveHook
  *         uses this for respondToDialog instead of the hookRequestId.
- *  @param level — optional severity ('info'|'warning'|'error') rendered by the block builders. */
-function createHookGroup(requestId, channel, sessionId, questions, extensionUiId?: string, level?: 'info' | 'warning' | 'error' | null) {
+ *  @param level — optional severity ('info'|'warning'|'error') rendered by the block builders.
+ *  @param blocking — false for a non-blocking ask, whose group never expires. */
+function createHookGroup(requestId, channel, sessionId, questions, extensionUiId?: string, level?: 'info' | 'warning' | 'error' | null, blocking = true) {
   const groupId = buildGroupId(sessionId, requestId);
   const group = {
     groupId,
@@ -70,6 +74,7 @@ function createHookGroup(requestId, channel, sessionId, questions, extensionUiId
     hookRequestId: requestId,
     extensionUiId: extensionUiId || null,
     level: level ?? null,
+    blocking,
     questions: questions.map((q, idx) => ({
       pendingId: buildPendingId(sessionId, requestId, idx),
       header: q.header,

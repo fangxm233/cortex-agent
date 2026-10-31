@@ -35,7 +35,7 @@ export interface DeskAskCardProps {
 
 export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: DeskAskCardProps): JSX.Element {
   const pending = model.status === 'pending';
-  const ttlSec = useTtlSeconds(model.ts, pending);
+  const ttlSec = useTtlSeconds(model.ts, pending && model.blocking);
   const canSubmit = pending && !busy && deskCanSubmit(model, state);
 
   // sealed — 13b right column: per-question ✓ rows
@@ -73,7 +73,7 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
         <span style={{ width: 18, height: 18, borderRadius: '50%', background: tone ? tone.bg : 'var(--proto-accent-bg)', color: tone ? tone.fg : 'var(--proto-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flex: 'none' }}>{tone ? tone.icon : '?'}</span>
         <span style={{ fontSize: 11, fontWeight: 600, padding: '2.5px 9px', borderRadius: 'var(--r-pill)', background: tone ? tone.bg : 'var(--proto-accent-bg)', color: tone ? tone.fg : 'var(--pill-running-fg)' }}>{copy.ixAskPill}</span>
         <span style={{ marginLeft: 'auto', font: `400 11px ${mono}`, color: 'var(--proto-muted)' }}>
-          {copy.ixTtlPrefix} {ttlSec != null ? formatTtl(ttlSec) : '30m'}
+          {model.blocking ? `${copy.ixTtlPrefix} ${ttlSec != null ? formatTtl(ttlSec) : '30m'}` : model.timeLabel}
         </span>
       </div>
 

@@ -61,6 +61,11 @@ describe('askCardModel', () => {
     expect(m!.questions[0].options[1].description).toBeNull();
     expect(m!.questions[1].multiSelect).toBe(true);
   });
+  it('marks an ask blocking unless the payload says blocking:false', () => {
+    expect(askCardModel(askDetail('pending'))!.blocking).toBe(true);
+    const detail = askDetail('pending');
+    expect(askCardModel({ ...detail, payload: { ...detail.payload, blocking: false } })!.blocking).toBe(false);
+  });
   it('carries per-question answers from result.answers on sealed cards', () => {
     const m = askCardModel(askDetail('answered', { answers: { 'A or B?': 'A', 'checks?': 'x, y', 'free?': 'none' } }));
     expect(m!.questions.map((q) => q.answer)).toEqual(['A', 'x, y', 'none']);

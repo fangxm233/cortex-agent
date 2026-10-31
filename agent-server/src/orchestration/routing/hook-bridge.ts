@@ -31,8 +31,8 @@ function initHookBridge(bus: EventBus): void {
  *
  * `blocking: false` posts the same card but returns at once: the caller keeps running and the
  * answer is delivered later as an ordinary user message by the `ask-user.requested` subscriber.
- * A pending entry is still recorded so the shared TTL sweep expires the card and cleans the group
- * exactly as it does for a blocking ask — its resolve is a no-op because no caller is waiting.
+ * No pending entry is recorded — nobody is waiting, so the TTL sweep never expires the card and
+ * it stays answerable for as long as the server keeps it.
  */
 function registerAskQuestion(requestId: string, channel: string, sessionId: string, questions: any[], dryRun = false, level?: ChatNoticeLevel | null, blocking = true): Promise<any> {
   return new Promise((resolve) => {
@@ -49,7 +49,6 @@ function registerAskQuestion(requestId: string, channel: string, sessionId: stri
       return;
     }
     if (!blocking) {
-      pendingRequests.set(requestId, { resolve: () => { /* nobody is waiting on a non-blocking ask */ }, channel, sessionId, createdAt: Date.now() });
       _bus.publish({ type: 'ask-user.requested', requestId, channel, sessionId, questions, ...levelField, blocking: false });
       resolve({ posted: true, requestId });
       return;

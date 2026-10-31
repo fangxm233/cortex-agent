@@ -124,7 +124,7 @@ export function MAskCard({ model, state, copy, onPick, onToggle, onConfirmMulti 
   const pending = model.status === 'pending';
   const cur = currentQuestionIndex(model, state);
   const total = model.questions.length;
-  const ttlSec = useTtlSeconds(model.ts, pending);
+  const ttlSec = useTtlSeconds(model.ts, pending && model.blocking);
   // Sealed card (4a): tap to expand the full per-question options for review (不可撤销).
   const [expanded, setExpanded] = useState(false);
 

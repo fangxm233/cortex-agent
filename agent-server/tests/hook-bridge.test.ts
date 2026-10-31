@@ -98,7 +98,7 @@ test('cleanupStale resolves timed-out requests and fires the onStale callback', 
   assert.equal(stale[0].sessionId, 'sess-t');
 });
 
-// ── (6) Non-blocking ask returns at once but stays under the TTL sweep ─────────
+// ── (6) Non-blocking ask returns at once and is never swept ────────────────────
 
 test('registerAskQuestion with blocking=false resolves immediately and marks the event non-blocking', async () => {
   const bus = new EventBus();
@@ -113,12 +113,9 @@ test('registerAskQuestion with blocking=false resolves immediately and marks the
 
   const ev = received[0] as Extract<CortexEvent, { type: 'ask-user.requested' }>;
   assert.equal(ev.blocking, false);
-
-  // hook-bridge keeps module-level state across tests: drop the entry so a later TTL sweep is clean.
-  hb.resolveRequest('req-nb', { answers: {} });
 });
 
-test('an unanswered non-blocking ask is still swept by the TTL cleanup', async (t) => {
+test('an unanswered non-blocking ask is never expired by the TTL sweep', async (t) => {
   const bus = new EventBus();
   hb.initHookBridge(bus);
   t.onTestFinished(() => hb.setOnStale(null));
@@ -127,20 +124,6 @@ test('an unanswered non-blocking ask is still swept by the TTL cleanup', async (
   hb.setOnStale((requestId) => { stale.push(requestId); });
 
   await hb.registerAskQuestion('req-nb-ttl', 'web:sess-nb2', 'sess-nb2', [{ q: 'Which DB?' }], false, null, false);
-  hb.cleanupStale(Date.now() + 31 * 60 * 1000);
-  assert.deepEqual(stale, ['req-nb-ttl']);
-});
-
-test('an answered non-blocking ask is removed from the pending set before the TTL fires', async (t) => {
-  const bus = new EventBus();
-  hb.initHookBridge(bus);
-  t.onTestFinished(() => hb.setOnStale(null));
-
-  const stale: string[] = [];
-  hb.setOnStale((requestId) => { stale.push(requestId); });
-
-  await hb.registerAskQuestion('req-nb-answered', 'web:sess-nb3', 'sess-nb3', [{ q: 'Which DB?' }], false, null, false);
-  assert.equal(hb.resolveRequest('req-nb-answered', { answers: { 'Which DB?': 'sqlite' } }), true);
-  hb.cleanupStale(Date.now() + 31 * 60 * 1000);
+  hb.cleanupStale(Date.now() + 7 * 24 * 60 * 60 * 1000);
   assert.deepEqual(stale, []);
 });
