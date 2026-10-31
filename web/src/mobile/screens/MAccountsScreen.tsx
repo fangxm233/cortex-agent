@@ -4,12 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import type { AuthStatusSnapshot } from '@cortex-agent/ui-contract';
 import { useLoginFlow } from '@/features/auth/LoginFlowProvider';
 import { useAccountsController } from '@/features/settings/controllers/useAccountsController';
-import { useCustomProvidersController } from '@/features/settings/controllers/useCustomProvidersController';
+import { useConnectionsController } from '@/features/settings/controllers/useConnectionsController';
 import { useVocab } from '@/i18n';
 import { MC } from '@/mobile/ui/kit';
 import { MSettingsPage } from './MSettingsControls';
 import { MAccountsView } from './MAccountsView';
-import { MCustomProviderSheet } from './MCustomProviderSheet';
+import { MConnectionSheet } from './MConnectionSheet';
 import { buildAccountsVm } from '@/features/settings/vm/accounts-vm';
 
 const EMPTY_STATUS: AuthStatusSnapshot = {
@@ -23,7 +23,7 @@ export function MAccountsScreen() {
   const navigate = useNavigate();
   const { openLogin } = useLoginFlow();
   const accounts = useAccountsController();
-  const custom = useCustomProvidersController();
+  const connections = useConnectionsController();
   const [filter, setFilter] = useState('');
   const vm = useMemo(() => buildAccountsVm(accounts.status ?? EMPTY_STATUS, filter), [accounts.status, filter]);
   return (
@@ -38,15 +38,16 @@ export function MAccountsScreen() {
               onLogin={openLogin} onLogout={accounts.logout}
               actionsDisabled={accounts.logoutPending}
               onRescan={accounts.syncModels} rescanning={accounts.syncPending}
-              custom={{
-                providers: custom.providers, confirmingDelete: custom.confirmingDelete,
-                savePending: custom.savePending, removePending: custom.removePending,
-                onNew: custom.openCreate, onEdit: custom.openEdit, onDelete: custom.requestDelete,
+              connections={{
+                rows: connections.rows, confirmingDelete: connections.confirmingDelete,
+                savePending: connections.savePending, removePending: connections.removePending,
+                onNew: connections.openCreate, onEdit: connections.openEdit, onDelete: connections.requestDelete,
               }} />}
-      {custom.draft ? (
-        <MCustomProviderSheet draft={custom.draft} creating={custom.creating}
-          errors={custom.errors} pending={custom.savePending}
-          onChange={custom.changeDraft} onClose={custom.closeDraft} onSave={custom.save} />
+      {connections.draft ? (
+        <MConnectionSheet draft={connections.draft} creating={connections.creating}
+          errors={connections.errors} pending={connections.savePending}
+          kinds={connections.kinds} overridable={connections.overridable}
+          onChange={connections.changeDraft} onClose={connections.closeDraft} onSave={connections.save} />
       ) : null}
     </>
   );

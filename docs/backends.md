@@ -388,8 +388,17 @@ logged into, and it is managed from the same three surfaces as everything else:
 | Surface | Entry |
 |---|---|
 | CLI | `cortex auth provider list \| add \| remove` |
-| Web (desktop and mobile) | **Settings → Accounts → Custom providers** |
+| Web (desktop and mobile) | **Settings → Accounts → Connections** |
 | Slack / Feishu | `!login custom [list \| add <name> <api> <url> <model…> \| remove <name>]` |
+
+On the web, **Connections** lists every connection Cortex stores: Claude
+endpoints (API keys and relays), base-URL overrides of PI's built-in providers,
+and custom providers. Each row shows a hint of its key, never the key. **New
+connection** picks one of the three kinds; names cannot be changed afterwards.
+The Claude `api` row and the API key slot in the Claude Code section are the
+same record, so an edit or deletion in one shows in the other. Deleting a Claude
+connection moves sessions that used it to the default connection; deleting an
+override sends the provider's requests back to its own endpoint and login.
 
 A definition needs four things: a name, the request protocol the endpoint
 speaks (`anthropic-messages`, `openai-completions`, `openai-responses`, or

@@ -154,8 +154,10 @@ cortex auth status --json
 | 入口 | 用法 |
 |---|---|
 | CLI | `cortex auth provider list \| add \| remove` |
-| Web（桌面与移动端） | **设置 → 账号 → 自定义 Provider** |
+| Web（桌面与移动端） | **设置 → 账号 → 连接** |
 | Slack / 飞书 | `!login custom [list \| add <name> <api> <url> <model…> \| remove <name>]` |
+
+网页端的 **连接** 分区列出 Cortex 存储的所有连接：Claude 端点（API key 与中转）、PI 内置 provider 的 base URL 覆盖，以及自定义 provider。每行只显示密钥提示，不显示密钥本身。**新建连接** 时选择三种类型之一；名称之后不可修改。Claude 的 `api` 行与 Claude Code 分区里的 API key 槽位是同一条记录，在任一处编辑或删除都会反映到另一处。删除 Claude 连接后，使用它的会话改用默认连接；删除覆盖后，该 provider 的请求改回使用它自带的端点和登录。
 
 一条定义需要四样东西：名称、端点使用的请求协议（`anthropic-messages`、`openai-completions`、`openai-responses` 或 `google-generative-ai`）、上游 URL，以及至少一个模型 id。上游密钥可选；不填时网关会透传调用方自己的 key。
 

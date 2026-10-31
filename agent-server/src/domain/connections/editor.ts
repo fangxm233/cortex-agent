@@ -21,12 +21,12 @@ export interface ClaudeConnectionInput {
   kind: 'claude';
   id: string;
   label?: string;
-  /** Empty or null: the official Anthropic API. */
-  baseUrl?: string | null;
+  /** Empty: the official Anthropic API. Omitted keeps the stored one. */
+  baseUrl?: string;
   authStyle?: ClaudeAuthStyle;
   billing?: ConnectionBilling;
-  /** Empty or null: the Anthropic catalog. */
-  models?: string[] | null;
+  /** Empty: the Anthropic catalog. Omitted keeps the stored list. */
+  models?: string[];
   /** Omitted keeps the stored key. A Claude connection always needs one. */
   key?: string;
 }
@@ -118,9 +118,9 @@ function claudeConnection(input: ClaudeConnectionInput, previous: ClaudeKeyConne
     key: input.key === undefined ? previous!.key : input.key.trim(),
     billing: input.billing ?? previous?.billing ?? 'metered',
   };
-  const baseUrl = input.baseUrl === undefined ? previous?.baseUrl : input.baseUrl?.trim();
+  const baseUrl = input.baseUrl === undefined ? previous?.baseUrl : input.baseUrl.trim();
   if (baseUrl) connection.baseUrl = baseUrl;
-  const models = (input.models === undefined ? previous?.models : input.models ?? [])?.map((id) => id.trim()).filter(Boolean);
+  const models = (input.models === undefined ? previous?.models : input.models)?.map((id) => id.trim()).filter(Boolean);
   if (models && models.length > 0) connection.models = [...new Set(models)];
   return connection;
 }

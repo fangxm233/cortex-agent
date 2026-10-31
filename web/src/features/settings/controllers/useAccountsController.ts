@@ -28,6 +28,8 @@ export function useAccountsController(): AccountsController {
   const logout = useMutation(trpc.auth.logout.mutationOptions({
     onSuccess: () => {
       void queryClient.invalidateQueries(trpc.auth.status.queryFilter({}));
+      // The API-key slot's credential is the `api` connection: the connections list moves with it.
+      void queryClient.invalidateQueries(trpc.connections.list.queryFilter({}));
       void queryClient.invalidateQueries(trpc.config.get.queryFilter({}));
       void queryClient.invalidateQueries(trpc.models.catalog.queryFilter({}));
     },

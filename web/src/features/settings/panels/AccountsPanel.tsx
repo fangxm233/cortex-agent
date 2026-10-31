@@ -6,7 +6,7 @@ import {
   AvailableGrid, ClaudeHeading, ClaudeSlots, ConnectedList, ProviderSearch, useLogoutConfirm,
 } from '@/features/settings/ui/account-rows';
 import { SCount, SLinkAction, SSection } from '@/features/settings/ui/settings-ui';
-import { CustomProvidersCard } from './CustomProvidersCard';
+import { ConnectionsCard } from './ConnectionsCard';
 
 const PANEL_TEXT_STYLE: CSSProperties = { fontSize: 13, color: 'var(--proto-muted-2)', overflowWrap: 'anywhere' };
 
@@ -55,7 +55,7 @@ export function AccountsPanel({ onLogin }: AccountsPanelProps) {
           <AvailableGrid providers={vm.available} handlers={handlers} />
         </SSection>
       ) : null}
-      <CustomProvidersCard />
+      <ConnectionsCard />
     </>
   );
 }

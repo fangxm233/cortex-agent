@@ -38,6 +38,9 @@ vi.mock('@/lib/trpc', () => ({
         }),
       },
     },
+    connections: {
+      list: { queryFilter: (input: unknown) => ({ queryKey: ['connections.list', input] }) },
+    },
     config: {
       get: { queryFilter: (input: unknown) => ({ queryKey: ['config.get', input] }) },
     },
@@ -107,6 +110,7 @@ describe('useAccountsController', () => {
     await vi.waitFor(() => expect(controller?.logoutPending).toBe(false));
     expect(mounted.invalidate.mock.calls.map(call => call[0])).toEqual([
       { queryKey: ['auth.status', {}] },
+      { queryKey: ['connections.list', {}] },
       { queryKey: ['config.get', {}] },
       { queryKey: ['models.catalog', {}] },
     ]);

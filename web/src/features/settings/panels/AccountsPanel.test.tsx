@@ -62,10 +62,12 @@ vi.mock('@/lib/trpc', () => {
     auth: {
       status: query('auth.status'),
       logout: mutation('auth.logout'),
-      customProviders: query('auth.customProviders'),
-      upsertCustomProvider: mutation('auth.upsertCustomProvider'),
-      removeCustomProvider: mutation('auth.removeCustomProvider'),
       syncModels: mutation('auth.syncModels'),
+    },
+    connections: {
+      list: query('connections.list'),
+      upsert: mutation('connections.upsert'),
+      remove: mutation('connections.remove'),
     },
     config: {
       get: query('config.get'),
@@ -78,7 +80,7 @@ vi.mock('@/lib/trpc', () => {
 
 vi.mock('@tanstack/react-query', async importOriginal => ({
   ...await importOriginal<typeof import('@tanstack/react-query')>(),
-  useQuery: (options: any) => (options?.__kind === 'auth.customProviders'
+  useQuery: (options: any) => (options?.__kind === 'connections.list'
     ? { data: [], isLoading: false, isError: false, error: null }
     : { data: status, isLoading: false, isError: false, error: null }),
   useMutation: (options: any) => ({
@@ -167,7 +169,7 @@ describe('desktop accounts settings', () => {
 
     expect(harness.logoutCalls).toEqual([{ backend: 'pi', provider: 'openrouter', authType: 'oauth' }]);
     expect(harness.invalidations).toEqual([
-      { __kind: 'auth.status' }, { __kind: 'config.get' }, { __kind: 'models.catalog' },
+      { __kind: 'auth.status' }, { __kind: 'connections.list' }, { __kind: 'config.get' }, { __kind: 'models.catalog' },
     ]);
     expect(harness.toasts).toEqual([{ title: 'Logged out of OpenRouter', tone: 'done' }]);
   });
