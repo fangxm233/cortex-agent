@@ -7,6 +7,8 @@ interface ProviderConfig {
   backend: Backend;
   provider?: string | null;
   connection: string | null;
+  /** Decides which Claude connection a selection naming none runs on. */
+  model?: string;
 }
 
 const DEFAULT_PROVIDER_BY_BACKEND: Partial<Record<Backend, string>> = {
@@ -20,7 +22,7 @@ export function resolveRateLimitProvider(
 }
 
 export function configIsRateLimited(config: ProviderConfig): boolean {
-  const route = routeName({ backend: config.backend, provider: config.provider ?? null, connection: config.connection });
+  const route = routeName({ ...config, provider: config.provider ?? null });
   return isProviderModeRateLimited(resolveRateLimitProvider(config), route);
 }
 

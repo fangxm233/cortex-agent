@@ -3,6 +3,7 @@ import { getChannelSelection } from '../agents/config.js';
 import { configuredDefault } from '../agents/models.js';
 import { resolveDaemonSelection } from '../agents/model-selection.js';
 import type { EngineSelection } from '../agents/engine-selection.js';
+import { claudeRunConnection } from '../agents/resolve-selection.js';
 import { resolveClaudeRoute, type ClaudeRoute } from '../connections/claude-route.js';
 
 export interface RunSelectionQuery {
@@ -46,10 +47,12 @@ export function resolveConfiguredDefaultRun(): EngineSelection | null {
   return configuredDefault() ? resolveRunSelection() : null;
 }
 
-/** Resolve the route per run, never by changing the daemon's environment. A PI selection has no
- *  Claude route; its provider catalog is the PI adapter's. */
-export function resolveRunRoute(selection: Pick<EngineSelection, 'backend' | 'connection'>): ClaudeRoute | undefined {
-  return selection.backend === 'claude' ? resolveClaudeRoute(selection.connection) : undefined;
+/** Resolve the route per run, never by changing the daemon's environment. A Claude selection naming
+ *  no connection runs on the one computed for its model. A PI selection has no Claude route; its
+ *  provider catalog is the PI adapter's. */
+export function resolveRunRoute(selection: Pick<EngineSelection, 'backend' | 'connection' | 'model'>): ClaudeRoute | undefined {
+  if (selection.backend !== 'claude') return undefined;
+  return resolveClaudeRoute(selection.connection ?? claudeRunConnection(selection));
 }
 
 export function resolveRunBackend(query: RunSelectionQuery = {}): EngineSelection['backend'] {

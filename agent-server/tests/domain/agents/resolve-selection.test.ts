@@ -8,6 +8,7 @@ import {
   effectiveSelection, resolveSelection, type SelectionContext,
 } from '../../../src/domain/agents/resolve-selection.js';
 import type { ConnectionView, CredentialInventory } from '../../../src/domain/connections/inventory.js';
+import { routeName, spawnRouteName } from '../../../src/domain/connections/index.js';
 import { createModelCatalog } from '../../../src/domain/models/catalog.js';
 
 function claudeView(id: string, models: string[] | null = null): ConnectionView {
@@ -231,4 +232,19 @@ test('effectiveSelection computes a stored selection\'s connection by the same r
   expect(effectiveSelection({ ...OPUS, model: 'qwen-coder' }, context).connection).toBe('qwen-ksu');
   expect(effectiveSelection({ ...OPUS, connection: 'api' }, context).connection).toBe('api');
   expect(effectiveSelection({ ...OPUS, connection: 'gone' }, context).connection).toBe('subscription');
+});
+
+test('routeName files a Claude selection naming no connection under the one its run uses', () => {
+  const context = { inventory: inventoryOf(HOST), catalog: catalogOf(HOST) };
+  expect(routeName({ ...OPUS, model: 'qwen-coder' }, context)).toBe('qwen-ksu');
+  expect(routeName(OPUS, context)).toBe('subscription');
+  expect(routeName({ ...OPUS, connection: 'api' }, context)).toBe('api');
+  expect(routeName({ ...PI_V4, connection: null }, context)).toBe('deepseek');
+  expect(routeName(OPUS, { inventory: inventoryOf([]), catalog: catalogOf([]) })).toBe('subscription');
+});
+
+test('spawnRouteName files a spawn under the connection its Claude route was resolved for', () => {
+  const route = { connection: 'api' };
+  expect(spawnRouteName(OPUS, route)).toBe('api');
+  expect(spawnRouteName({ ...PI_V4, connection: null }, route)).toBe('deepseek');
 });

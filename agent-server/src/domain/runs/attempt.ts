@@ -20,7 +20,7 @@ import type { RunEvent } from '../../agent-adapter/run-events.js';
 import type { EventObserver, NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
 import { recordCost, type CostAttribution } from '../costs/cost-tracker.js';
 import type { ClaudeRoute } from '../connections/claude-route.js';
-import { routeName } from '../connections/index.js';
+import { spawnRouteName } from '../connections/index.js';
 import type { EngineSelection } from '../agents/engine-selection.js';
 import { engines } from './engines.js';
 import { buildEngineSpec } from './engine-spec.js';
@@ -100,7 +100,7 @@ function recordAttemptCost(
     project: input.request.context.project || 'general',
     trigger: costTrigger(input.request.context.trigger, continuation),
     cost_usd: event.cost_usd, backend: input.attempt.backend,
-    connection: routeName(input.attempt), source: 'estimate',
+    connection: spawnRouteName(input.attempt, input.route), source: 'estimate',
     input_tokens: event.input_tokens, output_tokens: event.output_tokens,
     prompt_tokens: event.prompt_tokens === undefined ? event.tokens_in : event.prompt_tokens,
     cache_read_tokens: event.cache_read_tokens,

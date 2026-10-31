@@ -196,6 +196,19 @@ export function resolveSelection(context: SelectionContext, partial: Partial<Eng
   return { ok: true, selection, effective: { ...selection, connection: computeConnection(selection, r) }, base };
 }
 
+/** The connection a Claude selection runs on now (see computeConnection); null only when the host
+ *  has no Claude connection at all. Without a model, the default connection. */
+export function claudeRunConnection(
+  selection: Pick<EngineSelection, 'connection'> & { model?: string },
+  context: Pick<SelectionContext, 'inventory' | 'catalog'> = {},
+): string | null {
+  const r = resolverOf({ ...context, defaults: NO_DEFAULTS, memory: () => ({}) });
+  const claude: EngineSelection = {
+    backend: 'claude', provider: null, model: selection.model ?? '', thinking: null, connection: selection.connection,
+  };
+  return computeConnection(claude, r);
+}
+
 /** The connection a stored selection runs on now, by the same rule a resolution computes it. */
 export function effectiveSelection(selection: EngineSelection, context: Pick<SelectionContext, 'inventory' | 'catalog'> = {}): EngineSelection {
   const r = resolverOf({ ...context, defaults: NO_DEFAULTS, memory: () => ({}) });
