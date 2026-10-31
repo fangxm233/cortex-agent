@@ -87,7 +87,7 @@ export const usageSharingSetInput = z.object({
 export const telemetryInfoInput = z.object({});
 export const telemetryReportInput = WebTelemetryReportSchema;
 
-// models.catalog — discover selectable models and gateway routes.
+// models.catalog — discover selectable models and the connections that serve them.
 export const modelsCatalogInput = z.object({});
 
 export const machinesListInput = z.object({});

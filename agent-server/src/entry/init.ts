@@ -1292,11 +1292,10 @@ async function detectAuthAndModels(
     emit(event);
     if (!emitter && !interactive) process.stdout.write(`${JSON.stringify(event)}\n`);
   });
-  // The progress step keeps its `gateway` name: `--json` callers may key on it.
   if (interactive) {
     const configured = authBackends.length > 0
       && await runModelSetup({ backends: authBackends, configDir: paths.CONFIG_DIR, answers, interactive: true });
-    emit({ step: 'gateway', state: configured ? 'ok' : 'skip' });
+    emit({ step: 'models', state: configured ? 'ok' : 'skip' });
     return;
   }
   // Non-interactive: list silently, passing caller-supplied choices. A machine with no backend
@@ -1304,10 +1303,10 @@ async function detectAuthAndModels(
   // from the workbench afterwards and the server seeds models from that login.
   try {
     const configured = await runModelSetup({ backends: answers.backends, configDir: paths.CONFIG_DIR, answers });
-    emit({ step: 'gateway', state: configured ? 'ok' : 'skip', reason: configured ? undefined : 'no-backend-login' });
+    emit({ step: 'models', state: configured ? 'ok' : 'skip', reason: configured ? undefined : 'no-backend-login' });
   } catch (e) {
     log.warn(`Model setup failed (non-interactive): ${(e as Error).message}`);
-    emit({ step: 'gateway', state: 'skip', reason: (e as Error).message });
+    emit({ step: 'models', state: 'skip', reason: (e as Error).message });
   }
 }
 
@@ -1357,7 +1356,7 @@ async function runInitSteps(
   await withInitLocalClient(paths, answers, () => writeInitConfigs(paths, answers, force), emit);
   emit({ step: 'config', state: 'ok' });
 
-  // 5. Gateway usage and telemetry — omitted scripted answers preserve the existing choices.
+  // 5. Usage sharing and telemetry — omitted scripted answers preserve the existing choices.
   applySharingChoices(paths, answers);
 
   // 5b. The main port: a configured one is kept, otherwise the first free port from 26789 up is

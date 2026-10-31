@@ -37,7 +37,7 @@ export const initEn = {
   'init.auth.login': 'Login / install and login Claude Code',
   'init.auth.rescan': 'Rescan credentials',
   'init.auth.skip': 'Configure later (Agent may be unavailable)',
-  'init.auth.saved': 'Credentials saved. Gateway/model setup follows; no inference request was made.',
+  'init.auth.saved': 'Credentials saved. Model setup follows; no inference request was made.',
   'init.auth.piFirst': 'PI is bundled. Add providers or install Claude Code in the login step.',
 
   // ── Clipboard / manifest copy prompt ──
@@ -188,7 +188,7 @@ export const initEn = {
   'init.serviceRegister.prompt': 'Register Cortex as a system service (auto-start on boot)?',
   'init.telemetry.prompt': 'Send anonymous usage and crash statistics to help improve Cortex? (never your prompts, files or names; can be turned off in Settings)',
 
-  // ── Gateway & model auto-setup ──
+  // ── Model auto-setup ──
   'init.modelSetup.overwritePrompt': 'An existing default model was found. Replace it with a new selection?',
   'init.modelSetup.defaultPrompt': 'Pick the default model:',
   'init.modelSetup.favoritesPrompt': 'Pick favorite models (space to toggle; the default model is always included):',
@@ -260,7 +260,7 @@ export const initZh: Record<keyof typeof initEn, string> = {
   'init.auth.login': '登录 / 安装并登录 Claude Code',
   'init.auth.rescan': '重新扫描凭据',
   'init.auth.skip': '稍后配置（Agent 可能不可用）',
-  'init.auth.saved': '凭据已保存。接下来配置网关和模型；未发送推理请求。',
+  'init.auth.saved': '凭据已保存。接下来配置模型；未发送推理请求。',
   'init.auth.piFirst': 'PI 已内置。请在登录步骤中添加服务商或安装 Claude Code。',
 
   // ── Clipboard / manifest copy prompt ──
@@ -411,7 +411,7 @@ export const initZh: Record<keyof typeof initEn, string> = {
   'init.serviceRegister.prompt': '将 Cortex 注册为系统服务（开机自启）？',
   'init.telemetry.prompt': '发送匿名使用与崩溃统计，帮助改进 Cortex？（不含对话、文件或名称；可随时在设置中关闭）',
 
-  // ── Gateway & model auto-setup ──
+  // ── Model auto-setup ──
   'init.modelSetup.overwritePrompt': '检测到已有默认模型，是否用新的选择替换？',
   'init.modelSetup.defaultPrompt': '选择默认模型：',
   'init.modelSetup.favoritesPrompt': '选择收藏模型（空格切换；默认模型始终包含在内）：',

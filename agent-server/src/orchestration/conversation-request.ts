@@ -167,7 +167,7 @@ type SessionRunFacts = Pick<Session, 'origin' | 'scheduleId'>;
 /**
  * How a turn is attributed. A schedule's run — a session its fire opened, not yet adopted by a reply
  * — runs as a scheduled execution of that schedule: that is what the scheduler reads to skip a fire
- * while the previous run is still going, and what cost and the gateway attribute to the schedule.
+ * while the previous run is still going, and what its cost records attribute to the schedule.
  * Every other turn is the user's.
  */
 export function conversationTrigger(session: Partial<SessionRunFacts> | null): Pick<

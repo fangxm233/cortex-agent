@@ -303,7 +303,7 @@ export class Turn {
               { num_turns: event.numTurns },
             );
             return;
-          // The run synthesizes the chat notices for compaction and gateway model fallback and
+          // The run synthesizes the chat notices for compaction and model fallback and
           // delivers them as assistant_text, so the sink already has them; these events are the
           // machine-readable twin, for observers that want the fact rather than the prose.
           case 'context_compacted':
