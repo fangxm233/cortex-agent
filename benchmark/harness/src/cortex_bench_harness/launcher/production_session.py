@@ -19,7 +19,6 @@ HTTP_REQUEST_TIMEOUT_SECONDS = 10
 EVIDENCE_EXPORT_TIMEOUT_SECONDS = 120
 WORKSPACE_CONTRACT_TIMEOUT_SECONDS = 30
 SERVER_STOP_TIMEOUT_SECONDS = 30
-GATEWAY_STATUS_URL = "http://127.0.0.1:9880/status"
 SERVER_AUTH_FILENAME = "production-server-auth.json"
 WEBHOOK_AUTH_FILENAME = "production-webhook-auth.json"
 SESSION_OUTCOME_FILENAME = "production-session-outcome.json"
@@ -276,18 +275,6 @@ class ProductionServerSession:
                 f"benchmark-session refused request: {response.get('error')}")
         return _required_mapping(response.get("data"), "benchmark-session data")
 
-    async def _probe_gateway(self, execute: Executor) -> None:
-        script = (
-            "const r=await fetch(process.argv[1]);"
-            "const b=await r.text();"
-            "if(!r.ok)throw new Error(`HTTP ${r.status}: ${b}`);"
-            "process.stdout.write(b)"
-        )
-        await execute(
-            shlex.join(["node", "--input-type=module", "--eval", script, GATEWAY_STATUS_URL]),
-            cwd=self._spec.workspace_cwd, timeout_sec=HTTP_REQUEST_TIMEOUT_SECONDS,
-        )
-
     async def _wait_until_ready(self, execute: Executor) -> None:
         deadline = time.monotonic() + self._ready_timeout_seconds
         last_error: Exception | None = None
@@ -296,9 +283,10 @@ class ProductionServerSession:
                 data = self._response_data(await self._post(
                     "production-session-ready.json", {"action": "ping"}, execute,
                 ))
+                # PI reaches the trial proxy straight from the server's own spawns: once the server
+                # answers, no other local process has to come up before the session can start.
                 if data.get("ready") is not True:
                     raise ProductionSessionError("benchmark-session is not ready")
-                await self._probe_gateway(execute)
                 return
             except Exception as error:
                 last_error = error

@@ -103,7 +103,7 @@ class OneRequestUpstream:
     @property
     def base_url(self) -> str:
         host, port = self.server.server_address
-        return f"http://{host}:{port}/m/deepseek/deepseek"
+        return f"http://{host}:{port}"
 
     def stop(self) -> None:
         self.server.shutdown()

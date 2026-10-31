@@ -86,10 +86,8 @@ SEALED_ENVIRONMENT_KEYS = (
     "CORTEX_BENCH_BACKEND", "CORTEX_BENCH_TRIAL_ID", "CORTEX_HOME", "HOME", "PATH",
 )
 UNAVAILABLE = "unavailable"
-DEADLINE_COST_PATH = (
-    "production-cortex-home/container-home/.aistatus/usage/"
-    "projects/fixture/2026-08.jsonl"
-)
+# The server's own cost ledger inside the sealed home.
+DEADLINE_COST_PATH = "production-cortex-home/data/costs.jsonl"
 DEADLINE_COST_PAYLOAD = (
     b'{"request_id":"req-23","cost_usd":"0.0042","cache_write_tokens":null}\n'
 )
@@ -211,7 +209,7 @@ def launch_attestation(npm_artifact: Path) -> dict[str, object]:
         "pre_boot_input_bundle_sha256": "4" * 64,
     }
     return {
-        "schema_version": "cortex-bench-launch-attestation/6", "trial_id": TRIAL_ID,
+        "schema_version": "cortex-bench-launch-attestation/7", "trial_id": TRIAL_ID,
         "capture_boundary": "launcher_pre_boot",
         "arm_bundle": production_arm_bundle("direct-pi-deepseek").attested_record(),
         "arm_confinement": production_arm_bundle(
@@ -781,11 +779,8 @@ def install_deadline_run(
             environment.logs_dir / "production-session-outcome.json",
             deadline_outcome_record(),
         )
-        aistatus = (environment.logs_dir
-                    / "production-cortex-home/container-home/.aistatus")
-        aistatus.chmod(0o755)
         cost = environment.logs_dir / DEADLINE_COST_PATH
-        cost.parent.mkdir(parents=True)
+        cost.parent.mkdir(parents=True, exist_ok=True)
         cost.write_bytes(DEADLINE_COST_PAYLOAD)
         self._stopped_cleanly = True
         return ProductionSessionResult("ses-production", "deadline_exhausted", None)

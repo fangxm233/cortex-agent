@@ -78,18 +78,16 @@ EXPECTED_CODEX_MODELS = {
     },
     "favorites": [{"backend": "pi", "provider": "openai-codex", "model": "gpt-5.6-sol"}],
 }
-EXPECTED_GATEWAY = (
-    "port: 9880\nmode: trial\nstatus_check: false\nmax_body_size_mb: 64\n"
-    "deepseek:\n  trial:\n"
-    "    base_url: http://trial-direct-001.proxy.invalid:49152\n"
-    "    auth_style: openai\n    keys:\n      - trial-dummy-token\n"
-)
-EXPECTED_CODEX_GATEWAY = (
-    "port: 9880\nmode: trial\nstatus_check: false\nmax_body_size_mb: 64\n"
-    "openai-codex:\n  trial:\n"
-    "    base_url: http://trial-direct-001.proxy.invalid:49152\n"
-    f"    auth_style: openai\n    keys:\n      - {DUMMY_OAUTH_JWT}\n"
-)
+PROXY_BASE_URL = "http://trial-direct-001.proxy.invalid:49152"
+
+
+def expected_connections(provider: str) -> dict[str, object]:
+    """One base-URL override of the arm's built-in PI provider, keyless: auth.json authenticates."""
+    return {"version": 1, "connections": [
+        {"id": provider, "backend": "pi", "provider": provider, "baseUrl": PROXY_BASE_URL},
+    ]}
+
+
 HOSTILE_ENVIRONMENT = {
     "PATH": "/usr/bin:/bin", "LANG": "C.UTF-8",
     "CORTEX_HOME": "/host/private/.cortex",
@@ -161,7 +159,7 @@ def facts(
         root_run_id="trial-direct-001.cortex-direct",
         npm_artifact=npm_artifact,
         backend_cli_version="0.82.1",
-        proxy_base_url="http://trial-direct-001.proxy.invalid:49152",
+        proxy_base_url=PROXY_BASE_URL,
         dummy_token_ref=(
             DUMMY_OAUTH_JWT if bundle.provider == "openai-codex" else "trial-dummy-token"
         ),
@@ -198,7 +196,7 @@ def expected_attestation(
         "pre_boot_input_bundle_sha256": bundle_sha,
     })
     return {
-        "schema_version": "cortex-bench-launch-attestation/6",
+        "schema_version": "cortex-bench-launch-attestation/7",
         "trial_id": "trial-direct-001", "capture_boundary": "launcher_pre_boot",
         "arm_bundle": {
             "key": "direct-pi-deepseek",
@@ -306,12 +304,14 @@ def test_materializes_without_host_home_and_scrubs_provider_and_chat_residue(tmp
     assert read_json(result.cortex_home / "data/pi/auth.json") == {
         "deepseek": {"type": "api_key", "key": "trial-dummy-token"},
     }
-    gateway = (result.cortex_home / "container-home/.aistatus/gateway.yaml").read_text()
-    assert gateway == EXPECTED_GATEWAY
-    assert "anthropic" not in gateway.lower() and "api.deepseek.com" not in gateway
+    connections = (result.cortex_home / "config/connections.json").read_text()
+    assert json.loads(connections) == expected_connections("deepseek")
+    assert "trial-dummy-token" not in connections and "key" not in json.loads(connections)
+    assert "anthropic" not in connections.lower() and "api.deepseek.com" not in connections
+    assert not (result.cortex_home / "container-home/.aistatus").exists()
 
 
-def test_openai_codex_materializes_oauth_auth_gateway_and_attested_bundle_digest(
+def test_openai_codex_materializes_oauth_auth_connection_and_attested_bundle_digest(
     tmp_path: Path,
 ) -> None:
     result = materialize(tmp_path, HOSTILE_ENVIRONMENT, bundle=DIRECT_CODEX_BUNDLE)
@@ -326,8 +326,9 @@ def test_openai_codex_materializes_oauth_auth_gateway_and_attested_bundle_digest
 
     assert read_json(result.cortex_home / "container-home/.pi/agent/auth.json") == auth
     assert read_json(result.cortex_home / "data/pi/auth.json") == auth
-    assert (result.cortex_home / "container-home/.aistatus/gateway.yaml").read_text() == (
-        EXPECTED_CODEX_GATEWAY)
+    connections = read_json(result.cortex_home / "config/connections.json")
+    assert connections == expected_connections("openai-codex")
+    assert DUMMY_OAUTH_JWT not in json.dumps(connections)
     assert attestation["arm_bundle"] == DIRECT_CODEX_BUNDLE.attested_record()
     assert attestation["pre_boot_input_bundle_sha256"] == bundle_sha
     assert attestation["input_bundle_file_count"] == bundle_count
@@ -354,8 +355,8 @@ def test_every_agent_of_the_arm_resolves_the_same_seeded_provider_credential(
 def test_sealed_home_paths_cannot_be_read_as_a_host_home_path(tmp_path: Path) -> None:
     """The server prints its own paths, and the leak scanner refuses any `/home/<name>`.
 
-    A container HOME named `<CORTEX_HOME>/home` produces exactly that shape, so the production
-    gateway logging its own config path was scanned as a host-identity leak and the trial was
+    A container HOME named `<CORTEX_HOME>/home` produces exactly that shape, so a production
+    process logging a config path under it was scanned as a host-identity leak and the trial was
     refused with `output_leak_detected` after a complete, correct run.
     """
     result = materialize(tmp_path)
@@ -443,7 +444,7 @@ def test_materialized_inputs_are_read_only_before_result_is_returned(tmp_path: P
 def test_immutable_bundle_directories_cannot_replace_attested_inputs(tmp_path: Path) -> None:
     home = materialize(tmp_path).cortex_home
 
-    for relative in ("config", "prompts", "context", "container-home/.aistatus"):
+    for relative in ("config", "prompts", "context"):
         root = home / relative
         assert stat.S_IMODE(root.stat().st_mode) == 0o555
         assert all(

@@ -314,10 +314,29 @@ function requiredOption(value: unknown, label: string): string {
   return value;
 }
 
+/**
+ * The base URL PI's own catalog gives each provider a benchmark arm runs on (pi-ai's
+ * `providers/<name>.js`). The PI SDK is loaded lazily and asynchronously, while an attempt is
+ * frozen synchronously before spawn, so the URLs are stated here and a test pins them against the
+ * installed SDK. A provider missing here attests no host.
+ */
+export const PI_BUILT_IN_BASE_URLS: Readonly<Record<string, string>> = Object.freeze({
+  deepseek: 'https://api.deepseek.com',
+  'openai-codex': 'https://chatgpt.com/backend-api',
+});
+
 /** PI reaches a provider at its connection's base URL when one overrides it, else at PI's own. */
+function piRoute(provider: string | undefined): string | null {
+  if (!provider) return null;
+  const override = credentialInventory.findPi(provider)?.baseUrl;
+  if (override) return override;
+  return Object.hasOwn(PI_BUILT_IN_BASE_URLS, provider) ? PI_BUILT_IN_BASE_URLS[provider] : null;
+}
+
+/** The host the attempt's model requests really go to; only the host is ever attested. */
 function configuredRouteHost(spec: EngineSpec, backend: Backend): string | null {
   const route = backend === 'pi'
-    ? (spec.model.provider ? credentialInventory.findPi(spec.model.provider)?.baseUrl : null)
+    ? piRoute(spec.model.provider)
     : (spec.env.sets?.ANTHROPIC_BASE_URL ?? spec.route.anthropicBaseUrl);
   if (!route) return null;
   try { return new URL(route).host; } catch {

@@ -12,17 +12,19 @@ from urllib.parse import urlsplit
 from ..trial_assets import canonical_sha256
 from .production_arms import ProductionArmBundle, production_arm_bundle
 
-LAUNCH_ATTESTATION_SCHEMA = "cortex-bench-launch-attestation/6"
+LAUNCH_ATTESTATION_SCHEMA = "cortex-bench-launch-attestation/7"
 EVIDENCE_CONTEXT_SCHEMA = "cortex-production-benchmark-evidence-context/1"
 LAUNCH_ATTESTATION_FILENAME = "cortex-bench-launch-attestation.json"
 # The container HOME lives inside the sealed CORTEX_HOME, and the server prints its own paths into
 # logs the trial collects. The leak scanner refuses any `/home/<name>` it finds there, so this
-# directory may not be called `home`: that spelling made the gateway logging its own config path
+# directory may not be called `home`: that spelling made the server logging a config path under it
 # indistinguishable from a host home path and refused an otherwise complete trial.
 CONTAINER_HOME_DIR = "container-home"
 # The project every benchmark session opens in. It has to exist before boot: the server scaffolds a
 # missing one by writing STATUS.md/AGENTS.md into the home, and the sealed `context` tree is read-only.
 GENERAL_PROJECT_DIR = "context/projects/general"
+# Where the server reads the provider routes it reaches directly; inside the read-only `config` tree.
+CONNECTIONS_FILE = "config/connections.json"
 BACKEND_CLI_NAME = "pi"
 PI_DUMMY_OAUTH_EXPIRES_MS = 4_102_444_800_000
 PI_DUMMY_OAUTH_REFRESH = "dummy-refresh-never-forward"
@@ -123,7 +125,7 @@ def _validate_facts(facts: ProductionArmLaunchFacts) -> str:
     _required_text(facts.backend_cli_version, "backend_cli_version")
     token = _required_text(facts.dummy_token_ref, "dummy_token_ref")
     if not SAFE_DUMMY_TOKEN.fullmatch(token):
-        raise ProductionHomeError("dummy_token_ref contains unsupported YAML characters")
+        raise ProductionHomeError("dummy_token_ref contains unsupported characters")
     workspace_cwd = _required_text(facts.workspace_cwd, "workspace_cwd")
     if not PurePosixPath(workspace_cwd).is_absolute():
         raise ProductionHomeError("workspace_cwd must be one absolute container path")
@@ -210,31 +212,38 @@ def _pi_auth(bundle: ProductionArmBundle, dummy_token_ref: str) -> dict[str, obj
     raise ProductionHomeError(f"unsupported production PI provider: {bundle.provider}")
 
 
-def _gateway_yaml(
-    bundle: ProductionArmBundle, proxy_base_url: str, dummy_token_ref: str,
-) -> bytes:
-    lines = (
-        "port: 9880", "mode: trial", "status_check: false", "max_body_size_mb: 64",
-        f"{bundle.provider}:", "  trial:", f"    base_url: {proxy_base_url}",
-        "    auth_style: openai", "    keys:", f"      - {dummy_token_ref}", "",
-    )
-    return "\n".join(lines).encode()
+def _connections(bundle: ProductionArmBundle, proxy_base_url: str) -> dict[str, object]:
+    """The server's `config/connections.json`: one override pointing the arm's built-in PI provider
+    at the trial proxy, so PI appends its own request path to the proxy URL.
+
+    It carries no `key`. A connection key is installed as a PI runtime key, which PI always reads
+    back as an API key and which beats auth.json: for openai-codex it would replace the seeded
+    OAuth credential, and for deepseek it would repeat the API key auth.json already holds. The
+    dummy token reaches the proxy from auth.json alone.
+    """
+    connection = {
+        "id": bundle.provider, "backend": BACKEND_CLI_NAME,
+        "provider": bundle.provider, "baseUrl": proxy_base_url,
+    }
+    return {"version": 1, "connections": [connection]}
+
+
+def _json_bytes(value: Mapping[str, object]) -> bytes:
+    return (json.dumps(value, indent=2, ensure_ascii=False) + "\n").encode()
 
 
 def _write_dynamic_inputs(
     cortex_home: Path, bundle: ProductionArmBundle, proxy_base_url: str,
     dummy_token_ref: str,
 ) -> None:
-    auth = _pi_auth(bundle, dummy_token_ref)
-    payload = (json.dumps(auth, indent=2, ensure_ascii=False) + "\n").encode()
+    payload = _json_bytes(_pi_auth(bundle, dummy_token_ref))
     # Both locations, because the daemon mirrors PI auth from the container HOME into the private
     # agent dir on every spawn: seeding only the private copy authenticates the arm's first agent
     # and leaves every later one with the empty auth.json the first PI process wrote.
     _write_bytes(cortex_home / "data/pi/auth.json", payload)
     _write_bytes(cortex_home / f"{CONTAINER_HOME_DIR}/.pi/agent/auth.json", payload)
     _write_bytes(
-        cortex_home / f"{CONTAINER_HOME_DIR}/.aistatus/gateway.yaml",
-        _gateway_yaml(bundle, proxy_base_url, dummy_token_ref),
+        cortex_home / CONNECTIONS_FILE, _json_bytes(_connections(bundle, proxy_base_url)),
     )
 
 
@@ -279,7 +288,7 @@ def _make_read_only(root: Path) -> None:
     for path in root.rglob("*"):
         if path.is_file():
             path.chmod(0o444)
-    for relative in ("config", "prompts", "context", f"{CONTAINER_HOME_DIR}/.aistatus"):
+    for relative in ("config", "prompts", "context"):
         immutable = root / relative
         for path in sorted(immutable.rglob("*"), reverse=True):
             if path.is_dir():

@@ -12,7 +12,7 @@ manifest:
   lockfile_manifest_path: benchmark/harness/uv.lock
 
 credential:
-  upstream_base_url: http://127.0.0.1:9880/m/deepseek/deepseek
+  upstream_base_url: https://api.deepseek.com
   route_identity_host: api.deepseek.com
   proxy_host_suffix: proxy.invalid
   dummy_token_ref: vendor-pi-3ff0-single-dummy-token

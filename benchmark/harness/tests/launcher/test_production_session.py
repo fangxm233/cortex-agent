@@ -86,7 +86,7 @@ def session(
 class FakeExecutor:
     def __init__(
         self, logs_dir: Path, *, export_failure: bool = False,
-        malformed_evidence: bool = False, gateway_failure: bool = False,
+        malformed_evidence: bool = False,
         not_ready: bool = False, result_timeout_once: bool = False,
         result_never_terminal: bool = False, result_status: str = "completed",
         result_session_id: str | None = None,
@@ -97,7 +97,6 @@ class FakeExecutor:
         self.logs_dir = logs_dir
         self.export_failure = export_failure
         self.malformed_evidence = malformed_evidence
-        self.gateway_failure = gateway_failure
         self.not_ready = not_ready
         self.result_timeout_once = result_timeout_once
         self.result_never_terminal = result_never_terminal
@@ -127,10 +126,6 @@ class FakeExecutor:
         if "production-session-ready.json" in command:
             self._capture("production-session-ready.json")
             return self._reply({"success": True, "data": {"ready": not self.not_ready}})
-        if "http://127.0.0.1:9880/status" in command:
-            if self.gateway_failure:
-                raise RuntimeError("aistatus gateway unavailable")
-            return self._reply({"status": "ok"})
         if "production-session-start.json" in command:
             self._capture("production-session-start.json")
             return self._reply({
@@ -256,12 +251,13 @@ def test_session_boots_real_server_starts_one_session_exports_and_stops(tmp_path
     assert all("/webhook/thread-op" not in command for command in commands)
     # ping, start, two status polls
     assert sum("/webhook/benchmark-session" in command for command in commands) == 4
-    assert sum("http://127.0.0.1:9880/status" in command for command in commands) == 1
+    # The server's own readiness is the only wait: no local gateway sits between PI and the proxy.
+    assert all(":9880" not in command and "/status" not in command for command in commands)
     assert all("api.deepseek.com" not in command for command in commands)
     assert all("/webhook/task-op" not in command for command in commands)
     assert all("cortex-task" not in command for command in commands)
     for command, timeout in zip(commands, runner.timeouts, strict=True):
-        if "/webhook/benchmark-session" in command or "127.0.0.1:9880/status" in command:
+        if "/webhook/benchmark-session" in command:
             assert timeout == 10
     assert commands[-3].endswith(
         "cortex-evidence-export --input-file /logs/agent/production-evidence-input.json"
@@ -384,20 +380,15 @@ def test_session_records_malformed_evidence_without_revalidating_it(tmp_path: Pa
     assert production.stopped_cleanly is True
 
 
-def test_session_refuses_aistatus_fallback_when_gateway_is_unavailable(
-    tmp_path: Path,
-) -> None:
-    runner = FakeExecutor(tmp_path, gateway_failure=True)
-    production = session(tmp_path, readiness_timeout_seconds=0.01)
+def test_session_starts_as_soon_as_the_server_answers_ready(tmp_path: Path) -> None:
+    runner = FakeExecutor(tmp_path)
 
-    with pytest.raises(ProductionSessionError, match="readiness timed out"):
-        asyncio.run(production.run("Solve only this task.", runner))
+    asyncio.run(session(tmp_path).run("Solve only this task.", runner))
 
     commands = [call[0] for call in runner.calls]
-    assert any("127.0.0.1:9880/status" in command for command in commands)
-    assert all("production-session-start.json" not in command for command in commands)
-    assert commands[-1].startswith("kill -TERM -- -4242")
-    assert production.stopped_cleanly is True
+    ready = next(i for i, c in enumerate(commands) if "production-session-ready.json" in c)
+    start = next(i for i, c in enumerate(commands) if "production-session-start.json" in c)
+    assert start == ready + 1
 
 
 def test_session_waits_for_a_server_that_says_it_is_ready(tmp_path: Path) -> None:

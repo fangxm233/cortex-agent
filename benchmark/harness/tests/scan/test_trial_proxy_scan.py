@@ -248,11 +248,11 @@ def test_container_visible_surface_is_only_a_scoped_endpoint_and_a_dummy_token(
     internet host refused from inside the container — which are properties of the trial network
     namespace and carry the Gate-10 obligation O-G10-EGRESS."""
     trial = offline_trial(tmp_path, monkeypatch)
-    gateway = trial.logs_dir / "production-cortex-home/container-home/.aistatus/gateway.yaml"
-    payload = gateway.read_bytes()
-    assert trial.proxy_base_url.encode() in payload
-    assert trial.dummy_token.encode() in payload
-    for path in (gateway, trial.manifest_path):
+    home = trial.logs_dir / "production-cortex-home"
+    connections, auth = home / "config/connections.json", home / "data/pi/auth.json"
+    assert trial.proxy_base_url.encode() in connections.read_bytes()
+    assert trial.dummy_token.encode() in auth.read_bytes()
+    for path in (connections, auth, trial.manifest_path):
         payload = path.read_bytes()
         assert REAL_CREDENTIAL.encode() not in payload
         assert str(repo_root()).encode() not in payload

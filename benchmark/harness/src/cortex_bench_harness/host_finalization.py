@@ -28,7 +28,6 @@ from pathlib import Path
 from .container_boundary import CONTAINER_BOUNDARY_ATTESTATION_FILENAME
 from .launcher.production_arms import ProductionArmError
 from .launcher.production_home import (
-    CONTAINER_HOME_DIR,
     LAUNCH_ATTESTATION_FILENAME,
     ProductionHomeError,
     committed_input_bundle_files,
@@ -51,6 +50,7 @@ from .trial_assets import (
     publish_trial_assets,
 )
 
+COST_LEDGER_PATH = "data/costs.jsonl"
 OUTER_ENVELOPE_FILENAME = "cortex-bench-outer-envelope.json"
 OUTER_ENVELOPE_SCHEMA_VERSION = "cortex-bench-outer-envelope/5"
 VERIFIER_ROOT = "verifier"
@@ -240,11 +240,12 @@ def _agent_outcome(
 
 
 def _cost_evidence(collected: Sequence[CollectedFile]) -> dict[str, object]:
-    prefix = f"{PRODUCTION_HOME_DIRNAME}/{CONTAINER_HOME_DIR}/.aistatus/usage/"
+    # The server's own cost ledger (`<CORTEX_HOME>/data/costs.jsonl`): spawns reach the proxy
+    # directly, so no local gateway writes usage files of its own any more.
+    ledger = f"{PRODUCTION_HOME_DIRNAME}/{COST_LEDGER_PATH}"
     paths = [
         f"{item.root}/{item.relative_path}" for item in collected
-        if item.root == "agent" and item.kind == "file"
-        and item.relative_path.startswith(prefix) and item.relative_path.endswith(".jsonl")
+        if item.root == "agent" and item.kind == "file" and item.relative_path == ledger
     ]
     if not paths:
         return _unavailable("run_cost_evidence_absent")

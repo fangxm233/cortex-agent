@@ -172,8 +172,6 @@ class ContainerDouble:
             return "4242\n"
         if "production-session-ready.json" in command:
             return json.dumps({"success": True, "data": {"ready": True}})
-        if "127.0.0.1:9880/status" in command:
-            return json.dumps({"status": "ok"})
         if "production-session-start.json" in command:
             return json.dumps({
                 "success": True,

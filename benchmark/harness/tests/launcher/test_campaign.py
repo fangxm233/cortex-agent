@@ -153,7 +153,7 @@ def campaign_document(root: Path, **overrides: object) -> dict[str, object]:
             "npm_artifact_path": str(root / "server.tgz"),
         },
         "credential": {
-            "upstream_base_url": "http://127.0.0.1:9880/m/deepseek/deepseek",
+            "upstream_base_url": "http://127.0.0.1:9099",
             "route_identity_host": "api.deepseek.com",
             "proxy_host_suffix": "proxy.invalid",
             "dummy_token_ref": "offline-token-handle",
@@ -1325,7 +1325,7 @@ def test_each_trial_is_armed_through_the_production_path_with_the_declared_docum
     assert seed["task"] == {"task_id": "task-one", "image_ref": IMAGE_REF,
                             "image_digest": DIGEST}
     assert seed["credential"] == {
-        "upstream_base_url": "http://127.0.0.1:9880/m/deepseek/deepseek",
+        "upstream_base_url": "http://127.0.0.1:9099",
         "route_identity_host": "api.deepseek.com",
         "proxy_base_url": "http://camp-01-task-one-cortex-a.proxy.invalid",
         "dummy_token_ref": "offline-token-handle",

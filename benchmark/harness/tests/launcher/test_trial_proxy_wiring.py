@@ -350,16 +350,17 @@ def test_public_entry_writes_the_live_proxy_into_the_production_home(
     agent = public_agent(tmp_path, upstream)
     try:
         asyncio.run(agent.setup(ContainerEnvironment()))
-        gateway = (
-            agent.logs_dir
-            / "production-cortex-home/container-home/.aistatus/gateway.yaml"
-        ).read_text()
+        home = agent.logs_dir / "production-cortex-home"
+        connections = (home / "config/connections.json").read_text()
+        auth = (home / "data/pi/auth.json").read_text()
     finally:
         agent.proxy_session.handle.stop()
 
-    assert agent.proxy_session.handle.base_url in gateway
-    assert agent.proxy_session.handle.dummy_token in gateway
-    assert REAL_CREDENTIAL not in gateway
+    # The route names the live proxy; the dummy token authenticates from PI's own auth.json.
+    assert agent.proxy_session.handle.base_url in connections
+    assert agent.proxy_session.handle.dummy_token in auth
+    assert agent.proxy_session.handle.dummy_token not in connections
+    assert REAL_CREDENTIAL not in connections and REAL_CREDENTIAL not in auth
 
 
 # W3 — the manifest's null block becomes the credential-free block.

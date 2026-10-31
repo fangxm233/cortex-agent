@@ -64,7 +64,7 @@ def document(state: str = "offline-contract-passed") -> dict[str, object]:
             run_config_sha256="d" * 64, request_sha256="e" * 64,
             request_count=1, input_tokens=9, output_tokens=2,
             conservative_cost_usd="0.00000182", scan_clean=True,
-            revocation_proven=True, upstream_identity="127.0.0.1:9880/m/deepseek/deepseek",
+            revocation_proven=True, upstream_identity="api.deepseek.com",
         )
     return common
 

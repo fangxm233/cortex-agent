@@ -23,6 +23,7 @@ import {
 import {
   getProductionAttemptIdentity,
   initializeProductionAttemptIdentity,
+  PI_BUILT_IN_BASE_URLS,
   resetProductionAttemptIdentity,
 } from '../../../src/domain/benchmark/production-attempt-identity.js';
 import { roleSurfaceFromSpec } from '../../../src/domain/benchmark/role-surface.js';
@@ -273,8 +274,8 @@ for (const backend of ['claude', 'pi'] as const) {
     assert.equal(record.execution_id, executionId);
     assert.equal(record.session_id, DIRECT.sessionId);
     assert.equal(record.bundle_manifest_hash, SHA);
-    // PI reaches the provider at PI's own URL: no connection overrides it, so no host is attested.
-    const routeHost = backend === 'claude' ? 'proxy.invalid' : null;
+    // PI reaches the provider at PI's own URL when no connection overrides it: that host is attested.
+    const routeHost = backend === 'claude' ? 'proxy.invalid' : 'api.deepseek.com';
     assert.equal(record.model_execution_identity_hash, computeModelExecutionIdentityHash({
       backend, requestedModel: selected.model,
       modelAliasPolicy: { policy: 'exact' }, providerProtocol: selected.provider,
@@ -441,6 +442,14 @@ test('hashes the base URL host of a PI provider connection', async () => {
   } finally {
     removeConnection({ backend: 'pi', id: 'deepseek' });
   }
+});
+
+test('the built-in PI hosts are the base URLs of PI\'s own provider catalog', async () => {
+  const { deepseekProvider } = await import('@earendil-works/pi-ai/providers/deepseek');
+  const { openaiCodexProvider } = await import('@earendil-works/pi-ai/providers/openai-codex');
+  const catalog = Object.fromEntries([deepseekProvider(), openaiCodexProvider()]
+    .map((provider) => [provider.id, provider.baseUrl]));
+  assert.deepEqual(catalog, PI_BUILT_IN_BASE_URLS);
 });
 
 for (const backend of ['claude', 'pi'] as const) {

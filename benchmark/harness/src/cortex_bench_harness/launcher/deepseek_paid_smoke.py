@@ -10,7 +10,9 @@ from .trial_admission import create_harbor_trial
 BUNDLE = "direct-pi-deepseek"
 CAPABILITY_ID = "pi-deepseek-api-key"
 MODEL = "deepseek-v4-flash"
-UPSTREAM = "http://127.0.0.1:9880/m/deepseek/deepseek"
+# Where the host-side trial proxy sends the one paid request: DeepSeek itself, which is also where PI
+# sends it when nothing overrides the provider.
+UPSTREAM = "https://api.deepseek.com"
 MAX_OUTPUT_TOKENS = 256
 REQUEST_LIMIT_BYTES = 64 * 1024
 RESPONSE_LIMIT_BYTES = 1024 * 1024

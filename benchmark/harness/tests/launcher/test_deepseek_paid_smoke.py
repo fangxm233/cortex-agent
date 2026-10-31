@@ -26,7 +26,7 @@ def exact_inputs() -> dict[str, object]:
         "manifest": {}, "trial_seed": {
             "arm": arm, "paid_run": True,
             "credential": {
-                "upstream_base_url": "http://127.0.0.1:9880/m/deepseek/deepseek",
+                "upstream_base_url": "https://api.deepseek.com",
             },
         },
         "cli_version": "2026.8.10", "host_scan_policy": {},
