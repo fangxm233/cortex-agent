@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { fileURLToPath } from 'url';
 import { loadGatewayConfig } from './gateway-config.js';
+import { loadAistatusDir } from './aistatus-dir.js';
 
 // This file lives at dist/core/paths.js when installed (or running from repo via tsx).
 // Two levels up resolves to the install/package root, which contains `dist/` and `defaults/`.
@@ -70,8 +71,8 @@ export function sessionSpawnCwd(session?: { workspaceDir?: string | null } | nul
 /** Startup-only gateway settings, shared by the CLI, server and gateway child. */
 export const GATEWAY_CONFIG = loadGatewayConfig(path.join(DATA_DIR, 'config'));
 
-/** aistatus state (gateway.yaml, config.yaml, usage/), under the gateway's OS home. */
-export const AISTATUS_DIR = GATEWAY_CONFIG.aistatusDir;
+/** aistatus state (the usage-sharing config.yaml, an earlier gateway.yaml) — see core/aistatus-dir.ts. */
+export const AISTATUS_DIR = loadAistatusDir(path.join(DATA_DIR, 'config'));
 
 /** Configuration files — .env, budget, models, environments, etc. (DATA_DIR/config/). */
 export const CONFIG_DIR = path.join(DATA_DIR, 'config');
