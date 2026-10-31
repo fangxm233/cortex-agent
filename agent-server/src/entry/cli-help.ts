@@ -31,25 +31,6 @@ export function getInitHelp(): string {
   ].join('\n');
 }
 
-export function getSetupGatewayHelp(): string {
-  return [
-    'Auto-detect Claude Code / PI configurations and generate gateway.yaml + models.json',
-    '',
-    'Usage: cortex setup-gateway [--dry-run] [--output-dir <path>]',
-    '',
-    'Discovers backend endpoints from local Claude Code and PI configs, then',
-    'writes gateway.yaml (with backup) and $CORTEX_HOME/config/models.json.',
-    'Gateway settings: CORTEX_GATEWAY_PORT (9880) and CORTEX_GATEWAY_HOME (OS home).',
-    'Both read config/.env; gateway.yaml lives in <gateway home>/.aistatus/.',
-    'Without flags, this command writes files in place.',
-    '',
-    'Options:',
-    '  --dry-run               Print the generated gateway.yaml to stdout without writing anything',
-    '  --output-dir <path>     Write gateway.yaml and models.json under <path> instead of the defaults',
-    '  --help, -h              Show this help',
-  ].join('\n');
-}
-
 export function getTuiHelp(): string {
   return [
     'Start the Cortex TUI (terminal UI) client',
@@ -227,10 +208,9 @@ function getCliCommands() {
     { name: 'restart', description: 'Legacy alias for daemon restart (touches $STORE_DIR/.restart)' },
     { name: 'install latest', description: 'Install the latest version of Cortex from npm' },
     { name: 'config', description: 'Show resolved paths and initialization status' },
-    { name: 'doctor', description: 'Health-check the install (runtime, login, platform, gateway); --fix to repair' },
+    { name: 'doctor', description: 'Health-check the install (runtime, login, platform); --fix to repair' },
     { name: 'auth status', description: t('cmd.auth.cli.statusDescription') },
     { name: 'feishu', description: 'Manage Feishu user-identity login (login / status / logout)' },
-    { name: 'setup-gateway', description: 'Auto-detect Claude/PI configs and generate gateway.yaml + models.json' },
     { name: 'ui enable', description: 'Enable the local Web UI endpoint the desktop app connects to' },
     { name: 'client remove', description: 'Unregister a remote machine and uninstall its cortex-client' },
     { name: 'path install', description: 'Make cortex available in new terminals (remove / status to undo or check)' },
@@ -249,7 +229,6 @@ function getCliExamples() {
     { description: t('cmd.auth.cli.exampleSummary'), command: 'cortex auth status' },
     { description: t('cmd.auth.cli.exampleJson'), command: 'cortex auth status --json' },
     { description: 'Diagnose and auto-repair', command: 'cortex doctor --fix' },
-    { description: 'Re-generate gateway config', command: 'cortex setup-gateway' },
     { description: 'Enable the local Web UI endpoint', command: 'cortex ui enable' },
     { description: 'Remove a remote machine and its client', command: 'cortex client remove --device trainer' },
     { description: 'Add cortex to new terminals', command: 'cortex path install' },

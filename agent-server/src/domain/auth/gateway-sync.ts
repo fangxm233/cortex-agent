@@ -1,7 +1,7 @@
 import * as path from 'node:path';
 import { createLogger } from '@core/log.js';
 import { atomicWriteSync } from '@core/atomic-write.js';
-import { discoverEndpoints, writeMergedGatewayYaml, type DiscoveredEndpoint } from '@core/gateway-generator.js';
+import { discoverEndpoints, type DiscoveredEndpoint } from '@core/gateway-generator.js';
 import { generateModels, mergeModelsJson, readExistingModels, recommendedChoice } from '@core/models-generator.js';
 import { CONFIG_DIR } from '@core/paths.js';
 import { modelsRepo, modelsWriteLock } from '@store/models-repo.js';
@@ -20,7 +20,6 @@ export interface GatewaySyncResult {
 export interface GatewaySyncOptions {
   backends?: string[];
   configDir?: string;
-  gatewayConfigDir?: string;
   discover?: (backends?: string[]) => DiscoveredEndpoint[] | Promise<DiscoveredEndpoint[]>;
 }
 
@@ -50,13 +49,12 @@ export async function syncGatewayFromBackends(options: GatewaySyncOptions = {}):
     if (!endpoints.some(endpoint => endpoint.models.length > 0)) {
       return { configured: false, endpoints: 0, defaultSet: false, favorites: [], reason: 'no-endpoints' };
     }
-    writeMergedGatewayYaml(endpoints, options.gatewayConfigDir);
     const result = await modelsWriteLock.run(() => syncModels(endpoints, options.configDir ?? CONFIG_DIR));
     log.info(`Synced ${endpoints.length} endpoint(s) → ${result.favorites.length} favorite model(s)`);
     return { configured: true, endpoints: endpoints.length, ...result };
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    log.warn(`Gateway sync skipped: ${reason}`);
+    log.warn(`Model sync skipped: ${reason}`);
     return { configured: false, endpoints: 0, defaultSet: false, favorites: [], reason };
   }
 }

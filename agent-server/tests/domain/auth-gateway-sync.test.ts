@@ -17,9 +17,8 @@ function makeDirs() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-gateway-sync-'));
   tempDirs.push(root);
   const configDir = path.join(root, 'config');
-  const gatewayConfigDir = path.join(root, 'aistatus');
-  fs.mkdirSync(configDir); fs.mkdirSync(gatewayConfigDir);
-  return { configDir, gatewayConfigDir };
+  fs.mkdirSync(configDir);
+  return { configDir, root };
 }
 function piEndpoint(mode: string, models: string[]): DiscoveredEndpoint {
   return { mode, endpoint: mode, base_url: 'https://api.example.com', auth_style: 'bearer', keys: [], passthrough: true, models, gatewayManaged: true };
@@ -30,20 +29,20 @@ const favorite = { backend: 'claude', provider: null, model: 'opus' };
 function save(configDir: string, value: unknown) { fs.writeFileSync(path.join(configDir, 'models.json'), JSON.stringify(value)); }
 function load(configDir: string) { return JSON.parse(fs.readFileSync(path.join(configDir, 'models.json'), 'utf8')); }
 
-test('first login writes gateway and a recommended default with favorites', async () => {
+test('first login writes a recommended default with favorites, and no gateway config', async () => {
   const dirs = makeDirs();
-  const result = await syncGatewayFromBackends({ ...dirs, discover: () => [piEndpoint('acme', ['large', 'small'])] });
+  const result = await syncGatewayFromBackends({ configDir: dirs.configDir, discover: () => [piEndpoint('acme', ['large', 'small'])] });
   assert.equal(result.configured, true);
   assert.equal(result.endpoints, 1);
   assert.equal(result.defaultSet, true);
   assert.deepEqual(result.favorites, [{ backend: 'pi', provider: 'acme', model: 'large' }]);
-  assert.ok(fs.existsSync(path.join(dirs.gatewayConfigDir, 'gateway.yaml')));
+  assert.deepEqual(fs.readdirSync(dirs.root), ['config']);
   assert.equal(load(dirs.configDir).default.model, 'large');
 });
 test('login preserves customized default and adds each newly connected backend/provider once', async () => {
   const dirs = makeDirs();
   save(dirs.configDir, { default: existing, favorites: [favorite] });
-  const sync = () => syncGatewayFromBackends({ ...dirs, backends: ['pi'], discover: () => [piEndpoint('acme', ['large']), piEndpoint('other', ['org/model.v1'])] });
+  const sync = () => syncGatewayFromBackends({ configDir: dirs.configDir, backends: ['pi'], discover: () => [piEndpoint('acme', ['large']), piEndpoint('other', ['org/model.v1'])] });
   assert.equal((await sync()).defaultSet, false);
   await sync();
   const saved = load(dirs.configDir);
@@ -53,13 +52,13 @@ test('login preserves customized default and adds each newly connected backend/p
 test('a group already favorited does not gain the newly recommended model', async () => {
   const dirs = makeDirs();
   save(dirs.configDir, { default: existing, favorites: [{ backend: 'pi', provider: 'acme', model: 'custom' }] });
-  await syncGatewayFromBackends({ ...dirs, discover: () => [piEndpoint('acme', ['large'])] });
+  await syncGatewayFromBackends({ configDir: dirs.configDir, discover: () => [piEndpoint('acme', ['large'])] });
   assert.equal(load(dirs.configDir).favorites.length, 1);
 });
 test('default-less config gets a default while preserving favorites', async () => {
   const dirs = makeDirs();
   save(dirs.configDir, { favorites: [favorite] });
-  const result = await syncGatewayFromBackends({ ...dirs, discover: () => [piEndpoint('acme', ['large'])] });
+  const result = await syncGatewayFromBackends({ configDir: dirs.configDir, discover: () => [piEndpoint('acme', ['large'])] });
   assert.equal(result.defaultSet, true);
   assert.equal(load(dirs.configDir).default.model, 'large');
   assert.equal(result.favorites.length, 2);
@@ -67,7 +66,7 @@ test('default-less config gets a default while preserving favorites', async () =
 test('no endpoints or model-less endpoints do not write an empty config', async () => {
   const dirs = makeDirs();
   for (const endpoints of [[], [piEndpoint('empty', [])]]) {
-    const result = await syncGatewayFromBackends({ ...dirs, discover: () => endpoints });
+    const result = await syncGatewayFromBackends({ configDir: dirs.configDir, discover: () => endpoints });
     assert.equal(result.reason, 'no-endpoints');
     assert.equal(result.defaultSet, false);
   }
@@ -119,7 +118,7 @@ for (const mutation of mutations) {
     const ui = mutation.run();
     await pause.captured;
     let syncFinished = false;
-    const sync = syncGatewayFromBackends({ ...dirs, discover: () => [piEndpoint('acme', ['large'])] })
+    const sync = syncGatewayFromBackends({ configDir: dirs.configDir, discover: () => [piEndpoint('acme', ['large'])] })
       .then(result => { syncFinished = true; return result; });
     // Sync discovery and its synchronous transaction can finish in this turn unless locked.
     await new Promise<void>(resolve => setImmediate(resolve));

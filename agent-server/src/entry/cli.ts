@@ -21,8 +21,6 @@ import {
 import type { ConfigStatus } from './init.js';
 import { cmdFeishu } from './feishu-login.js';
 import { cmdDoctor } from './doctor-cli.js';
-import { discoverEndpoints, writeMergedGatewayYaml, validateModelsAgainstGateway, dryRunGatewayYaml } from '@core/gateway-generator.js';
-import { readExistingModels, writeModelsJson } from '@core/models-generator.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import { getAuthStatus } from '@domain/auth/auth-status.js';
 import { defaultCustomProviderStores } from '@domain/pi-providers/index.js';
@@ -30,7 +28,6 @@ import { runAuthCli, type AuthCliDeps } from './auth-cli.js';
 import {
   getCliHelp,
   getInitHelp,
-  getSetupGatewayHelp,
   getTuiHelp,
 } from './cli-help.js';
 import { runUiCli } from './ui-cli.js';
@@ -342,8 +339,6 @@ export interface RunCliDeps extends AuthCliDeps {}
 // ─── runCli (synchronous/async commands) ────────────────────────
 
 type CliHandler = (args: string[], deps: RunCliDeps) => Promise<CliResult> | CliResult;
-type GatewayMergeResult = ReturnType<typeof writeMergedGatewayYaml>['result'];
-type GatewayIssues = ReturnType<typeof validateModelsAgainstGateway>;
 
 function optionValue(args: string[], flag: string): string | undefined {
   const index = args.indexOf(flag);
@@ -391,68 +386,6 @@ function runRestartCli(): CliResult {
   }
 }
 
-function appendDroppedWarnings(lines: string[], result: GatewayMergeResult): void {
-  if (result.droppedFromDiscovery.length === 0) return;
-  const list = result.droppedFromDiscovery.map(item => `${item.mode}/${item.endpoint}`).join(', ');
-  lines.push(`WARNING: preserved ${result.droppedFromDiscovery.length} existing gateway mode(s) not reported by discovery: ${list}`);
-  lines.push('  (if these should auto-detect, check `cortex auth status` and log the provider in)');
-}
-
-function appendModelIssues(lines: string[], issues: GatewayIssues): void {
-  if (issues.length === 0) return;
-  lines.push(`WARNING: ${issues.length} model selection(s) reference an unconfigured gateway route:`);
-  for (const issue of issues) lines.push(`  - ${issue.model}: ${issue.reason}`);
-}
-
-function gatewayOutput(
-  endpoints: Awaited<ReturnType<typeof discoverEndpoints>>,
-  outputDir: string | undefined,
-  gatewayPath: string,
-  modelsPath: string,
-  mergeResult: GatewayMergeResult,
-): string {
-  const models = readExistingModels(path.dirname(modelsPath))!;
-  const favorites = models.favorites!.map(ref => ref.model).join(', ');
-  const lines = [
-    outputDir ? `[TEST MODE] Output directory: ${outputDir}` : '',
-    `Gateway config: ${gatewayPath}`,
-    `Models: ${modelsPath}`,
-    `Discovered ${endpoints.length} endpoint modes`,
-    `Favorites: ${favorites} (default: ${models.default!.model})`,
-  ];
-  appendDroppedWarnings(lines, mergeResult);
-  appendModelIssues(lines, validateModelsAgainstGateway(mergeResult.endpoints, outputDir));
-  return lines.filter(Boolean).join('\n');
-}
-
-async function writeGatewayConfiguration(outputDir: string | undefined): Promise<CliResult> {
-  const endpoints = await discoverEndpoints();
-  if (!endpoints.some(endpoint => endpoint.models.length > 0)) {
-    return { exitCode: 0, stdout: 'No backends discovered. Log into Claude Code and/or PI first.\n', stderr: '' };
-  }
-  const { path: gatewayPath, result } = writeMergedGatewayYaml(endpoints, outputDir);
-  const modelsPath = writeModelsJson(endpoints, { outputDir });
-  return {
-    exitCode: 0,
-    stdout: gatewayOutput(endpoints, outputDir, gatewayPath, modelsPath, result),
-    stderr: '',
-  };
-}
-
-async function runSetupGatewayCli(args: string[]): Promise<CliResult> {
-  if (args.includes('--help') || args.includes('-h')) {
-    return { exitCode: 0, stdout: getSetupGatewayHelp(), stderr: '' };
-  }
-  try {
-    if (args.includes('--dry-run')) {
-      return { exitCode: 0, stdout: await dryRunGatewayYaml(), stderr: '' };
-    }
-    return await writeGatewayConfiguration(optionValue(args, '--output-dir'));
-  } catch (error: any) {
-    return { exitCode: 1, stdout: '', stderr: error.message || String(error) };
-  }
-}
-
 async function runInstallCli(args: string[]): Promise<CliResult> {
   const { runCli: installRunCli, getInstallHelp } = await import('@domain/system/install-cli.js');
   if (args.includes('--help') || args.includes('-h')) {
@@ -497,7 +430,6 @@ const CLI_HANDLERS: Record<string, CliHandler> = {
   doctor: (args) => cmdDoctor(args),
   feishu: (args) => cmdFeishu(args),
   restart: () => runRestartCli(),
-  'setup-gateway': (args) => runSetupGatewayCli(args),
   ui: (args) => runUiCli(args),
   client: (args) => runClientCli(args),
   path: (args) => runPathCli(args),
@@ -546,7 +478,7 @@ function main(): void {
       console.log(getTuiHelp());
       process.exit(0);
     }
-    // Other subcommands (init, config, setup-gateway) handle --help internally via runCli()
+    // Other subcommands (init, config) handle --help internally via runCli()
   }
 
   // Handle --version / -V for subcommands

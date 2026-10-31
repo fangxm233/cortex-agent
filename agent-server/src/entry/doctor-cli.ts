@@ -19,7 +19,7 @@ export interface CmdDoctorDeps {
 export function getDoctorHelp(): string {
   return formatHelp({
     name: 'cortex doctor',
-    description: 'Health-check the Cortex installation — runtime, backend/login, messaging platform, gateway.',
+    description: 'Health-check the Cortex installation — runtime, backend/login, messaging platform.',
     usage: 'cortex doctor [options]',
     options: [
       { flag: '--fix', description: 'Apply safe, idempotent repairs (generate missing tokens, create dirs, rebuild mcp-config)' },
