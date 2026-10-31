@@ -217,28 +217,45 @@ export function readClaudeOrganizationUuid(deps: ClaudeCredentialDeps = {}): str
   }
 }
 
+type LegacyTokenSource = 'env-oauth-token' | 'dotenv-oauth-token';
+
+/** Where Claude's subscription credential comes from. */
+export type ClaudeSubscriptionSource = 'claude-store' | LegacyTokenSource;
+
+/** Claude's own store carries no token here: the CLI reads and refreshes it itself. A legacy
+ *  source carries the static token a spawn must pass on — a secret: never log it. */
+export type ClaudeSubscriptionLogin =
+  | { source: 'claude-store'; token: null }
+  | { source: LegacyTokenSource; token: string };
+
+/**
+ * The one answer to "is Claude's subscription signed in, and on which credential". Claude Code's
+ * own store (the file, or the macOS keychain) always wins: it is the credential `claude login`
+ * writes and refreshes. A static OAuth token from the environment or CONFIG_DIR/.env counts only
+ * while that store holds nothing, since nobody rotates it. Null: no subscription credential.
+ */
+export function claudeSubscriptionLogin(deps: ClaudeCredentialDeps = {}): ClaudeSubscriptionLogin | null {
+  if (claudeOwnsOAuthCredential(deps)) return { source: 'claude-store', token: null };
+  const envToken = credentialValue((deps.env ?? process.env).CLAUDE_CODE_OAUTH_TOKEN);
+  if (envToken) return { source: 'env-oauth-token', token: envToken };
+  const saved = readDotenvCredentials(deps).CLAUDE_CODE_OAUTH_TOKEN;
+  return saved ? { source: 'dotenv-oauth-token', token: saved } : null;
+}
+
 /**
  * The credential the daemon may authenticate an Anthropic call with: the official-API key
- * connection, then Claude's own store, then a legacy OAuth token from the env or .env. Claude's
- * store outranks the static token — it is the credential `claude login` writes and refreshes, while
- * the .env copy is a token nobody rotates. null means "this host cannot make a server-side
- * Anthropic call" — never an error: every caller has a static fallback, and a host with no key is a
- * supported configuration.
+ * connection, then the subscription credential (see claudeSubscriptionLogin). null means "this host
+ * cannot make a server-side Anthropic call" — never an error: every caller has a static fallback,
+ * and a host with no key is a supported configuration.
  */
 export function resolveClaudeCredential(deps: ClaudeCredentialDeps = {}): ClaudeCredential | null {
   const connection = officialApiKeyConnection(deps);
   if (connection) return { headers: apiKeyHeaders(connection.key), source: 'connection-api-key' };
-
+  const login = claudeSubscriptionLogin(deps);
+  if (!login) return null;
+  if (login.source !== 'claude-store') return { headers: oauthHeaders(login.token), source: login.source };
   const storeToken = claudeStoreToken(deps);
-  if (storeToken) return { headers: oauthHeaders(storeToken), source: 'claude-credentials' };
-  return legacyTokenCredential(deps);
-}
-
-function legacyTokenCredential(deps: ClaudeCredentialDeps): ClaudeCredential | null {
-  const envToken = credentialValue((deps.env ?? process.env).CLAUDE_CODE_OAUTH_TOKEN);
-  if (envToken) return { headers: oauthHeaders(envToken), source: 'env-oauth-token' };
-  const saved = readDotenvCredentials(deps).CLAUDE_CODE_OAUTH_TOKEN;
-  return saved ? { headers: oauthHeaders(saved), source: 'dotenv-oauth-token' } : null;
+  return storeToken ? { headers: oauthHeaders(storeToken), source: 'claude-credentials' } : null;
 }
 
 /**
@@ -297,14 +314,11 @@ export async function claudeKeychainCredential(deps: ClaudeCredentialDeps = {}):
 }
 
 /**
- * Does Claude Code own an OAuth credential here?
- *
- * Two stores can answer, and which one is authoritative is the platform's choice: the plaintext
- * file on Linux and Windows, the login keychain on macOS. Checking only the file — as this rule
- * did before — reads as "not logged in" on every Mac, which is how a static .env token came to
- * shadow a live credential there.
+ * Does Claude Code own an OAuth credential here? Two stores can answer, and which one is
+ * authoritative is the platform's choice: the plaintext file on Linux and Windows, the login
+ * keychain on macOS. Checking only the file reads as "not logged in" on every Mac.
  */
-export function claudeOwnsOAuthCredential(deps: ClaudeCredentialDeps = {}): boolean {
+function claudeOwnsOAuthCredential(deps: ClaudeCredentialDeps): boolean {
   if (readClaudeStore(deps)) return true;
   const platform = deps.platform ?? process.platform;
   if (platform !== 'darwin') return false;

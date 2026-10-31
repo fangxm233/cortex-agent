@@ -2,11 +2,11 @@ import { t } from '@core/i18n.js';
 import { createLogger } from '@core/log.js';
 import { piUserAuthPath } from '@core/pi-sdk.js';
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
+import { claudeSubscriptionLogin } from '@core/claude-credentials.js';
 import {
-  dropRoutingEnv,
-  getSavedApiEnv,
   removeAnthropicApiKey,
   removeClaudeCodeOAuthToken,
+  savedClaudeSecrets,
 } from './anthropic-env.js';
 import { logoutClaudeAuth } from './cc-auth-cli.js';
 import {
@@ -55,7 +55,6 @@ export interface LogoutAccountDependencies {
   loadPiRuntime?: (options?: LoadPiRuntimeOptions) => Promise<PiRuntimeLoadResult>;
   removeAnthropicApiKey?: typeof removeAnthropicApiKey;
   logoutClaudeAuth?: typeof logoutClaudeAuth;
-  configureClaudeEnv?: () => void;
   refreshProviders?: () => void;
   piAuthPath?: string;
 }
@@ -93,11 +92,6 @@ function credentialValues(credential: PiCredential | undefined): string[] {
   ));
 }
 
-function savedClaudeSecrets(): string[] {
-  const saved = getSavedApiEnv();
-  return [saved.ANTHROPIC_API_KEY, saved.CLAUDE_CODE_OAUTH_TOKEN].filter(value => !!value) as string[];
-}
-
 function succeeded(input: LogoutAccountInput): AuthLogoutSuccess {
   return { ok: true, ...input };
 }
@@ -129,28 +123,25 @@ function selectedCredential(
   return candidates.find(item => item.manageable) ?? current ?? candidates[0] ?? null;
 }
 
-function reloadClaude(dependencies: LogoutAccountDependencies): void {
-  const reload = dependencies.configureClaudeEnv ?? dropRoutingEnv;
-  reload();
-}
-
+/** Logging out removes the credential from the store that holds it, and nothing else: no other
+ *  file or environment copy is derived from it. */
 async function removeClaudeSavedCredential(
   input: LogoutAccountInput,
   remove: () => Promise<void>,
-  dependencies: LogoutAccountDependencies,
 ): Promise<AuthLogoutResult> {
   const secrets = savedClaudeSecrets();
   try {
     await remove();
-    reloadClaude(dependencies);
     return succeeded(input);
   } catch (error) {
     return failed(input, 'logout_failed', error, secrets);
   }
 }
 
+/** Once Claude's own login is gone, a legacy static token would become the subscription
+ *  credential; signing out of the subscription removes it too. */
 async function clearLegacyClaudeOAuth(): Promise<void> {
-  if (!getSavedApiEnv().CLAUDE_CODE_OAUTH_TOKEN) return;
+  if (!claudeSubscriptionLogin()?.token) return;
   await removeClaudeCodeOAuthToken();
 }
 
@@ -161,16 +152,15 @@ async function logoutClaude(
 ): Promise<AuthLogoutResult> {
   if (input.authType === 'api_key') {
     const remove = dependencies.removeAnthropicApiKey ?? removeAnthropicApiKey;
-    return removeClaudeSavedCredential(input, remove, dependencies);
+    return removeClaudeSavedCredential(input, remove);
   }
   if (credential.source === 'legacy-env') {
-    return removeClaudeSavedCredential(input, removeClaudeCodeOAuthToken, dependencies);
+    return removeClaudeSavedCredential(input, removeClaudeCodeOAuthToken);
   }
   const secrets = savedClaudeSecrets();
   try {
     await (dependencies.logoutClaudeAuth ?? logoutClaudeAuth)();
     await clearLegacyClaudeOAuth();
-    reloadClaude(dependencies);
     return succeeded(input);
   } catch (error) {
     return failed(input, 'logout_failed', error, secrets);

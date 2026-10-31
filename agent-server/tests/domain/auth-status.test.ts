@@ -5,7 +5,8 @@ import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'vitest';
 import { modelsRepo, MODELS_FILE } from '../../src/store/models-repo.js';
-import { getSavedApiEnv } from '../../src/domain/auth/anthropic-env.js';
+import type { ClaudeSubscriptionSource } from '../../src/core/claude-credentials.js';
+import type { ConnectionView } from '../../src/domain/connections/index.js';
 import {
   getAuthStatus,
   preferredAuthType,
@@ -119,6 +120,15 @@ function requireAvailable(result: PiRuntimeLoadResult): asserts result is Extrac
   assert.equal(result.available, true, result.error ?? 'PI runtime should be available');
 }
 
+/** The two Anthropic slots as the inventory reports them: the `api` connection and the
+ *  subscription's source. */
+function claudeInventory(apiKey: boolean, subscription: ClaudeSubscriptionSource | null) {
+  return {
+    findClaude: (id: string) => (apiKey && id === 'api' ? { id: 'api' } as ConnectionView : null),
+    claudeSubscriptionSource: () => subscription,
+  };
+}
+
 function baseStatusOptions(
   fixture: PiFixture,
   piRuntime: PiRuntimeLoadResult,
@@ -129,8 +139,8 @@ function baseStatusOptions(
     claudeConfigDir: path.dirname(claudeCredentialsPath),
     piAuthPath: fixture.authPath,
     loadPiRuntime: async () => piRuntime,
-    getSavedApiEnv: () => ({ ANTHROPIC_API_KEY: '\uE104\uE105', ANTHROPIC_BASE_URL: undefined }),
-    getClaudeMode: () => 'api',
+    inventory: claudeInventory(true, 'claude-store'),
+    getDefaultClaudeConnection: () => 'api',
     getActiveBackend: () => 'pi' as const,
     listFavorites: () => [
       { model: 'fixture', backend: 'pi' as const, provider: 'fresh' },
@@ -138,9 +148,6 @@ function baseStatusOptions(
       { model: 'fixture-claude', backend: 'claude' as const, provider: null },
     ],
     getDefaultSelection: () => ({ backend: 'pi' as const, provider: 'expired' }),
-    readClaudeAuthStatus: async () => ({
-      loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty',
-    }),
   };
 }
 
@@ -293,7 +300,7 @@ test('getAuthStatus exposes both Claude credentials and mirrors the mode-selecte
     assert.equal(apiAccount.state, 'logged-in');
     assert.deepEqual(apiAccount.credentials.map(item => item.authType), ['api_key', 'oauth']);
     assert.equal(apiAccount.credentials[1]?.state, 'expiring');
-    const oauthAccount = account(await getAuthStatus({ ...options, getClaudeMode: () => 'plan' }), 'anthropic');
+    const oauthAccount = account(await getAuthStatus({ ...options, getDefaultClaudeConnection: () => 'subscription' }), 'anthropic');
     assert.equal(oauthAccount.authType, 'oauth');
     assert.equal(oauthAccount.state, 'expiring');
     assert.equal(oauthAccount.expiresAt, new Date(NOW_MS + DAY_MS).toISOString());
@@ -318,13 +325,9 @@ test('Claude status reads expiry metadata from an explicitly named Claude config
       claudeConfigDir: configDir,
       piAuthPath: fixture.authPath,
       loadPiRuntime: async () => await loadFixture(fixture),
-      getSavedApiEnv: () => ({ ANTHROPIC_API_KEY: undefined, ANTHROPIC_BASE_URL: undefined }),
-      getClaudeMode: () => 'plan',
+      getDefaultClaudeConnection: () => 'subscription',
       getActiveBackend: () => 'claude',
       listFavorites: () => [],
-      readClaudeAuthStatus: async () => ({
-        loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty',
-      }),
     } as GetAuthStatusOptions), 'anthropic');
     assert.equal(claude.source, 'credentials.json');
     assert.equal(claude.expiresAt, new Date(expiry).toISOString());
@@ -344,7 +347,7 @@ test('Claude OAuth lifetime is the refresh token, not the auto-refreshed access 
   try {
     const options = {
       ...baseStatusOptions(fixture, await loadFixture(fixture), claudePath),
-      getClaudeMode: () => 'plan',
+      getDefaultClaudeConnection: () => 'subscription',
     };
     writeOAuth(NOW_MS + 30 * DAY_MS);
     const healthy = account(await getAuthStatus(options), 'anthropic');
@@ -359,50 +362,39 @@ test('Claude OAuth lifetime is the refresh token, not the auto-refreshed access 
   }
 });
 
-test('Claude OAuth account follows scrubbed CLI status instead of a saved env token', async () => {
+test('a legacy static token shows as the subscription only when the inventory says it runs on it', async () => {
   const fixture = createPiFixture();
-  const savedEnv = {
-    ANTHROPIC_API_KEY: undefined,
-    ANTHROPIC_BASE_URL: undefined,
-    CLAUDE_CODE_OAUTH_TOKEN: '\uE13A\uE13B-legacy-token',
-    CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: new Date(NOW_MS + DAY_MS).toISOString(),
-  };
   writeJson(fixture.authPath, {});
   try {
-    const options = baseStatusOptions(
-      fixture,
-      await loadFixture(fixture),
-      path.join(fixture.root, 'missing-claude.json'),
-    );
-    const loggedOut = account(await getAuthStatus({
-      ...options,
-      getSavedApiEnv: () => savedEnv,
-      getClaudeMode: () => 'plan',
-      readClaudeAuthStatus: async () => ({
-        loggedIn: false, authMethod: 'none', apiProvider: 'firstParty',
-      }),
-    } as GetAuthStatusOptions), 'anthropic');
-    assert.equal(loggedOut.state, 'logged-out');
-    assert.equal(loggedOut.authType, null);
-    assert.deepEqual(loggedOut.credentials, [{
+    const options = {
+      ...baseStatusOptions(fixture, await loadFixture(fixture), path.join(fixture.root, 'missing-claude.json')),
+      getDefaultClaudeConnection: () => 'subscription',
+    };
+    const legacy = account(await getAuthStatus({
+      ...options, inventory: claudeInventory(false, 'dotenv-oauth-token'),
+    }), 'anthropic');
+    assert.equal(legacy.authType, 'oauth');
+    assert.equal(legacy.state, 'unknown');
+    assert.equal(legacy.source, 'legacy-env');
+    assert.deepEqual(legacy.credentials, [{
       authType: 'oauth', state: 'unknown', source: 'legacy-env',
       expiresAt: null, refreshExpiresAt: null, manageable: true,
       detail: 'legacy_runtime_token',
     }]);
 
-    const loggedIn = account(await getAuthStatus({
-      ...options,
-      getSavedApiEnv: () => savedEnv,
-      getClaudeMode: () => 'plan',
-      readClaudeAuthStatus: async () => ({
-        loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty',
-      }),
-    } as GetAuthStatusOptions), 'anthropic');
-    assert.equal(loggedIn.state, 'logged-in');
-    assert.equal(loggedIn.authType, 'oauth');
-    assert.equal(loggedIn.source, 'claude-cli');
-    assert.equal(loggedIn.expiresAt, null);
-    assert.equal(JSON.stringify(loggedIn).includes(savedEnv.CLAUDE_CODE_OAUTH_TOKEN), false);
+    const keychain = account(await getAuthStatus({
+      ...options, inventory: claudeInventory(false, 'claude-store'),
+    }), 'anthropic');
+    assert.equal(keychain.state, 'logged-in');
+    assert.equal(keychain.authType, 'oauth');
+    assert.equal(keychain.source, 'keychain');
+    assert.equal(keychain.expiresAt, null);
+
+    const signedOut = account(await getAuthStatus({
+      ...options, inventory: claudeInventory(false, null),
+    }), 'anthropic');
+    assert.equal(signedOut.state, 'logged-out');
+    assert.deepEqual(signedOut.credentials, []);
   } finally {
     fs.rmSync(fixture.root, { recursive: true, force: true });
   }
@@ -418,16 +410,13 @@ test('getAuthStatus never falls back across Claude auth slots', async () => {
   try {
     const options = baseStatusOptions(fixture, await loadFixture(fixture), claudePath);
     const apiAccount = account(await getAuthStatus({
-      ...options, getSavedApiEnv: () => ({ ANTHROPIC_API_KEY: undefined, ANTHROPIC_BASE_URL: undefined }),
+      ...options, inventory: claudeInventory(false, 'claude-store'),
     }), 'anthropic');
     assert.equal(apiAccount.authType, null);
     assert.equal(apiAccount.state, 'logged-out');
     assert.deepEqual(apiAccount.credentials.map(item => item.authType), ['oauth']);
     const planAccount = account(await getAuthStatus({
-      ...options, claudeConfigDir: path.join(fixture.root, 'missing'), getClaudeMode: () => 'plan',
-      readClaudeAuthStatus: async () => ({
-        loggedIn: false, authMethod: 'none', apiProvider: 'firstParty',
-      }),
+      ...options, inventory: claudeInventory(true, null), getDefaultClaudeConnection: () => 'subscription',
     }), 'anthropic');
     assert.equal(planAccount.authType, null);
     assert.deepEqual(planAccount.credentials.map(item => item.authType), ['api_key']);
@@ -464,7 +453,7 @@ test('fresh install auth status does not require a configured model', async () =
   const fixture = createPiFixture();
   const options = baseStatusOptions(fixture, await loadFixture(fixture), path.join(fixture.root, 'missing'));
   try {
-    const snapshot = await getAuthStatus({ ...options, getActiveBackend: undefined, getClaudeMode: undefined,
+    const snapshot = await getAuthStatus({ ...options, getActiveBackend: undefined, getDefaultClaudeConnection: undefined,
       listFavorites: undefined, getDefaultSelection: undefined });
     assert.ok(snapshot.accounts.length > 0);
     assert.ok(snapshot.accounts.every(item => !item.inUse));
@@ -477,7 +466,7 @@ test('default-less models file is unconfigured but does not hide credentials', a
   fs.writeFileSync(MODELS_FILE, JSON.stringify({ favorites: [] }));
   modelsRepo.invalidate();
   try {
-    const snapshot = await getAuthStatus({ ...options, getActiveBackend: undefined, getClaudeMode: undefined,
+    const snapshot = await getAuthStatus({ ...options, getActiveBackend: undefined, getDefaultClaudeConnection: undefined,
       listFavorites: undefined, getDefaultSelection: undefined });
     assert.ok(snapshot.accounts.length > 0);
     assert.ok(snapshot.accounts.every(item => !item.inUse));

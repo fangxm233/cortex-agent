@@ -1,8 +1,5 @@
 import { t } from '@core/i18n.js';
-import {
-  dropRoutingEnv,
-  removeClaudeCodeOAuthToken,
-} from './anthropic-env.js';
+import { removeClaudeCodeOAuthToken } from './anthropic-env.js';
 import {
   ClaudeAuthCliError,
   loginClaudeAuth,
@@ -21,7 +18,6 @@ const OUTCOME_DETAIL = 'Credential managed by Claude Code.';
 export interface ClaudeSubscriptionLoginDependencies {
   login?: typeof loginClaudeAuth;
   removeLegacyToken?: () => Promise<void>;
-  reloadAuth?: () => void;
   publishRecovered?: (input: { backend: 'claude'; provider: string }) => void;
 }
 
@@ -63,7 +59,6 @@ async function clearLegacyToken(
 ): Promise<void> {
   try {
     await (dependencies.removeLegacyToken ?? removeClaudeCodeOAuthToken)();
-    (dependencies.reloadAuth ?? dropRoutingEnv)();
   } catch (error) {
     throw new LoginFlowError(
       'claude_subscription_cleanup_failed',

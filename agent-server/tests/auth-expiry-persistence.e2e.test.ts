@@ -75,10 +75,7 @@ async function readRealSnapshot(credentialsPath: string): Promise<AuthStatusSnap
     loadPiRuntime: async () => unavailablePi(),
     getActiveBackend: () => 'claude',
     listFavorites: () => [],
-    getClaudeMode: () => 'plan',
-    readClaudeAuthStatus: async () => ({
-      loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty',
-    }),
+    getDefaultClaudeConnection: () => 'subscription',
   });
 }
 

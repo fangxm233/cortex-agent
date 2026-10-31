@@ -114,10 +114,7 @@ async function runLogin(login: LoginFlowConsumer, key: string) {
 
 async function readClaudeStatus(getAuthStatus: GetAuthStatus) {
   const snapshot = await getAuthStatus({
-    getClaudeMode: () => 'api', getActiveBackend: () => 'claude', listFavorites: () => [],
-    readClaudeAuthStatus: async () => ({
-      loggedIn: false, authMethod: 'none', apiProvider: 'firstParty',
-    }),
+    getDefaultClaudeConnection: () => 'api', getActiveBackend: () => 'claude', listFavorites: () => [],
     loadPiRuntime: async () => ({
       available: false, version: null, entry: null, error: 'fixture runtime unavailable',
       runtime: null, readStoredCredential: null,
@@ -161,7 +158,6 @@ test('Claude API-key LoginFlow persists securely, reloads runtime, recovers auth
   const consoleCalls = captureConsole(t);
   const { loginClaudeApiKey } = await import('../../src/domain/auth/cc-login.js');
   const { getAuthStatus } = await import('../../src/domain/auth/auth-status.js');
-  const config = await import('../../src/domain/auth/anthropic-env.js');
   assert.equal((await readClaudeStatus(getAuthStatus)).state, 'logged-out');
   const recovered = captureRecovery();
   const result = await runLogin(loginClaudeApiKey, NEW_KEY);
@@ -169,7 +165,7 @@ test('Claude API-key LoginFlow persists securely, reloads runtime, recovers auth
   const persisted = fs.readFileSync(fixture.envFile, 'utf8');
   assertSuccessfulLogin({
     fixture, result, account, persisted,
-    savedKey: config.getSavedApiEnv().ANTHROPIC_API_KEY, recovered, consoleCalls,
+    savedKey: storedApiKey(), recovered, consoleCalls,
   });
 });
 

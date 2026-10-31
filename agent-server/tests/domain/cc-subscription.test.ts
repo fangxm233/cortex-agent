@@ -53,7 +53,6 @@ async function waitForStep(flowId: string, expected: LoginFlowStep): Promise<Log
 interface SuccessEvidence {
   codes: string[];
   cleanup: ReturnType<typeof vi.fn>;
-  reload: ReturnType<typeof vi.fn>;
   recovered: Array<{ backend: 'claude'; provider: string }>;
   dependencies: ClaudeSubscriptionLoginDependencies;
 }
@@ -61,10 +60,9 @@ interface SuccessEvidence {
 function successEvidence(): SuccessEvidence {
   const codes: string[] = [];
   const cleanup = vi.fn(async () => {});
-  const reload = vi.fn();
   const recovered: Array<{ backend: 'claude'; provider: string }> = [];
   return {
-    codes, cleanup, reload, recovered,
+    codes, cleanup, recovered,
     dependencies: {
       login: async (options: ClaudeAuthLoginOptions) => {
         codes.push(await options.onAuthorization(AUTH_URL));
@@ -72,7 +70,6 @@ function successEvidence(): SuccessEvidence {
         return STATUS;
       },
       removeLegacyToken: cleanup,
-      reloadAuth: reload,
       publishRecovered: input => { recovered.push(input); },
     },
   };
@@ -114,7 +111,6 @@ test('subscription relays URL/code to claude auth login and completes only after
   });
   assert.deepEqual(evidence.codes, [CODE]);
   assert.equal(evidence.cleanup.mock.calls.length, 1);
-  assert.equal(evidence.reload.mock.calls.length, 1);
   assert.deepEqual(evidence.recovered, [{ backend: 'claude', provider: 'anthropic' }]);
   assert.equal(JSON.stringify([waiting, completed, evidence.recovered]).includes(CODE), false);
 });
@@ -132,7 +128,6 @@ test('subscription does not publish recovery when legacy token cleanup fails', a
       && error.message.endsWith('cleanup failed: fixture cleanup'),
   );
 
-  assert.equal(evidence.reload.mock.calls.length, 0);
   assert.deepEqual(evidence.recovered, []);
 });
 

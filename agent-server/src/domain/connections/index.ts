@@ -3,7 +3,7 @@ import type { EngineSelection } from '../agents/engine-selection.js';
 import { claudeRunConnection, type SelectionContext } from '../agents/resolve-selection.js';
 
 export {
-  createCredentialInventory, credentialInventory, legacyClaudeOAuthToken,
+  createCredentialInventory, credentialInventory,
   type ConnectionKind, type ConnectionView, type CredentialInventory, type InventoryDeps, type SelectionRef,
 } from './inventory.js';
 export { resolveClaudeRoute, type ClaudeRoute, type ClaudeRouteDeps } from './claude-route.js';

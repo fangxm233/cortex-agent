@@ -9,7 +9,7 @@ import {
   claudeCredentialsPath,
   claudeKeychainCredential,
   claudeKeychainService,
-  claudeOwnsOAuthCredential,
+  claudeSubscriptionLogin,
   officialApiKeyConnection,
   resolveAnthropicApiKey,
   resolveClaudeCredential,
@@ -108,18 +108,41 @@ test("Claude's own store outranks an OAuth token from the env or .env", () => {
   assert.equal(credential?.headers.authorization, 'Bearer store-token');
 });
 
-test('a .env OAuth token is the fallback when the store has no usable token', () => {
+test('a .env OAuth token answers only while Claude\'s store holds nothing', () => {
   const credential = resolveClaudeCredential({
     env: {},
+    claudeConfigDir: CLAUDE_DIR,
+    readFile: reader({ [DOTENV]: 'CLAUDE_CODE_OAUTH_TOKEN=dotenv-token\n' }),
+  });
+  assert.equal(credential?.source, 'dotenv-oauth-token');
+  assert.equal(credential?.headers.authorization, 'Bearer dotenv-token');
+});
+
+test('an expired store still owns the subscription: a static token never stands in for it', () => {
+  const deps = {
+    env: { CLAUDE_CODE_OAUTH_TOKEN: 'env-token' },
     claudeConfigDir: CLAUDE_DIR,
     readFile: reader({
       [DOTENV]: 'CLAUDE_CODE_OAUTH_TOKEN=dotenv-token\n',
       [CREDENTIALS]: oauthFile({ expiresAt: 1_000 }),
     }),
     now: () => 2_000_000,
-  });
-  assert.equal(credential?.source, 'dotenv-oauth-token');
-  assert.equal(credential?.headers.authorization, 'Bearer dotenv-token');
+  };
+  assert.deepEqual(claudeSubscriptionLogin(deps), { source: 'claude-store', token: null });
+  assert.equal(resolveClaudeCredential(deps), null);
+});
+
+test('without a store, the env token outranks the .env token, and neither means signed out', () => {
+  const dotenv = reader({ [DOTENV]: 'CLAUDE_CODE_OAUTH_TOKEN=dotenv-token\n' });
+  assert.deepEqual(
+    claudeSubscriptionLogin({ env: { CLAUDE_CODE_OAUTH_TOKEN: 'env-token' }, claudeConfigDir: CLAUDE_DIR, readFile: dotenv }),
+    { source: 'env-oauth-token', token: 'env-token' },
+  );
+  assert.deepEqual(
+    claudeSubscriptionLogin({ env: {}, claudeConfigDir: CLAUDE_DIR, readFile: dotenv }),
+    { source: 'dotenv-oauth-token', token: 'dotenv-token' },
+  );
+  assert.equal(claudeSubscriptionLogin({ env: {}, claudeConfigDir: CLAUDE_DIR, readFile: reader({}), platform: 'linux' }), null);
 });
 
 test('an expired access token is not a credential — only Claude Code can refresh it', () => {
@@ -140,40 +163,40 @@ test('a host with no store at all yields no credential rather than an error', ()
 
 test('the plaintext store settles ownership without ever touching the keychain', () => {
   let probed = 0;
-  const owns = claudeOwnsOAuthCredential({
+  const owns = claudeSubscriptionLogin({
     env: {},
     claudeConfigDir: CLAUDE_DIR,
     readFile: reader({ [CREDENTIALS]: oauthFile() }),
     platform: 'darwin',
     probeKeychain: () => { probed += 1; return false; },
   });
-  assert.equal(owns, true);
+  assert.equal(owns?.source, 'claude-store');
   assert.equal(probed, 0);
 });
 
 test('on macOS the keychain settles ownership when there is no plaintext store', () => {
   const services: string[] = [];
-  const owns = claudeOwnsOAuthCredential({
+  const owns = claudeSubscriptionLogin({
     env: {},
     claudeConfigDir: CLAUDE_DIR,
     readFile: reader({}),
     platform: 'darwin',
     probeKeychain: (service) => { services.push(service); return true; },
   });
-  assert.equal(owns, true);
+  assert.equal(owns?.source, 'claude-store');
   assert.deepEqual(services, ['Claude Code-credentials-7a2726fb']);
 });
 
 test('off macOS the file is the whole answer — no keychain probe is ever spawned', () => {
   let probed = 0;
-  const owns = claudeOwnsOAuthCredential({
+  const owns = claudeSubscriptionLogin({
     env: {},
     claudeConfigDir: CLAUDE_DIR,
     readFile: reader({}),
     platform: 'linux',
     probeKeychain: () => { probed += 1; return true; },
   });
-  assert.equal(owns, false);
+  assert.equal(owns, null);
   assert.equal(probed, 0);
 });
 

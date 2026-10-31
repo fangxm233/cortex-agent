@@ -133,7 +133,7 @@ PI provider 名称与 Cortex 后端名称相互独立。特别地，`openai-code
 
 只有当已安装 PI provider 的 `provider.auth.oauth.login` 是函数时，才提供 OAuth。清单从已安装的 PI 运行时中发现，因此只支持 API key 的 provider 不会显示无法使用的 OAuth 选项。Claude Code 同样通过选择器提供 API key 与订阅两种选项。
 
-对于 Claude Code 订阅，Cortex 针对自己的 Claude 配置目录启动 `claude auth login --claudeai`，把命令输出的授权 URL 发送到发起渠道，并把返回的 code 写入该命令的标准输入。OAuth 交换和凭据持久化由 Claude Code 负责。只有在清空认证相关环境变量后执行的 `claude auth status --json` 报告 `loggedIn: true` 时，Cortex 才把流程标记为完成；它从不读取或保存最终的 token。订阅登出同样交给 `claude auth logout`，并验证登出后的状态。旧版由 Cortex 管理的订阅 token 在 Claude Code 未登录期间仍是可删除的运行时凭据，但它不会让账号显示为已登录，并会在 Claude 拥有凭据后立即被抑制。
+对于 Claude Code 订阅，Cortex 针对自己的 Claude 配置目录启动 `claude auth login --claudeai`，把命令输出的授权 URL 发送到发起渠道，并把返回的 code 写入该命令的标准输入。OAuth 交换和凭据持久化由 Claude Code 负责。只有在清空认证相关环境变量后执行的 `claude auth status --json` 报告 `loggedIn: true` 时，Cortex 才把流程标记为完成；它从不读取或保存最终的 token。订阅登出同样交给 `claude auth logout`，并验证登出后的状态。Claude Code 未登录期间，环境变量或 `config/.env` 里旧版由 Cortex 管理的订阅 token 就是订阅实际使用的凭据：账号把它显示为当前凭据、状态未知，可以删除。Claude 一旦拥有凭据，这个 token 就不再使用。
 
 运行中的后端报告认证过期时，Cortex 会发送一张点名 provider 的卡片，提供一键重新登录，并预填失败的那种认证方式：对 Claude Code，运行使用 `api` 连接时是 API key，否则是订阅。该登录进行中时，按钮会重新打开它；登录失败、被取消或过期后，按钮会发起一次新的登录。每日过期扫描检查使用中的账号，并对即将过期、已过期或缺失的凭据发送同一种可操作提醒。若某个 provider 在提醒窗口内已被运行时通知报告过，每日扫描会跳过它，因此定时预警不会重复你刚收到的通知。反方向是有意为之：运行时失败总会通知，即使每日扫描之前已对该 provider 预警过，因为会话中的失败正是你那一刻最需要的消息。
 

@@ -355,9 +355,11 @@ exchange and credential persistence. Cortex marks the flow complete only after
 an authentication-environment-scrubbed `claude auth status --json` reports
 `loggedIn: true`; it never reads or stores the resulting token. Subscription
 logout similarly delegates to `claude auth logout` and verifies the logged-out
-postcondition. A legacy Cortex-managed subscription token remains a removable
-runtime credential while Claude Code is logged out, but it does not make the
-account appear logged in and is suppressed as soon as Claude owns a credential.
+postcondition. While Claude Code holds no login, a legacy Cortex-managed
+subscription token from the environment or `config/.env` is what the
+subscription runs on: the account shows it as the current credential with an
+unknown state, and it can be removed. Once Claude owns a credential the token is
+ignored.
 
 When a running backend reports expired authentication, Cortex posts a card that
 names the provider and offers one-click re-login, pre-filled with the

@@ -4,7 +4,7 @@
 
 import * as path from 'node:path';
 import {
-  claudeOwnsOAuthCredential, credentialValue, readDotenvCredentials, type ClaudeCredentialDeps,
+  claudeSubscriptionLogin, type ClaudeCredentialDeps, type ClaudeSubscriptionSource,
 } from '@core/claude-credentials.js';
 import {
   CONNECTIONS_FILE, SUBSCRIPTION_CONNECTION, isPiCustomConnection, maskKey, readConnections,
@@ -50,21 +50,6 @@ export interface SelectionRef {
   connection: string | null;
 }
 
-/** The OAuth token Claude spawns may carry when Claude's own store holds nothing: a static token
- *  from the environment or CONFIG_DIR/.env. Claude's store always wins — it is the credential
- *  `claude login` writes and refreshes, while the static copy is one nobody rotates. */
-export function legacyClaudeOAuthToken(deps: ClaudeCredentialDeps = {}): string | null {
-  if (claudeOwnsOAuthCredential(deps)) return null;
-  const env = deps.env ?? process.env;
-  return credentialValue(env.CLAUDE_CODE_OAUTH_TOKEN)
-    ?? readDotenvCredentials(deps).CLAUDE_CODE_OAUTH_TOKEN
-    ?? null;
-}
-
-function hasClaudeSubscription(deps: ClaudeCredentialDeps): boolean {
-  return claudeOwnsOAuthCredential(deps) || legacyClaudeOAuthToken(deps) !== null;
-}
-
 function subscriptionView(): ConnectionView {
   return {
     id: SUBSCRIPTION_CONNECTION, backend: 'claude', provider: null, kind: 'subscription',
@@ -105,6 +90,8 @@ export interface CredentialInventory {
   findPi(provider: string): ConnectionView | null;
   /** Whether any Claude connection exists. */
   hasClaude(): boolean;
+  /** Which credential Claude's subscription runs on; null when it is not signed in. */
+  claudeSubscriptionSource(): ClaudeSubscriptionSource | null;
   /** The connection a Claude selection that names none runs on: the subscription, else the first
    *  stored Claude connection; null when there is no Claude connection at all. */
   defaultClaudeConnection(): string | null;
@@ -114,8 +101,9 @@ export interface CredentialInventory {
 export function createCredentialInventory(deps: InventoryDeps = {}): CredentialInventory {
   const claudeDeps = deps.claude ?? {};
   const stored = (): StoredConnection[] => readConnections(deps.file ?? CONNECTIONS_FILE);
+  const subscriptionSource = (): ClaudeSubscriptionSource | null => claudeSubscriptionLogin(claudeDeps)?.source ?? null;
   const claudeConnections = (): ConnectionView[] => [
-    ...(hasClaudeSubscription(claudeDeps) ? [subscriptionView()] : []),
+    ...(subscriptionSource() ? [subscriptionView()] : []),
     ...stored().filter((entry) => entry.backend === 'claude').map(viewOf),
   ];
   const piConnections = (): ConnectionView[] => stored().filter((entry) => entry.backend === 'pi').map(viewOf);
@@ -129,6 +117,7 @@ export function createCredentialInventory(deps: InventoryDeps = {}): CredentialI
     findClaude,
     findPi,
     hasClaude: () => claudeConnections().length > 0,
+    claudeSubscriptionSource: subscriptionSource,
     defaultClaudeConnection: () => claudeConnections()[0]?.id ?? null,
     billingOf: (ref) => (ref.backend === 'claude'
       ? claudeBilling(ref.connection, claudeConnections())

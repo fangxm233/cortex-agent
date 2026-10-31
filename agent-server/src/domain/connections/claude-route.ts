@@ -2,11 +2,11 @@
 // selection's connection alone. The result is applied to that child's environment only; the
 // daemon's own environment carries no routing credential.
 
-import type { ClaudeCredentialDeps } from '@core/claude-credentials.js';
+import { claudeSubscriptionLogin, type ClaudeCredentialDeps } from '@core/claude-credentials.js';
 import {
   CONNECTIONS_FILE, SUBSCRIPTION_CONNECTION, readConnections, type ClaudeKeyConnection,
 } from '@core/connections-file.js';
-import { createCredentialInventory, legacyClaudeOAuthToken } from './inventory.js';
+import { createCredentialInventory } from './inventory.js';
 
 /** Every credential variable a route decides; whichever one it does not set, it deletes. */
 const CREDENTIAL_VARS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN'] as const;
@@ -36,7 +36,7 @@ function withUnsets(route: Omit<ClaudeRoute, 'unsets'>): ClaudeRoute {
 /** Claude Code's own login. A static legacy token is carried only when Claude's store holds
  *  nothing; otherwise the child authenticates from the store, which it refreshes itself. */
 function subscriptionRoute(deps: ClaudeCredentialDeps): ClaudeRoute {
-  const token = legacyClaudeOAuthToken(deps);
+  const token = claudeSubscriptionLogin(deps)?.token;
   return withUnsets({
     connection: SUBSCRIPTION_CONNECTION,
     sets: token ? { CLAUDE_CODE_OAUTH_TOKEN: token } : {},

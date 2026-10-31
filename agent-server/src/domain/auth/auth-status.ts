@@ -1,18 +1,15 @@
-// API mode reflects only the saved local key: a key carried by a Claude connection does not show
-// as a logged-in API-key slot here.
+// Which credentials exist comes from the CredentialInventory alone. The Anthropic account has two
+// slots: the subscription (Claude's own login, or a legacy static token) and the API key, which is
+// the `api` connection. Every other Claude connection is a connection, not an Anthropic slot.
 
-import { readClaudeStore } from '@core/claude-credentials.js';
+import { readClaudeStore, type ClaudeSubscriptionSource } from '@core/claude-credentials.js';
 import { piUserAuthPath } from '@core/pi-sdk.js';
 import type { Backend } from '../../agent-adapter/types.js';
 import { resolveConfiguredDefaultRun } from '../runs/config-resolver.js';
 import { modelsRepo } from '@store/models-repo.js';
-import { getSavedApiEnv as readSavedApiEnv } from './anthropic-env.js';
+import { API_KEY_CONNECTION } from './anthropic-env.js';
 import { listFavorites as readFavorites } from '../agents/models.js';
 import type { ModelRef } from '../agents/engine-selection.js';
-import {
-  readClaudeAuthStatus as readInstalledClaudeAuthStatus,
-  type ClaudeAuthStatus,
-} from './cc-auth-cli.js';
 import {
   loadPiRuntime as loadInstalledPiRuntime,
   type LoadPiRuntimeOptions,
@@ -22,7 +19,10 @@ import {
   type PiProviderAuthStatus,
   type PiRuntimeLoadResult,
 } from './pi-runtime.js';
-import { routeName, SUBSCRIPTION_CONNECTION } from '../connections/index.js';
+import {
+  createCredentialInventory, credentialInventory, routeName, SUBSCRIPTION_CONNECTION,
+  type CredentialInventory,
+} from '../connections/index.js';
 
 export type AuthType = 'oauth' | 'api_key';
 export type AuthAccountState = 'logged-in' | 'expiring' | 'expired' | 'logged-out' | 'unknown';
@@ -80,17 +80,14 @@ export interface GetAuthStatusOptions {
   claudeConfigDir?: string;
   piAuthPath?: string;
   loadPiRuntime?: (options?: LoadPiRuntimeOptions) => Promise<PiRuntimeLoadResult>;
-  getSavedApiEnv?: () => {
-    ANTHROPIC_API_KEY: string | undefined;
-    ANTHROPIC_BASE_URL: string | undefined;
-    CLAUDE_CODE_OAUTH_TOKEN?: string | undefined;
-    CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT?: string | undefined;
-  };
-  getClaudeMode?: () => string;
+  /** Which Claude credentials exist. Defaults to the daemon's inventory, or one over
+   *  `claudeConfigDir` when that is given. */
+  inventory?: Pick<CredentialInventory, 'findClaude' | 'claudeSubscriptionSource'>;
+  /** The connection the default Claude selection runs on. */
+  getDefaultClaudeConnection?: () => string;
   getActiveBackend?: () => Backend;
   listFavorites?: () => ModelRef[];
   getDefaultSelection?: () => SelectionReference | null;
-  readClaudeAuthStatus?: () => Promise<ClaudeAuthStatus>;
 }
 
 interface ClaudeOAuthMetadata {
@@ -150,9 +147,10 @@ function claudeOAuthCredential(
   };
 }
 
-function claudeCliCredential(): AuthCredentialStatus {
+/** Claude's login held where no expiry can be read: the macOS keychain. */
+function claudeKeychainCredential(): AuthCredentialStatus {
   return {
-    authType: 'oauth', state: 'logged-in', source: 'claude-cli',
+    authType: 'oauth', state: 'logged-in', source: 'keychain',
     expiresAt: null, refreshExpiresAt: null, manageable: true,
   };
 }
@@ -176,19 +174,22 @@ function claudeApiKeyCredential(): AuthCredentialStatus {
   };
 }
 
-function claudeCredentials(
-  oauth: ClaudeOAuthMetadata | null,
-  apiKey: string | undefined,
-  cliLoggedIn: boolean,
-  legacyToken: string | undefined,
-  nowMs: number,
-): AuthCredentialStatus[] {
-  const credentials: AuthCredentialStatus[] = [];
-  if (apiKey) credentials.push(claudeApiKeyCredential());
-  if (cliLoggedIn) {
-    credentials.push(oauth ? claudeOAuthCredential(oauth, nowMs) : claudeCliCredential());
-  } else if (legacyToken) credentials.push(claudeLegacyOAuthCredential());
-  return credentials;
+/** What the inventory says the Anthropic account holds, plus the store's expiry metadata. */
+interface ClaudeSlots {
+  apiKey: boolean;
+  subscription: ClaudeSubscriptionSource | null;
+  oauth: ClaudeOAuthMetadata | null;
+}
+
+function subscriptionCredential(slots: ClaudeSlots, nowMs: number): AuthCredentialStatus | null {
+  if (!slots.subscription) return null;
+  if (slots.subscription !== 'claude-store') return claudeLegacyOAuthCredential();
+  return slots.oauth ? claudeOAuthCredential(slots.oauth, nowMs) : claudeKeychainCredential();
+}
+
+function claudeCredentials(slots: ClaudeSlots, nowMs: number): AuthCredentialStatus[] {
+  const oauth = subscriptionCredential(slots, nowMs);
+  return [...(slots.apiKey ? [claudeApiKeyCredential()] : []), ...(oauth ? [oauth] : [])];
 }
 
 function claudeAccountFromCredential(
@@ -205,40 +206,28 @@ function claudeAccountFromCredential(
   };
 }
 
-function emptyClaudeAccount(
-  state: AuthAccountState,
-  credentials: AuthCredentialStatus[],
-  inUse: boolean,
-): AuthAccountStatus {
+function loggedOutClaudeAccount(credentials: AuthCredentialStatus[], inUse: boolean): AuthAccountStatus {
   return {
     backend: 'claude', provider: 'anthropic', label: 'Anthropic',
-    capabilities: ['api_key', 'oauth'], authType: null, state, source: null,
+    capabilities: ['api_key', 'oauth'], authType: null, state: 'logged-out', source: null,
     expiresAt: null, refreshExpiresAt: null, inUse, credentials,
   };
 }
 
+/** The account's current slot is the one the default connection uses: the API key for the `api`
+ *  connection, the subscription otherwise. Never falls back to the other slot. */
 function buildClaudeAccount(
-  oauth: ClaudeOAuthMetadata | null,
-  apiKey: string | undefined,
-  cliLoggedIn: boolean | null,
-  legacyToken: string | undefined,
-  mode: string,
+  slots: ClaudeSlots,
+  connection: string,
   nowMs: number,
   inUse: boolean,
 ): AuthAccountStatus {
-  const credentials = claudeCredentials(
-    oauth, apiKey, cliLoggedIn === true, legacyToken, nowMs,
-  );
-  if (mode === 'api') {
-    const current = credentials.find(item => item.authType === 'api_key');
-    return current ? claudeAccountFromCredential(current, credentials, inUse)
-      : emptyClaudeAccount('logged-out', credentials, inUse);
-  }
-  const current = cliLoggedIn === true
-    ? credentials.find(item => item.authType === 'oauth')
-    : undefined;
-  if (current) return claudeAccountFromCredential(current, credentials, inUse);
-  return emptyClaudeAccount(cliLoggedIn === null ? 'unknown' : 'logged-out', credentials, inUse);
+  const credentials = claudeCredentials(slots, nowMs);
+  const slot: AuthType = connection === API_KEY_CONNECTION ? 'api_key' : 'oauth';
+  const current = credentials.find(item => item.authType === slot);
+  return current
+    ? claudeAccountFromCredential(current, credentials, inUse)
+    : loggedOutClaudeAccount(credentials, inUse);
 }
 
 function providerCapabilities(provider: PiProvider): AuthType[] {
@@ -374,7 +363,7 @@ function defaultRunBackend(): Backend | null {
 }
 
 /** The connection the default Claude selection runs on. */
-function defaultClaudeMode(): string {
+function defaultClaudeConnection(): string {
   const selection = configuredDefault();
   return selection ? routeName(selection) : SUBSCRIPTION_CONNECTION;
 }
@@ -422,28 +411,33 @@ function appendPiAccounts(
   }
 }
 
-async function resolveClaudeLogin(options: GetAuthStatusOptions): Promise<boolean | null> {
-  try {
-    const status = await (options.readClaudeAuthStatus ?? readInstalledClaudeAuthStatus)();
-    return status.loggedIn;
-  } catch {
-    return null;
-  }
+function claudeInventory(
+  options: GetAuthStatusOptions,
+): Pick<CredentialInventory, 'findClaude' | 'claudeSubscriptionSource'> {
+  if (options.inventory) return options.inventory;
+  return options.claudeConfigDir
+    ? createCredentialInventory({ claude: { claudeConfigDir: options.claudeConfigDir } })
+    : credentialInventory;
+}
+
+function claudeSlots(options: GetAuthStatusOptions): ClaudeSlots {
+  const inventory = claudeInventory(options);
+  return {
+    apiKey: inventory.findClaude(API_KEY_CONNECTION) !== null,
+    subscription: inventory.claudeSubscriptionSource(),
+    oauth: readClaudeOAuth(options.claudeConfigDir),
+  };
 }
 
 export async function getAuthStatus(options: GetAuthStatusOptions = {}): Promise<AuthStatusSnapshot> {
   const now = (options.now ?? (() => new Date()))();
   const piAuthPath = options.piAuthPath ?? piUserAuthPath();
   const usage = collectInUse(options);
-  const apiEnv = { ...(options.getSavedApiEnv ?? readSavedApiEnv)() };
   const loader = options.loadPiRuntime ?? loadInstalledPiRuntime;
-  const [cliLoggedIn, pi] = await Promise.all([
-    resolveClaudeLogin(options), loader({ authPath: piAuthPath }),
-  ]);
+  const pi = await loader({ authPath: piAuthPath });
   const claude = buildClaudeAccount(
-    readClaudeOAuth(options.claudeConfigDir), apiEnv.ANTHROPIC_API_KEY, cliLoggedIn,
-    apiEnv.CLAUDE_CODE_OAUTH_TOKEN,
-    (options.getClaudeMode ?? defaultClaudeMode)(), now.getTime(), usage.claude,
+    claudeSlots(options), (options.getDefaultClaudeConnection ?? defaultClaudeConnection)(),
+    now.getTime(), usage.claude,
   );
   const accounts = [claude];
   if (pi.available) appendPiAccounts(accounts, pi, piAuthPath, now.getTime(), usage.pi);

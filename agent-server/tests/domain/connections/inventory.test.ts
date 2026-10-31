@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { writeConnections, type StoredConnection } from '../../../src/core/connections-file.js';
-import { createCredentialInventory, legacyClaudeOAuthToken } from '../../../src/domain/connections/inventory.js';
+import { createCredentialInventory } from '../../../src/domain/connections/inventory.js';
 
 const KEYS = ['fake-relay-key-0001', 'fake-ds-key-000002', 'fake-local-key-0003'];
 const CONNECTIONS: StoredConnection[] = [
@@ -60,8 +60,9 @@ describe('credential inventory', () => {
   it('counts a legacy static token as the subscription only while Claude\'s store is empty', () => {
     const env = { CLAUDE_CODE_OAUTH_TOKEN: 'fake-static-token' };
     expect(inventory(false, env).defaultClaudeConnection()).toBe('subscription');
-    expect(legacyClaudeOAuthToken(claudeDeps(false, env))).toBe('fake-static-token');
-    expect(legacyClaudeOAuthToken(claudeDeps(true, env))).toBeNull();
+    expect(inventory(false, env).claudeSubscriptionSource()).toBe('env-oauth-token');
+    expect(inventory(true, env).claudeSubscriptionSource()).toBe('claude-store');
+    expect(inventory(false).claudeSubscriptionSource()).toBeNull();
   });
 
   it('describes each connection without ever exposing its key', () => {

@@ -1,10 +1,7 @@
 import * as path from 'node:path';
 import { mutateFileAtomically } from '@core/atomic-write.js';
 import { CONFIG_DIR } from '@core/paths.js';
-import {
-  claudeOwnsOAuthCredential, credentialValue, readDotenvCredentials,
-  type DotenvCredentials,
-} from '@core/claude-credentials.js';
+import { claudeSubscriptionLogin, credentialValue } from '@core/claude-credentials.js';
 import {
   readConnections, removeConnection, upsertConnection, type ClaudeKeyConnection,
 } from '@core/connections-file.js';
@@ -14,30 +11,16 @@ const ENV_FILE = path.join(CONFIG_DIR, '.env');
 /** The connection the Accounts surfaces call "the Anthropic API key". */
 export const API_KEY_CONNECTION = 'api';
 
-export type ApiEnv = DotenvCredentials;
-
 function apiKeyConnection(): ClaudeKeyConnection | null {
   const found = readConnections().find((entry) => entry.backend === 'claude' && entry.id === API_KEY_CONNECTION);
   return found?.backend === 'claude' ? found : null;
 }
 
-/**
- * The saved Claude credentials as the Accounts surfaces read them: the `api` connection's key and
- * base URL, and a legacy OAuth token from the environment or CONFIG_DIR/.env. Read fresh on every
- * call; nothing is remembered between calls.
- */
-export function getSavedApiEnv(): ApiEnv {
-  const api = apiKeyConnection();
-  const fileEnv = readDotenvCredentials();
-  const processToken = credentialValue(process.env.CLAUDE_CODE_OAUTH_TOKEN);
-  const oauthToken = processToken || fileEnv.CLAUDE_CODE_OAUTH_TOKEN;
-  const expiryMatchesToken = oauthToken !== undefined && oauthToken === fileEnv.CLAUDE_CODE_OAUTH_TOKEN;
-  return {
-    ANTHROPIC_API_KEY: api?.key,
-    ANTHROPIC_BASE_URL: api?.baseUrl,
-    CLAUDE_CODE_OAUTH_TOKEN: oauthToken,
-    CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: expiryMatchesToken ? fileEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT : undefined,
-  };
+/** The secrets behind the Accounts surfaces' Claude slots — the `api` connection's key and a
+ *  legacy OAuth token — so a failure removing one can be reported with both masked. */
+export function savedClaudeSecrets(): string[] {
+  return [apiKeyConnection()?.key, claudeSubscriptionLogin()?.token]
+    .filter((value): value is string => !!value);
 }
 
 function requireAnthropicApiKey(value: string): string {
@@ -97,13 +80,13 @@ const ROUTE_ENV_VARS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_
  * and key from its connection, so a value loaded from CONFIG_DIR/.env or inherited from the shell
  * would only leak into processes that never asked for it. A legacy OAuth token stays only while
  * Claude's own store holds nothing — then it is the subscription credential (see
- * legacyClaudeOAuthToken); once Claude's store has a login, the static copy would shadow it.
+ * claudeSubscriptionLogin); once Claude's store has a login, the static copy would shadow it.
  *
  * Called once at startup, after migrations have moved any key they found into a connection.
  */
 export function dropRoutingEnv(env: NodeJS.ProcessEnv = process.env): void {
   for (const name of ROUTE_ENV_VARS) delete env[name];
-  if (!claudeOwnsOAuthCredential()) return;
+  if (claudeSubscriptionLogin()?.source !== 'claude-store') return;
   delete env.CLAUDE_CODE_OAUTH_TOKEN;
   delete env.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT;
 }

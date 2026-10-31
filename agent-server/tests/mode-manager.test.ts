@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { CLAUDE_CONFIG_HOME, CONFIG_DIR } from '../src/core/paths.js';
 import { CONNECTIONS_FILE, upsertConnection } from '../src/core/connections-file.js';
-import { dropRoutingEnv, getSavedApiEnv } from '../src/domain/auth/anthropic-env.js';
+import { dropRoutingEnv, savedClaudeSecrets } from '../src/domain/auth/anthropic-env.js';
 import { resolveClaudeRoute } from '../src/domain/connections/claude-route.js';
 import { importFresh } from './helpers/fresh-module.js';
 
@@ -88,29 +88,25 @@ test('resolveClaudeRoute decides without touching process.env', (t) => {
   assert.equal(process.env.ANTHROPIC_BASE_URL, 'https://probe.example.test');
 });
 
-test('getSavedApiEnv reads the api connection, not a key left in .env', (t) => {
+test('the saved Claude secrets are the api connection key, not a key left in .env', (t) => {
   withSavedEnv(t, 'ANTHROPIC_API_KEY="sk-ant-fixture-dotenv"\n');
-  assert.equal(getSavedApiEnv().ANTHROPIC_API_KEY, undefined,
+  assert.deepEqual(savedClaudeSecrets(), [],
     'a pre-connections .env key is the migration\'s input, not a saved credential');
 
   upsertConnection({
     id: 'api', backend: 'claude', label: 'API', baseUrl: 'https://relay.example.test',
     authStyle: 'x-api-key', key: 'sk-ant-fixture-connection', billing: 'metered',
   });
-  assert.equal(getSavedApiEnv().ANTHROPIC_API_KEY, 'sk-ant-fixture-connection');
-  assert.equal(getSavedApiEnv().ANTHROPIC_BASE_URL, 'https://relay.example.test');
+  assert.deepEqual(savedClaudeSecrets(), ['sk-ant-fixture-connection']);
 });
 
-test('getSavedApiEnv reports the legacy OAuth token with its expiry only when they belong together', (t) => {
-  withSavedEnv(t, 'CLAUDE_CODE_OAUTH_TOKEN="oat-fixture-legacy"\n'
-    + 'CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT="1893456000000"\n');
-  assert.equal(getSavedApiEnv().CLAUDE_CODE_OAUTH_TOKEN, 'oat-fixture-legacy');
-  assert.equal(getSavedApiEnv().CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT, '1893456000000');
+test('the saved Claude secrets carry the legacy OAuth token the subscription runs on', (t) => {
+  withSavedEnv(t, 'CLAUDE_CODE_OAUTH_TOKEN="oat-fixture-legacy"\n');
+  pinClaudeCredential(t, false);
+  assert.deepEqual(savedClaudeSecrets(), ['oat-fixture-legacy']);
 
   process.env.CLAUDE_CODE_OAUTH_TOKEN = 'oat-fixture-shell';
-  assert.equal(getSavedApiEnv().CLAUDE_CODE_OAUTH_TOKEN, 'oat-fixture-shell', 'the environment wins');
-  assert.equal(getSavedApiEnv().CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT, undefined,
-    'the saved expiry describes the saved token, not the one from the environment');
+  assert.deepEqual(savedClaudeSecrets(), ['oat-fixture-shell'], 'the environment wins');
 });
 
 test('dropRoutingEnv leaves the daemon no endpoint or key to leak into a child', (t) => {
