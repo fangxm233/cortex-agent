@@ -734,7 +734,8 @@ export interface ConfigBudget {
 export interface ConfigModels {
   default: EngineSelection | null;
   favorites: ModelRef[];
-  memory: Record<string, { thinking: string | null; connection: string | null }>;
+  /** Per model: the thinking level last picked for it. */
+  memory: Record<string, { thinking: string | null }>;
 }
 
 export interface ModelCatalogRoute {

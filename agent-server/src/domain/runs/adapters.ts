@@ -1,4 +1,5 @@
-import { subagentModelEnv } from '../../agent-adapter/claude/spawn-args.js';
+import { setSubagentModelSource, subagentModelEnv } from '../../agent-adapter/claude/spawn-args.js';
+import { modelCatalog, routeFor } from '../models/catalog.js';
 import { ClaudeAdapter } from '../../agent-adapter/claude/adapter.js';
 import { PIAdapter } from '../../agent-adapter/pi/adapter.js';
 import { ensureAuthVisible } from '../../agent-adapter/pi/agent-dir.js';
@@ -48,6 +49,16 @@ const PI_ADAPTER = new PIAdapter(undefined, PI_SESSIONS_DIR, {
 
 // The daemon's PI model list is what its sessions can run: connections included, keys installed.
 setPiModelScan(() => PI_ADAPTER.scanModels());
+
+// Subagents are offered what the model catalog knows, read warm on every spawn.
+setSubagentModelSource(() => {
+  const snapshot = modelCatalog.peek();
+  return {
+    pi: snapshot.routes.filter((route) => route.backend === 'pi')
+      .flatMap((route) => route.models.map((id) => ({ provider: route.provider!, id }))),
+    claude: routeFor(snapshot, { backend: 'claude', provider: null })?.models ?? [],
+  };
+});
 
 const piBackground: {
   start?: StartBackgroundSubagent;

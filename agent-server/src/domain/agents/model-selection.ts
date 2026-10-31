@@ -1,29 +1,71 @@
 import { AsyncMutex } from '@core/async-mutex.js';
 import { effectiveBackendSessionId, sessionStore, type Session } from '@store/session-registry-repo.js';
-import { credentialInventory, type CredentialInventory } from '../connections/inventory.js';
+import type { CredentialInventory } from '../connections/inventory.js';
+import type { CatalogSnapshot } from '../models/catalog.js';
 import {
   getChannelSelection, getModelMemory, rememberModelSelection, setChannelSelection, setSelectionDefault,
 } from './config.js';
+import type { EngineSelection } from './engine-selection.js';
+import { backendStartingPoint, configuredDefault, getDefaultSelection } from './models.js';
 import {
-  isValidThinkingLevel, modelKey, THINKING_LEVELS_BY_BACKEND,
-  type EngineSelection, type ModelRef,
-} from './engine-selection.js';
-import { defaultConnectionFor, getDefaultSelection, getDefaultSelectionForBackend } from './models.js';
+  resolveSelection, type SelectionContext, type SelectionDefaults, type SelectionFailure, type SelectionResolution,
+} from './resolve-selection.js';
+
+export type { SelectionFailure } from './resolve-selection.js';
+
+/** The daemon's defaults: models.json's default, and each backend's default or first favorite. */
+export const daemonSelectionDefaults: SelectionDefaults = {
+  selection: configuredDefault,
+  forBackend: backendStartingPoint,
+};
+
+type SelectionLayers = Pick<SelectionContext, 'request' | 'session' | 'draft' | 'inventory' | 'catalog'>;
+
+/** A resolution context over the daemon's own defaults and model memory. */
+export function selectionContext(layers: SelectionLayers = {}): SelectionContext {
+  return { ...layers, defaults: daemonSelectionDefaults, memory: getModelMemory };
+}
+
+/** Resolve against the daemon's state; the one entry point callers outside this module use. */
+export function resolveDaemonSelection(
+  layers: SelectionLayers, partial: Partial<EngineSelection> = {},
+): SelectionResolution {
+  return resolveSelection(selectionContext(layers), partial);
+}
+
+async function boundSession(channel: string): Promise<Session | null> {
+  const sessionId = await sessionStore.getBoundSessionId(channel);
+  return sessionId ? sessionStore.getById(sessionId) : null;
+}
+
+/** What a channel's next turn runs on: its session's selection once one exists, else its draft. */
+export async function resolveChannelSelection(channel: string): Promise<EngineSelection> {
+  const session = await boundSession(channel);
+  const resolution = resolveDaemonSelection({ session: session?.selection, draft: getChannelSelection(channel) });
+  if (resolution.ok === false) throw new Error(`No model is configured for this conversation (${resolution.reason})`);
+  return resolution.effective;
+}
+
+/** The channel's draft, else the configured default — what a new conversation there starts on. */
+export function readChannelSelection(channel: string): EngineSelection {
+  return getChannelSelection(channel) ?? getDefaultSelection();
+}
 
 export interface ApplySelectionRequest extends Partial<EngineSelection> {
   channel: string;
   seedDefault?: boolean;
   /** The connections a pick is checked against; the daemon's own by default. */
   inventory?: CredentialInventory;
+  /** The catalog a pick is checked against; the daemon's warm catalog by default. */
+  catalog?: () => CatalogSnapshot;
 }
 
-export type SelectionFailure = 'cross-backend-live-session' | 'invalid-thinking'
-  | 'provider-not-supported' | 'invalid-connection' | 'invalid-model' | 'no-model-for-backend';
+export type ApplySelectionFailure = SelectionFailure | 'cross-backend-live-session';
 
 export interface ApplySelectionResult extends EngineSelection {
   ok: boolean;
   backendChanged: boolean;
-  reason?: SelectionFailure;
+  reason?: ApplySelectionFailure;
   currentBackend?: string;
   targetBackend?: string;
   allowed?: readonly string[];
@@ -41,78 +83,16 @@ export function decideBackendSwitch(opts: {
   return { allowed: true, backendChanged };
 }
 
-export function readChannelSelection(channel: string): EngineSelection {
-  return getChannelSelection(channel) ?? getDefaultSelection();
+function refuse(
+  current: EngineSelection | null, reason: ApplySelectionFailure, allowed?: readonly string[],
+): ApplySelectionResult {
+  const shown = current ?? { backend: 'claude', provider: null, model: '', thinking: null, connection: null };
+  return { ...shown, ok: false, backendChanged: false, reason, ...(allowed ? { allowed } : {}) };
 }
 
-function refuse(current: EngineSelection, reason: SelectionFailure, allowed?: readonly string[]): ApplySelectionResult {
-  return { ...current, ok: false, backendChanged: false, reason, ...(allowed ? { allowed } : {}) };
-}
-
-/** A complete identity needs no favorite. */
-function targetRef(request: ApplySelectionRequest, current: EngineSelection): ModelRef | null {
-  const backend = request.backend ?? current.backend;
-  const changingBackend = backend !== current.backend;
-  const base = changingBackend ? getDefaultSelectionForBackend(backend) : current;
-  const model = request.model !== undefined ? request.model : base?.model;
-  const provider = request.provider !== undefined ? request.provider : (backend === 'claude' ? null : base?.provider);
-  if (model === undefined) return null;
-  return { backend, provider: provider ?? null, model };
-}
-
-function mergeSelection(request: ApplySelectionRequest, current: EngineSelection, ref: ModelRef): EngineSelection {
-  const changed = modelKey(ref) !== modelKey(current);
-  const memory = getModelMemory()[modelKey(ref)];
-  const settings = changed
-    ? (memory ?? { thinking: null, connection: defaultConnectionFor(ref, request.inventory) })
-    : current;
-  const connection = request.connection !== undefined ? request.connection : settings.connection;
-  return {
-    ...ref,
-    thinking: request.thinking !== undefined ? request.thinking : settings.thinking,
-    connection: ref.backend === 'pi' ? null : connection ?? null,
-  };
-}
-
-function targetSelection(request: ApplySelectionRequest, current: EngineSelection): EngineSelection | null {
-  // A backend pick selects its complete default, not just its model identity.
-  if (request.backend !== undefined && request.model === undefined && request.provider === undefined) {
-    const defaults = getDefaultSelectionForBackend(request.backend);
-    return defaults ? mergeSelection(request, defaults, defaults) : null;
-  }
-  const ref = targetRef(request, current);
-  return ref ? mergeSelection(request, current, ref) : null;
-}
-
-const SAFE_NAME = /^[a-zA-Z0-9_-]+$/;
-
-function invalidIdentity(selection: EngineSelection): SelectionFailure | null {
-  if (typeof selection.model !== 'string' || !selection.model.trim()) return 'invalid-model';
-  const validProvider = selection.backend === 'claude' ? selection.provider === null
-    : selection.backend === 'pi' && typeof selection.provider === 'string' && SAFE_NAME.test(selection.provider);
-  return validProvider ? null : 'provider-not-supported';
-}
-
-function validateTarget(
-  request: ApplySelectionRequest, current: EngineSelection, target: EngineSelection,
-): ApplySelectionResult | null {
-  const identityFailure = invalidIdentity(target);
-  if (identityFailure) return refuse(current, identityFailure);
-  if (target.thinking !== null && !isValidThinkingLevel(target.backend, target.thinking)) {
-    return refuse(current, 'invalid-thinking', THINKING_LEVELS_BY_BACKEND[target.backend]);
-  }
-  return validateRoute(request, current, target);
-}
-
-/** A Claude pick names an existing connection or none (the default); a PI pick never names one. */
-function validateRoute(
-  request: ApplySelectionRequest, current: EngineSelection, target: EngineSelection,
-): ApplySelectionResult | null {
-  if (target.connection === null) return null;
-  const connections = (request.inventory ?? credentialInventory).claudeConnections().map((view) => view.id);
-  const valid = target.backend === 'claude' && SAFE_NAME.test(target.connection)
-    && connections.includes(target.connection);
-  return valid ? null : refuse(current, 'invalid-connection', connections);
+function requestedFields(request: ApplySelectionRequest): Partial<EngineSelection> {
+  const { channel: _channel, seedDefault: _seed, inventory: _inventory, catalog: _catalog, ...partial } = request;
+  return partial;
 }
 
 /** Serialize read/validate/write so simultaneous patches cannot overwrite a newer selection. */
@@ -123,23 +103,24 @@ export function applyChannelSelection(request: ApplySelectionRequest): Promise<A
 }
 
 async function applySelection(request: ApplySelectionRequest): Promise<ApplySelectionResult> {
-  const sessionId = await sessionStore.getBoundSessionId(request.channel);
-  const session = sessionId ? await sessionStore.getById(sessionId) : null;
-  const current = session?.selection ?? readChannelSelection(request.channel);
-  const target = targetSelection(request, current);
-  if (!target) return refuse(current, 'no-model-for-backend');
-  const invalid = validateTarget(request, current, target);
-  if (invalid) return invalid;
-  return persistSelection(request, current, target, session);
+  const session = await boundSession(request.channel);
+  const resolution = resolveDaemonSelection({
+    session: session?.selection,
+    draft: getChannelSelection(request.channel),
+    inventory: request.inventory,
+    catalog: request.catalog,
+  }, requestedFields(request));
+  if (resolution.ok === false) return refuse(resolution.base, resolution.reason, resolution.allowed);
+  return persistSelection(request, resolution.base, resolution.selection, session);
 }
 
 async function persistSelection(
-  request: ApplySelectionRequest, current: EngineSelection, target: EngineSelection, session: Session | null,
+  request: ApplySelectionRequest, current: EngineSelection | null, target: EngineSelection, session: Session | null,
 ): Promise<ApplySelectionResult> {
   // Attach/resume clears channel turns, but the backend conversation still exists.
   const hasHistory = !!(session && effectiveBackendSessionId(session))
     || (await sessionStore.getTurns(request.channel)).length > 0;
-  const currentBackend = session?.backend ?? current.backend;
+  const currentBackend = session?.backend ?? current?.backend ?? target.backend;
   const decision = decideBackendSwitch({ currentBackend, targetBackend: target.backend, hasHistory });
   if (!decision.allowed) return {
     ...refuse(current, 'cross-backend-live-session'), currentBackend, targetBackend: target.backend,

@@ -13,6 +13,24 @@ import type {
   ApplySelectionRequest, ApplySelectionResult,
 } from '../../src/domain/agents/model-selection.js';
 import type { EngineSelection } from '../../src/domain/agents/engine-selection.js';
+import { resolveSelection } from '../../src/domain/agents/resolve-selection.js';
+import type { CredentialInventory } from '../../src/domain/connections/inventory.js';
+import type { CatalogSnapshot } from '../../src/domain/models/catalog.js';
+
+/** One Claude connection, the subscription; a catalog that vouches for no model's levels. */
+const SUBSCRIPTION_ONLY = {
+  claudeConnections: () => [{ id: 'subscription' }],
+  findClaude: (id: string) => (id === 'subscription' ? { id } : null),
+  defaultClaudeConnection: () => 'subscription',
+} as unknown as CredentialInventory;
+const OPEN_CATALOG = (): CatalogSnapshot => ({
+  routes: [{
+    backend: 'claude', provider: null, connections: ['subscription'], models: [],
+    source: 'builtin', modelThinking: {}, modelConnections: {},
+  }],
+  piPending: false,
+  thinkingLevels: { claude: ['low', 'medium', 'high', 'xhigh', 'max'], pi: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] },
+});
 
 function session(id: string, extra: Record<string, unknown> = {}): any {
   return {
@@ -41,6 +59,8 @@ interface World {
   refuse: Partial<ApplySelectionResult> | null;
   /** The server refuses new turns ahead of a restart. */
   held: boolean;
+  /** No default or favorite on any backend. */
+  noDefaults: boolean;
   deps: TeamWebhookDeps;
 }
 
@@ -63,6 +83,7 @@ function world(): World {
     applied: [] as ApplySelectionRequest[],
     refuse: null,
     held: false,
+    noDefaults: false,
   } as World;
   let next = 0;
   const listWorkers = async (leadId: string) => [...w.sessions.values()].filter(s => s.teamLeadId === leadId);
@@ -94,7 +115,16 @@ function world(): World {
     deliver: (opts) => { w.delivered.push(opts as any); },
     cancel: async (channel) => { w.cancelled.push(channel); return 1; },
     readSelection: (channel) => w.selections.get(channel)!,
-    defaultSelection: (backend) => ({ backend, model: 'default-model', provider: backend === 'pi' ? 'deepseek' : null, thinking: null, connection: backend === 'pi' ? null : 'subscription' }),
+    resolveSelection: (layers, partial) => resolveSelection({
+      ...layers,
+      defaults: {
+        selection: () => (w.noDefaults ? null : { backend: 'claude', model: 'default-model', provider: null, thinking: null, connection: 'subscription' }),
+        forBackend: (backend) => (w.noDefaults ? null : { backend, model: 'default-model', provider: backend === 'pi' ? 'deepseek' : null }),
+      },
+      memory: () => ({}),
+      inventory: SUBSCRIPTION_ONLY,
+      catalog: OPEN_CATALOG,
+    }, partial),
     applySelection: async (request) => {
       w.applied.push(request);
       if (w.refuse) return { ok: false, ...w.refuse } as ApplySelectionResult;
@@ -336,8 +366,8 @@ test('spawn with a model on the lead backend replaces only the fields it names',
   await call(w, { action: 'spawn', name: 'a', prompt: 'p', model: 'deepseek/deepseek-v4-flash' });
   assert.deepEqual(w.applied[0], {
     channel: 'web:w1', backend: 'pi', model: 'deepseek-v4-flash', provider: 'deepseek',
-    thinking: 'high', connection: null, seedDefault: false,
-  }, 'same provider: the level stays the lead\'s');
+    thinking: null, connection: null, seedDefault: false,
+  }, 'another model takes its own remembered level, as any pick does');
 
   await call(w, { action: 'spawn', name: 'b', prompt: 'p', model: 'openai/gpt-6:low' });
   assert.deepEqual(w.applied[1], {
@@ -365,7 +395,7 @@ test('spawn on the other backend starts from its default selection with the pars
     thinking: null, connection: 'subscription', seedDefault: false,
   }, 'a claude worker drops the provider segment');
 
-  w.deps.defaultSelection = () => null;
+  w.noDefaults = true;
   assert.match((await call(w, { action: 'spawn', name: 'c', prompt: 'p', backend: 'claude' })).error!,
     /no default or favorite for the claude backend/);
 });
@@ -386,10 +416,15 @@ test('spawn uses the lead record rather than old profile mocks or changed channe
 
 test('spawn refuses a selection the rule rejects, and an unknown backend, creating nothing', async () => {
   const w = world();
-  w.refuse = { reason: 'invalid-thinking', allowed: ['low', 'high'] };
-  const refused = await call(w, { action: 'spawn', name: 'a', prompt: 'p', model: 'claude-opus-5:weird' });
+  const unknownLevel = await call(w, { action: 'spawn', name: 'a', prompt: 'p', model: 'claude-opus-5:weird' });
+  assert.equal(unknownLevel.success, false);
+  assert.match(unknownLevel.error!, /invalid-thinking \(allowed: low, medium, high, xhigh, max\)/);
+  assert.equal(w.applied.length, 0, 'a level the model does not take never reaches the channel');
+
+  w.refuse = { reason: 'invalid-connection', allowed: ['subscription'] };
+  const refused = await call(w, { action: 'spawn', name: 'a', prompt: 'p', model: 'claude-opus-5:high' });
   assert.equal(refused.success, false);
-  assert.match(refused.error!, /invalid-thinking \(allowed: low, high\)/);
+  assert.match(refused.error!, /invalid-connection \(allowed: subscription\)/);
 
   w.refuse = null;
   const bad = await call(w, { action: 'spawn', name: 'b', prompt: 'p', backend: 'gpt' });

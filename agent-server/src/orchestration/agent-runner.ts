@@ -7,7 +7,7 @@ import { getSessionAsync, setSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore, effectiveBackendSessionId } from '@store/session-registry-repo.js';
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { resolveBackendForChannel } from '@domain/agents/index.js';
-import { resolveRunSelection } from '@domain/runs/config-resolver.js';
+import { resolveRecordedSelection, resolveRunSelection } from '@domain/runs/config-resolver.js';
 import { registerSessionRecord } from '@domain/sessions/session-lifecycle.js';
 import { createLogger } from '@core/log.js';
 import { isDebugMode } from '@core/debug-mode.js';
@@ -241,7 +241,7 @@ async function bindTurnSession(
   await registerSessionRecord(sessionStore, {
     sessionId, channel: ctx.channel, backend,
     label: ctx.userMessage?.substring(0, 60) ?? null,
-    selection: resolveRunSelection({ channel: ctx.channel }),
+    selection: resolveRecordedSelection({ channel: ctx.channel }),
     projectId: (await ctx.adapter.resolveInboundProject(ctx.channel)) ?? 'general',
   });
   await setSessionAsync(ctx.channel, sessionId);

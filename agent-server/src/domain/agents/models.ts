@@ -1,8 +1,6 @@
 import type { Backend } from '@core/types/agent-types.js';
 import { modelsRepo } from '@store/models-repo.js';
-import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
-import { credentialInventory, type CredentialInventory } from '../connections/inventory.js';
-import { getModelMemory } from './config.js';
+import { findModelRefs, modelCatalog } from '../models/catalog.js';
 import {
   copySelection, modelKey, validateEngineSelection, validateModelRef,
   type EngineSelection, type ModelRef, type ModelsFile,
@@ -40,29 +38,19 @@ function copyRef({ backend, provider, model }: ModelRef): ModelRef {
 export function getDefaultSelection(): EngineSelection { return loadModelsFile().default; }
 export function listFavorites(): ModelRef[] { return loadModelsFile().favorites; }
 
-export function getDefaultSelectionForBackend(backend: Backend): EngineSelection | null {
+/** The configured default, or null when models.json does not exist yet. Malformed still throws. */
+export function configuredDefault(): EngineSelection | null {
+  return modelsRepo.readIfPresent()?.default ? getDefaultSelection() : null;
+}
+
+/** Where a switch to `backend` starts: the default when it is on that backend, else the first
+ *  favorite there. Null when the host has neither. */
+export function backendStartingPoint(backend: Backend): ModelRef | null {
   let file: ModelsFile;
   try { file = loadModelsFile(); } catch { return null; }
-  if (file.default.backend === backend) return file.default;
+  if (file.default.backend === backend) return copyRef(file.default);
   const favorite = file.favorites.find((ref) => ref.backend === backend);
-  return favorite ? selectionForModel(favorite) : null;
-}
-
-export function selectionForModel(ref: ModelRef): EngineSelection {
-  validateModelRef(ref);
-  const memory = getModelMemory()[modelKey(ref)];
-  const remembered = memory ?? { thinking: null, connection: defaultConnectionFor(ref) };
-  return { ...copyRef(ref), thinking: remembered.thinking,
-    connection: ref.backend === 'pi' ? null : remembered.connection ?? null };
-}
-
-/** The connection a model runs on when nothing names one: PI's provider is its connection, and
- *  Claude takes the inventory's default (null when this host has no Claude connection yet). */
-export function defaultConnectionFor(
-  ref: ModelRef,
-  inventory: CredentialInventory = credentialInventory,
-): string | null {
-  return ref.backend === 'pi' ? null : inventory.defaultClaudeConnection();
+  return favorite ? copyRef(favorite) : null;
 }
 
 function explicitRef(ref: string): ModelRef | null {
@@ -73,16 +61,18 @@ function explicitRef(ref: string): ModelRef | null {
   return result;
 }
 
+/** A bare PI model name is looked up in the configured models first, then the catalog. */
 function resolvePiRef(model: string, file: ModelsFile): ModelRef {
-  const candidates = [file.default, ...file.favorites,
-    ...piProviderDiscovery.peekModels().map((pair) => ({ ...pair, backend: 'pi' as const }))];
-  const match = candidates.find((ref) => ref.backend === 'pi' && ref.model === model);
+  const configured = [file.default, ...file.favorites].filter((ref) => ref.backend === 'pi');
+  const catalogued = findModelRefs(modelCatalog.peek(), model).filter((ref) => ref.backend === 'pi');
+  const match = [...configured, ...catalogued].find((ref) => ref.model === model);
   if (match) return copyRef(match);
   if (file.default.backend === 'pi') return { backend: 'pi', provider: file.default.provider, model };
   throw new Error(`Unknown PI model '${model}': specify provider/model or favorite a model first`);
 }
 
-/** Synchronous: use warm catalog entries, never start a provider scan to parse a command. */
+/** `provider/model` names a PI model; a bare name belongs to `backend` (the default's when
+ *  omitted). Synchronous: reads the warm catalog, never starts a provider scan to parse a command. */
 export function resolveModelRef(ref: string, backend?: Backend): ModelRef {
   const model = ref.trim();
   if (!model) throw new Error('Model must be a non-empty string');

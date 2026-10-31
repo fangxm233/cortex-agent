@@ -2,8 +2,8 @@ import { beforeEach, expect, test, vi } from 'vitest';
 import type { PlatformAdapter } from '../../../src/platform/index.js';
 import { createScheduleHandler } from '../../../src/orchestration/routing/commands/schedule.js';
 import { buildScheduleTask, type ScheduleSpec } from '../../../src/domain/scheduling/schedule-spec.js';
-import { getDefaultSelection, resolveModelRef, selectionForModel } from '../../../src/domain/agents/models.js';
-import { DEFAULT_SELECTION, seedScheduleModels } from './selection-fixture.js';
+import { getDefaultSelection } from '../../../src/domain/agents/models.js';
+import { DEFAULT_SELECTION, OTHER_SELECTION, seedScheduleModels } from './selection-fixture.js';
 
 beforeEach(() => seedScheduleModels());
 
@@ -20,7 +20,7 @@ test('schedule command resolves provider/model and validates explicit thinking',
   expect(add).toHaveBeenCalledTimes(1);
   expect(add.mock.calls[0][0]).toMatchObject({
     message: 'check GPU', intervalMs: 1_800_000,
-    selection: { ...selectionForModel(resolveModelRef('openai/gpt-test')), thinking: 'high' },
+    selection: { ...OTHER_SELECTION, thinking: 'high' },
   });
   expect(result.text).toContain('pi · gpt-test');
 });
@@ -28,7 +28,7 @@ test('schedule command resolves provider/model and validates explicit thinking',
 test('schedule command accepts bare model references and leaves absent selection for add to materialize', async () => {
   const { add, run } = setup();
   await run(`!schedule add daily 09:00 --model ${DEFAULT_SELECTION.model} digest`);
-  expect(add.mock.calls[0][0].selection).toEqual(selectionForModel(resolveModelRef(DEFAULT_SELECTION.model)));
+  expect(add.mock.calls[0][0].selection).toEqual(DEFAULT_SELECTION);
   await run('!schedule add once 5m remind me');
   expect(add.mock.calls[1][0]).toMatchObject({ message: 'remind me', selection: undefined });
 });

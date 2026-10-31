@@ -7,7 +7,7 @@ import { runScheduleCli } from '../../src/entry/schedule-cli.js';
 import { runCli } from '../../src/entry/cli.js';
 import { Scheduler } from '../../src/domain/scheduling/scheduler.js';
 import { ScheduleRepo } from '../../src/store/schedule-repo.js';
-import { getDefaultSelection, resolveModelRef, selectionForModel } from '../../src/domain/agents/models.js';
+import { getDefaultSelection } from '../../src/domain/agents/models.js';
 import { rememberModelSelection } from '../../src/domain/agents/config.js';
 import { DEFAULT_SELECTION, OTHER_SELECTION, seedScheduleModels } from '../domain/scheduling/selection-fixture.js';
 
@@ -148,7 +148,7 @@ test('model flags persist a concrete selection with memory and validated thinkin
   const args = ['add', '--type', 'daily', '--time', '09:00', '--message', 'm'];
   const remembered = await cli(...args, '--model', 'openai/gpt-test');
   assert.equal(remembered.exitCode, 0, remembered.stderr);
-  assert.deepEqual(remembered.json.schedule.selection, selectionForModel(resolveModelRef('openai/gpt-test')));
+  assert.deepEqual(remembered.json.schedule.selection, OTHER_SELECTION);
   const explicit = await cli(...args, '--model', 'openai/gpt-test', '--thinking', 'high');
   assert.deepEqual(explicit.json.schedule.selection, { ...OTHER_SELECTION, thinking: 'high' });
   const bare = await cli(...args, '--model', DEFAULT_SELECTION.model);
