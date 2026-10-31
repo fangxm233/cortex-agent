@@ -20,11 +20,11 @@ function harness(overrides: Partial<WarmupDeps> = {}): Harness {
   const clock = { now: START };
   const end: { value: WindowEnd } = { value: START };
   const running = { value: false };
-  const warm = vi.fn(async (_mode: string) => {});
+  const warm = vi.fn(async (_connection: string) => {});
   const collect = vi.fn(async () => []);
   const deps: WarmupDeps = {
     enabled: () => true,
-    mode: () => 'plan',
+    connection: () => 'subscription',
     windowEnd: async () => end.value,
     claudeRunning: () => running.value,
     warm,
@@ -64,7 +64,7 @@ describe('tickWindowWarmup', () => {
     const state = newWarmupState();
     expect(await tickUntil(h, state, WARMUP_QUIET_MS)).toBe(0);
     expect(await tickWindowWarmup(state, h.deps)).toBe(true);
-    expect(h.warm).toHaveBeenCalledWith('plan');
+    expect(h.warm).toHaveBeenCalledWith('subscription');
     expect(h.collect).toHaveBeenCalledTimes(1);
   });
 
@@ -144,9 +144,9 @@ describe('tickWindowWarmup', () => {
     expect(await tickWindowWarmup(state, h.deps)).toBe(true);
   });
 
-  it('does nothing without a Claude subscription mode or a five-hour reading', async () => {
-    const noMode = harness({ mode: () => null });
-    expect(await tickUntil(noMode, newWarmupState(), 60 * MIN)).toBe(0);
+  it('does nothing without a Claude subscription connection or a five-hour reading', async () => {
+    const noConnection = harness({ connection: () => null });
+    expect(await tickUntil(noConnection, newWarmupState(), 60 * MIN)).toBe(0);
     const noWindow = harness();
     noWindow.end.value = undefined;
     expect(await tickUntil(noWindow, newWarmupState(), 60 * MIN)).toBe(0);

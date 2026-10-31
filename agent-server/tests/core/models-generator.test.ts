@@ -27,7 +27,7 @@ test('recommended choice follows discovery order and endpoint default, not alpha
 });
 test('generated default is complete and always favorited, without inventing other favorites', () => {
   assert.deepEqual(generateModels([claude, pi]), {
-    default: { backend: 'claude', provider: null, model: 'opus', thinking: null, mode: 'plan' },
+    default: { backend: 'claude', provider: null, model: 'opus', thinking: null, connection: 'subscription' },
     favorites: [{ backend: 'claude', provider: null, model: 'opus' }],
   });
 });
@@ -36,7 +36,7 @@ test('explicit choices carry PI provider and deduplicate favorites across routes
     defaultChoice: { mode: 'deepseek', model: 'flash' },
     favorites: [{ mode: 'plan', model: 'opus' }, { mode: 'api', model: 'opus' }, { mode: 'deepseek', model: 'flash' }],
   });
-  assert.deepEqual(result.default, { backend: 'pi', provider: 'deepseek', model: 'flash', thinking: null, mode: 'deepseek' });
+  assert.deepEqual(result.default, { backend: 'pi', provider: 'deepseek', model: 'flash', thinking: null, connection: null });
   assert.equal(result.favorites.length, 2);
   assert.deepEqual(Object.keys(result), ['default', 'favorites']);
 });

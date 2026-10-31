@@ -25,7 +25,7 @@ const thought = (thinking = 'Summary') => ({ type: 'thinking', thinking });
 function machineFixture() {
   const host: TurnHost = {
     sessionId: 'thinking-test', channel: 'test', captureTranscriptLogs: false,
-    anthropicBaseUrl: undefined, reportRateLimit: async () => {},
+    connection: undefined, reportRateLimit: async () => {},
     canWriteStdin: () => true, writeTurnStdin() {}, resetIdleTimer() {},
     bumpTurnIdleTimer() {}, clearTurnIdleTimer() {},
   };

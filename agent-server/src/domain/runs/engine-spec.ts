@@ -121,6 +121,9 @@ function pluginFields(
   };
 }
 
+/** What a PI run must never inherit: Claude's routing variables. */
+const CLAUDE_ROUTING_VARS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_BASE_URL'];
+
 /** Environment comes only from the resolved route, not user configuration. ANTHROPIC_BASE_URL is
  *  set through the dedicated `anthropicBaseUrl` spawn field rather than `sets`, so
  *  production-attempt-identity has one source for the attested route host; a route without a base
@@ -172,7 +175,7 @@ export function buildEngineSpec(
   });
   const plugins = pluginFields(request, attempt, mcpComposition);
   const policy = spawnPolicy(request);
-  const routeEnv = routeEnvFields(route);
+  const routeEnv = attempt.backend === 'pi' ? { unsets: [...CLAUDE_ROUTING_VARS] } : routeEnvFields(route);
   const provider = attempt.backend === 'pi' ? attempt.provider || undefined : undefined;
   return {
     engineKey: request.session.engineKey || request.context.channel || 'default',

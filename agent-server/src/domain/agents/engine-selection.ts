@@ -56,6 +56,7 @@ export function validateEngineSelection(value: unknown): asserts value is Engine
 function validateConnection(selection: EngineSelection): void {
   const { backend, connection } = selection;
   if (connection === null) return;
+  if (connection === undefined) throw new Error('Invalid connection: a selection must name one, or null for the default');
   if (backend === 'pi') throw new Error('Invalid connection: a PI selection names no connection');
   if (typeof connection !== 'string' || !SAFE_NAME.test(connection)) throw new Error('Invalid connection');
 }

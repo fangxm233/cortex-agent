@@ -41,8 +41,8 @@ import type { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js'
 
 type FakeRuntimeFactory = ReturnType<typeof makeFakeRuntimeFactory>;
 
-const CLAUDE: Partial<EngineSelection> = { backend: 'claude', mode: 'plan' };
-const PI: Partial<EngineSelection> = { backend: 'pi', mode: 'deepseek' };
+const CLAUDE: Partial<EngineSelection> = { backend: 'claude', connection: 'subscription' };
+const PI: Partial<EngineSelection> = { backend: 'pi', connection: null };
 
 // `startAttempt` reaches the module singleton, so the fake PI adapter must be installed before
 // that import resolves. The delegating factory reads `fixtures.current`, so each test installs its

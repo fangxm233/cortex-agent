@@ -226,8 +226,6 @@ test('before the gateway first answers, a crash with its port still free restart
 test('consumers loaded before a move read the moved URL, and a fresh process reads it from config/.env', async () => {
   const taken = await occupy();
   const { manager, portArgs } = await loadManager([`CORTEX_GATEWAY_PORT=${taken}`]);
-  const { resolveModeEnv } = await import('../src/domain/runs/mode-env.js');
-  const { specFromFixture } = await import('./run-request-fixture.js');
   const { UsageService } = await import('../src/domain/costs/usage-service.js');
   const fetched: string[] = [];
   const usage = new UsageService({
@@ -241,15 +239,8 @@ test('consumers loaded before a move read the moved URL, and a fresh process rea
   const moved = `http://127.0.0.1:${port}`;
   assert.notEqual(port, taken);
 
-  manager._testSetHealthy(true);
-  cleanups.push(() => manager._testSetHealthy(null));
-  assert.equal(resolveModeEnv('api').ANTHROPIC_BASE_URL, `${moved}/m/api/anthropic`);
-  const pi = specFromFixture({}, { backend: 'pi', provider: 'deepseek', model: 'fixture', mode: 'api' });
-  assert.equal(pi.route.gatewayBaseUrl, moved);
   await usage.collect();
   assert(fetched.length > 0 && fetched.every(address => address.startsWith(`${moved}/`)));
-  const { defaultCustomProviderStores } = await import('../src/domain/pi-providers/custom-provider-service.js');
-  assert.equal(defaultCustomProviderStores().gatewayUrl, moved);
   const { generateGatewayYaml } = await import('../src/core/gateway-generator.js');
   assert.equal(parseYaml(generateGatewayYaml([])).port, port);
 

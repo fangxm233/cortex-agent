@@ -27,7 +27,7 @@ import { runRegistry } from '../src/core/run-registry.js';
 import * as executionRegistry from '../src/domain/executions/registry.js';
 import { conduitQueues } from '../src/orchestration/conduit-queue.js';
 
-const defaultSelection = { backend: 'claude' as const, provider: null, model: 'claude-sonnet-4-6', thinking: null, mode: 'plan' };
+const defaultSelection = { backend: 'claude' as const, provider: null, model: 'claude-sonnet-4-6', thinking: null, connection: null };
 const piFavorite = { backend: 'pi' as const, provider: 'anthropic', model: 'claude-sonnet-4-6' };
 function seedModels(favorites = [defaultSelection, piFavorite]) {
   fs.writeFileSync(path.join(CONFIG_DIR, 'models.json'), JSON.stringify({ default: defaultSelection, favorites }));
@@ -796,10 +796,3 @@ test('!compact is exact and delegates to the shared channel coordinator', async 
   assert.deepEqual(calls, ['Ccompact'], 'arguments must not prefix-match the exact command');
   assert.match(adapter.posted[1].content.text, /unknown command/i);
 });
-
-vi.mock('@core/gateway-generator.js', async (original) => ({
-  ...await original<typeof import('../src/core/gateway-generator.js')>(),
-  readGatewayYaml: () => ({ top: {}, endpoints: {
-    anthropic: { plan: {}, api: {}, anthropic: {} }, openai: { openai: {} },
-  } }),
-}));

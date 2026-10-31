@@ -7,7 +7,7 @@
 // here rather than replaced by the request contract's own.
 
 import type { EngineSpec } from '../src/agent-adapter/types.js';
-import type { ModeEnv } from '../src/domain/runs/mode-env.js';
+import type { ClaudeRoute } from '../src/domain/connections/claude-route.js';
 import type { EngineSelection } from '../src/domain/agents/engine-selection.js';
 import { buildEngineSpec } from '../src/domain/runs/engine-spec.js';
 import type { RunRequest } from '../src/domain/runs/request.js';
@@ -37,10 +37,12 @@ function defined<T extends object>(value: T): Partial<T> {
 
 /** The attempt config a fixture implies, so a suite can pass the same literal to both. */
 export function attemptFixture(partial: Partial<EngineSelection> = {}): EngineSelection {
+  const backend = partial.backend ?? 'claude';
   return {
     model: partial.model ?? 'claude-sonnet-4-6',
-    backend: partial.backend ?? 'claude',
-    mode: partial.mode ?? 'plan',
+    backend,
+    // A PI selection names no connection: its provider is the connection.
+    connection: partial.connection !== undefined ? partial.connection : backend === 'pi' ? null : 'subscription',
     provider: partial.provider ?? null,
     thinking: partial.thinking ?? null,
   };
@@ -135,7 +137,7 @@ export function runRequestFixture(
 export function specFromFixture(
   partial: RunRequestFixtureInput = {},
   attemptOverride: Partial<EngineSelection> = {},
-  route?: ModeEnv,
+  route?: ClaudeRoute,
 ): EngineSpec {
   return buildEngineSpec(
     runRequestFixture(partial, attemptOverride),

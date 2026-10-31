@@ -4,11 +4,12 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { importWithFreshRegistry } from '../../helpers/fresh-module.js';
 import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
+import { seedClaudeKeyConnection } from '../../_seed-connections.js';
 
 const HOME = process.env.CORTEX_HOME!;
 const MODELS = path.join(HOME, 'config', 'models.json');
 const STATE = path.join(HOME, 'data', 'agent-state.json');
-const selection: EngineSelection = { backend: 'claude', provider: null, model: 'claude-opus-5', thinking: 'high', mode: 'plan' };
+const selection: EngineSelection = { backend: 'claude', provider: null, model: 'claude-opus-5', thinking: 'high', connection: 'relay' };
 const other: EngineSelection = { ...selection, model: 'claude-sonnet-5', thinking: 'low' };
 
 function seed(state: Record<string, unknown> = {}): void {
@@ -16,6 +17,7 @@ function seed(state: Record<string, unknown> = {}): void {
   mkdirSync(path.dirname(STATE), { recursive: true });
   writeFileSync(MODELS, JSON.stringify({ default: selection, favorites: [selection, other] }));
   writeFileSync(STATE, JSON.stringify(state));
+  seedClaudeKeyConnection('relay');
 }
 
 function freshLifecycle() {

@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
-import { validateEngineSelection, validateModelRef, type ModelsFile } from '../../../src/domain/agents/engine-selection.js';
+import { validateEngineSelection, validateModelRef } from '../../../src/domain/agents/engine-selection.js';
+import { ModelsRepo } from '../../../src/store/models-repo.js';
 import { environmentSchema } from '../../../src/domain/agents/environments/schema.js';
 import { buildEngineSpec } from '../../../src/domain/runs/engine-spec.js';
 import { runRequestFixture } from '../../run-request-fixture.js';
@@ -14,7 +16,7 @@ const context = {
 test.each(['claude', 'pi'] as const)('selection model and thinking reach %s unchanged', (backend) => {
   const request = runRequestFixture({ loadCortexRules: false }, {
     backend, provider: backend === 'pi' ? 'deepseek' : null,
-    model: 'selected-model', thinking: 'high', mode: backend === 'pi' ? 'deepseek' : 'plan',
+    model: 'selected-model', thinking: 'high', connection: backend === 'pi' ? null : 'subscription',
   });
   const spec = buildEngineSpec(request, request.selection);
   expect(spec.model.id).toBe('selected-model');
@@ -23,13 +25,14 @@ test.each(['claude', 'pi'] as const)('selection model and thinking reach %s unch
   expect(spec).not.toHaveProperty('extraOption');
 });
 
-test('null thinking sends no effort and selected provider carries its own route', () => {
+test('null thinking sends no effort and a PI provider is its own route', () => {
   const request = runRequestFixture({ loadCortexRules: false }, {
-    backend: 'pi', provider: 'zai', mode: 'zai', model: 'glm', thinking: null,
+    backend: 'pi', provider: 'zai', connection: null, model: 'glm', thinking: null,
   });
   const spec = buildEngineSpec(request, request.selection);
   expect(spec.model.thinking).toBeUndefined();
-  expect(spec.route.gatewayPath).toBe('/m/zai/zai');
+  expect(spec.model.provider).toBe('zai');
+  expect(spec.route).toEqual({ anthropicBaseUrl: undefined, connection: undefined });
 });
 
 test.each([
@@ -47,7 +50,7 @@ test.each([
 test('route credentials are not overridable by retired selection properties', () => {
   const request = runRequestFixture({ loadCortexRules: false });
   const selection = { ...request.selection, extraEnv: { ANTHROPIC_API_KEY: 'wrong' }, extraOption: { '--effort': 'low' } };
-  const spec = buildEngineSpec(request, selection, { route: { ANTHROPIC_API_KEY: null } });
+  const spec = buildEngineSpec(request, selection, { route: { connection: 'subscription', sets: {}, unsets: ['ANTHROPIC_API_KEY'] } });
   expect(spec.env.sets).toBeUndefined();
   expect(spec.env.unsets).toContain('ANTHROPIC_API_KEY');
   expect(spec).not.toHaveProperty('extraOption');
@@ -57,7 +60,10 @@ test('route credentials are not overridable by retired selection properties', ()
 test.each(['deepseek', 'openai-codex'])('sealed %s bundle uses the server selection contract', (provider) => {
   const home = new URL(`../../../../benchmark/harness/src/cortex_bench_harness/launcher/bundles/direct-pi-${provider}/cortex-home/`, import.meta.url);
   const read = (relative: string) => JSON.parse(readFileSync(new URL(relative, home), 'utf8'));
-  const models = read('config/models.json') as ModelsFile;
+  // The bundle is sealed, so the startup migration leaves its gateway-era `mode` in place; the
+  // server's own reader is what must turn it into a connection.
+  const models = new ModelsRepo(fileURLToPath(new URL('config/models.json', home))).readSync();
+  expect(models.default.connection).toBeNull();
   validateEngineSelection(models.default);
   models.favorites.forEach(validateModelRef);
   expect(models.favorites).toEqual([{ backend: 'pi', provider, model: models.default.model }]);
@@ -67,7 +73,7 @@ test.each(['deepseek', 'openai-codex'])('sealed %s bundle uses the server select
   const request = runRequestFixture({ loadCortexRules: false, benchmarkMaxOutputTokens: 8192 }, models.default);
   request.benchmark = { evidenceContext: context, identityDirective: '' };
   const spec = buildEngineSpec(request, models.default);
-  expect(spec.route.gatewayPath).toBe(`/m/trial/${provider}`);
+  expect(spec.route).toEqual({ anthropicBaseUrl: undefined, connection: undefined });
   expect(spec.model.benchmarkMaxOutputTokens).toBe(8192);
   expect(spec.model.thinking).toBe(models.default.thinking);
 });

@@ -1,15 +1,13 @@
 import { beforeEach, expect, test, vi } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { upsertConnection } from '../../../src/core/connections-file.js';
 import { importWithFreshRegistry } from '../../helpers/fresh-module.js';
 
-vi.mock('../../../src/core/gateway-generator.js', () => ({
-  readGatewayYaml: () => ({ endpoints: { anthropic: { api: {}, plan: {} } } }),
-}));
 vi.mock('../../../src/agent-adapter/pi/discovery.js', () => ({
   piProviderDiscovery: { peekModels: () => [{ provider: 'catalog-provider', model: 'catalog-model' }] },
 }));
-const selection = { backend: 'claude', provider: null, model: 'opus', thinking: 'high', mode: 'plan' };
+const selection = { backend: 'claude', provider: null, model: 'opus', thinking: 'high', connection: 'subscription' };
 const pi = { backend: 'pi', provider: 'deepseek', model: 'flash' };
 const file = path.join(process.env.CORTEX_HOME!, 'config/models.json');
 const state = path.join(process.env.CORTEX_HOME!, 'data/agent-state.json');
@@ -22,19 +20,23 @@ beforeEach(() => {
 test('backend default uses configured default, then first favorite, never another backend', async () => {
   const api = await fresh();
   expect(api.getDefaultSelectionForBackend('claude')).toEqual(selection);
-  expect(api.getDefaultSelectionForBackend('pi')).toEqual({ ...pi, thinking: null, mode: 'deepseek' });
+  expect(api.getDefaultSelectionForBackend('pi')).toEqual({ ...pi, thinking: null, connection: null });
   writeFileSync(file, JSON.stringify({ default: selection, favorites: [] }));
   expect((await fresh()).getDefaultSelectionForBackend('pi')).toBeNull();
 });
 
-test('model selection restores memory and otherwise uses null thinking and first route', async () => {
+test('model selection restores memory and otherwise uses null thinking and the default connection', async () => {
   writeFileSync(state, JSON.stringify({ modelMemory: {
-    '["pi","deepseek","flash"]': { thinking: 'xhigh', mode: 'metered' },
+    '["pi","deepseek","flash"]': { thinking: 'xhigh', connection: 'stray' },
   } }));
   const api = await fresh();
-  expect(api.selectionForModel(pi as never)).toEqual({ ...pi, thinking: 'xhigh', mode: 'metered' });
-  expect(api.selectionForModel({ backend: 'claude', provider: null, model: 'sonnet' }))
-    .toEqual({ backend: 'claude', provider: null, model: 'sonnet', thinking: null, mode: 'api' });
+  const sonnet = { backend: 'claude' as const, provider: null, model: 'sonnet' };
+  expect(api.selectionForModel(pi as never)).toEqual({ ...pi, thinking: 'xhigh', connection: null });
+  expect(api.selectionForModel(sonnet)).toEqual({ ...sonnet, thinking: null, connection: null });
+  upsertConnection({
+    id: 'api', backend: 'claude', label: 'API', authStyle: 'x-api-key', key: 'sk-test-fake', billing: 'metered',
+  });
+  expect(api.selectionForModel(sonnet)).toEqual({ ...sonnet, thinking: null, connection: 'api' });
 });
 
 test('refs parse explicit providers, retain model slashes, use favorites and cached catalog synchronously', async () => {

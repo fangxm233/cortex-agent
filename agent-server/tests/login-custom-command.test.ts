@@ -13,11 +13,13 @@ import type { CustomProviderStores } from '../src/domain/pi-providers/index.js';
 
 function tmpStores(): CustomProviderStores {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-login-custom-'));
-  return {
-    modelsPath: path.join(dir, 'pi', 'models.json'),
-    gatewayPath: path.join(dir, 'aistatus', 'gateway.yaml'),
-    gatewayUrl: 'http://127.0.0.1:9880',
-  };
+  return { connectionsPath: path.join(dir, 'config', 'connections.json') };
+}
+
+/** The PI connection stored for `name`, if any. */
+function storedProvider(stores: CustomProviderStores, name: string): any {
+  const { connections } = JSON.parse(fs.readFileSync(stores.connectionsPath, 'utf8'));
+  return connections.find((entry: any) => entry.backend === 'pi' && entry.id === name);
 }
 
 function seed(stores: CustomProviderStores): void {
@@ -72,9 +74,10 @@ test('adds a keyless provider and points elsewhere for the upstream key', async 
 
   assert.match(result.text, /my-proxy/);
   assert.match(result.text, /cortex auth provider/);
-  const catalog = JSON.parse(fs.readFileSync(stores.modelsPath, 'utf8'));
-  assert.equal(catalog.providers['my-proxy'].api, 'openai-completions');
-  assert.deepEqual(catalog.providers['my-proxy'].models, [{ id: 'small' }]);
+  const stored = storedProvider(stores, 'my-proxy');
+  assert.equal(stored.api, 'openai-completions');
+  assert.deepEqual(stored.models, [{ id: 'small' }]);
+  assert.equal(stored.key, undefined);
 });
 
 test('an add that the server refuses changes nothing and says why', async () => {
@@ -86,7 +89,7 @@ test('an add that the server refuses changes nothing and says why', async () => 
   );
 
   assert.match(result.text, /protocol/i);
-  assert.equal(fs.existsSync(stores.modelsPath), false);
+  assert.equal(fs.existsSync(stores.connectionsPath), false);
 });
 
 test('removes a stored provider and reports an unknown name', async () => {
@@ -95,7 +98,7 @@ test('removes a stored provider and reports an unknown name', async () => {
 
   const removed = await handleCustomProviderCommand(['remove', 'my-vllm'], stores);
   assert.match(removed.text, /my-vllm/);
-  assert.equal(JSON.parse(fs.readFileSync(stores.modelsPath, 'utf8')).providers['my-vllm'], undefined);
+  assert.equal(storedProvider(stores, 'my-vllm'), undefined);
 
   const missing = await handleCustomProviderCommand(['remove', 'my-vllm'], stores);
   assert.match(missing.text, /my-vllm/);

@@ -2,7 +2,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
 
-const selection: EngineSelection = { backend: 'claude', provider: null, model: 'opus', thinking: 'high', mode: 'plan' };
+const selection: EngineSelection = { backend: 'claude', provider: null, model: 'opus', thinking: 'high', connection: 'subscription' };
 import {
   buildScheduleTask, nextFireDelayMs, normalizeSchedulePatch, normalizeScheduleSpec, ScheduleSpecError,
 } from '../../../src/domain/scheduling/schedule-spec.js';

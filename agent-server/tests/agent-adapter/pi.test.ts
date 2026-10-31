@@ -23,9 +23,8 @@ import type { NormalizedEvent } from '../../src/agent-adapter/normalize/event-ty
 import type { EngineRun, EngineSession } from '../../src/agent-adapter/types.js';
 import { PIAdapter } from '../../src/agent-adapter/pi/adapter.js';
 import { piPool } from './pi-pool-fixture.js';
-import { PI_AGENT_DIR, piModelsPath } from '../../src/agent-adapter/pi/defaults.js';
-import { createPIProviderDiscovery } from '../../src/agent-adapter/pi/discovery.js';
-import type { PiDiscoveredModel } from '../../src/core/gateway-generator.js';
+import { piModelsPath } from '../../src/agent-adapter/pi/defaults.js';
+import type { PiProviderCatalog } from '../../src/agent-adapter/pi/providers-config.js';
 import { buildPiEnv, PI_INTERACTION_BRIDGE_ENV } from '../../src/agent-adapter/pi/session-options.js';
 import {
   collectEvents, makeFakeRuntimeFactory, type FakeRuntime,
@@ -212,7 +211,7 @@ test('open forwards EngineSpec.env.unsets to the session env', () => {
       sessionId: 'unset-env-session',
       sessionKey: 'unset-env',
       resume: false,
-      env: { ANTHROPIC_API_KEY: 'cortex-gateway-managed', KEPT_ENV: 'kept' },
+      env: { ANTHROPIC_API_KEY: 'sk-fake-route', KEPT_ENV: 'kept' },
       unsetEnv: ['ANTHROPIC_API_KEY'],
     }));
 
@@ -307,7 +306,7 @@ test('buildPiEnv scrubs production bootstrap controls from the child', () => {
   ]) assert.equal(env[key], undefined, key);
 });
 
-// --- buildPiEnv unsetEnv (PI routes by env only: env is its sole mode lever) ---
+// --- buildPiEnv unsetEnv (the route environment is applied first, then its unsets) ---
 
 test('buildPiEnv unsetEnv deletes a key inherited from the parent env', () => {
   const env = buildPiEnv({
@@ -315,19 +314,19 @@ test('buildPiEnv unsetEnv deletes a key inherited from the parent env', () => {
     unsetEnv: ['ANTHROPIC_API_KEY'],
   }, {
     ANTHROPIC_API_KEY: 'sk-ant-inherited',
-    ANTHROPIC_BASE_URL: 'http://127.0.0.1:9880/m/openai-codex/anthropic',
+    ANTHROPIC_BASE_URL: 'https://relay.example.invalid/anthropic',
   });
 
   // Absent, not empty — PI already treats an empty string as a legal value (PI_CODING_AGENT_DIR).
   assert.equal(Object.prototype.hasOwnProperty.call(env, 'ANTHROPIC_API_KEY'), false);
-  assert.equal(env.ANTHROPIC_BASE_URL, 'http://127.0.0.1:9880/m/openai-codex/anthropic');
+  assert.equal(env.ANTHROPIC_BASE_URL, 'https://relay.example.invalid/anthropic');
   assert.equal(env.PI_CODING_AGENT_DIR, '/pi-agent');
 });
 
 test('buildPiEnv unsetEnv runs after the route environment merge', () => {
   const env = buildPiEnv({
     piAgentDir: '/pi-agent',
-    routeEnv: { ANTHROPIC_API_KEY: 'cortex-gateway-managed', KEPT_ENV: 'kept' },
+    routeEnv: { ANTHROPIC_API_KEY: 'sk-fake-route', KEPT_ENV: 'kept' },
     unsetEnv: ['ANTHROPIC_API_KEY'],
   }, {
     ANTHROPIC_API_KEY: 'sk-ant-inherited',
@@ -407,141 +406,55 @@ test('PIAdapter does not default the provider to "anthropic" when only a model i
   engine.kill();
 });
 
-test('gateway sessions start while one slow discovery warms provider overrides', async () => {
-  let resolveDiscovery!: (models: PiDiscoveredModel[]) => void;
-  let scans = 0;
-  const slowDiscovery = new Promise<PiDiscoveredModel[]>((resolve) => { resolveDiscovery = resolve; });
-  const discovery = createPIProviderDiscovery({
-    scan: () => {
-      scans += 1;
-      return slowDiscovery;
-    },
-  });
+test('every open rewrites the agent dir catalog from the host catalog hook', () => {
+  const agentDir = pathJoin(G_SESSION_DIR, 'catalog-agent');
+  let catalog: PiProviderCatalog = {
+    providers: { anthropic: { baseUrl: 'https://relay.example.invalid/anthropic' } },
+    runtimeKeys: {},
+  };
   const fake = makeFakeRuntimeFactory();
-  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR, discovery);
-  const engines: EngineSession[] = [];
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR, undefined, { agentDir, catalog: () => catalog });
+  const open = (sessionKey: string, piProvider: string) => piPool(adapter).open(engineSpecFixture({
+    sessionId: null, sessionKey, resume: false, piProvider,
+  }));
+  const written = () => JSON.parse(readFileSync(piModelsPath(agentDir), 'utf8')).providers;
 
-  engines.push(piPool(adapter).open(engineSpecFixture({
-    sessionId: null,
-    sessionKey: 'gateway-cold-anthropic',
-    resume: false,
-    model: 'claude-sonnet-4-6',
-    piProvider: 'anthropic',
-    piGatewayBaseUrl: 'http://127.0.0.1:9880',
-    piGatewayPath: '/m/default/anthropic',
-  })));
-  let models = JSON.parse(readFileSync(piModelsPath(PI_AGENT_DIR), 'utf8'));
-  assert.equal(models.providers.anthropic.baseUrl, 'http://127.0.0.1:9880/m/default/anthropic');
+  const engines = [open('catalog-first', 'anthropic')];
+  assert.deepEqual(written(), catalog.providers);
 
-  engines.push(piPool(adapter).open(engineSpecFixture({
-    sessionId: null,
-    sessionKey: 'gateway-cold-deepseek',
-    resume: false,
-    model: 'deepseek-chat',
-    piProvider: 'deepseek',
-    piGatewayBaseUrl: 'http://127.0.0.1:9880',
-    piGatewayPath: '/m/default/deepseek',
-  })));
-  models = JSON.parse(readFileSync(piModelsPath(PI_AGENT_DIR), 'utf8'));
-  assert.deepEqual(Object.keys(models.providers).sort(), ['anthropic', 'deepseek']);
-  assert.equal(models.providers.anthropic.baseUrl, 'http://127.0.0.1:9880/m/default/anthropic');
-  assert.equal(models.providers.deepseek.baseUrl, 'http://127.0.0.1:9880/m/default/deepseek');
-
-  engines.push(piPool(adapter).open(engineSpecFixture({
-    sessionId: null,
-    sessionKey: 'gateway-cold-no-provider',
-    resume: false,
-    piGatewayBaseUrl: 'http://127.0.0.1:9880',
-  })));
-  models = JSON.parse(readFileSync(piModelsPath(PI_AGENT_DIR), 'utf8'));
-  assert.deepEqual(Object.keys(models.providers).sort(), ['anthropic', 'deepseek']);
-  assert.equal(fake.requests.length, 3, 'all PI sessions start before discovery settles');
-
-  await Promise.resolve();
-  assert.equal(scans, 1, 'concurrent cold sessions coalesce provider discovery');
-  resolveDiscovery([
-    { provider: 'anthropic', model: 'claude-sonnet' },
-    { provider: 'anthropic', model: 'claude-sonnet' },
-    { provider: 'openai-codex', model: 'gpt-5' },
-  ]);
-  await tick();
-
-  engines.push(piPool(adapter).open(engineSpecFixture({
-    sessionId: null,
-    sessionKey: 'gateway-warm-deepseek',
-    resume: false,
-    model: 'deepseek-chat',
-    piProvider: 'deepseek',
-    piGatewayBaseUrl: 'http://127.0.0.1:9880',
-    piGatewayPath: '/m/pro/deepseek',
-  })));
-  models = JSON.parse(readFileSync(piModelsPath(PI_AGENT_DIR), 'utf8'));
-  assert.deepEqual(Object.keys(models.providers).sort(), ['anthropic', 'deepseek', 'openai-codex']);
-  assert.equal(models.providers.deepseek.baseUrl, 'http://127.0.0.1:9880/m/pro/deepseek');
-  assert.equal(scans, 1, 'fresh cache avoids another list-models call');
-
+  // A connection removed on the host stops routing at the next open, whatever provider it runs.
+  catalog = { providers: { deepseek: { baseUrl: 'https://relay.example.invalid/ds' } }, runtimeKeys: {} };
+  engines.push(open('catalog-second', 'openai-codex'));
+  assert.deepEqual(Object.keys(written()), ['deepseek']);
+  assert.equal(written().deepseek.baseUrl, 'https://relay.example.invalid/ds');
   for (const engine of engines) engine.kill();
 });
 
-test('failed gateway discovery preserves current-provider fallback without delaying the session', async () => {
-  let scans = 0;
-  const discovery = createPIProviderDiscovery({
-    scan: async () => {
-      scans += 1;
-      throw new Error('pi list-models failed');
-    },
-  });
+test('a failing catalog hook is logged and does not block the session', () => {
+  const agentDir = pathJoin(G_SESSION_DIR, 'catalog-failing-agent');
   const fake = makeFakeRuntimeFactory();
-  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR, discovery);
-
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR, undefined, {
+    agentDir, catalog: () => { throw new Error('connections unreadable'); },
+  });
   const engine = piPool(adapter).open(engineSpecFixture({
-    sessionId: null,
-    sessionKey: 'gateway-failed-discovery',
-    resume: false,
-    model: 'claude-opus-4-8',
-    piProvider: 'anthropic',
-    piGatewayBaseUrl: 'http://127.0.0.1:9880',
-    piGatewayPath: '/m/gateway/anthropic',
+    sessionId: null, sessionKey: 'catalog-failing', resume: false, piProvider: 'anthropic',
   }));
-
-  assert.equal(fake.requests.length, 1, 'the session is not gated on discovery failure');
-  const models = JSON.parse(readFileSync(piModelsPath(PI_AGENT_DIR), 'utf8'));
-  assert.deepEqual(Object.keys(models.providers), ['anthropic']);
-  assert.equal(models.providers.anthropic.baseUrl, 'http://127.0.0.1:9880/m/gateway/anthropic');
-  await Promise.resolve();
-  await Promise.resolve();
-  assert.equal(scans, 1);
-
+  assert.equal(fake.requests.length, 1);
   engine.kill();
 });
 
-test('flags provider quota reporting only for gateway-routed runs', () => {
-  const routed = makeFakeRuntimeFactory();
-  const routedAdapter = new PIAdapter(routed.factory);
-  const routedEngine = piPool(routedAdapter).open(engineSpecFixture({
+test('every PI run reports provider quota, routed by a connection or not', () => {
+  const fake = makeFakeRuntimeFactory();
+  const adapter = new PIAdapter(fake.factory);
+  const engine = piPool(adapter).open(engineSpecFixture({
     sessionId: null,
-    sessionKey: 'pi-quota-routed',
+    sessionKey: 'pi-quota-direct',
     resume: false,
-    piGatewayBaseUrl: 'http://127.0.0.1:9880',
+    piProvider: 'openai-codex',
   }));
-  assert.equal(
-    routed.requests[0].reportsProviderQuota, true,
-    'a gateway-routed run must report provider quota',
-  );
-  routedEngine.kill();
-
-  const unrouted = makeFakeRuntimeFactory();
-  const unroutedAdapter = new PIAdapter(unrouted.factory);
-  const unroutedEngine = piPool(unroutedAdapter).open(engineSpecFixture({
-    sessionId: null,
-    sessionKey: 'pi-quota-unrouted',
-    resume: false,
-  }));
-  assert.equal(
-    unrouted.requests[0].reportsProviderQuota, false,
-    'a run Cortex does not route must not report into the daemon throttle',
-  );
-  unroutedEngine.kill();
+  // Whether a reading is written anywhere is decided by the injected sinks (pi-quota-probe.test.ts).
+  assert.equal(fake.requests[0].reportsProviderQuota, true);
+  engine.kill();
 });
 
 // --- Group C: session identity (done-when: the session announces itself first) ---

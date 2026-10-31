@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { connectionForLegacyMode } from '../../src/core/connections-file.js';
 import { retireProfiles } from '../../src/store/retire-profiles-migration.js';
 import { SessionRegistryRepo, sessionStore } from '../../src/store/session-registry-repo.js';
 
@@ -10,6 +11,13 @@ const ARCHIVE = 'config/archive/profiles-20261015T120000000Z/profiles.json';
 const DEFAULT = { backend: 'claude', provider: null, model: 'opus', thinking: 'xhigh', mode: 'plan' };
 const PI = { backend: 'pi', provider: 'deepseek', model: 'flash', thinking: 'xhigh', mode: 'deepseek' };
 let home: string;
+
+/** S10 writes the gateway-era `mode` shape; the registry reads every row back as `connection`. */
+function asRead(selection: Record<string, unknown> | null) {
+  if (!selection) return selection;
+  const { mode, ...rest } = selection;
+  return { ...rest, connection: connectionForLegacyMode(rest.backend, mode) };
+}
 
 function write(relative: string, value: unknown): void {
   const target = path.join(home, relative);
@@ -116,12 +124,12 @@ describe('S10 retire profiles', () => {
     const report = await migrate();
     expect(globalWrite).not.toHaveBeenCalled();
     expect(read('data/session-registry.jsonl').startsWith(before)).toBe(true);
-    expect((await repo().getById('changed'))?.selection).toEqual({ ...DEFAULT, model: 'opus-custom', thinking: null, mode: 'api' });
-    expect((await repo().getById('pi'))?.selection).toEqual({ ...PI, provider: 'other', model: 'other-model', mode: 'other' });
+    expect((await repo().getById('changed'))?.selection).toEqual(asRead({ ...DEFAULT, model: 'opus-custom', thinking: null, mode: 'api' }));
+    expect((await repo().getById('pi'))?.selection).toEqual(asRead({ ...PI, provider: 'other', model: 'other-model', mode: 'other' }));
     expect(await repo().getById('deleted')).toBeNull();
     expect((await repo().getById('unset'))?.selection).toBeNull();
     expect((await repo().getConversationHeader('a'))?.selection).toEqual((await repo().getById('changed'))?.selection);
-    expect((await repo().getConversationHeader('standalone'))?.selection).toEqual(PI);
+    expect((await repo().getConversationHeader('standalone'))?.selection).toEqual(asRead(PI));
     expect(report).toMatchObject({ sessions: 2, conversations: 2 });
   });
 
@@ -134,7 +142,7 @@ describe('S10 retire profiles', () => {
     journal([put('pi', 'plain', name, 'pi')]);
     const before = read('data/session-registry.jsonl');
     await migrate();
-    expect((await repo().getById('pi'))?.selection).toEqual(PI);
+    expect((await repo().getById('pi'))?.selection).toEqual(asRead(PI));
     expect((await repo().getById('pi'))?.backend).toBe('pi');
     expect(read('data/session-registry.jsonl').startsWith(before)).toBe(true);
     const after = read('data/session-registry.jsonl');
@@ -148,7 +156,7 @@ describe('S10 retire profiles', () => {
     } });
     journal([put('claude', 'plain', 'flash')]);
     await migrate();
-    expect((await repo().getById('claude'))?.selection).toEqual(DEFAULT);
+    expect((await repo().getById('claude'))?.selection).toEqual(asRead(DEFAULT));
   });
 
   it('uses persisted bindings rather than session origin channels for channel compatibility', async () => {
@@ -164,7 +172,7 @@ describe('S10 retire profiles', () => {
     ]);
     await migrate();
     expect(json('data/agent-state.json').channelSelections).toEqual({ bound: PI, conflict: PI });
-    expect((await repo().getConversationHeader('bound'))?.selection).toEqual(PI);
+    expect((await repo().getConversationHeader('bound'))?.selection).toEqual(asRead(PI));
     expect((await repo().getById('pi'))?.selection).toBeNull();
   });
 
@@ -199,8 +207,8 @@ describe('S10 retire profiles', () => {
     ]);
     const before = read('data/session-registry.jsonl');
     await migrate();
-    expect((await repo().getById('pi'))?.selection).toEqual(hasPi ? PI : null);
-    expect((await repo().getConversationHeader('bound'))?.selection).toEqual(hasPi ? PI : null);
+    expect((await repo().getById('pi'))?.selection).toEqual(asRead(hasPi ? PI : null));
+    expect((await repo().getConversationHeader('bound'))?.selection).toEqual(asRead(hasPi ? PI : null));
     expect(json('data/agent-state.json').channelSelections).toEqual(hasPi ? { bound: PI } : {});
     expect(read('data/session-registry.jsonl').startsWith(before)).toBe(true);
   });
@@ -215,7 +223,7 @@ describe('S10 retire profiles', () => {
     ]);
     const before = read('data/session-registry.jsonl');
     await migrate();
-    expect((await repo().getById('pi'))?.selection).toEqual(preserved);
+    expect((await repo().getById('pi'))?.selection).toEqual(asRead(preserved));
     expect(json('data/agent-state.json').channelSelections.bound).toEqual(preserved);
     expect(read('data/session-registry.jsonl')).toBe(before);
   });
@@ -228,7 +236,7 @@ describe('S10 retire profiles', () => {
     expect(JSON.parse(read('data/session-registry.jsonl')).record.profileName).toBe('flash');
     await migrate();
     const session = await repo().getById('old');
-    expect(session?.selection).toEqual(PI);
+    expect(session?.selection).toEqual(asRead(PI));
     expect(session).not.toHaveProperty('profileName');
     await repo().compactNow();
     expect(read('data/session-registry.jsonl')).not.toContain('profileName');
@@ -250,7 +258,7 @@ describe('S10 retire profiles', () => {
     await migrate();
     const patches = read('data/session-registry.jsonl').trim().split('\n').map(line => JSON.parse(line)).filter(row => row.op === 'patch');
     expect(patches).toHaveLength(2);
-    expect((await repo().getById('second'))?.selection).toEqual({ ...PI, provider: 'other', model: 'other-model', mode: 'other' });
+    expect((await repo().getById('second'))?.selection).toEqual(asRead({ ...PI, provider: 'other', model: 'other-model', mode: 'other' }));
     const after = read('data/session-registry.jsonl');
     await migrate();
     expect(read('data/session-registry.jsonl')).toBe(after);
@@ -271,7 +279,7 @@ describe('S10 retire profiles', () => {
     expect(json('data/agent-state.json').selectionDefault).toEqual(preserved);
     expect(json('data/agent-state.json').modelMemory[JSON.stringify(['pi', 'deepseek', 'flash'])].thinking).toBe('low');
     expect(json('data/schedules.json').tasks[0]).toEqual({ id: 'one', selection: preserved });
-    expect((await repo().getById('already'))?.selection).toEqual(preserved);
+    expect((await repo().getById('already'))?.selection).toEqual(asRead(preserved));
   });
 
   it('retries after the final archive fails without losing merged session overrides', async () => {
@@ -285,7 +293,7 @@ describe('S10 retire profiles', () => {
     const beforeRetry = read('data/session-registry.jsonl');
     await retireProfiles({ dataDir: home, storeDir: path.join(home, 'data'), now: new Date(NOW.getTime() + 1) });
     expect(read('data/session-registry.jsonl')).toBe(beforeRetry);
-    expect((await repo().getById('one'))?.selection).toEqual({ ...DEFAULT, model: 'opus-custom', thinking: null, mode: 'api' });
+    expect((await repo().getById('one'))?.selection).toEqual(asRead({ ...DEFAULT, model: 'opus-custom', thinking: null, mode: 'api' }));
     expect(exists('config/profiles.json')).toBe(false);
   });
 
@@ -299,7 +307,7 @@ describe('S10 retire profiles', () => {
     expect(json('data/agent-state.json').channelOverrides).toBeDefined();
     write('data/session-registry.jsonl', committed + '{"v":1,"op":"patch","id":"one","fields":{"profileName":"flash"}}');
     await migrate();
-    expect((await repo().getById('one'))?.selection).toEqual({ ...DEFAULT, model: 'opus-custom', thinking: null, mode: 'api' });
+    expect((await repo().getById('one'))?.selection).toEqual(asRead({ ...DEFAULT, model: 'opus-custom', thinking: null, mode: 'api' }));
   });
 
   it('leaves non-engine schedules intact and does not archive after malformed state', async () => {

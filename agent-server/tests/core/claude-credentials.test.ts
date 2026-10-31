@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { mkdtempSync } from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'vitest';
 
@@ -8,11 +10,12 @@ import {
   claudeKeychainCredential,
   claudeKeychainService,
   claudeOwnsOAuthCredential,
-  hasClaudeCredential,
+  officialApiKeyConnection,
+  resolveAnthropicApiKey,
   resolveClaudeCredential,
 } from '../../src/core/claude-credentials.js';
+import { writeConnections, type StoredConnection } from '../../src/core/connections-file.js';
 import { CLAUDE_CONFIG_HOME, CONFIG_DIR } from '../../src/core/paths.js';
-import { GATEWAY_MANAGED_KEY_PLACEHOLDER } from '../../src/core/utils.js';
 
 const CLAUDE_DIR = '/fixture/.claude';
 const CREDENTIALS = path.join(CLAUDE_DIR, '.credentials.json');
@@ -26,29 +29,57 @@ function reader(files: Record<string, string>) {
   };
 }
 
+function connectionsFile(connections: StoredConnection[]): string {
+  const file = path.join(mkdtempSync(path.join(os.tmpdir(), 'claude-cred-conn-')), 'connections.json');
+  writeConnections(connections, file);
+  return file;
+}
+
+const OFFICIAL_KEY: StoredConnection = {
+  id: 'api', backend: 'claude', label: 'API', authStyle: 'x-api-key', key: 'sk-ant-fake-official', billing: 'metered',
+};
+const RELAY_KEY: StoredConnection = {
+  id: 'relay', backend: 'claude', label: 'Relay', baseUrl: 'https://relay.example.invalid',
+  authStyle: 'x-api-key', key: 'sk-fake-relay', billing: 'metered',
+};
+
 function oauthFile(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({ claudeAiOauth: { accessToken: 'store-token', ...overrides } });
 }
 
-test('a real ANTHROPIC_API_KEY outranks every other store', () => {
+test('the official-API key connection outranks every other store', () => {
   const credential = resolveClaudeCredential({
-    env: { ANTHROPIC_API_KEY: 'sk-ant-real', CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat' },
+    env: { ANTHROPIC_API_KEY: 'sk-ant-fake-env', CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat' },
     claudeConfigDir: CLAUDE_DIR,
     readFile: reader({ [CREDENTIALS]: oauthFile() }),
+    connectionsFile: connectionsFile([RELAY_KEY, OFFICIAL_KEY]),
   });
-  assert.equal(credential?.source, 'env-api-key');
-  assert.equal(credential?.headers['x-api-key'], 'sk-ant-real');
+  assert.equal(credential?.source, 'connection-api-key');
+  assert.equal(credential?.headers['x-api-key'], 'sk-ant-fake-official');
   assert.equal(credential?.headers.authorization, undefined);
 });
 
-test('the gateway placeholder is not a key, so the next store answers', () => {
-  const credential = resolveClaudeCredential({
-    env: { ANTHROPIC_API_KEY: 'cortex-gateway-managed' },
+test('a relay key and an env or .env API key are not the daemon key, so the next store answers', () => {
+  const deps = {
+    env: { ANTHROPIC_API_KEY: 'sk-ant-fake-env' },
     claudeConfigDir: CLAUDE_DIR,
-    readFile: reader({ [DOTENV]: 'ANTHROPIC_API_KEY=sk-ant-from-dotenv\n' }),
-  });
-  assert.equal(credential?.source, 'dotenv-api-key');
-  assert.equal(credential?.headers['x-api-key'], 'sk-ant-from-dotenv');
+    readFile: reader({
+      [DOTENV]: 'ANTHROPIC_API_KEY=sk-ant-fake-dotenv\n',
+      [CREDENTIALS]: oauthFile({ expiresAt: 4_000_000_000_000 }),
+    }),
+    now: () => 1_000,
+    connectionsFile: connectionsFile([RELAY_KEY]),
+  };
+  assert.equal(officialApiKeyConnection(deps), null);
+  assert.equal(resolveAnthropicApiKey(deps), null);
+  assert.equal(resolveClaudeCredential(deps)?.source, 'claude-credentials');
+});
+
+test('a bearer connection without a base URL is not the official-API key', () => {
+  const bearer: StoredConnection = { ...OFFICIAL_KEY, id: 'bearer', authStyle: 'bearer' };
+  const deps = { connectionsFile: connectionsFile([bearer, OFFICIAL_KEY]) };
+  assert.equal(officialApiKeyConnection(deps)?.id, 'api');
+  assert.equal(resolveAnthropicApiKey(deps), 'sk-ant-fake-official');
 });
 
 test("Claude's own store answers last, as a Bearer token with the oauth beta", () => {
@@ -158,35 +189,6 @@ test('the credential store defaults to Cortex\'s own Claude config dir, never an
   const expected = path.join(CLAUDE_CONFIG_HOME, '.credentials.json');
   assert.equal(claudeCredentialsPath(), expected);
   assert.equal(claudeCredentialsPath({ env: { CLAUDE_CONFIG_DIR: '/elsewhere' } }), expected);
-});
-
-test('a host with no Claude store, key or token has no Claude credential', () => {
-  assert.equal(hasClaudeCredential({
-    env: { ANTHROPIC_API_KEY: GATEWAY_MANAGED_KEY_PLACEHOLDER },
-    claudeConfigDir: CLAUDE_DIR,
-    readFile: reader({}),
-    platform: 'linux',
-  }), false);
-});
-
-test('an expired login still counts as a Claude credential — Claude Code refreshes it', () => {
-  assert.equal(hasClaudeCredential({
-    env: {},
-    claudeConfigDir: CLAUDE_DIR,
-    readFile: reader({ [CREDENTIALS]: oauthFile({ expiresAt: 1_000, refreshToken: 'refresh' }) }),
-    now: () => 2_000_000,
-    platform: 'linux',
-  }), true);
-});
-
-test('a saved API key or an ambient auth token counts as a Claude credential', () => {
-  const base = { claudeConfigDir: CLAUDE_DIR, platform: 'linux' as const };
-  assert.equal(hasClaudeCredential({
-    ...base, env: {}, readFile: reader({ [DOTENV]: 'ANTHROPIC_API_KEY=sk-saved\n' }),
-  }), true);
-  assert.equal(hasClaudeCredential({
-    ...base, env: { ANTHROPIC_AUTH_TOKEN: 'proxy-token' }, readFile: reader({}),
-  }), true);
 });
 
 test('the keychain credential reads the item named for Cortex\'s config dir, as a Bearer token', async () => {

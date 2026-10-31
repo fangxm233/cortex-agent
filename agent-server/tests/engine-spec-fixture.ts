@@ -32,8 +32,8 @@ export interface EngineSpecFixtureInput {
   mcpConfigPaths?: string[];
   mcpToolAllowlist?: string[];
   anthropicBaseUrl?: string;
-  piGatewayBaseUrl?: string;
-  piGatewayPath?: string;
+  /** The Claude connection the route was resolved for. */
+  connection?: string;
   cortexContext?: CortexContextEnv;
   disableHooks?: boolean;
   streamDeltas?: boolean;
@@ -54,8 +54,6 @@ export interface EngineSpecFixtureInput {
  */
 export function engineSpecFixture(partial: EngineSpecFixtureInput = {}): EngineSpec {
   const looksLikePi = partial.piProvider !== undefined
-    || partial.piGatewayPath !== undefined
-    || partial.piGatewayBaseUrl !== undefined
     || partial.benchmarkMaxOutputTokens !== undefined;
   return {
     engineKey: partial.sessionKey ?? partial.channel ?? 'default',
@@ -97,8 +95,7 @@ export function engineSpecFixture(partial: EngineSpecFixtureInput = {}): EngineS
     },
     route: {
       anthropicBaseUrl: partial.anthropicBaseUrl,
-      gatewayBaseUrl: partial.piGatewayBaseUrl,
-      gatewayPath: partial.piGatewayPath,
+      connection: partial.connection,
     },
     flags: {
       disableHooks: partial.disableHooks,

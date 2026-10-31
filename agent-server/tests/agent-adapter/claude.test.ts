@@ -877,7 +877,7 @@ test('buildClaudeEnv — maxContextTokens reaches the CLI as its auto-compact wi
 });
 
 test('buildClaudeEnv — extraEnv survives CLAUDE_CODE_* strip and can override DISABLE_AUTO_MEMORY', () => {
-  const env = buildClaudeEnv('C1', 'sid-1', null, null, 'http://127.0.0.1:9880/m/qwen-local/anthropic', {
+  const env = buildClaudeEnv('C1', 'sid-1', null, null, 'https://relay.example.invalid/anthropic', {
     CLAUDE_CODE_ATTRIBUTION_HEADER: '0',
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
   });
@@ -885,10 +885,10 @@ test('buildClaudeEnv — extraEnv survives CLAUDE_CODE_* strip and can override 
   assert.equal(env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC, '1');
   // Other Cortex defaults remain intact
   assert.equal(env.CLAUDE_CODE_DISABLE_AUTO_MEMORY, '1');
-  assert.equal(env.ANTHROPIC_BASE_URL, 'http://127.0.0.1:9880/m/qwen-local/anthropic');
+  assert.equal(env.ANTHROPIC_BASE_URL, 'https://relay.example.invalid/anthropic');
 });
 
-// --- buildClaudeEnv unsetEnv (plan mode must be able to DELETE a key, not just set it) ---
+// --- buildClaudeEnv unsetEnv (the subscription route must be able to DELETE a key, not just set it) ---
 
 test('buildClaudeEnv — unsetEnv deletes a key inherited from process.env', () => {
   const prevKey = process.env.ANTHROPIC_API_KEY;
@@ -909,7 +909,7 @@ test('buildClaudeEnv — unsetEnv deletes a key inherited from process.env', () 
 test('buildClaudeEnv — unsetEnv runs after extraEnv, so an extraEnv-set key is still deleted', () => {
   const env = buildClaudeEnv(
     'C1', 'sid-1', null, null, undefined,
-    { ANTHROPIC_API_KEY: 'cortex-gateway-managed', KEPT_ENV: 'kept' },
+    { ANTHROPIC_API_KEY: 'sk-fake-route', KEPT_ENV: 'kept' },
     undefined, undefined, ['ANTHROPIC_API_KEY'],
   );
   assert.equal(Object.prototype.hasOwnProperty.call(env, 'ANTHROPIC_API_KEY'), false);
@@ -1083,7 +1083,7 @@ test('ClaudeAdapter.open: config.unsetEnv removes the key from the spawned child
   try {
     pool.open(engineSpecFixture({
       sessionId: 'unset-env-key', sessionKey: 'unset-env-key', resume: false,
-      env: { ANTHROPIC_API_KEY: 'cortex-gateway-managed', KEPT_ENV: 'kept' },
+      env: { ANTHROPIC_API_KEY: 'sk-fake-route', KEPT_ENV: 'kept' },
       unsetEnv: ['ANTHROPIC_API_KEY'],
       processSpawner: ((_cmd: string, _args: string[], opts: any) => {
         captured.push(opts.env as NodeJS.ProcessEnv);

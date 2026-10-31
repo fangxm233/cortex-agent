@@ -7,7 +7,7 @@ import { makeUiDeps } from './ui-deps-fixture.js';
 
 type Outcome = Awaited<ReturnType<UiServiceDeps['applySessionSelection']>>;
 type Request = Parameters<UiServiceDeps['applySessionSelection']>[0];
-const selection: EngineSelection = { backend: 'claude', model: 'opus', provider: null, thinking: null, mode: 'plan' };
+const selection: EngineSelection = { backend: 'claude', model: 'opus', provider: null, thinking: null, connection: 'subscription' };
 const applied = (over: Partial<Outcome> = {}): Outcome => ({
   ...selection, ok: true, backendChanged: false, ...over,
 });
@@ -29,7 +29,7 @@ test('setSelection returns not-found without invoking the domain rule', async ()
 
 test('setSelection forwards the complete choice and returns only public fields', async () => {
   const sink: Request[] = [];
-  const next: EngineSelection = { backend: 'pi', provider: 'deepseek', model: 'flash', thinking: 'high', mode: 'deepseek' };
+  const next: EngineSelection = { backend: 'pi', provider: 'deepseek', model: 'flash', thinking: 'high', connection: null };
   const outcome = applied({ ...next, backendChanged: true, allowed: ['high'] });
   const res = await handleSetSelection(deps(session, outcome, sink), { sessionId: 'sess-1', selection: next });
   assert.deepEqual(sink, [{ channel: 'web:sess-1', ...next }]);
@@ -56,11 +56,15 @@ test('invalid thinking names the legal levels', async () => {
   if (!res.ok) { assert.equal(res.code, 'invalid-args'); assert.match(res.message, /low, high/); }
 });
 
-test('invalid route names the legal routes', async () => {
-  const outcome = applied({ ok: false, reason: 'invalid-mode', allowed: ['plan', 'api'] });
-  const res = await handleSetSelection(deps(session, outcome, []), { sessionId: 'sess-1', selection: { ...selection, mode: 'wrong' } });
+test('an unknown connection names the legal connections', async () => {
+  const outcome = applied({ ok: false, reason: 'invalid-connection', allowed: ['subscription', 'api'] });
+  const res = await handleSetSelection(deps(session, outcome, []), { sessionId: 'sess-1', selection: { ...selection, connection: 'wrong' } });
   assert.equal(res.ok, false);
-  if (!res.ok) { assert.equal(res.code, 'invalid-args'); assert.match(res.message, /plan, api/); }
+  if (!res.ok) {
+    assert.equal(res.code, 'invalid-args');
+    assert.match(res.message, /wrong/);
+    assert.match(res.message, /subscription, api/);
+  }
 });
 
 test('provider and other domain refusals map to invalid-args', async () => {

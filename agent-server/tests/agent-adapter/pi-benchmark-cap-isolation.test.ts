@@ -1,9 +1,10 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, vi } from 'vitest';
 import { ModelRuntime, resolveCliModel, type CreateAgentSessionRuntimeFactory } from '@earendil-works/pi-coding-agent';
 import { PIAdapter } from '../../src/agent-adapter/pi/adapter.js';
 import { createPiRuntime, type PiRuntimeHandle } from '../../src/agent-adapter/pi/runtime.js';
+import type { PiProviderCatalog } from '../../src/agent-adapter/pi/providers-config.js';
 import { engineSpecFixture } from '../engine-spec-fixture.js';
 
 vi.mock('../../src/core/pi-sdk.js', () => ({ loadPiSdk: () => sdkReady }));
@@ -40,13 +41,16 @@ const sdk = {
   }),
 };
 
-function seedCustomCatalog(root: string): string {
-  const file = join(root, 'user-models.json');
-  writeFileSync(file, JSON.stringify({ providers: { 'test-provider': {
-    api: 'openai-completions', baseUrl: 'http://localhost:1/v1', apiKey: 'test-only',
-    models: [{ id: 'test-model', maxTokens: 8192, contextWindow: 32768 }],
-  } } }));
-  return file;
+/** The host catalog: a custom provider definition, or a base-URL override of a built-in. */
+function testCatalog(custom: boolean): PiProviderCatalog {
+  if (!custom) return { providers: { deepseek: { baseUrl: 'http://localhost:1' } }, runtimeKeys: {} };
+  return {
+    providers: { 'test-provider': {
+      api: 'openai-completions', baseUrl: 'http://localhost:1/v1', apiKey: 'test-only',
+      models: [{ id: 'test-model', maxTokens: 8192, contextWindow: 32768 }],
+    } },
+    runtimeKeys: { 'test-provider': 'test-only' },
+  };
 }
 
 function delayedAdapter(root: string, custom: boolean) {
@@ -59,7 +63,7 @@ function delayedAdapter(root: string, custom: boolean) {
     pending.push(runtime);
     return runtime;
   }, join(root, 'sessions'), undefined, {
-    agentDir: join(root, 'agent'), userModelsPath: custom ? seedCustomCatalog(root) : undefined,
+    agentDir: join(root, 'agent'), catalog: () => testCatalog(custom),
   });
   return { adapter, pending, release };
 }
@@ -75,7 +79,7 @@ async function openPair(custom: boolean, cappedFirst: boolean) {
   const delayed = delayedAdapter(root, custom);
   const ordinary = engineSpecFixture({
     sessionKey: 'same-identity-key', cwd: root, piProvider: provider, model: custom ? `${model}[1m]` : model,
-    piGatewayBaseUrl: 'http://localhost:1', mcpComposition: 'none', pinnedEnv: {},
+    mcpComposition: 'none', pinnedEnv: {},
   });
   const capped = { ...ordinary, model: { ...ordinary.model, benchmarkMaxOutputTokens: 256 } };
   const specs = cappedFirst ? [capped, ordinary] : [ordinary, capped];

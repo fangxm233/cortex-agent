@@ -3,8 +3,8 @@ import { isValidThinkingLevel, modelKey, validateEngineSelection } from '../../.
 import { validateModelsFile } from '../../../src/domain/agents/models.js';
 import { specFromFixture } from '../../run-request-fixture.js';
 
-const claude = { backend: 'claude', provider: null, model: 'opus', thinking: null, mode: 'plan' };
-const pi = { ...claude, backend: 'pi', provider: 'deepseek', mode: 'deepseek' };
+const claude = { backend: 'claude', provider: null, model: 'opus', thinking: null, connection: 'subscription' };
+const pi = { ...claude, backend: 'pi', provider: 'deepseek', connection: null };
 for (const level of ['low', 'medium', 'high', 'xhigh', 'max']) {
   test(`Claude accepts thinking=${level}`, () => {
     expect(isValidThinkingLevel('claude', level)).toBe(true);
@@ -26,10 +26,12 @@ test('thinking validation is backend-specific; null explicitly means CLI default
   expect(() => validateEngineSelection(pi)).not.toThrow();
 });
 
-test('removed backend, missing selection fields and unsafe routes are rejected', () => {
+test('removed backend, missing selection fields and unsafe connections are rejected', () => {
   expect(() => validateEngineSelection({ ...claude, backend: 'codex' })).toThrow(/backend/);
   expect(() => validateEngineSelection({ model: 'opus' })).toThrow();
-  expect(() => validateEngineSelection({ ...claude, mode: '../api' })).toThrow(/mode/);
+  expect(() => validateEngineSelection({ ...claude, connection: '../api' })).toThrow(/connection/);
+  expect(() => validateEngineSelection({ ...claude, connection: null })).not.toThrow();
+  expect(() => validateEngineSelection({ ...pi, connection: 'deepseek' })).toThrow(/connection/);
 });
 
 test('model keys separate backend and provider, without delimiter collisions', () => {
@@ -51,10 +53,11 @@ test('thinking reaches the backend engine spec', () => {
   expect(spec.model.thinking).toBe('high');
 });
 
-test('PI provider identity and its route reach the backend engine spec', () => {
+test('PI provider identity reaches the backend engine spec; the provider is its route', () => {
   const spec = specFromFixture({ sessionKey: 'k' }, {
-    model: 'gpt-5.4-mini', backend: 'pi', provider: 'openai-codex', mode: 'openai-codex',
+    model: 'gpt-5.4-mini', backend: 'pi', provider: 'openai-codex', connection: null,
   });
   expect(spec.model.provider).toBe('openai-codex');
-  expect(spec.route.gatewayPath).toBe('/m/openai-codex/openai-codex');
+  expect(spec.route.connection).toBeUndefined();
+  expect(spec.route.anthropicBaseUrl).toBeUndefined();
 });

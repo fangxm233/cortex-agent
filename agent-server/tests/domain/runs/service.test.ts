@@ -121,7 +121,7 @@ function makeRequest(overrides: Partial<RunRequest> = {}): RunRequest {
     runId: 'run-1',
     session: {
       sessionId: 'sess-1', backendSessionId: null, engineKey: 'sess-1', },
-    selection: { model: 'm', backend: 'claude', mode: 'plan', provider: null, thinking: null },
+    selection: { model: 'm', backend: 'claude', connection: 'subscription', provider: null, thinking: null },
     spec: {
       systemPrompt: null, directive: null, promptTemplate: null, tools: null, pluginDirs: [],
       mcp: { composition: 'direct', allowlist: null }, backendOptions: {},

@@ -5,8 +5,8 @@ import { importWithFreshRegistry } from '../../helpers/fresh-module.js';
 
 const HOME = process.env.CORTEX_HOME!;
 const STATE = path.join(HOME, 'data/agent-state.json');
-const selection = { backend: 'claude' as const, provider: null, model: 'opus', thinking: null, mode: 'api' };
-const pi = { backend: 'pi' as const, provider: 'deepseek', model: 'flash', thinking: 'xhigh', mode: 'deepseek' };
+const selection = { backend: 'claude' as const, provider: null, model: 'opus', thinking: null, connection: 'api' };
+const pi = { backend: 'pi' as const, provider: 'deepseek', model: 'flash', thinking: 'xhigh', connection: null };
 const fresh = () => importWithFreshRegistry(() => import('../../../src/domain/agents/config.js'));
 beforeEach(() => {
   writeFileSync(STATE, '{}');
@@ -30,10 +30,10 @@ test('model memory is keyed by model identity and copies input and output', asyn
   const api = await fresh();
   api.rememberModelSelection(selection);
   const key = '["claude",null,"opus"]';
-  api.getModelMemory()[key].mode = 'not-persisted';
-  expect(api.getModelMemory()[key]).toEqual({ thinking: null, mode: 'api' });
-  api.rememberModelSelection({ ...selection, thinking: 'high', mode: 'plan' });
-  expect((await fresh()).getModelMemory()[key]).toEqual({ thinking: 'high', mode: 'plan' });
+  api.getModelMemory()[key].connection = 'not-persisted';
+  expect(api.getModelMemory()[key]).toEqual({ thinking: null, connection: 'api' });
+  api.rememberModelSelection({ ...selection, thinking: 'high', connection: 'subscription' });
+  expect((await fresh()).getModelMemory()[key]).toEqual({ thinking: 'high', connection: 'subscription' });
 });
 
 test('seed preserves agent during engine picks, clears agent independently and clears entirely on null', async () => {

@@ -25,7 +25,7 @@ function piEndpoint(mode: string, models: string[]): DiscoveredEndpoint {
   return { mode, endpoint: mode, base_url: 'https://api.example.com', auth_style: 'bearer', keys: [], passthrough: true, models, gatewayManaged: true };
 }
 afterEach(() => { while (tempDirs.length) fs.rmSync(tempDirs.pop()!, { recursive: true, force: true }); });
-const existing = { backend: 'claude', provider: null, mode: 'plan', model: 'opus', thinking: 'high' };
+const existing = { backend: 'claude', provider: null, connection: 'subscription', model: 'opus', thinking: 'high' };
 const favorite = { backend: 'claude', provider: null, model: 'opus' };
 function save(configDir: string, value: unknown) { fs.writeFileSync(path.join(configDir, 'models.json'), JSON.stringify(value)); }
 function load(configDir: string) { return JSON.parse(fs.readFileSync(path.join(configDir, 'models.json'), 'utf8')); }
@@ -101,7 +101,8 @@ function pauseModelsRead() {
 
 const deps = {} as UiServiceDeps;
 const sonnet = { backend: 'claude' as const, provider: null, model: 'sonnet' };
-const nextDefault = { ...sonnet, mode: 'plan', thinking: 'high' as const };
+// No connection: the default one, so the pick validates without any connection on this host.
+const nextDefault = { ...sonnet, connection: null, thinking: 'high' as const };
 const mutations = [
   { name: 'add favorite', run: () => handleModelsFavoriteAdd(deps, sonnet), favorites: [favorite, sonnet], selection: existing },
   { name: 'remove favorite', run: () => handleModelsFavoriteRemove(deps, sonnet), favorites: [favorite], selection: existing },

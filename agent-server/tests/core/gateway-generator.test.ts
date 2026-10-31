@@ -78,19 +78,27 @@ test('discoverEndpoints: a failing PI scan yields no PI endpoints but keeps Clau
   assert.ok(!eps.some((e) => e.endpoint === 'deepseek'), 'no PI endpoint is invented on failure');
 });
 
-test('discoverEndpoints: no Claude subscription credential means no plan endpoint', async () => {
-  const original = process.env.ANTHROPIC_API_KEY;
+/** Runs `body` with an official-API key connection stored in the isolated CORTEX_HOME. */
+async function withOfficialKeyConnection(body: () => Promise<void>): Promise<void> {
+  assert.ok(process.env.CORTEX_HOME, 'requires isolated CORTEX_HOME (use npm test or npm run test:file)');
+  const { upsertConnection, removeConnection } = await import('../../src/core/connections-file.js');
+  upsertConnection({
+    id: 'api', backend: 'claude', label: 'API', authStyle: 'x-api-key', key: 'sk-ant-fake', billing: 'metered',
+  });
   try {
-    delete process.env.ANTHROPIC_API_KEY;
-    assert.deepEqual(await discoverEndpoints(['claude'], NO_CLAUDE_LOGIN), [],
-      'a Claude backend nobody logged into must not be offered as a model source');
-    process.env.ANTHROPIC_API_KEY = 'sk-real-key';
+    await body();
+  } finally {
+    removeConnection({ backend: 'claude', id: 'api' });
+  }
+}
+
+test('discoverEndpoints: no Claude subscription credential means no plan endpoint', async () => {
+  assert.deepEqual(await discoverEndpoints(['claude'], NO_CLAUDE_LOGIN), [],
+    'a Claude backend nobody logged into must not be offered as a model source');
+  await withOfficialKeyConnection(async () => {
     const eps = await discoverEndpoints(['claude'], NO_CLAUDE_LOGIN);
     assert.deepEqual(eps.map((e) => e.mode), ['api'], 'an API key alone enables only the api mode');
-  } finally {
-    if (original !== undefined) process.env.ANTHROPIC_API_KEY = original;
-    else delete process.env.ANTHROPIC_API_KEY;
-  }
+  });
 });
 
 test('discoverEndpoints: Claude endpoints recommend the newest shipped flagship', async () => {
@@ -212,23 +220,26 @@ test('generateGatewayYaml: renders gatewayManaged=true PI providers as endpoint 
 
 // ─── discoverEndpoints integration: PI_PROVIDER_UPSTREAM coverage ──
 
-test('discoverEndpoints: gateway-managed placeholder key does not enable api endpoint', async () => {
-  const { GATEWAY_MANAGED_KEY_PLACEHOLDER } = await import('../../src/core/utils.js');
+test('discoverEndpoints: an env or .env API key does not enable the api endpoint, a key connection does', async (t) => {
+  const { CONFIG_DIR } = await import('../../src/core/paths.js');
+  const envFile = nodePath.join(CONFIG_DIR, '.env');
   const original = process.env.ANTHROPIC_API_KEY;
-  try {
-    process.env.ANTHROPIC_API_KEY = GATEWAY_MANAGED_KEY_PLACEHOLDER;
-    const withPlaceholder = await discoverEndpoints(['claude'], NO_MODEL_DISCOVERY);
-    assert.ok(!withPlaceholder.some((e) => e.mode === 'api'),
-      'placeholder key is not a real credential — api endpoint must not be generated');
-    assert.ok(withPlaceholder.some((e) => e.mode === 'plan'), 'plan endpoint follows the subscription, not the key');
-
-    process.env.ANTHROPIC_API_KEY = 'sk-real-key';
-    const withRealKey = await discoverEndpoints(['claude'], NO_MODEL_DISCOVERY);
-    assert.ok(withRealKey.some((e) => e.mode === 'api'), 'real key enables api endpoint');
-  } finally {
+  t.onTestFinished(() => {
     if (original !== undefined) process.env.ANTHROPIC_API_KEY = original;
     else delete process.env.ANTHROPIC_API_KEY;
-  }
+    fs.rmSync(envFile, { force: true });
+  });
+  assert.ok(process.env.CORTEX_HOME, 'requires isolated CORTEX_HOME (use npm test or npm run test:file)');
+  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  fs.writeFileSync(envFile, 'ANTHROPIC_API_KEY=sk-fake-dotenv\n');
+  process.env.ANTHROPIC_API_KEY = 'sk-fake-env';
+  const withoutConnection = await discoverEndpoints(['claude'], NO_MODEL_DISCOVERY);
+  assert.ok(!withoutConnection.some((e) => e.mode === 'api'), 'only a key connection is the daemon\'s key');
+  assert.ok(withoutConnection.some((e) => e.mode === 'plan'), 'plan endpoint follows the subscription, not the key');
+  await withOfficialKeyConnection(async () => {
+    const eps = await discoverEndpoints(['claude'], NO_MODEL_DISCOVERY);
+    assert.ok(eps.some((e) => e.mode === 'api'), 'the official-API key connection enables the api endpoint');
+  });
 });
 
 test('discoverEndpoints: claude plan endpoint exposes canonical model ids + [1m] variants', async () => {
@@ -253,33 +264,6 @@ test('discoverEndpoints: claude plan endpoint exposes canonical model ids + [1m]
     assert.ok(models.includes(`${base}[1m]`), `expected 1M variant ${base}[1m]`);
   }
   assert.ok(!models.includes('claude-haiku-4-5[1m]'), 'haiku 4.5 is 200K — no [1m] variant');
-});
-
-test('discoverEndpoints: falls back to CONFIG_DIR/.env for ANTHROPIC_API_KEY', async (t) => {
-  const { CONFIG_DIR } = await import('../../src/core/paths.js');
-  const envFile = nodePath.join(CONFIG_DIR, '.env');
-  const original = process.env.ANTHROPIC_API_KEY;
-  const originalEnvFile = fs.existsSync(envFile) ? fs.readFileSync(envFile, 'utf8') : null;
-
-  t.onTestFinished(() => {
-    if (original !== undefined) process.env.ANTHROPIC_API_KEY = original;
-    else delete process.env.ANTHROPIC_API_KEY;
-    if (originalEnvFile !== null) fs.writeFileSync(envFile, originalEnvFile);
-    else { try { fs.rmSync(envFile); } catch { /* already gone */ } }
-  });
-
-  // Refuse to touch a real ~/.cortex/.env — this test writes the file, so it must only
-  // run under an isolated CORTEX_HOME (npm test / npm run test:file set this up).
-  assert.ok(process.env.CORTEX_HOME, 'requires isolated CORTEX_HOME (use npm test or npm run test:file)');
-  fs.mkdirSync(CONFIG_DIR, { recursive: true });
-  fs.writeFileSync(envFile, 'ANTHROPIC_API_KEY=sk-from-dotenv-file\n');
-
-  // The canonical key location is ~/.cortex/.env (docs/configuration.md) — init/cli
-  // processes do not run dotenv.config, so discovery must read the file itself.
-  delete process.env.ANTHROPIC_API_KEY;
-  const eps = await discoverEndpoints(['claude'], NO_MODEL_DISCOVERY);
-  assert.ok(eps.some((e) => e.mode === 'api'),
-    'key present only in CONFIG_DIR/.env must still enable the api endpoint');
 });
 
 // ─── readGatewayYaml ───────────────────────────────────────────

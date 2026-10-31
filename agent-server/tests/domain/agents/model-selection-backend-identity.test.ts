@@ -1,4 +1,4 @@
-import { beforeEach, expect, test, vi } from 'vitest';
+import { beforeEach, expect, test } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
@@ -7,13 +7,8 @@ import { getChannelSelection, setChannelSelection } from '../../../src/domain/ag
 import { modelsRepo } from '../../../src/store/models-repo.js';
 import { REGISTRY_FILE, SessionRegistryRepo, sessionStore } from '../../../src/store/session-registry-repo.js';
 
-vi.mock('../../../src/core/gateway-generator.js', async (importOriginal) => ({
-  ...await importOriginal<typeof import('../../../src/core/gateway-generator.js')>(),
-  readGatewayYaml: () => null,
-}));
-
-const claude: EngineSelection = { backend: 'claude', provider: null, model: 'opus', thinking: null, mode: 'api' };
-const pi: EngineSelection = { backend: 'pi', provider: 'openai', model: 'gpt', thinking: null, mode: 'api' };
+const claude: EngineSelection = { backend: 'claude', provider: null, model: 'opus', thinking: null, connection: null };
+const pi: EngineSelection = { backend: 'pi', provider: 'openai', model: 'gpt', thinking: null, connection: null };
 const channel = 'web:backend-identity';
 const sessionId = 'backend-identity';
 

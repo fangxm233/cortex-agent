@@ -64,13 +64,13 @@ const BASE_PRESENT = new Set([
 const BASE_TEXTS: Record<string, string> = {
   '/c/.env': '',
   '/s/mode.json': '{"backend":"claude","mode":"api"}',
-  '/c/models.json': '{"default":{"backend":"claude","provider":null,"model":"x","thinking":null,"mode":"api"},"favorites":[]}',
+  '/c/models.json': '{"default":{"backend":"claude","provider":null,"model":"x","thinking":null,"connection":"api"},"favorites":[]}',
   '/c/mcp-config.json': '{}',
   '/h/.aistatus/gateway.yaml': 'endpoints: {}',
 };
 const BASE_ENV = {
   CORTEX_CLIENT_TOKEN: 'ctok', CORTEX_WEBHOOK_TOKEN: 'wtok',
-  ANTHROPIC_API_KEY: 'sk-real', CORTEX_PLATFORM: 'slack',
+  CORTEX_PLATFORM: 'slack',
   SLACK_BOT_TOKEN: 'xoxb-1', SLACK_SIGNING_SECRET: 'sign', SLACK_APP_TOKEN: 'xapp-1',
 };
 
@@ -90,7 +90,8 @@ function baseDeps(over: Partial<DoctorDeps> = {}): DoctorDeps {
     resolvePiSdk: () => ({ ...PI_SDK }),
     loadPiRuntime: async () => healthyPiRuntime(),
     getAuthStatus: async () => authSnapshot(),
-    defaultSelection: () => ({ backend: 'claude', mode: 'api' }),
+    defaultSelection: () => ({ backend: 'claude', connection: 'api' }),
+    claudeKeyConnections: () => ['api'],
     ...over,
   };
 }
@@ -128,7 +129,7 @@ describe('runDiagnostics — all green', () => {
   });
 
   it('never looks for a pi binary when the PI backend is selected', async () => {
-    const deps = baseDeps({ defaultSelection: () => ({ backend: 'pi', mode: 'openai-codex' }) });
+    const deps = baseDeps({ defaultSelection: () => ({ backend: 'pi', connection: null }) });
     const checked: string[] = [];
     deps.commandExists = (bin) => { checked.push(bin); return true; };
 
@@ -150,24 +151,35 @@ describe('runDiagnostics — auth tokens', () => {
     assert.equal(checks['auth-tokens'].fixable, true);
   });
 
-  it('warns (not fail) when ANTHROPIC_API_KEY is absent', async () => {
-    const env = { ...baseDeps().env };
-    delete env.ANTHROPIC_API_KEY;
-    const checks = byId(await runDiagnostics(baseDeps({ env, probeGateway: async () => false })));
-    assert.equal(checks['anthropic-key'].status, 'warn');
-  });
-
-  it('treats the gateway-managed placeholder key as pass', async () => {
-    const checks = byId(await runDiagnostics(baseDeps({
-      env: { ...baseDeps().env, ANTHROPIC_API_KEY: 'cortex-gateway-managed' },
-    })));
-    assert.equal(checks['anthropic-key'].status, 'pass');
-  });
-
   it('fails .env check and is fixable when .env is missing', async () => {
     const deps = baseDeps({ fileExists: (p: string) => p !== '/c/.env' });
     const checks = byId(await runDiagnostics(deps));
     assert.equal(checks['env-file'].status, 'fail');
+  });
+});
+
+describe('runDiagnostics — Claude connection', () => {
+  it('warns (not fail) when the default names a key connection that is not configured', async () => {
+    const report = await runDiagnostics(baseDeps({ claudeKeyConnections: () => [] }));
+    const check = byId(report)['claude-connection'];
+    assert.equal(check.status, 'warn');
+    assert.match(check.detail, /api/);
+    assert.equal(report.ok, true);
+  });
+
+  it('passes when the default key connection is configured', async () => {
+    const checks = byId(await runDiagnostics(baseDeps()));
+    assert.equal(checks['claude-connection'].status, 'pass');
+  });
+
+  it('skips when the default runs on the subscription or on PI', async () => {
+    for (const defaultSelection of [
+      () => ({ backend: 'claude' as const, connection: 'subscription' }),
+      () => ({ backend: 'pi' as const, connection: null }),
+    ]) {
+      const checks = byId(await runDiagnostics(baseDeps({ defaultSelection })));
+      assert.equal(checks['claude-connection'].status, 'skip');
+    }
   });
 });
 
@@ -253,36 +265,30 @@ describe('runDiagnostics — backend authentication', () => {
     assert.equal(result.ok, true);
   });
 
-  it('treats healthy-gateway API mode without a local key as informational', async () => {
-    const env = { ...baseDeps().env };
-    delete env.ANTHROPIC_API_KEY;
+  it('treats a logged-out Claude login as informational when the default runs on a key connection', async () => {
     const report = await runDiagnostics(baseDeps({
-      env,
       // The default selection decides — a stale `claudeMode` in agent-state.json does not.
       readText: p => p === '/s/mode.json' ? '{"backend":"claude","claudeMode":"plan"}' : BASE_TEXTS[p] ?? null,
-      defaultSelection: () => ({ backend: 'claude', mode: 'api' }),
-      probeGateway: async () => true,
       getAuthStatus: async () => authSnapshot([
         authAccount({ authType: null, state: 'logged-out', source: null }),
       ]),
     }));
     const checks = byId(report);
-    assert.equal(checks['anthropic-key'].status, 'pass');
+    assert.equal(checks['claude-connection'].status, 'pass');
     assert.equal(checks['backend-auth'].status, 'pass');
-    assert.match(checks['backend-auth'].detail, /gateway.*anthropic|anthropic.*gateway/i);
+    assert.match(checks['backend-auth'].detail, /key connection: anthropic/);
     assert.equal(report.counts.warn, 0);
   });
 
-  it('does not credit the gateway when the default selection runs plan, whatever agent-state says', async () => {
-    const env = { ...baseDeps().env };
-    delete env.ANTHROPIC_API_KEY;
-    const checks = byId(await runDiagnostics(baseDeps({
-      env,
-      readText: p => p === '/s/mode.json' ? '{"backend":"claude","claudeMode":"api"}' : BASE_TEXTS[p] ?? null,
-      defaultSelection: () => ({ backend: 'claude', mode: 'plan' }),
-      probeGateway: async () => true,
-    })));
-    assert.equal(checks['anthropic-key'].status, 'warn');
+  it('does not credit a key connection when the default runs on the subscription or names a missing one', async () => {
+    const loggedOut = async () => authSnapshot([authAccount({ authType: null, state: 'logged-out', source: null })]);
+    for (const over of [
+      { defaultSelection: () => ({ backend: 'claude' as const, connection: 'subscription' }) },
+      { claudeKeyConnections: () => [] },
+    ]) {
+      const checks = byId(await runDiagnostics(baseDeps({ ...over, getAuthStatus: loggedOut })));
+      assert.equal(checks['backend-auth'].status, 'warn');
+    }
   });
 });
 
@@ -309,15 +315,14 @@ describe('runDiagnostics — platform creds', () => {
 // ─── Gateway ──────────────────────────────────────────────────────
 
 describe('runDiagnostics — gateway', () => {
-  it('fails health when gateway is in use (placeholder key) but down', async () => {
+  it('fails health when gateway is in use (gateway.yaml configured) but down', async () => {
     const checks = byId(await runDiagnostics(baseDeps({
-      env: { ...baseDeps().env, ANTHROPIC_API_KEY: 'cortex-gateway-managed' },
       probeGateway: async () => false,
     })));
     assert.equal(checks['gateway-health'].status, 'fail');
   });
 
-  it('skips health when gateway is idle (real key, no gateway needed) and down', async () => {
+  it('skips health when gateway is idle (not configured) and down', async () => {
     const checks = byId(await runDiagnostics(baseDeps({
       fileExists: (p: string) => p !== '/h/.aistatus/gateway.yaml',
       probeGateway: async () => false,

@@ -5,8 +5,8 @@ import { handleSessionsList, handleSessionsTranscript } from '../../../src/domai
 import type { EngineSelection, UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 import { makeUiDeps, type UiDepsOverrides } from './ui-deps-fixture.js';
 
-const piSelection: EngineSelection = { backend: 'pi', provider: 'deepseek', model: 'flash', thinking: 'high', mode: 'deepseek' };
-const claudeSelection: EngineSelection = { backend: 'claude', provider: null, model: 'opus', thinking: null, mode: 'plan' };
+const piSelection: EngineSelection = { backend: 'pi', provider: 'deepseek', model: 'flash', thinking: 'high', connection: null };
+const claudeSelection: EngineSelection = { backend: 'claude', provider: null, model: 'opus', thinking: null, connection: 'subscription' };
 const mockSessions = [
   { sessionId: 's1', projectId: 'proj1', channel: 'C1', backend: 'pi', kind: 'local' as const, origin: 'direct' as const, createdAt: '2026-01-01T00:00:00Z', lastUsedAt: '2026-05-01T00:00:00Z', label: 'dev', selection: piSelection, contextUsage: { usedTokens: 60000, contextWindow: 200000, percent: 30, accuracy: 'estimate' as const, updatedAt: '2026-07-27T12:00:00.000Z' } },
   { sessionId: 's2', projectId: 'proj2', channel: 'C2', backend: 'pi', kind: 'scheduled' as const, origin: 'scheduled' as const, createdAt: '2026-02-01T00:00:00Z', lastUsedAt: '2026-04-01T00:00:00Z', label: null as string | null, selection: null },

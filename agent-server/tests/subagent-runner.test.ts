@@ -107,9 +107,9 @@ test('selectChildModel: task, then role, then the parent\'s whole selection — 
   assert.deepEqual(selectChildModel({}, {}, null), {});
 });
 
-test('a cross-backend Claude child uses the Claude backend default, never the PI channel mode', () => {
+test('a cross-backend Claude child uses the Claude backend default, never the PI channel route', () => {
   withModels({
-    default: { model: 'pi-model', backend: 'pi', mode: 'deepseek', provider: 'deepseek', thinking: null },
+    default: { model: 'pi-model', backend: 'pi', connection: null, provider: 'deepseek', thinking: null },
     favorites: [
       { model: 'claude-default-model', backend: 'claude', provider: null },
       { model: 'claude-second-model', backend: 'claude', provider: null },
@@ -117,7 +117,7 @@ test('a cross-backend Claude child uses the Claude backend default, never the PI
   }, () => {
     const request = {
       parent: {
-        backend: 'pi', mode: 'deepseek', provider: 'deepseek', model: 'pi-parent-model',
+        backend: 'pi', connection: null, provider: 'deepseek', model: 'pi-parent-model',
         channel: 'web:pi',
       },
     } as any;
@@ -125,30 +125,31 @@ test('a cross-backend Claude child uses the Claude backend default, never the PI
       request, parseModelSpec('claude-haiku-4-5'),
     );
     assert.equal(explicit.model, 'claude-haiku-4-5');
-    assert.equal(explicit.mode, 'plan');
+    // No Claude connection on this host: the default selection names none, so neither does the child.
+    assert.equal(explicit.connection, null);
 
     const implicit = subagentRunnerTest.claudeChildConfig(request, {});
     assert.equal(implicit.model, 'claude-default-model');
-    assert.equal(implicit.mode, 'plan');
+    assert.equal(implicit.connection, null);
   });
 });
 
 test('a Claude child keeps its Claude parent model and route', () => {
   const request = {
-    parent: { backend: 'claude', model: 'parent-model', mode: 'api', channel: 'web:claude' },
+    parent: { backend: 'claude', model: 'parent-model', connection: 'api', channel: 'web:claude' },
   } as any;
   const config = subagentRunnerTest.claudeChildConfig(request, {});
   assert.equal(config.model, 'parent-model');
-  assert.equal(config.mode, 'api');
+  assert.equal(config.connection, 'api');
 });
 
 test('a cross-backend Claude child fails clearly when no Claude favorite can supply its route', () => {
   withModels({
-    default: { model: 'pi-model', backend: 'pi', mode: 'deepseek', provider: 'deepseek', thinking: null },
+    default: { model: 'pi-model', backend: 'pi', connection: null, provider: 'deepseek', thinking: null },
     favorites: [],
   }, () => {
     const request = {
-      parent: { backend: 'pi', model: 'pi-model', mode: 'deepseek', channel: 'web:pi' },
+      parent: { backend: 'pi', model: 'pi-model', connection: null, channel: 'web:pi' },
     } as any;
     assert.throws(
       () => subagentRunnerTest.claudeChildConfig(request, parseModelSpec('claude-haiku-4-5')),
@@ -165,10 +166,10 @@ function childRequestInput(channel: string | undefined) {
     task: { description: 'd', prompt: 'p', subagent_type: 'explore' },
     role: { systemPrompt: 'role prompt', tools: null },
     cwd: '/tmp/work',
-    parent: { backend: 'claude', model: 'parent-model', mode: null, channel },
+    parent: { backend: 'claude', model: 'parent-model', connection: null, channel },
   } as any;
   const config = {
-    model: 'child-model', backend: 'claude', mode: 'plan', provider: null, thinking: null,
+    model: 'child-model', backend: 'claude', connection: 'subscription', provider: null, thinking: null,
   } as any;
   return { request, config };
 }

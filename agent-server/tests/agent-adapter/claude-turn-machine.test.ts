@@ -11,7 +11,7 @@ import type { AgentResult } from '../../src/core/types/agent-types.js';
 
 type HostCall = 'resetIdle' | 'bumpTurnIdle' | 'clearTurnIdle';
 
-function makeHost(over: Partial<{ anthropicBaseUrl: string; writable: boolean; writeThrows: boolean }> = {}) {
+function makeHost(over: Partial<{ connection: string; writable: boolean; writeThrows: boolean }> = {}) {
   const calls: HostCall[] = [];
   const written: string[] = [];
   const rateLimits: { info: RateLimitObservation; origin: RateLimitOrigin }[] = [];
@@ -20,7 +20,7 @@ function makeHost(over: Partial<{ anthropicBaseUrl: string; writable: boolean; w
     sessionId: 'sess-0001',
     channel: 'C1',
     captureTranscriptLogs: false,
-    anthropicBaseUrl: over.anthropicBaseUrl,
+    connection: over.connection,
     reportRateLimit(info, origin) {
       rateLimits.push({ info, origin });
       return rateLimitError ? Promise.reject(rateLimitError) : Promise.resolve();
@@ -191,13 +191,13 @@ test('a rate-limit result resolves (not rejects) and is flagged rateLimited', as
   assert.match(value.rateLimitMessage, /hit your limit/);
 });
 
-test('rate_limit_event is reported to the host with the mode from the base URL, turn or no turn', async () => {
-  const { machine, rateLimits, failRateLimit } = makeMachine({ anthropicBaseUrl: 'http://127.0.0.1:9000/m/plan/anthropic' });
+test('rate_limit_event is reported to the host under the session connection, turn or no turn', async () => {
+  const { machine, rateLimits, failRateLimit } = makeMachine({ connection: 'subscription' });
   const info = { status: 'allowed_warning', rateLimitType: 'five_hour', utilization: 0.91, resetsAt: 1_900_000_000 };
 
   machine.handleLine(line({ type: 'rate_limit_event', rate_limit_info: info }));
   assert.equal(machine.currentTurn, null);
-  assert.deepEqual(rateLimits, [{ info, origin: { provider: 'anthropic', displayName: 'Anthropic', mode: 'plan' } }]);
+  assert.deepEqual(rateLimits, [{ info, origin: { provider: 'anthropic', displayName: 'Anthropic', mode: 'subscription' } }]);
 
   // A failing throttle sink is logged, never thrown into the line handler or the turn.
   failRateLimit(new Error('store down'));
@@ -208,7 +208,7 @@ test('rate_limit_event is reported to the host with the mode from the base URL, 
   assert.equal(rateLimits.length, 2);
 });
 
-test('rate_limit_event without a /m/<mode>/ base URL carries no mode', () => {
+test('rate_limit_event from a session without a connection carries no mode', () => {
   const { machine, rateLimits } = makeMachine();
   machine.handleLine(line({ type: 'rate_limit_event', rate_limit_info: { status: 'rejected' } }));
   assert.equal(rateLimits[0].origin.mode, undefined);

@@ -8,6 +8,8 @@ import { SessionRegistryRepo, effectiveBackendSessionId, sessionStore } from '..
 import { ConversationLedgerRepo, conversationLedger } from '../../src/store/conversation-ledger-repo.js';
 import { seedTestModels, TEST_CLAUDE_SELECTION, TEST_PI_SELECTION } from '../_seed-models.js';
 import type { EngineSelection } from '../../src/domain/agents/engine-selection.js';
+import { writeConnections } from '../../src/core/connections-file.js';
+import { createCredentialInventory, type CredentialInventory } from '../../src/domain/connections/inventory.js';
 import { setSessionAsync } from '../../src/domain/sessions/session.js';
 import {
   getChannelSelection,
@@ -48,12 +50,18 @@ import {
 
 let tmpDir = '';
 let testId = 0;
+let inventory: CredentialInventory;
 const FAST_SELECTION: EngineSelection = { ...TEST_CLAUDE_SELECTION, model: 'claude-haiku-4-5' };
-const REVIEW_SELECTION: EngineSelection = { ...TEST_CLAUDE_SELECTION, thinking: 'high', mode: 'api' };
+const REVIEW_SELECTION: EngineSelection = { ...TEST_CLAUDE_SELECTION, thinking: 'high', connection: 'api' };
 
 beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortex-session-identity-golden-'));
   seedTestModels();
+  const connectionsFile = path.join(tmpDir, 'connections.json');
+  writeConnections([{
+    id: 'api', backend: 'claude', label: 'API', authStyle: 'x-api-key', key: 'sk-ant-fake', billing: 'metered',
+  }], connectionsFile);
+  inventory = createCredentialInventory({ file: connectionsFile });
 });
 
 afterAll(async () => {
@@ -274,9 +282,9 @@ async function bindSelectionSession(channel: string, sessionId: string): Promise
   });
 }
 
-// Route validation is independent of any gateway configuration seeded by the test harness.
+// Connection validation runs against a fixture inventory, never this host's own connections.
 function select(channel: string, selection: EngineSelection) {
-  return applyChannelSelection({ channel, ...selection, readGateway: () => null });
+  return applyChannelSelection({ channel, ...selection, inventory });
 }
 
 async function assertSelected(channel: string, sessionId: string, selection: EngineSelection): Promise<void> {

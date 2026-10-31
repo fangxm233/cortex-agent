@@ -10,7 +10,7 @@ import { bareSpec } from '../../../src/domain/runs/spec-loader.js';
 import { buildEngineSpec } from '../../../src/domain/runs/engine-spec.js';
 import { SessionEngines } from '../../../src/domain/runs/engines.js';
 import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
-import type { RunRequest } from '../../../src/domain/runs/request.js';
+import type { ClaudeRoute } from '../../../src/domain/connections/claude-route.js';
 import type { EngineSpec } from '../../../src/agent-adapter/types.js';
 import { PIAdapter } from '../../../src/agent-adapter/pi/adapter.js';
 import { makeFakeRuntimeFactory } from '../../agent-adapter/pi-fake-runtime.js';
@@ -18,7 +18,7 @@ import { piPool } from '../../agent-adapter/pi-pool-fixture.js';
 
 function selection(overrides: Partial<EngineSelection> = {}): EngineSelection {
   return {
-    backend: 'pi', model: 'deepseek-chat', mode: 'deepseek', provider: 'anthropic', thinking: null,
+    backend: 'pi', model: 'deepseek-chat', connection: null, provider: 'anthropic', thinking: null,
     ...overrides,
   };
 }
@@ -73,9 +73,9 @@ test('compactAgentContext resumes the channelâ€™s pooled session, compacts witho
       calls.push(['acquire']);
       return pool.open(spec);
     },
-    route: (request, attempt) => {
-      calls.push(['route', attempt.mode, request.context.routeTrigger]);
-      return { ANTHROPIC_BASE_URL: 'http://gateway', ANTHROPIC_API_KEY: null };
+    route: (attempt) => {
+      calls.push(['route', attempt.model]);
+      return { connection: 'relay', baseUrl: 'http://relay.invalid', sets: {}, unsets: ['ANTHROPIC_API_KEY'] };
     },
     recordCost: async (entry) => { calls.push(['cost', entry]); },
   };
@@ -90,10 +90,12 @@ test('compactAgentContext resumes the channelâ€™s pooled session, compacts witho
     assert.equal(acquiredSpec!.resume.resume, true);
     assert.equal(acquiredSpec!.engineKey, 'web:track-1');
     assert.equal(acquiredSpec!.context.channel, 'web:track-1');
-    assert.equal(acquiredSpec!.route.anthropicBaseUrl, 'http://gateway');
+    assert.equal(acquiredSpec!.route.anthropicBaseUrl, 'http://relay.invalid');
     // The route is asked for the selection's first attempt, as the run would open it.
-    assert.deepEqual(calls.filter((entry) => entry[0] === 'route'), [['route', 'deepseek', 'user']]);
-    assert.deepEqual(acquiredSpec!.env.unsets, ['ANTHROPIC_API_KEY']);
+    assert.deepEqual(calls.filter((entry) => entry[0] === 'route'), [['route', 'deepseek-chat']]);
+    // A PI spawn never inherits Claude's routing variables, whatever route it was handed.
+    assert.deepEqual(acquiredSpec!.env.unsets,
+      ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_BASE_URL']);
 
     // Compaction is a backend command, not a turn: the scripted session sees compact() and never
     // prompt(). (The old surface's throw-on-send stub is now a positive protocol assertion.)
@@ -109,7 +111,7 @@ test('compactAgentContext resumes the channelâ€™s pooled session, compacts witho
       calls.filter((entry) => entry[0] === 'cost').map((entry) => entry[1]),
       [{
         project: 'nimbus', trigger: 'manual-compact', cost_usd: 0.25,
-        backend: 'pi', mode: 'deepseek', source: 'estimate',
+        backend: 'pi', mode: 'anthropic', source: 'estimate',
         input_tokens: 100, output_tokens: 10, provider: 'anthropic', model: 'deepseek-chat',
       }],
     );
@@ -125,7 +127,7 @@ test('compactAgentContext rejects a selection whose backend is not the sessionâ€
       target({ backend: 'claude' }),
       {
         acquireEngine: () => { acquired = true; throw new Error('must not acquire'); },
-            route: () => ({}),
+        route: () => undefined,
         recordCost: async () => {},
       },
     ),
@@ -135,11 +137,12 @@ test('compactAgentContext rejects a selection whose backend is not the sessionâ€
 });
 
 const SELECTED: EngineSelection = {
-  model: 'deepseek-reasoner', backend: 'pi', mode: 'deepseek-backup', provider: 'anthropic', thinking: null,
+  model: 'deepseek-reasoner', backend: 'pi', connection: null, provider: 'anthropic', thinking: null,
 };
 
-function routeOf(_request: RunRequest, attempt: EngineSelection) {
-  return { ANTHROPIC_BASE_URL: `http://gateway/${attempt.mode}`, ANTHROPIC_API_KEY: null };
+/** PI has no Claude route, exactly as `resolveRunRoute` answers for it. */
+function routeOf(_attempt: EngineSelection): ClaudeRoute | undefined {
+  return undefined;
 }
 
 test('compaction reuses the selected engine in place', async () => {
@@ -154,7 +157,7 @@ test('compaction reuses the selected engine in place', async () => {
   });
   const engines = new SessionEngines({ pi: new PIAdapter(fake.factory) });
   const { request } = target(SELECTED);
-  const live = engines.acquire(buildEngineSpec(request, SELECTED, { route: routeOf(request, SELECTED) }));
+  const live = engines.acquire(buildEngineSpec(request, SELECTED, { route: routeOf(SELECTED) }));
   const costs: unknown[] = [];
   try {
     const result = await compactAgentContext({ backend: 'pi', request }, {
@@ -168,7 +171,7 @@ test('compaction reuses the selected engine in place', async () => {
     assert.equal((await fake.runtime()).calls.filter((call) => call.kind === 'compact').length, 1);
     // The cost is the attempt's that did the work.
     assert.deepEqual(costs, [{
-      project: 'nimbus', trigger: 'manual-compact', cost_usd: 0.1, backend: 'pi', mode: 'deepseek-backup',
+      project: 'nimbus', trigger: 'manual-compact', cost_usd: 0.1, backend: 'pi', mode: 'anthropic',
       source: 'estimate', input_tokens: 100, output_tokens: 10, provider: 'anthropic', model: 'deepseek-reasoner',
     }]);
   } finally {

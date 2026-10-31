@@ -84,7 +84,7 @@ test('pi-cost-record: agent_end records cost before the foreground result settle
   const runtimeIndex = fake.runtimes.length;
   const sessionKey = `pi-cost-${runtimeIndex}`;
   const partial = { piProvider: 'anthropic', promptText: 'hello', sessionKey };
-  const attemptOverride = { backend: 'pi' as const, mode: 'api' };
+  const attemptOverride = { backend: 'pi' as const };
 
   // startAttempt acquires the pooled engine synchronously and opens the run; the PI runtime
   // resolves a moment later, exactly as the old `adapter.spawn()` did.
@@ -141,7 +141,7 @@ test('pi-cost-record: agent_end records cost before the foreground result settle
   );
   assert.equal(entry.project, 'pi-cost-test', 'project should match the request context');
   assert.equal(entry.trigger, 'test', 'trigger should match the request context');
-  assert.equal(entry.mode, 'api', 'mode should come from the attempt config');
+  assert.equal(entry.mode, 'api', 'a PI provider connection is metered: the api bucket');
   assert.equal(entry.source, 'estimate', 'the attempt records an estimated cost source');
 });
 
@@ -157,7 +157,7 @@ test('pi-cost-record: a subagent files its own entry and joins the turn cost', a
   const runtimeIndex = fake.runtimes.length;
   const sessionKey = `pi-cost-${runtimeIndex}`;
   const partial = { piProvider: 'openai-codex', promptText: 'delegate it', sessionKey };
-  const attemptOverride = { backend: 'pi' as const, mode: 'api' };
+  const attemptOverride = { backend: 'pi' as const };
 
   const run = startAttempt({
     request: runRequestFixture(

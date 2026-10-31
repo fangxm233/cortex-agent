@@ -4,7 +4,6 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'vitest';
 import { EventBus } from '../../../src/events/event-bus.js';
-import { parse as yamlParse } from 'yaml';
 
 import { handleCustomProvidersList } from '../../../src/domain/ui-service/query/custom-providers.js';
 import {
@@ -32,11 +31,12 @@ const DEFINITION = {
 
 function tmpStores(): CustomProviderStores {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-ui-provider-'));
-  return {
-    modelsPath: path.join(dir, 'pi', 'models.json'),
-    gatewayPath: path.join(dir, 'aistatus', 'gateway.yaml'),
-    gatewayUrl: 'http://127.0.0.1:9880',
-  };
+  return { connectionsPath: path.join(dir, 'config', 'connections.json') };
+}
+
+function storedProvider(stores: CustomProviderStores, name: string): Record<string, unknown> | undefined {
+  const { connections } = JSON.parse(fs.readFileSync(stores.connectionsPath, 'utf8'));
+  return connections.find((entry: { backend: string; id: string }) => entry.backend === 'pi' && entry.id === name);
 }
 
 function depsWith(stores: CustomProviderStores, events: unknown[] = []): UiServiceDeps {
@@ -75,10 +75,10 @@ test('auth.upsertCustomProvider reports a rejected definition as invalid-args', 
   assert.equal(result.ok, false);
   assert.equal((result as { code: string }).code, 'invalid-args');
   assert.match((result as { message: string }).message, /http/i);
-  assert.equal(fs.existsSync(stores.modelsPath), false);
+  assert.equal(fs.existsSync(stores.connectionsPath), false);
 });
 
-test('auth.removeCustomProvider deletes both files and reports a missing name', async () => {
+test('auth.removeCustomProvider deletes the connection and reports a missing name', async () => {
   const stores = tmpStores();
   const deps = depsWith(stores);
   await handleCustomProviderUpsert(deps, DEFINITION);
@@ -86,8 +86,7 @@ test('auth.removeCustomProvider deletes both files and reports a missing name', 
   const removed = await handleCustomProviderRemove(deps, { name: 'my-vllm' });
   assert.deepEqual(removed, { ok: true, data: { removed: true } });
   assert.deepEqual(await handleCustomProvidersList(deps, {}), []);
-  const gateway = yamlParse(fs.readFileSync(stores.gatewayPath, 'utf8'));
-  assert.equal(gateway.anthropic?.['my-vllm'], undefined);
+  assert.equal(storedProvider(stores, 'my-vllm'), undefined);
 
   const missing = await handleCustomProviderRemove(deps, { name: 'my-vllm' });
   assert.equal(missing.ok, false);
@@ -107,9 +106,8 @@ test('an edit that omits the key keeps the stored upstream secret', async () => 
   });
 
   assert.equal(edited.ok, true);
-  const gateway = yamlParse(fs.readFileSync(stores.gatewayPath, 'utf8'));
-  assert.equal(gateway.anthropic['my-vllm'].base_url, 'http://127.0.0.1:8200');
-  assert.deepEqual(gateway.anthropic['my-vllm'].keys, [UPSTREAM_KEY]);
+  assert.equal(storedProvider(stores, 'my-vllm')?.baseUrl, 'http://127.0.0.1:8200');
+  assert.equal(storedProvider(stores, 'my-vllm')?.key, UPSTREAM_KEY);
   assert.equal((await handleCustomProvidersList(deps, {}))[0].hasApiKey, true);
 });
 

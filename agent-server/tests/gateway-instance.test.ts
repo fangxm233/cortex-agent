@@ -16,14 +16,11 @@ beforeAll(() => {
 });
 afterAll(() => vi.restoreAllMocks());
 
-test('generation, route edits, sharing settings use the private gateway home', async () => {
+test('generation and sharing settings use the private gateway home', async () => {
   const generator = await import('../src/core/gateway-generator.js');
   assert.equal(parse(generator.generateGatewayYaml([])).port, 17380);
   assert.equal(generator.writeMergedGatewayYaml([]).path, configPath);
   assert.equal(generator.mergeGatewayConfig([], { top: { port: 9880 }, endpoints: {} }).top.port, 17380);
-  const routes = await import('../src/domain/pi-providers/gateway-route-store.js');
-  assert.equal(routes.GATEWAY_CONFIG_PATH, configPath);
-  routes.upsertGatewayRoute(configPath, { endpoint: 'fixture', mode: 'api', base_url: 'http://example.invalid', auth_style: 'bearer', keys: [], passthrough: true });
   assert.equal(parse(fs.readFileSync(configPath, 'utf8')).port, 17380);
   const sharing = await import('../src/domain/costs/aistatus-config.js');
   sharing.writeUsageSharing({ enabled: false });
@@ -85,7 +82,7 @@ test('doctor probes and reports the configured endpoint and config path', async 
   assert(report.sections.flatMap(s => s.checks).some(c => c.id === 'gateway-health' && c.detail.includes('17380')));
 });
 
-test('UsageService and custom provider defaults use the same gateway URL', async () => {
+test('UsageService reads usage from the configured gateway URL', async () => {
   const { UsageService } = await import('../src/domain/costs/usage-service.js');
   const urls: string[] = [];
   const service = new UsageService({
@@ -96,21 +93,4 @@ test('UsageService and custom provider defaults use the same gateway URL', async
   await service.collect();
   assert(urls.length >= 3);
   assert(urls.every(address => address.startsWith(`${url}/`)));
-  const { defaultCustomProviderStores } = await import('../src/domain/pi-providers/custom-provider-service.js');
-  assert.equal(defaultCustomProviderStores().gatewayUrl, url);
-  assert.equal(defaultCustomProviderStores().gatewayPath, configPath);
-});
-
-test('Claude and pi backend routing both derive from the gateway URL', async () => {
-  const { _testSetHealthy } = await import('../src/domain/costs/gateway-manager.js');
-  const { resolveModeEnv } = await import('../src/domain/runs/mode-env.js');
-  _testSetHealthy(true);
-  try {
-    const mode = resolveModeEnv('api');
-    assert.equal(mode.ANTHROPIC_BASE_URL, `${url}/m/api/anthropic`);
-    const { specFromFixture } = await import('./run-request-fixture.js');
-    const pi = specFromFixture({}, { backend: 'pi', provider: 'deepseek', model: 'fixture', mode: 'api' });
-    assert.equal(pi.route.gatewayBaseUrl, url);
-    assert.equal(pi.route.gatewayPath, '/m/api/deepseek');
-  } finally { _testSetHealthy(null); }
 });

@@ -26,6 +26,7 @@ import { roleSurfaceFromSpec } from '../../../src/domain/benchmark/role-surface.
 import { startAttempt, type RunAttempt } from '../../../src/domain/runs/attempt.js';
 import { engines, SessionEngines } from '../../../src/domain/runs/engines.js';
 import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
+import type { ClaudeRoute } from '../../../src/domain/connections/claude-route.js';
 import type { RunRequest } from '../../../src/domain/runs/request.js';
 import {
   attemptFromFixture, attemptOf, runRequestFixture, type RunRequestFixtureInput,
@@ -35,7 +36,7 @@ import {
 } from '../../agent-adapter/pi-fake-runtime.js';
 
 /** The Anthropic route one attempt resolved; only the host is ever attested. */
-const PROXY_ROUTE = { ANTHROPIC_BASE_URL: 'http://proxy.invalid' };
+const PROXY_ROUTE: ClaudeRoute = { connection: 'trial', baseUrl: 'http://proxy.invalid', sets: {}, unsets: [] };
 
 const SHA = 'c'.repeat(64);
 let root: string;
@@ -93,7 +94,7 @@ function selection(backend: Backend): EngineSelection {
   return {
     model: backend === 'claude' ? 'claude-fixture' : 'deepseek-fixture',
     backend,
-    mode: 'trial',
+    connection: backend === 'claude' ? 'trial' : null,
     provider: backend === 'claude' ? null : 'deepseek', thinking: null,
   };
 }

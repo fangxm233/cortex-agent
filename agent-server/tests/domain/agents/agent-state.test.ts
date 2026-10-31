@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import { importWithFreshRegistry } from '../../helpers/fresh-module.js';
 
 const STATE = path.join(process.env.CORTEX_HOME!, 'data', 'agent-state.json');
-const selection = { backend: 'claude' as const, provider: null, model: 'opus', thinking: null, mode: 'api' };
+const selection = { backend: 'claude' as const, provider: null, model: 'opus', thinking: null, connection: 'api' };
 const empty = { channelSelections: {}, modelMemory: {}, defaultAgent: null, channelAgents: {} };
 const fresh = () => importWithFreshRegistry(() => import('../../../src/domain/agents/agent-state.js'));
 beforeEach(() => rmSync(STATE, { force: true }));
@@ -22,7 +22,7 @@ test('complete selections, null thinking, billing route, memory and agent seed s
   const state = {
     ...empty, defaultAgent: 'main', channelAgents: { 'web:a': 'creative' },
     channelSelections: { 'web:a': selection },
-    modelMemory: { '["claude",null,"opus"]': { thinking: null, mode: 'api' } },
+    modelMemory: { '["claude",null,"opus"]': { thinking: null, connection: 'api' } },
     selectionDefault: { ...selection, agentName: 'creative' },
   };
   saveAgentState(state);
@@ -44,12 +44,12 @@ test('malformed state is ignored; valid independent entries survive', async () =
   writeFileSync(STATE, JSON.stringify({
     channelSelections: { good: selection, bad: { model: 'opus' }, invalid: { ...selection, thinking: 'off' } },
     channelAgents: { good: 'creative', bad: 3, empty: '' }, defaultAgent: 5,
-    modelMemory: { good: { thinking: null, mode: 'api' }, bad: { mode: 5 } },
+    modelMemory: { good: { thinking: null, connection: 'api' }, bad: { thinking: null, connection: 5 } },
     selectionDefault: { model: 'incomplete', agentName: 'creative' },
   }));
   assert.deepEqual(loadAgentState(), {
     ...empty, channelSelections: { good: selection }, channelAgents: { good: 'creative' },
-    modelMemory: { good: { thinking: null, mode: 'api' } },
+    modelMemory: { good: { thinking: null, connection: 'api' } },
   });
 });
 
@@ -58,4 +58,15 @@ test('a PI selection requires a provider; Claude cannot carry one', async () => 
     pi: { ...selection, backend: 'pi' }, claude: { ...selection, provider: 'deepseek' },
   } }));
   assert.deepEqual((await fresh()).loadAgentState().channelSelections, {});
+});
+
+test('a selection a sealed home still stores by gateway mode is read as its connection', async () => {
+  const { connection: _connection, ...claude } = selection;
+  const pi = { backend: 'pi', provider: 'deepseek', model: 'flash', thinking: null };
+  writeFileSync(STATE, JSON.stringify({
+    channelSelections: { a: { ...claude, mode: 'plan' }, b: { ...pi, mode: 'trial' } },
+  }));
+  assert.deepEqual((await fresh()).loadAgentState().channelSelections, {
+    a: { ...selection, connection: 'subscription' }, b: { ...pi, connection: null },
+  });
 });

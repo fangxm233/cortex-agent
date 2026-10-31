@@ -43,7 +43,7 @@ test('sessions.createAndSend forwards an optional complete engine choice', async
   assert.equal(bare.ok, true);
   assert.equal(calls[0]?.selection, undefined, 'omission lets the lifecycle materialize its default');
 
-  const selection: EngineSelection = { backend: 'claude', provider: null, model: 'claude-sonnet-5', thinking: null, mode: 'plan' };
+  const selection: EngineSelection = { backend: 'claude', provider: null, model: 'claude-sonnet-5', thinking: null, connection: 'subscription' };
   await handleCreateAndSend(deps, { projectId: 'nimbus', selection, text: 'hi' });
   assert.deepEqual(calls[1]?.selection, selection);
 });

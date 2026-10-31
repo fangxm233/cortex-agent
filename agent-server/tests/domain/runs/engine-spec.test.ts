@@ -4,7 +4,8 @@ import { rmSync } from 'node:fs';
 import * as path from 'node:path';
 import { specFromFixture, type RunRequestFixtureInput } from '../../run-request-fixture.js';
 import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
-import type { ModeEnv } from '../../../src/domain/runs/mode-env.js';
+import type { ClaudeRoute } from '../../../src/domain/connections/claude-route.js';
+import { routeEnvFields } from '../../../src/domain/runs/engine-spec.js';
 import type { EngineSpec } from '../../../src/agent-adapter/types.js';
 import { DATA_DIR, CONFIG_DIR } from '../../../src/core/paths.js';
 import { resetSettingsForTests } from '../../../src/core/settings.js';
@@ -15,13 +16,15 @@ import { resetSettingsForTests } from '../../../src/core/settings.js';
 // present-but-`undefined` key from an absent one, so the literals list every key the builder emits.
 // `backend.claudeBackend` was removed with the retired TUI runtime. The execution context now
 // additionally carries the selected attempt so both backends can populate MCP selection identity.
-const FIXTURE_CONFIG: Partial<EngineSelection> = { model: 'claude-fixture', backend: 'claude', mode: 'plan' };
+// The connections refactor replaced the selection's `mode` with `connection` and the gateway route
+// fields with `route.connection`; a Claude route now sets its credentials directly.
+const FIXTURE_CONFIG: Partial<EngineSelection> = { model: 'claude-fixture', backend: 'claude', connection: 'subscription' };
 
 interface Case {
   name: string;
   options: RunRequestFixtureInput;
   config: Partial<EngineSelection>;
-  route: ModeEnv | undefined;
+  route: ClaudeRoute | undefined;
   expected: EngineSpec;
 }
 
@@ -54,10 +57,10 @@ const cases: Case[] = [
           project: null,
           trackSessionId: 'tracked-direct',
           executionId: 'exec-direct',
-          selection: { backend: 'claude', provider: null, model: 'claude-fixture', thinking: null, mode: 'plan' },
+          selection: { backend: 'claude', provider: null, model: 'claude-fixture', thinking: null, connection: 'subscription' },
         },
       },
-      route: { anthropicBaseUrl: undefined, gatewayBaseUrl: undefined, gatewayPath: undefined },
+      route: { anthropicBaseUrl: undefined, connection: undefined },
       flags: {
         disableHooks: undefined, disableSkills: undefined, settingSources: undefined,
         streamDeltas: undefined, captureTranscripts: undefined,
@@ -69,7 +72,7 @@ const cases: Case[] = [
     },
   },
   {
-    name: 'PI with selected provider and gateway',
+    name: 'PI with selected provider',
     options: {
       channel: 'pi-channel',
       sessionKey: 'pi-fixture',
@@ -78,7 +81,7 @@ const cases: Case[] = [
       executionId: 'exec-pi',
     },
     config: {
-      model: 'pi-model', backend: 'pi', mode: 'pi-mode', provider: 'deepseek',
+      model: 'pi-model', backend: 'pi', connection: null, provider: 'deepseek',
       thinking: 'high',
     },
     route: undefined,
@@ -92,15 +95,15 @@ const cases: Case[] = [
       plugins: { dirs: undefined, skillDirs: undefined, fingerprint: undefined },
       mcp: { composition: 'direct', servers: undefined, allowlist: undefined, configPaths: undefined },
       env: {
-        sets: undefined, unsets: undefined, pinned: undefined,
+        sets: undefined, unsets: ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_BASE_URL'], pinned: undefined,
         context: {
           project: null,
           trackSessionId: 'tracked-pi',
           executionId: 'exec-pi',
-          selection: { backend: 'pi', provider: 'deepseek', model: 'pi-model', thinking: 'high', mode: 'pi-mode' },
+          selection: { backend: 'pi', provider: 'deepseek', model: 'pi-model', thinking: 'high', connection: null },
         },
       },
-      route: { anthropicBaseUrl: undefined, gatewayBaseUrl: 'http://127.0.0.1:9880', gatewayPath: '/m/pi-mode/deepseek' },
+      route: { anthropicBaseUrl: undefined, connection: undefined },
       flags: {
         disableHooks: undefined, disableSkills: undefined, settingSources: undefined,
         streamDeltas: undefined, captureTranscripts: undefined,
@@ -150,10 +153,10 @@ const cases: Case[] = [
           project: null,
           trackSessionId: 'tracked-subagent',
           executionId: 'exec-subagent',
-          selection: { backend: 'claude', provider: null, model: 'claude-fixture', thinking: null, mode: 'plan' },
+          selection: { backend: 'claude', provider: null, model: 'claude-fixture', thinking: null, connection: 'subscription' },
         },
       },
-      route: { anthropicBaseUrl: undefined, gatewayBaseUrl: undefined, gatewayPath: undefined },
+      route: { anthropicBaseUrl: undefined, connection: undefined },
       flags: {
         disableHooks: true, disableSkills: undefined, settingSources: undefined,
         streamDeltas: false, captureTranscripts: false,
@@ -165,7 +168,7 @@ const cases: Case[] = [
     },
   },
   {
-    name: 'web session with a mode route',
+    name: 'web session on a relay connection',
     options: {
       channel: 'web:route-fixture',
       sessionKey: 'web:route-fixture',
@@ -179,12 +182,13 @@ const cases: Case[] = [
       outputStyle: 'concise',
     },
     config: {
-      ...FIXTURE_CONFIG, mode: 'plan', thinking: 'medium',
+      ...FIXTURE_CONFIG, connection: 'relay', thinking: 'medium',
     },
     route: {
-      ANTHROPIC_API_KEY: 'sk-route-fixture',
-      ANTHROPIC_BASE_URL: 'http://127.0.0.1:9880/m/plan/anthropic',
-      CLAUDE_CODE_OAUTH_TOKEN: null,
+      connection: 'relay',
+      baseUrl: 'https://relay.invalid',
+      sets: { ANTHROPIC_API_KEY: 'sk-route-fixture' },
+      unsets: ['ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN'],
     },
     expected: {
       engineKey: 'web:route-fixture',
@@ -197,20 +201,16 @@ const cases: Case[] = [
       mcp: { composition: 'direct', servers: undefined, allowlist: undefined, configPaths: undefined },
       env: {
         sets: { ANTHROPIC_API_KEY: 'sk-route-fixture' },
-        unsets: ['CLAUDE_CODE_OAUTH_TOKEN'],
+        unsets: ['ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN'],
         pinned: undefined,
         context: {
           project: null,
           trackSessionId: 'tracked-route',
           executionId: 'exec-route',
-          selection: { backend: 'claude', provider: null, model: 'claude-fixture', thinking: 'medium', mode: 'plan' },
+          selection: { backend: 'claude', provider: null, model: 'claude-fixture', thinking: 'medium', connection: 'relay' },
         },
       },
-      route: {
-        anthropicBaseUrl: 'http://127.0.0.1:9880/m/plan/anthropic',
-        gatewayBaseUrl: undefined,
-        gatewayPath: undefined,
-      },
+      route: { anthropicBaseUrl: 'https://relay.invalid', connection: 'relay' },
       flags: {
         disableHooks: undefined, disableSkills: undefined, settingSources: undefined,
         streamDeltas: undefined, captureTranscripts: undefined,
@@ -244,4 +244,16 @@ test('buildEngineSpec keeps a raw tools string on rawClaude and canonical tools 
   const canonical = specFromFixture(canonicalOptions, FIXTURE_CONFIG);
   assert.equal(canonical.tools.rawClaude, undefined);
   assert.deepEqual(canonical.tools.canonical, ['Read', 'Bash']);
+});
+
+test('a route without a base URL deletes ANTHROPIC_BASE_URL alongside every credential it does not set', () => {
+  const subscription: ClaudeRoute = {
+    connection: 'subscription', sets: {},
+    unsets: ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN'],
+  };
+  assert.deepStrictEqual(routeEnvFields(subscription), {
+    sets: undefined,
+    unsets: ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_BASE_URL'],
+  });
+  assert.deepStrictEqual(routeEnvFields(undefined), {});
 });

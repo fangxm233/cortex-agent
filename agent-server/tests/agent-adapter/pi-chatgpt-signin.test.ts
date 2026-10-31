@@ -9,14 +9,13 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { makeFakeRuntimeFactory } from './pi-fake-runtime.js';
 import { PIAdapter } from '../../src/agent-adapter/pi/adapter.js';
 import { piPool } from './pi-pool-fixture.js';
-import {
-  CHATGPT_SIGN_IN_COMPAT,
-  readOAuthProviders,
-  withChatgptSignInCompat,
-} from '../../src/agent-adapter/pi/chatgpt-signin.js';
+import { CHATGPT_SIGN_IN_COMPAT, readOAuthProviders } from '../../src/agent-adapter/pi/chatgpt-signin.js';
+import { catalogProviderBlocks } from '../../src/agent-adapter/pi/providers-config.js';
 
 const OAUTH = { type: 'oauth', access: 'a', refresh: 'r', expires: 1 };
 const API_KEY = { type: 'api_key', key: 'sk-test' };
+/** A connection overriding openai's base URL: the case that hides the sign-in from PI. */
+const RELAY_URL = 'https://relay.example.invalid/v1';
 
 function withTempDir(run: (dir: string) => void): void {
   const dir = mkdtempSync(pathJoin(tmpdir(), 'cortex-pi-chatgpt-signin-'));
@@ -44,25 +43,32 @@ test('readOAuthProviders: a missing or unreadable auth.json yields no providers'
   });
 });
 
-test('withChatgptSignInCompat: marks only the openai provider signed in with ChatGPT', () => {
-  const overrides = [{ name: 'openai' }, { name: 'openai-codex' }, { name: 'deepseek' }];
-  const marked = withChatgptSignInCompat(overrides, new Set(['openai', 'openai-codex']));
-  const byName = new Map(marked.map((o) => [o.name, o]));
-  assert.deepEqual(byName.get('openai')?.compat, CHATGPT_SIGN_IN_COMPAT);
-  assert.equal(byName.get('openai-codex')?.compat, undefined);
-  assert.equal(byName.get('deepseek')?.compat, undefined);
-  assert.deepEqual(withChatgptSignInCompat(overrides, new Set()), overrides);
+test('catalogProviderBlocks: marks only the openai override signed in with ChatGPT', () => {
+  const override = { baseUrl: 'https://relay.example.invalid/v1' };
+  const catalog = { providers: { openai: override, 'openai-codex': override, 'my-vllm': override }, runtimeKeys: {} };
+  const marked = catalogProviderBlocks(catalog, new Set(['openai', 'openai-codex']));
+  assert.deepEqual(marked.openai.compat, CHATGPT_SIGN_IN_COMPAT);
+  assert.equal(marked['openai-codex'].compat, undefined);
+  assert.equal(marked['my-vllm'].compat, undefined);
+  assert.deepEqual(catalogProviderBlocks(catalog, new Set()), catalog.providers);
+});
+
+test('catalogProviderBlocks: a full openai definition is written as given, even when signed in', () => {
+  const definition = { baseUrl: 'https://relay.example.invalid/v1', api: 'openai-responses', models: [{ id: 'm' }] };
+  const marked = catalogProviderBlocks({ providers: { openai: definition }, runtimeKeys: {} }, new Set(['openai']));
+  assert.deepEqual(marked.openai, definition);
 });
 
 function openOpenAiSession(dir: string, credential: Record<string, unknown>): Record<string, any> {
   const agentDir = pathJoin(dir, 'agent');
   mkdirSync(agentDir, { recursive: true });
   writeFileSync(pathJoin(agentDir, 'auth.json'), JSON.stringify({ openai: credential }));
+  const catalog = { providers: { openai: { baseUrl: RELAY_URL } }, runtimeKeys: {} };
   const adapter = new PIAdapter(
     makeFakeRuntimeFactory().factory,
     pathJoin(dir, 'sessions'),
     { getProviders: () => ['openai'], refresh: () => {}, getModels: () => [], peekModels: () => [], ensureModels: async () => [] },
-    { agentDir },
+    { agentDir, catalog: () => catalog },
   );
   piPool(adapter).open(engineSpecFixture({
     sessionId: null,
@@ -70,8 +76,6 @@ function openOpenAiSession(dir: string, credential: Record<string, unknown>): Re
     resume: false,
     model: 'gpt-6.1-sol',
     piProvider: 'openai',
-    piGatewayBaseUrl: 'http://127.0.0.1:9880',
-    piGatewayPath: '/m/openai/openai',
   }));
   return JSON.parse(readFileSync(pathJoin(agentDir, 'models.json'), 'utf8')).providers.openai;
 }
@@ -79,7 +83,7 @@ function openOpenAiSession(dir: string, credential: Record<string, unknown>): Re
 test('open: ChatGPT sign-in on openai turns off the request items the subscription rejects', () => {
   withTempDir((dir) => {
     const openai = openOpenAiSession(dir, OAUTH);
-    assert.equal(openai.baseUrl, 'http://127.0.0.1:9880/m/openai/openai');
+    assert.equal(openai.baseUrl, RELAY_URL);
     assert.deepEqual(openai.compat, CHATGPT_SIGN_IN_COMPAT);
   });
 });
@@ -87,7 +91,7 @@ test('open: ChatGPT sign-in on openai turns off the request items the subscripti
 test('open: an openai API key keeps the catalog compat flags', () => {
   withTempDir((dir) => {
     const openai = openOpenAiSession(dir, API_KEY);
-    assert.equal(openai.baseUrl, 'http://127.0.0.1:9880/m/openai/openai');
+    assert.equal(openai.baseUrl, RELAY_URL);
     assert.equal(openai.compat, undefined);
   });
 });

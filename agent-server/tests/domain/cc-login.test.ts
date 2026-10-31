@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { test, vi } from 'vitest';
 import { EventBus } from '../../src/events/event-bus.js';
-import { _testSetHealthy } from '../../src/domain/costs/gateway-manager.js';
+import { CONNECTIONS_FILE, readConnections } from '../../src/core/connections-file.js';
 import {
   initAuthEvents,
   publishAuthRequired,
@@ -17,7 +17,6 @@ import {
   type LoginFlowStep,
 } from '../../src/domain/auth/login-flow.js';
 
-const PLACEHOLDER = 'cortex-gateway-managed';
 const OLD_KEY = 'sk-ant-fixture-old';
 const NEW_KEY = 'sk-ant-fixture-new';
 
@@ -26,6 +25,12 @@ type GetAuthStatus = typeof import('../../src/domain/auth/auth-status.js')['getA
 interface AuthFixture {
   envFile: string;
   initialEnv: string;
+}
+
+/** The `api` connection's key as config/connections.json holds it. */
+function storedApiKey(): string | undefined {
+  const api = readConnections().find(entry => entry.backend === 'claude' && entry.id === 'api');
+  return api?.backend === 'claude' ? api.key : undefined;
 }
 
 interface CleanupContext {
@@ -37,7 +42,7 @@ function restoreEnv(name: string, value: string | undefined): void {
   else process.env[name] = value;
 }
 
-function setupAuthFixture(t: CleanupContext, initialKey: string = PLACEHOLDER): AuthFixture {
+function setupAuthFixture(t: CleanupContext): AuthFixture {
   const home = process.env.CORTEX_HOME!;
   const claudeDir = fs.mkdtempSync(path.join(home, 'claude-login-'));
   const credentialEnv = ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL',
@@ -46,9 +51,9 @@ function setupAuthFixture(t: CleanupContext, initialKey: string = PLACEHOLDER): 
     .map(name => [name, process.env[name]]));
   t.onTestFinished(() => {
     for (const [name, value] of originals) restoreEnv(name, value);
-    _testSetHealthy(null);
     initAuthEvents(null);
     fs.rmSync(claudeDir, { recursive: true, force: true });
+    fs.rmSync(CONNECTIONS_FILE, { force: true });
   });
   process.env.HOME = home;
   process.env.CLAUDE_CONFIG_DIR = claudeDir;
@@ -57,7 +62,7 @@ function setupAuthFixture(t: CleanupContext, initialKey: string = PLACEHOLDER): 
   fs.mkdirSync(path.join(home, 'data'), { recursive: true });
   fs.writeFileSync(path.join(home, 'data', 'mode.json'), JSON.stringify({ claudeMode: 'plan' }));
   const envFile = path.join(home, 'config', '.env');
-  const initialEnv = `OTHER_SETTING=keep\nANTHROPIC_API_KEY=${initialKey}\n`;
+  const initialEnv = 'OTHER_SETTING=keep\n';
   fs.writeFileSync(envFile, initialEnv, { mode: 0o644 });
   return { envFile, initialEnv };
 }
@@ -138,16 +143,12 @@ function assertSuccessfulLogin(evidence: LoginEvidence): void {
   assert.equal(evidence.account.authType, 'api_key');
   assert.equal(evidence.account.state, 'logged-in');
   assert.equal(evidence.savedKey, NEW_KEY);
-  // The daemon env holds the saved credential — the aistatus gateway child inherits this env and
-  // resolves keys: [$ANTHROPIC_API_KEY] from it. Mode routing no longer decides what lands here,
-  // so plan mode no longer strips the key a login just saved.
-  assert.equal(process.env.ANTHROPIC_API_KEY, NEW_KEY);
-  assert.notEqual(process.env.ANTHROPIC_API_KEY, PLACEHOLDER,
-    'the placeholder the fixture started from is not a credential and must not survive a login');
-  assert.equal(evidence.persisted.includes('OTHER_SETTING=keep'), true);
-  assert.equal(evidence.persisted.includes(NEW_KEY), true);
-  assert.equal(evidence.persisted.includes(PLACEHOLDER), false);
-  assert.equal(fs.statSync(evidence.fixture.envFile).mode & 0o777, 0o600);
+  // The key lives on the `api` connection, owner-only; each spawn takes it from there, so a login
+  // never projects it into the daemon env, and config/.env is left to its other settings.
+  assert.equal(storedApiKey(), NEW_KEY);
+  assert.equal(fs.statSync(CONNECTIONS_FILE).mode & 0o777, 0o600);
+  assert.notEqual(process.env.ANTHROPIC_API_KEY, NEW_KEY);
+  assert.equal(evidence.persisted, evidence.fixture.initialEnv);
   assert.deepEqual(evidence.recovered.map(({ type, backend, provider }) => ({ type, backend, provider })), [
     { type: 'auth.recovered', backend: 'claude', provider: 'anthropic' },
   ]);
@@ -158,12 +159,10 @@ function assertSuccessfulLogin(evidence: LoginEvidence): void {
 test('Claude API-key LoginFlow persists securely, reloads runtime, recovers auth, and updates status', async (t) => {
   const fixture = setupAuthFixture(t);
   const consoleCalls = captureConsole(t);
-  _testSetHealthy(false);
   const { loginClaudeApiKey } = await import('../../src/domain/auth/cc-login.js');
   const { getAuthStatus } = await import('../../src/domain/auth/auth-status.js');
   const config = await import('../../src/domain/auth/anthropic-env.js');
   assert.equal((await readClaudeStatus(getAuthStatus)).state, 'logged-out');
-  process.env.ANTHROPIC_API_KEY = OLD_KEY;
   const recovered = captureRecovery();
   const result = await runLogin(loginClaudeApiKey, NEW_KEY);
   const account = await readClaudeStatus(getAuthStatus);
@@ -174,7 +173,7 @@ test('Claude API-key LoginFlow persists securely, reloads runtime, recovers auth
   });
 });
 
-test('Claude and Feishu dotenv writes preserve both concurrent updates', async (t) => {
+test('a Claude key save beside a concurrent Feishu dotenv write keeps both, with the key off .env', async (t) => {
   const fixture = setupAuthFixture(t);
   const { saveAnthropicApiKey } = await import('../../src/domain/auth/anthropic-env.js');
   const { upsertEnvVar } = await import('../../src/entry/feishu-login.js');
@@ -184,17 +183,32 @@ test('Claude and Feishu dotenv writes preserve both concurrent updates', async (
   await claudeWrite;
 
   const persisted = fs.readFileSync(fixture.envFile, 'utf8');
-  assert.match(persisted, /^ANTHROPIC_API_KEY="sk-ant-fixture-new"$/m);
+  assert.doesNotMatch(persisted, /ANTHROPIC_API_KEY/);
   assert.match(persisted, /^FEISHU_AUTH_MODE=user$/m);
+  assert.equal(storedApiKey(), NEW_KEY);
 });
 
-test('Claude API-key login rejects the gateway placeholder without side effects', async (t) => {
-  const fixture = setupAuthFixture(t, OLD_KEY);
-  _testSetHealthy(false);
+test('saving a key over an existing api connection keeps its endpoint and auth style', async (t) => {
+  setupAuthFixture(t);
+  const { upsertConnection } = await import('../../src/core/connections-file.js');
+  const { saveAnthropicApiKey } = await import('../../src/domain/auth/anthropic-env.js');
+  upsertConnection({
+    id: 'api', backend: 'claude', label: 'Relay', baseUrl: 'https://relay.example.invalid',
+    authStyle: 'bearer', key: OLD_KEY, billing: 'metered',
+  });
+  await saveAnthropicApiKey(NEW_KEY);
+  assert.deepEqual(readConnections(), [{
+    id: 'api', backend: 'claude', label: 'Relay', baseUrl: 'https://relay.example.invalid',
+    authStyle: 'bearer', key: NEW_KEY, billing: 'metered',
+  }]);
+});
+
+test('Claude API-key login rejects a malformed key without side effects', async (t) => {
+  const fixture = setupAuthFixture(t);
   const { loginClaudeApiKey } = await import('../../src/domain/auth/cc-login.js');
   const recovered = captureRecovery();
   const interaction: AuthInteraction = {
-    prompt: async () => PLACEHOLDER,
+    prompt: async () => 'sk-ant-fixture "malformed"',
     notify: () => {},
   };
   await assert.rejects(loginClaudeApiKey(interaction), (error: any) => (
@@ -202,5 +216,6 @@ test('Claude API-key login rejects the gateway placeholder without side effects'
     && error.message === 'Could not save the Anthropic API key: Enter a valid Anthropic API key.'
   ));
   assert.equal(fs.readFileSync(fixture.envFile, 'utf8'), fixture.initialEnv);
+  assert.equal(fs.existsSync(CONNECTIONS_FILE), false);
   assert.deepEqual(recovered, []);
 });

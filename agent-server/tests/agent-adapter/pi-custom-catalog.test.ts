@@ -10,165 +10,108 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { makeFakeRuntimeFactory } from './pi-fake-runtime.js';
 import { PIAdapter } from '../../src/agent-adapter/pi/adapter.js';
 import { piPool } from './pi-pool-fixture.js';
-import {
-  buildProviderOverrides,
-  withCustomEntries,
-  writeProvidersConfig,
-} from '../../src/agent-adapter/pi/providers-config.js';
+import { catalogProviderBlocks } from '../../src/agent-adapter/pi/providers-config.js';
+import { buildPiCatalog } from '../../src/domain/connections/pi-catalog.js';
 
 const CUSTOM_ENTRY = {
-  baseUrl: 'http://127.0.0.1:9880/m/my-vllm/my-vllm',
+  baseUrl: 'https://llm.example.invalid/v1',
   api: 'anthropic-messages',
-  apiKey: 'cortex-gateway',
   models: [{ id: 'Model-27B' }],
 };
 
-test('writeProvidersConfig: writes a custom provider entry verbatim instead of a bare baseUrl', () => {
+const NO_DISCOVERY = {
+  getProviders: () => [], refresh: () => {}, getModels: () => [], peekModels: () => [], ensureModels: async () => [],
+};
+
+function withTempDir(run: (dir: string) => void): void {
   const dir = mkdtempSync(pathJoin(tmpdir(), 'cortex-pi-custom-catalog-'));
   try {
-    const modelsPath = pathJoin(dir, 'models.json');
-    writeProvidersConfig(
-      [{ name: 'anthropic' }, { name: 'my-vllm', entry: CUSTOM_ENTRY }],
-      'http://127.0.0.1:9880',
-      { modelsPath },
-    );
-    const data = JSON.parse(readFileSync(modelsPath, 'utf8'));
-    assert.equal(data.providers.anthropic.baseUrl, 'http://127.0.0.1:9880/anthropic');
-    assert.equal(data.providers.anthropic.api, undefined, 'built-in overrides stay baseUrl-only');
-    assert.deepEqual(data.providers['my-vllm'], CUSTOM_ENTRY);
+    run(dir);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+}
+
+function writeConnectionsFile(dir: string, connections: unknown[]): string {
+  const file = pathJoin(dir, 'connections.json');
+  writeFileSync(file, JSON.stringify({ version: 1, connections }));
+  return file;
+}
+
+/** Open one PI session over a catalog built from `file` and `userModelsPath`; return the written catalog. */
+function openWithCatalog(
+  dir: string,
+  catalog: { file: string; userModelsPath: string | null },
+  spec: { sessionKey: string; piProvider: string; model?: string },
+): Record<string, any> {
+  const agentDir = pathJoin(dir, 'agent');
+  mkdirSync(agentDir, { recursive: true });
+  const adapter = new PIAdapter(makeFakeRuntimeFactory().factory, pathJoin(dir, 'sessions'), NO_DISCOVERY, {
+    agentDir, catalog: () => buildPiCatalog(catalog),
+  });
+  piPool(adapter).open(engineSpecFixture({ sessionId: null, resume: false, ...spec }));
+  return JSON.parse(readFileSync(pathJoin(agentDir, 'models.json'), 'utf8')).providers;
+}
+
+test('catalogProviderBlocks: writes a custom definition verbatim and leaves overrides baseUrl-only', () => {
+  const blocks = catalogProviderBlocks({
+    providers: { anthropic: { baseUrl: 'https://relay.example.invalid/anthropic' }, 'my-vllm': CUSTOM_ENTRY },
+    runtimeKeys: {},
+  }, new Set());
+  assert.deepEqual(blocks.anthropic, { baseUrl: 'https://relay.example.invalid/anthropic' });
+  assert.deepEqual(blocks['my-vllm'], CUSTOM_ENTRY);
 });
 
-test('writeProvidersConfig: a custom entry saved with an older gateway port follows the current gateway', () => {
-  const dir = mkdtempSync(pathJoin(tmpdir(), 'cortex-pi-custom-catalog-'));
-  try {
-    const modelsPath = pathJoin(dir, 'models.json');
-    const external = { ...CUSTOM_ENTRY, baseUrl: 'https://llm.example.invalid/m/v1' };
-    writeProvidersConfig(
-      [{ name: 'my-vllm', entry: CUSTOM_ENTRY }, { name: 'hosted', entry: external }],
-      'http://127.0.0.1:9881',
-      { modelsPath },
-    );
-    const data = JSON.parse(readFileSync(modelsPath, 'utf8'));
-    assert.deepEqual(data.providers['my-vllm'], { ...CUSTOM_ENTRY, baseUrl: 'http://127.0.0.1:9881/m/my-vllm/my-vllm' });
-    assert.deepEqual(data.providers.hosted, external, 'a non-gateway base URL stays as written');
-    assert.equal(CUSTOM_ENTRY.baseUrl, 'http://127.0.0.1:9880/m/my-vllm/my-vllm', 'the saved definition is not mutated');
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+test('open: a custom provider connection reaches the opened PI catalog complete, at its own URL', () => {
+  withTempDir((dir) => {
+    const file = writeConnectionsFile(dir, [{
+      id: 'my-vllm', backend: 'pi', provider: 'my-vllm', api: 'anthropic-messages',
+      baseUrl: 'https://llm.example.invalid/v1', key: 'sk-fake-vllm', models: [{ id: 'Model-27B' }],
+    }]);
+    const providers = openWithCatalog(dir, { file, userModelsPath: null }, {
+      sessionKey: 'custom-provider-spawn', piProvider: 'my-vllm', model: 'Model-27B',
+    });
+    assert.equal(providers['my-vllm'].api, 'anthropic-messages');
+    assert.deepEqual(providers['my-vllm'].models, [{ id: 'Model-27B' }]);
+    assert.equal(providers['my-vllm'].baseUrl, 'https://llm.example.invalid/v1');
+    assert.equal(providers['my-vllm'].apiKey, 'sk-fake-vllm');
+    assert.deepEqual(JSON.parse(readFileSync(pathJoin(dir, 'agent', 'runtime-keys.json'), 'utf8')), { 'my-vllm': 'sk-fake-vllm' });
+  });
 });
 
-test('withCustomEntries: attaches definitions only to overrides that have one', () => {
-  const overrides = buildProviderOverrides(['anthropic', 'my-vllm'], 'my-vllm', '/m/my-vllm/my-vllm');
-  const attached = withCustomEntries(overrides, { 'my-vllm': CUSTOM_ENTRY });
-  const byName = new Map(attached.map((o) => [o.name, o]));
-  assert.deepEqual(byName.get('my-vllm')?.entry, CUSTOM_ENTRY);
-  assert.equal(byName.get('anthropic')?.entry, undefined);
-});
-
-test('open: a custom provider from the user catalog reaches the opened PI catalog complete', () => {
-  const dir = mkdtempSync(pathJoin(tmpdir(), 'cortex-pi-custom-spawn-'));
-  try {
-    const agentDir = pathJoin(dir, 'agent');
+test('open: a user-catalog provider is carried over even when another provider runs', () => {
+  withTempDir((dir) => {
     const userModelsPath = pathJoin(dir, 'user-models.json');
-    mkdirSync(agentDir, { recursive: true });
-    writeFileSync(userModelsPath, JSON.stringify({
-      providers: {
-        anthropic: { baseUrl: 'http://127.0.0.1:9880/anthropic' },
-        'my-vllm': CUSTOM_ENTRY,
-      },
-    }));
-
-    const stub = makeFakeRuntimeFactory();
-    const adapter = new PIAdapter(
-      stub.factory,
-      pathJoin(dir, 'sessions'),
-      { getProviders: () => ['anthropic'], refresh: () => {}, getModels: () => [], peekModels: () => [], ensureModels: async () => [] },
-      { agentDir, userModelsPath },
-    );
-
-    piPool(adapter).open(engineSpecFixture({
-      sessionId: null,
-      sessionKey: 'custom-provider-spawn',
-      resume: false,
-      model: 'Model-27B',
-      piProvider: 'my-vllm',
-      piGatewayBaseUrl: 'http://127.0.0.1:9880',
-      piGatewayPath: '/m/my-vllm/my-vllm',
-    }));
-
-    const catalog = JSON.parse(readFileSync(pathJoin(agentDir, 'models.json'), 'utf8'));
-    assert.equal(catalog.providers['my-vllm'].api, 'anthropic-messages');
-    assert.deepEqual(catalog.providers['my-vllm'].models, [{ id: 'Model-27B' }]);
-    assert.equal(catalog.providers['my-vllm'].baseUrl, 'http://127.0.0.1:9880/m/my-vllm/my-vllm');
-    assert.equal(catalog.providers.anthropic.baseUrl, 'http://127.0.0.1:9880/anthropic');
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('open: a discovered custom provider is completed even when another provider runs', () => {
-  const dir = mkdtempSync(pathJoin(tmpdir(), 'cortex-pi-custom-spawn-'));
-  try {
-    const agentDir = pathJoin(dir, 'agent');
-    const userModelsPath = pathJoin(dir, 'user-models.json');
-    mkdirSync(agentDir, { recursive: true });
     writeFileSync(userModelsPath, JSON.stringify({ providers: { 'my-vllm': CUSTOM_ENTRY } }));
-
-    const stub = makeFakeRuntimeFactory();
-    const adapter = new PIAdapter(
-      stub.factory,
-      pathJoin(dir, 'sessions'),
-      { getProviders: () => ['anthropic', 'my-vllm'], refresh: () => {}, getModels: () => [], peekModels: () => [], ensureModels: async () => [] },
-      { agentDir, userModelsPath },
-    );
-
-    piPool(adapter).open(engineSpecFixture({
-      sessionId: null,
-      sessionKey: 'custom-provider-bystander',
-      resume: false,
-      piProvider: 'anthropic',
-      piGatewayBaseUrl: 'http://127.0.0.1:9880',
-      piGatewayPath: '/m/plan/anthropic',
-    }));
-
-    const catalog = JSON.parse(readFileSync(pathJoin(agentDir, 'models.json'), 'utf8'));
-    assert.deepEqual(catalog.providers['my-vllm'], CUSTOM_ENTRY);
-    assert.equal(catalog.providers.anthropic.baseUrl, 'http://127.0.0.1:9880/m/plan/anthropic');
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+    const providers = openWithCatalog(dir, { file: pathJoin(dir, 'none.json'), userModelsPath }, {
+      sessionKey: 'custom-provider-bystander', piProvider: 'anthropic',
+    });
+    assert.deepEqual(providers['my-vllm'], CUSTOM_ENTRY);
+    assert.equal(providers.anthropic, undefined, 'a built-in with no connection keeps PI\'s own URL');
+  });
 });
 
-test('open: an absent user catalog leaves built-in routing untouched', () => {
-  const dir = mkdtempSync(pathJoin(tmpdir(), 'cortex-pi-custom-spawn-'));
-  try {
-    const agentDir = pathJoin(dir, 'agent');
-    mkdirSync(agentDir, { recursive: true });
-    const stub = makeFakeRuntimeFactory();
-    const adapter = new PIAdapter(
-      stub.factory,
-      pathJoin(dir, 'sessions'),
-      { getProviders: () => ['anthropic'], refresh: () => {}, getModels: () => [], peekModels: () => [], ensureModels: async () => [] },
-      { agentDir, userModelsPath: pathJoin(dir, 'missing.json') },
-    );
+test('open: a gateway-era user-catalog block is dropped, not routed to a gateway that no longer serves PI', () => {
+  withTempDir((dir) => {
+    const userModelsPath = pathJoin(dir, 'user-models.json');
+    writeFileSync(userModelsPath, JSON.stringify({ providers: {
+      anthropic: { baseUrl: 'http://127.0.0.1:9880/m/plan/anthropic' },
+      'old-vllm': { ...CUSTOM_ENTRY, apiKey: 'cortex-gateway' },
+    } }));
+    const providers = openWithCatalog(dir, { file: pathJoin(dir, 'none.json'), userModelsPath }, {
+      sessionKey: 'custom-provider-gateway-era', piProvider: 'anthropic',
+    });
+    assert.deepEqual(providers, {});
+  });
+});
 
-    piPool(adapter).open(engineSpecFixture({
-      sessionId: null,
-      sessionKey: 'custom-provider-absent',
-      resume: false,
-      piProvider: 'anthropic',
-      piGatewayBaseUrl: 'http://127.0.0.1:9880',
-    }));
-
-    const catalog = JSON.parse(readFileSync(pathJoin(agentDir, 'models.json'), 'utf8'));
-    assert.deepEqual(Object.keys(catalog.providers), ['anthropic']);
-    assert.equal(catalog.providers.anthropic.api, undefined);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+test('open: no connections and an absent user catalog leave every built-in provider untouched', () => {
+  withTempDir((dir) => {
+    const providers = openWithCatalog(dir, { file: pathJoin(dir, 'none.json'), userModelsPath: pathJoin(dir, 'missing.json') }, {
+      sessionKey: 'custom-provider-absent', piProvider: 'anthropic',
+    });
+    assert.deepEqual(providers, {});
+  });
 });
 
 test('open: DeepSeek child preserves the admitted cap after a model-store refresh', () => {
@@ -176,13 +119,13 @@ test('open: DeepSeek child preserves the admitted cap after a model-store refres
   try {
     const agentDir = pathJoin(dir, 'agent');
     mkdirSync(agentDir, { recursive: true });
+    const file = writeConnectionsFile(dir, [
+      { id: 'deepseek', backend: 'pi', provider: 'deepseek', baseUrl: 'https://relay.example.invalid/ds' },
+    ]);
     const stub = makeFakeRuntimeFactory();
-    const adapter = new PIAdapter(
-      stub.factory,
-      pathJoin(dir, 'sessions'),
-      { getProviders: () => ['deepseek'], refresh: () => {}, getModels: () => [], peekModels: () => [], ensureModels: async () => [] },
-      { agentDir },
-    );
+    const adapter = new PIAdapter(stub.factory, pathJoin(dir, 'sessions'), NO_DISCOVERY, {
+      agentDir, catalog: () => buildPiCatalog({ file, userModelsPath: null }),
+    });
     const openSession = (sessionKey: string) => piPool(adapter).open(engineSpecFixture({
       sessionId: null,
       sessionKey,
@@ -190,8 +133,6 @@ test('open: DeepSeek child preserves the admitted cap after a model-store refres
       model: 'deepseek-v4-flash',
       piProvider: 'deepseek',
       benchmarkMaxOutputTokens: 65_536,
-      piGatewayBaseUrl: 'http://127.0.0.1:9880',
-      piGatewayPath: '/deepseek',
     }));
 
     openSession('root-before-refresh');

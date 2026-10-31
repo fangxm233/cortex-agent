@@ -282,10 +282,8 @@ test('a quota reading from the PI session throttles the provider it was routed u
     sessionKey: 'quota-wire',
     resume: false,
     piProvider: 'openai-codex',
-    piGatewayPath: '/m/openai-codex/openai-codex',
-    piGatewayBaseUrl: 'http://127.0.0.1:9880',
   }));
-  assert.equal(fake.requests[0].reportsProviderQuota, true, 'a gateway-routed run installs the probe');
+  assert.equal(fake.requests[0].reportsProviderQuota, true, 'every PI run installs the probe');
   // The reading is a raw protocol event that the run's translated stream cannot reconstruct
   // (`session_started` has no RunEvent equivalent), so tap the engine's NormalizedEvent port.
   const raw: NormalizedEvent[] = [];
@@ -329,8 +327,6 @@ test('an unwired PI adapter surfaces the reading but never reaches the daemon th
     sessionKey: 'quota-unwired',
     resume: false,
     piProvider: 'openai-codex',
-    piGatewayPath: '/m/openai-codex/openai-codex',
-    piGatewayBaseUrl: 'http://127.0.0.1:9880',
   }));
   const raw: NormalizedEvent[] = [];
   const run = engine.run({ text: 'opening' }, {
@@ -358,17 +354,13 @@ test('an unwired PI adapter surfaces the reading but never reaches the daemon th
 });
 
 test('resolves the provider and mode that the dispatch gate looks up', () => {
+  // A PI selection names no connection: its provider is its connection, as routeName() files it.
   assert.deepEqual(
-    resolveQuotaSource({ provider: 'openai-codex', gatewayPath: '/m/openai-codex/openai-codex' }),
+    resolveQuotaSource({ provider: 'openai-codex' }),
     { provider: 'openai-codex', displayName: 'OpenAI Codex', mode: 'openai-codex' },
   );
-  // A profile with a mode distinct from the provider name still routes by mode.
-  assert.equal(
-    resolveQuotaSource({ provider: 'openai-codex', gatewayPath: '/m/sol-overflow/openai-codex' }).mode,
-    'sol-overflow',
-  );
-  // No mode on the profile → the built spec omits the gateway path → the gate reads 'api'.
-  assert.equal(resolveQuotaSource({ provider: 'openai-codex' }).mode, 'api');
+  // A spec route that does carry a connection is filed under it.
+  assert.equal(resolveQuotaSource({ provider: 'openai-codex', connection: 'sol-overflow' }).mode, 'sol-overflow');
   // No provider on the profile → resolveRateLimitProvider falls back to the backend name.
-  assert.equal(resolveQuotaSource({}).provider, 'pi');
+  assert.deepEqual(resolveQuotaSource({}), { provider: 'pi', displayName: 'pi', mode: 'pi' });
 });

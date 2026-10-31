@@ -136,9 +136,9 @@ test('hot reload re-arms a schedule when any selection field changes', withTempS
   const changes = [
     { ...DEFAULT_SELECTION, thinking: 'low' },
     { ...DEFAULT_SELECTION, model: 'sonnet' },
-    { ...DEFAULT_SELECTION, mode: 'api' },
+    { ...DEFAULT_SELECTION, connection: 'api' },
     OTHER_SELECTION,
-    { ...OTHER_SELECTION, provider: 'other', mode: 'other' },
+    { ...OTHER_SELECTION, provider: 'other' },
   ];
   for (const selection of changes) {
     const timer = scheduler.timers.get(task.id);

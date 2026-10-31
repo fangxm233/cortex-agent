@@ -13,8 +13,8 @@ vi.mock('../../../src/domain/agents/environments/index.js', async (importOrigina
   resolveEnvironmentByName: () => ({ systemPrompt: 'test', promptTemplate: '{{input}}' }),
 }));
 
-const claude: EngineSelection = { backend: 'claude', provider: null, model: 'opus', thinking: null, mode: 'api' };
-const pi: EngineSelection = { backend: 'pi', provider: 'openai', model: 'gpt', thinking: null, mode: 'api' };
+const claude: EngineSelection = { backend: 'claude', provider: null, model: 'opus', thinking: null, connection: 'api' };
+const pi: EngineSelection = { backend: 'pi', provider: 'openai', model: 'gpt', thinking: null, connection: null };
 const channel = 'web:resume-guard';
 
 beforeEach(() => {

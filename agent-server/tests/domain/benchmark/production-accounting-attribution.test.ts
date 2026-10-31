@@ -67,7 +67,7 @@ afterEach(async () => {
 
 function selection(): EngineSelection {
   return {
-    model: 'deepseek-fixture', backend: 'pi', mode: 'trial', provider: 'deepseek', thinking: null,
+    model: 'deepseek-fixture', backend: 'pi', connection: null, provider: 'deepseek', thinking: null,
   };
 }
 

@@ -11,12 +11,13 @@ import { runRequestFixture } from '../../run-request-fixture.js';
 const STALE_ENV = {
   CORTEX_BACKEND: 'stale-backend', CORTEX_MODEL: 'stale-model',
   CORTEX_PROVIDER: 'stale-provider', CORTEX_THINKING: 'stale-thinking', CORTEX_MODE: 'stale-mode',
+  CORTEX_CONNECTION: 'stale-connection',
 };
 const selections: EngineSelection[] = [
-  { backend: 'claude', provider: null, model: 'claude-opus-4-6', thinking: 'high', mode: 'plan' },
-  { backend: 'claude', provider: null, model: 'claude-sonnet-4-6', thinking: null, mode: 'api' },
-  { backend: 'pi', provider: 'deepseek', model: 'deepseek-v4-flash[1m]', thinking: 'xhigh', mode: 'deepseek' },
-  { backend: 'pi', provider: 'openai', model: 'gpt-5', thinking: null, mode: 'openai' },
+  { backend: 'claude', provider: null, model: 'claude-opus-4-6', thinking: 'high', connection: 'subscription' },
+  { backend: 'claude', provider: null, model: 'claude-sonnet-4-6', thinking: null, connection: 'api' },
+  { backend: 'pi', provider: 'deepseek', model: 'deepseek-v4-flash[1m]', thinking: 'xhigh', connection: null },
+  { backend: 'pi', provider: 'openai', model: 'gpt-5', thinking: null, connection: null },
 ];
 
 function specFor(selection: EngineSelection): EngineSpec {
@@ -37,7 +38,8 @@ function expectSelection(env: NodeJS.ProcessEnv, selection: EngineSelection): vo
   expect(toolContextFromEnv(env).selection).toEqual(selection);
   expect(env.CORTEX_BACKEND).toBe(selection.backend);
   expect(env.CORTEX_MODEL).toBe(selection.model);
-  expect(env.CORTEX_MODE).toBe(selection.mode);
+  expect(env.CORTEX_CONNECTION).toBe(selection.connection ?? undefined);
+  expect(env).not.toHaveProperty('CORTEX_MODE');
   expect(env.CORTEX_PROVIDER).toBe(selection.provider ?? undefined);
   expect(env.CORTEX_THINKING).toBe(selection.thinking ?? undefined);
   if (selection.provider === null) expect(env).not.toHaveProperty('CORTEX_PROVIDER');

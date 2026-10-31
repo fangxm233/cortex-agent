@@ -21,10 +21,9 @@ import {
 } from '../../src/domain/auth/cc-subscription.js';
 import { initAuthEvents } from '../../src/domain/auth/auth-events.js';
 import {
-  applyAuthEnv,
+  dropRoutingEnv,
   removeClaudeCodeOAuthToken,
 } from '../../src/domain/auth/anthropic-env.js';
-import { _testSetHealthy } from '../../src/domain/costs/gateway-manager.js';
 
 const AUTH_URL = 'https://claude.com/cai/oauth/authorize?code=true&state=fixture';
 const CODE = 'fixture-code#fixture-state';
@@ -87,7 +86,6 @@ function safeFailure(code: string, secret = CODE) {
 
 afterEach(async () => {
   initAuthEvents(null);
-  _testSetHealthy(null);
   await removeClaudeCodeOAuthToken();
 });
 
@@ -156,28 +154,28 @@ test('subscription maps CLI cancellation and timeout to stable LoginFlow errors'
   }
 });
 
-test('the daemon env admits a legacy token only until Claude owns a credential', async (t) => {
-  const home = process.env.CORTEX_HOME!;
+test('the daemon env drops routing credentials and keeps a legacy token only until Claude owns a credential', async (t) => {
   const credentialsPath = path.join(CLAUDE_CONFIG_HOME, '.credentials.json');
   t.onTestFinished(() => fs.rmSync(credentialsPath, { force: true }));
   fs.rmSync(credentialsPath, { force: true });
-  fs.mkdirSync(path.join(home, 'config'), { recursive: true });
-  fs.writeFileSync(
-    path.join(home, 'config', '.env'),
-    'CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-legacy-fixture"\n',
-    { mode: 0o600 },
-  );
-  _testSetHealthy(false);
+  const env: NodeJS.ProcessEnv = {
+    ANTHROPIC_API_KEY: 'sk-ant-fixture', ANTHROPIC_AUTH_TOKEN: 'fixture-bearer',
+    ANTHROPIC_BASE_URL: 'https://relay.example.invalid', OTHER_SETTING: 'keep',
+    CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat01-legacy-fixture', CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: '1',
+  };
 
-  applyAuthEnv();
-  assert.equal(process.env.CLAUDE_CODE_OAUTH_TOKEN, 'sk-ant-oat01-legacy-fixture');
+  dropRoutingEnv(env);
+  assert.deepEqual(env, {
+    OTHER_SETTING: 'keep',
+    CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat01-legacy-fixture', CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: '1',
+  });
 
   fs.mkdirSync(path.dirname(credentialsPath), { recursive: true });
   fs.writeFileSync(credentialsPath, JSON.stringify({ claudeAiOauth: {
     accessToken: 'fixture-access', refreshToken: 'fixture-refresh',
   } }), { mode: 0o600 });
-  applyAuthEnv();
-  assert.equal(process.env.CLAUDE_CODE_OAUTH_TOKEN, undefined);
+  dropRoutingEnv(env);
+  assert.deepEqual(env, { OTHER_SETTING: 'keep' });
 });
 
 test('subscription failures keep the CLI reason after the localized prefix', async () => {

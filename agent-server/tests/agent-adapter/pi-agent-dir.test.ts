@@ -10,162 +10,108 @@ import {
   ensureQuotaVisibleTransport,
   ensureCompactionReserve,
 } from '../../src/agent-adapter/pi/agent-dir.js';
-import { buildProviderOverrides, writeProvidersConfig } from '../../src/agent-adapter/pi/providers-config.js';
+import {
+  applyRuntimeKeys,
+  readRuntimeKeys,
+  writeProviderCatalog,
+  type PiProviderCatalog,
+} from '../../src/agent-adapter/pi/providers-config.js';
 
-// ─── writeProvidersConfig: multi-provider override ──────────────
+// ─── writeProviderCatalog: the per-agent-dir catalog and runtime keys ──────────────
 
-test('writeProvidersConfig: writes one provider entry per ProviderOverride', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-models-'));
-  try {
-    const modelsPath = path.join(tmpDir, 'models.json');
-    writeProvidersConfig(
-      [
-        { name: 'anthropic' },
-        { name: 'deepseek' },
-        { name: 'openai-codex' },
-      ],
-      'http://127.0.0.1:9880',
-      { modelsPath },
-    );
-    const data = JSON.parse(fs.readFileSync(modelsPath, 'utf-8'));
-    assert.ok(data.providers.anthropic);
-    assert.ok(data.providers.deepseek);
-    assert.ok(data.providers['openai-codex']);
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
+const NO_OAUTH: ReadonlySet<string> = new Set();
+
+function withAgentDir(run: (agentDir: string) => void | Promise<void>): () => Promise<void> {
+  return async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-models-'));
+    try {
+      await run(tmpDir);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  };
+}
+
+function writeAndRead(agentDir: string, catalog: PiProviderCatalog): Record<string, any> {
+  writeProviderCatalog(catalog, { agentDir, oauthProviders: NO_OAUTH });
+  return JSON.parse(fs.readFileSync(path.join(agentDir, 'models.json'), 'utf-8')).providers;
+}
+
+test('writeProviderCatalog: writes one block per catalog provider, base URLs as given', withAgentDir((agentDir) => {
+  const providers = writeAndRead(agentDir, {
+    providers: {
+      anthropic: { baseUrl: 'https://relay.example.invalid/anthropic' },
+      'openai-codex': { baseUrl: 'https://relay.example.invalid/codex' },
+    },
+    runtimeKeys: {},
+  });
+  assert.deepEqual(Object.keys(providers).sort(), ['anthropic', 'openai-codex']);
+  assert.equal(providers.anthropic.baseUrl, 'https://relay.example.invalid/anthropic');
+  assert.equal(providers['openai-codex'].baseUrl, 'https://relay.example.invalid/codex');
+}));
+
+test('writeProviderCatalog: an empty catalog is still written, so a stale one cannot keep routing', withAgentDir((agentDir) => {
+  writeAndRead(agentDir, { providers: { anthropic: { baseUrl: 'https://old.example.invalid' } }, runtimeKeys: { anthropic: 'sk-old' } });
+  assert.deepEqual(writeAndRead(agentDir, { providers: {}, runtimeKeys: {} }), {});
+  assert.deepEqual(readRuntimeKeys(agentDir), {});
+}));
+
+test('writeProviderCatalog: keys go to models.json and runtime-keys.json, both owner-only', withAgentDir((agentDir) => {
+  const providers = writeAndRead(agentDir, {
+    providers: { deepseek: { baseUrl: 'https://relay.example.invalid/ds', apiKey: 'sk-fake-relay' } },
+    runtimeKeys: { deepseek: 'sk-fake-relay' },
+  });
+  assert.equal(providers.deepseek.apiKey, 'sk-fake-relay');
+  assert.deepEqual(readRuntimeKeys(agentDir), { deepseek: 'sk-fake-relay' });
+  if (process.platform !== 'win32') {
+    for (const name of ['models.json', 'runtime-keys.json']) {
+      assert.equal(fs.statSync(path.join(agentDir, name)).mode & 0o777, 0o600, name);
+    }
   }
-});
+}));
 
-test('writeProvidersConfig: each provider baseUrl points to gateway/<provider-name>', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-models-'));
-  try {
-    const modelsPath = path.join(tmpDir, 'models.json');
-    writeProvidersConfig(
-      [{ name: 'openai-codex' }, { name: 'deepseek' }],
-      'http://127.0.0.1:9880',
-      { modelsPath },
-    );
-    const data = JSON.parse(fs.readFileSync(modelsPath, 'utf-8'));
-    assert.equal(data.providers['openai-codex'].baseUrl, 'http://127.0.0.1:9880/openai-codex');
-    assert.equal(data.providers.deepseek.baseUrl, 'http://127.0.0.1:9880/deepseek');
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
-});
+test('writeProviderCatalog: atomic — leaves no .tmp files on success', withAgentDir((agentDir) => {
+  writeAndRead(agentDir, { providers: { anthropic: { baseUrl: 'https://relay.example.invalid' } }, runtimeKeys: {} });
+  const tmpFiles = fs.readdirSync(agentDir).filter(f => f.includes('.tmp.'));
+  assert.equal(tmpFiles.length, 0, `unexpected tmp files: ${tmpFiles.join(',')}`);
+}));
 
-test('writeProvidersConfig: does NOT write apiKey field (let PI auth.json resolve)', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-models-'));
-  try {
-    const modelsPath = path.join(tmpDir, 'models.json');
-    writeProvidersConfig(
-      [{ name: 'anthropic' }],
-      'http://127.0.0.1:9880',
-      { modelsPath },
-    );
-    const data = JSON.parse(fs.readFileSync(modelsPath, 'utf-8'));
-    assert.equal(data.providers.anthropic.apiKey, undefined,
-      'apiKey must NOT be set — PI resolves from auth.json or env');
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
-});
+test('writeProviderCatalog: a deepseek URL override gets the compat flags PI keys on its host', withAgentDir((agentDir) => {
+  const providers = writeAndRead(agentDir, {
+    providers: { deepseek: { baseUrl: 'https://relay.example.invalid/ds' } },
+    runtimeKeys: {},
+  });
+  assert.equal(providers.deepseek.compat.supportsDeveloperRole, false);
+  assert.equal(providers.deepseek.compat.maxTokensField, 'max_completion_tokens');
+}));
 
-test('writeProvidersConfig: explicit basePath overrides default /<name>', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-models-'));
-  try {
-    const modelsPath = path.join(tmpDir, 'models.json');
-    writeProvidersConfig(
-      [{ name: 'deepseek', basePath: '/deepseek/anthropic' }],
-      'http://127.0.0.1:9880',
-      { modelsPath },
-    );
-    const data = JSON.parse(fs.readFileSync(modelsPath, 'utf-8'));
-    assert.equal(data.providers.deepseek.baseUrl, 'http://127.0.0.1:9880/deepseek/anthropic');
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
-});
+test('writeProviderCatalog: fields beyond baseUrl on an override pass through', withAgentDir((agentDir) => {
+  const modelOverrides = { 'deepseek-v4-flash': { maxTokens: 256 } };
+  const providers = writeAndRead(agentDir, {
+    providers: { deepseek: { baseUrl: 'https://relay.example.invalid/ds', modelOverrides } },
+    runtimeKeys: {},
+  });
+  assert.deepEqual(providers.deepseek.modelOverrides, modelOverrides);
+  assert.equal(providers.deepseek.apiKey, undefined);
+}));
 
-test('writeProvidersConfig: atomic — leaves no .tmp files on success', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-models-'));
-  try {
-    const modelsPath = path.join(tmpDir, 'models.json');
-    writeProvidersConfig([{ name: 'anthropic' }], 'http://127.0.0.1:9880', { modelsPath });
-    const files = fs.readdirSync(tmpDir);
-    const tmpFiles = files.filter(f => f.includes('.tmp.'));
-    assert.equal(tmpFiles.length, 0, `unexpected tmp files: ${tmpFiles.join(',')}`);
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
-});
+test('readRuntimeKeys: a missing or malformed file yields no keys', withAgentDir((agentDir) => {
+  assert.deepEqual(readRuntimeKeys(agentDir), {});
+  fs.writeFileSync(path.join(agentDir, 'runtime-keys.json'), '{not json');
+  assert.deepEqual(readRuntimeKeys(agentDir), {});
+  fs.writeFileSync(path.join(agentDir, 'runtime-keys.json'), JSON.stringify({ a: 'sk-fake', b: '', c: 7 }));
+  assert.deepEqual(readRuntimeKeys(agentDir), { a: 'sk-fake' });
+}));
 
-test('writeProvidersConfig: deepseek gets compat.supportsDeveloperRole=false (gateway hides deepseek.com so PI cannot auto-detect)', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-models-'));
-  try {
-    const modelsPath = path.join(tmpDir, 'models.json');
-    writeProvidersConfig([{ name: 'deepseek' }], 'http://127.0.0.1:9880', { modelsPath });
-    const data = JSON.parse(fs.readFileSync(modelsPath, 'utf-8'));
-    assert.equal(data.providers.deepseek.compat.supportsDeveloperRole, false);
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
-});
-
-test('writeProvidersConfig: emits an exact per-model output cap without an api key', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-models-'));
-  try {
-    const modelsPath = path.join(tmpDir, 'models.json');
-    writeProvidersConfig(
-      [{ name: 'deepseek', modelOverrides: {
-        'deepseek-v4-flash': { maxTokens: 256 },
-      } }],
-      'http://127.0.0.1:9880',
-      { modelsPath },
-    );
-    const data = JSON.parse(fs.readFileSync(modelsPath, 'utf-8'));
-    assert.deepEqual(data.providers.deepseek.modelOverrides, {
-      'deepseek-v4-flash': { maxTokens: 256 },
-    });
-    assert.equal(data.providers.deepseek.apiKey, undefined);
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
-});
-
-// ─── buildProviderOverrides: routing-driven override set ────────
-// The set of providers whose baseUrl is overridden to the gateway is driven by what the
-// spawn actually uses (current provider) UNION what PI reports having credentials for
-// (discovered) — NOT by discovery alone. This lets a profile route through the gateway even
-// when PI has no direct credentials (gateway injects managed keys).
-
-test('buildProviderOverrides: unions discovered providers with the current provider', () => {
-  const out = buildProviderOverrides(['deepseek', 'qwen-local'], 'anthropic', null);
-  const names = out.map(o => o.name).sort();
-  assert.deepEqual(names, ['anthropic', 'deepseek', 'qwen-local']);
-});
-
-test('buildProviderOverrides: does not duplicate when current provider is already discovered', () => {
-  const out = buildProviderOverrides(['deepseek'], 'deepseek', null);
-  assert.equal(out.length, 1);
-  assert.equal(out[0].name, 'deepseek');
-});
-
-test('buildProviderOverrides: applies gatewayPath as basePath to the current provider', () => {
-  const out = buildProviderOverrides(['deepseek'], 'anthropic', '/deepseek-anthropic');
-  const a = out.find(o => o.name === 'anthropic');
-  assert.equal(a?.basePath, '/deepseek-anthropic');
-});
-
-test('buildProviderOverrides: gatewayPath overrides default path even when current provider was discovered', () => {
-  const out = buildProviderOverrides(['deepseek'], 'deepseek', '/deepseek/anthropic');
-  assert.equal(out.length, 1);
-  assert.equal(out[0].basePath, '/deepseek/anthropic');
-});
-
-test('buildProviderOverrides: current provider alone when discovery is empty (gateway-managed creds)', () => {
-  const out = buildProviderOverrides([], 'anthropic', null);
-  assert.deepEqual(out.map(o => o.name), ['anthropic']);
-});
+test('applyRuntimeKeys: installs every written key on the runtime', withAgentDir(async (agentDir) => {
+  writeProviderCatalog(
+    { providers: {}, runtimeKeys: { deepseek: 'sk-fake-1', 'my-vllm': 'sk-fake-2' } },
+    { agentDir, oauthProviders: NO_OAUTH },
+  );
+  const installed: Array<[string, string]> = [];
+  await applyRuntimeKeys({ setRuntimeApiKey: async (provider, key) => { installed.push([provider, key]); } }, agentDir);
+  assert.deepEqual(installed.sort(), [['deepseek', 'sk-fake-1'], ['my-vllm', 'sk-fake-2']]);
+}));
 
 // ─── ensureAuthVisible: symlink user's PI auth.json into cortex-private dir ───
 

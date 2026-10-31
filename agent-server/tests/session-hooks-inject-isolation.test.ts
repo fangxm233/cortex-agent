@@ -10,7 +10,7 @@ import {
   type InjectDeps,
 } from '../src/domain/sessions/session-hooks.js';
 
-const selection = { backend: 'claude' as const, provider: null, model: 'opus', thinking: 'high', mode: 'plan' };
+const selection = { backend: 'claude' as const, provider: null, model: 'opus', thinking: 'high', connection: 'subscription' };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 

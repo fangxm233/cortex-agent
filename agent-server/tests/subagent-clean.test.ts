@@ -138,7 +138,7 @@ test('a clean Claude child runs in its workspace under the clean policy, the wor
     task: task({ clean: true }), role: { systemPrompt: 'ROLE', tools: null }, cwd: '/tmp/work',
     workspace: '/srv/workspaces/sub-r-0', parent: { backend: 'claude', channel: 'web:1' },
   } as any;
-  const config = { model: 'm', backend: 'claude', mode: 'plan', provider: null, thinking: null } as any;
+  const config = { model: 'm', backend: 'claude', connection: 'subscription', provider: null, thinking: null } as any;
   const built = runnerTest.claudeChildRequest(request, config);
   assert.equal(built.cwd, '/srv/workspaces/sub-r-0');
   assert.equal(built.policy.clean, true);

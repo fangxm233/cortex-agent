@@ -15,7 +15,7 @@ beforeAll(async () => { tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortex
 afterAll(async () => { await fs.rm(tmpDir, { recursive: true, force: true }); });
 let index = 0;
 function config(model = 'opus'): ModelsFile {
-  return { default: { backend: 'claude', model, provider: null, thinking: null, mode: 'plan' }, favorites: [] };
+  return { default: { backend: 'claude', model, provider: null, thinking: null, connection: 'subscription' }, favorites: [] };
 }
 async function createRepo() {
   const filePath = path.join(tmpDir, `models-${index++}.json`);
@@ -105,4 +105,12 @@ test('explicit write invalidation advances revision before the watcher debounce'
   repo.invalidate();
   expect(getModelsConfigRevision()).toBeGreaterThan(revision);
   expect(repo.readSync().default.model).toBe('new-default');
+});
+
+test('a default stored by gateway mode is read as its connection', async () => {
+  const file = path.join(tmpDir, 'legacy-models.json');
+  const legacy = { backend: 'pi', provider: 'deepseek', model: 'flash', thinking: 'off', mode: 'trial' };
+  await fs.writeFile(file, JSON.stringify({ default: legacy, favorites: [] }));
+  const { mode: _mode, ...rest } = legacy;
+  expect(new ModelsRepo(file).readSync().default).toEqual({ ...rest, connection: null });
 });

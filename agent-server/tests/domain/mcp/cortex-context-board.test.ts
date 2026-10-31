@@ -6,17 +6,18 @@ import { resolveCortexContext, toolContextFromEnv } from '../../../src/domain/mc
 
 const BOARD = { id: 'b1', title: 'Ship it', dir: '/ctx/boards/ship-it' };
 
-test('context exposes the materialized selection and ignores legacy profile env', async () => {
+test('context exposes the materialized selection and ignores legacy profile and mode env', async () => {
   const ctx = toolContextFromEnv({
     CORTEX_PROFILE: 'obsolete', CORTEX_BACKEND: 'pi', CORTEX_MODEL: 'v4',
-    CORTEX_PROVIDER: 'deepseek', CORTEX_THINKING: 'high', CORTEX_MODE: 'deepseek',
+    CORTEX_PROVIDER: 'deepseek', CORTEX_THINKING: 'high', CORTEX_MODE: 'deepseek', CORTEX_CONNECTION: 'stray',
   });
-  assert.deepEqual(ctx.selection, { backend: 'pi', provider: 'deepseek', model: 'v4', thinking: 'high', mode: 'deepseek' });
+  assert.deepEqual(ctx.selection, { backend: 'pi', provider: 'deepseek', model: 'v4', thinking: 'high', connection: null });
   const scope = await resolveCortexContext(ctx);
   assert.equal(scope.backend, 'pi');
   assert.equal(scope.model, 'v4');
   assert.equal(scope.thinking, 'high');
-  assert.equal(scope.mode, 'deepseek');
+  assert.equal(scope.connection, null);
+  assert.equal(Object.hasOwn(scope, 'mode'), false);
   assert.equal(Object.hasOwn(scope, 'profile'), false);
   assert.equal(Object.hasOwn(ctx, 'profile'), false);
 });

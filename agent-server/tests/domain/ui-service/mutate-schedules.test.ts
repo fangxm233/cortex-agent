@@ -118,7 +118,7 @@ function makeUpdateSpy(task: ScheduleTask | null): UpdateSpy {
   return { calls, scheduler };
 }
 
-const selection = { backend: 'claude' as const, provider: null, model: 'haiku', thinking: null, mode: 'plan' };
+const selection = { backend: 'claude' as const, provider: null, model: 'haiku', thinking: null, connection: 'subscription' };
 const dailyTask = {
   id: 'sch_d', type: 'daily' as const, message: 'digest', projectId: 'proj1', selection,
   time: '09:00', createdAt: 1_700_000_000_000, nextRun: 1_700_000_060_000, lastRun: null,

@@ -19,7 +19,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 /** The builder must pass the selected engine through untouched. */
 function selection(model: string): EngineSelection {
-  return { model, backend: 'claude', mode: 'plan', provider: null, thinking: null };
+  return { model, backend: 'claude', connection: 'subscription', provider: null, thinking: null };
 }
 
 const FIXED = '00000000-0000-4000-8000-000000000000';

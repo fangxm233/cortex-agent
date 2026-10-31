@@ -29,6 +29,8 @@ import { roleSurfaceFromSpec } from '../../../src/domain/benchmark/role-surface.
 import { startAttempt, type RunAttempt } from '../../../src/domain/runs/attempt.js';
 import { engines, SessionEngines } from '../../../src/domain/runs/engines.js';
 import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
+import type { ClaudeRoute } from '../../../src/domain/connections/claude-route.js';
+import { removeConnection, upsertConnection } from '../../../src/core/connections-file.js';
 import type { RunRequest } from '../../../src/domain/runs/request.js';
 import {
   makeFakeRuntimeFactory, type FakeRuntimeFactory,
@@ -36,8 +38,8 @@ import {
 import { attemptOf, runRequestFixture } from '../../run-request-fixture.js';
 
 /** The Anthropic route one attempt resolved; only the host of it is ever attested. */
-const PROXY_ROUTE = { ANTHROPIC_BASE_URL: 'http://proxy.invalid' };
-const TRIAL_ROUTE = { ANTHROPIC_BASE_URL: 'http://proxy.invalid/m/trial/anthropic' };
+const PROXY_ROUTE: ClaudeRoute = { connection: 'trial', baseUrl: 'http://proxy.invalid', sets: {}, unsets: [] };
+const TRIAL_ROUTE: ClaudeRoute = { ...PROXY_ROUTE, baseUrl: 'http://proxy.invalid/relay/anthropic' };
 
 const SHA = 'a'.repeat(64);
 let root: string;
@@ -116,7 +118,7 @@ function selection(backend: Backend): EngineSelection {
   return {
     model: backend === 'claude' ? 'claude-fixture' : 'deepseek-fixture',
     backend,
-    mode: 'trial',
+    connection: backend === 'claude' ? 'trial' : null,
     provider: backend === 'claude' ? null : 'deepseek',
     thinking: backend === 'claude' ? 'high' : 'off',
   };
@@ -260,7 +262,8 @@ for (const backend of ['claude', 'pi'] as const) {
     assert.ok(record);
     assert.equal(record.schema_version, 'cortex-production-attempt-identity/5');
     assert.equal(record.thinking, selected.thinking);
-    assert.equal(record.mode, selected.mode);
+    // The evidence keeps its `mode` field, filled with the route name: the connection or PI provider.
+    assert.equal(record.mode, backend === 'claude' ? 'trial' : 'deepseek');
     assert.equal('profile_name' in record, false);
     assert.equal(record.trial_id, 'trial-production-1');
     assert.equal(record.root_run_id, 'root-production-1');
@@ -270,7 +273,8 @@ for (const backend of ['claude', 'pi'] as const) {
     assert.equal(record.execution_id, executionId);
     assert.equal(record.session_id, DIRECT.sessionId);
     assert.equal(record.bundle_manifest_hash, SHA);
-    const routeHost = backend === 'claude' ? 'proxy.invalid' : '127.0.0.1:9880';
+    // PI reaches the provider at PI's own URL: no connection overrides it, so no host is attested.
+    const routeHost = backend === 'claude' ? 'proxy.invalid' : null;
     assert.equal(record.model_execution_identity_hash, computeModelExecutionIdentityHash({
       backend, requestedModel: selected.model,
       modelAliasPolicy: { policy: 'exact' }, providerProtocol: selected.provider,
@@ -299,8 +303,8 @@ test('a benchmark PI request carries its exact frozen cap into its session', asy
   const handle = start('pi', request, selected, 'exec-capped');
   await finish(handle, 'pi');
   assert.equal(handle.spec.model.benchmarkMaxOutputTokens, 8192);
-  const catalog = JSON.parse(fs.readFileSync(path.join(root, 'pi-agent', 'models.json'), 'utf8'));
-  assert.equal(catalog.providers.deepseek.modelOverrides, undefined);
+  // The cap travels on the session only: this adapter has no catalog source, so none is written.
+  assert.equal(fs.existsSync(path.join(root, 'pi-agent', 'models.json')), false);
   assert.equal(piFake.requests[0].benchmarkMaxOutputTokens, 8192);
   assert.equal(getProductionAttemptIdentity('exec-capped')?.schema_version, 'cortex-production-attempt-identity/5');
 });
@@ -399,7 +403,7 @@ test('fails closed before spawn for missing identity inputs and hot reload drift
   assert.equal(claudeSpawns, 0);
 });
 
-test('hashes the resolved Claude gateway route', async () => {
+test('hashes the resolved Claude connection route', async () => {
   const evidenceContext = initialize('claude');
   const selected = selection('claude');
   const request = makeRequest('claude', DIRECT, selected, {
@@ -407,16 +411,36 @@ test('hashes the resolved Claude gateway route', async () => {
     processSpawner: claudeSpawner(), sessionKey: 'route',
   });
   await finish(start('claude', request, selected, 'exec-route', {
-    ANTHROPIC_BASE_URL: 'http://gateway-route.invalid/m/trial/anthropic',
+    ...PROXY_ROUTE, baseUrl: 'http://relay-route.invalid/relay/anthropic',
   }), 'claude');
   assert.equal(getProductionAttemptIdentity('exec-route')?.model_execution_identity_hash,
     computeModelExecutionIdentityHash({
       backend: 'claude', requestedModel: selected.model,
       modelAliasPolicy: { policy: 'exact' }, providerProtocol: selected.provider,
-      configuredRouteBaseHost: 'gateway-route.invalid', claudeCliVersion: 'claude-fixture-1',
+      configuredRouteBaseHost: 'relay-route.invalid', claudeCliVersion: 'claude-fixture-1',
       cliName: 'claude', cliVersion: 'claude-fixture-1',
       reasoningEffort: selected.thinking, maxOutputTokens: null,
     }));
+});
+
+test('hashes the base URL host of a PI provider connection', async () => {
+  upsertConnection({ id: 'deepseek', backend: 'pi', provider: 'deepseek', baseUrl: 'http://pi-relay.invalid/v1' });
+  try {
+    const evidenceContext = initialize('pi');
+    const selected = selection('pi');
+    const request = makeRequest('pi', DIRECT, selected, { evidenceContext, sessionKey: 'pi-route' });
+    await finish(start('pi', request, selected, 'exec-pi-route'), 'pi');
+    assert.equal(getProductionAttemptIdentity('exec-pi-route')?.model_execution_identity_hash,
+      computeModelExecutionIdentityHash({
+        backend: 'pi', requestedModel: selected.model,
+        modelAliasPolicy: { policy: 'exact' }, providerProtocol: selected.provider,
+        configuredRouteBaseHost: 'pi-relay.invalid', claudeCliVersion: null,
+        cliName: 'pi', cliVersion: 'pi-fixture-1',
+        reasoningEffort: selected.thinking, maxOutputTokens: null,
+      }));
+  } finally {
+    removeConnection({ backend: 'pi', id: 'deepseek' });
+  }
 });
 
 for (const backend of ['claude', 'pi'] as const) {
@@ -451,10 +475,9 @@ test('per-spawn route credentials reach the child env but never the attestation'
   const evidenceContext = initialize('claude');
   const selected = selection('claude');
   const pathCase = sessionCase('route-secret');
-  const route = {
+  const route: ClaudeRoute = {
     ...TRIAL_ROUTE,
-    ANTHROPIC_API_KEY: 'sk-must-not-be-attested',
-    CLAUDE_CODE_OAUTH_TOKEN: 'oauth-must-not-be-attested',
+    sets: { ANTHROPIC_API_KEY: 'sk-must-not-be-attested', CLAUDE_CODE_OAUTH_TOKEN: 'oauth-must-not-be-attested' },
   };
   const request = makeRequest('claude', pathCase, selected, {
     evidenceContext, identityDirective: '', tools: 'Read',

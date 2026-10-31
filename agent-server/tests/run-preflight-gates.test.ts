@@ -58,7 +58,7 @@ function collector(): { observer: RunObserver; events: RunEvent[] } {
 // --- pre-flight evidence gate ---
 
 test('evidence-enabled preflight rate limit creates no attempt evidence and keeps the refusal result', async (t) => {
-  const rl = await home.initThrottle(['plan']);
+  const rl = await home.initThrottle(['subscription']);
   const identity = await import('../src/domain/benchmark/production-attempt-identity.js');
   const journals = await import('../src/domain/benchmark/production-attempt-journal.js');
   const root = mkdtempSync(path.join(os.tmpdir(), 'run-preflight-evidence-'));
@@ -100,15 +100,15 @@ test('evidence-enabled preflight rate limit creates no attempt evidence and keep
 
 // --- the skip gate and its notice ---
 
-test('a single-attempt run skips the engine when its mode is rate-limited and narrates the error', async (t) => {
-  const rl = await home.initThrottle(['plan']);
+test('a single-attempt run skips the engine when its connection is rate-limited and narrates the error', async (t) => {
+  const rl = await home.initThrottle(['subscription']);
   t.onTestFinished(() => rl._testReset());
   const { observer, events } = collector();
   const run = startRun(requestFor('scan'), [observer]);
   const result = await run.settled;
 
   assert.equal(result.rateLimited, true);
-  assert.ok(result.rateLimitMessage?.includes('plan'));
+  assert.ok(result.rateLimitMessage?.includes('subscription'));
   assert.equal(result.rateLimitProvider, 'anthropic');
   assert.equal(result.sessionId, null);
   // No engine was spawned: the only prose is the synthesized terminal card.
@@ -122,14 +122,14 @@ test('a single-attempt run skips the engine when its mode is rate-limited and na
 });
 
 test('a throttled background selection terminates without a spawn or transition', async (t) => {
-  const rl = await home.initThrottle(['plan', 'api']);
+  const rl = await home.initThrottle(['subscription', 'api']);
   t.onTestFinished(() => rl._testReset());
   const { observer, events } = collector();
-  const run = startRun(requestFor('plan'), [observer]);
+  const run = startRun(requestFor('subscription'), [observer]);
   const result = await run.settled;
 
   assert.equal(result.rateLimited, true);
-  assert.ok(result.rateLimitMessage?.includes('plan'));
+  assert.ok(result.rateLimitMessage?.includes('subscription'));
   assert.equal(result.rateLimitProvider, 'anthropic');
   assert.equal(result.sessionId, null);
   assert.equal(run.status, 'rate-limited');
@@ -161,7 +161,7 @@ function attemptOutcome(foreground: Promise<AgentResult>): RunAttempt {
 
 test('the run stamps the attempt provider on an unattributed result and on a retryable error', async () => {
   home.rl._testReset();
-  const selection = { ...getDefaultSelection(), backend: 'pi' as const, provider: 'provider-z', mode: 'provider-z' };
+  const selection = { ...getDefaultSelection(), backend: 'pi' as const, provider: 'provider-z', connection: null };
   const request = (): RunRequest => requestFor('scan', { selection });
 
   const baseResult: AgentResult = {

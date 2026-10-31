@@ -31,7 +31,7 @@ import { MockAdapter, MockOutputStream } from '../../../src/platform/testing.js'
 import { runRequestFixture } from '../../run-request-fixture.js';
 import { setChannelSelection } from '../../../src/domain/agents/config.js';
 import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
-const selection: EngineSelection = { backend: 'claude', provider: null, model: 'session-model', thinking: 'high', mode: 'session-route' };
+const selection: EngineSelection = { backend: 'claude', provider: null, model: 'session-model', thinking: 'high', connection: 'session-route' };
 
 const CAPTURE = path.join(HOOKS_DIR, 'hook-payload.json');
 const CAPTURE_SCRIPT = [
@@ -63,7 +63,7 @@ async function register(s: ReturnType<typeof freshSession>, backendSessionId: st
     selection,
   });
   await sessionStore.bindChannel(s.channel, s.trackId);
-  setChannelSelection(s.channel, { ...selection, model: 'wrong-channel-model', thinking: 'low', mode: 'wrong-route' });
+  setChannelSelection(s.channel, { ...selection, model: 'wrong-channel-model', thinking: 'low', connection: 'wrong-route' });
 }
 
 function writeHooks(entries: HookEntry[]): void {

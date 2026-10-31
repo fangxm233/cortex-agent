@@ -68,13 +68,13 @@ test('the Claude launch of a clean spec drops the project setting source and git
 });
 
 test('the PI request of a clean spec loads no context files and names its workspace for children', () => {
-  const spec = buildEngineSpec(cleanRequest(), attemptFixture({ backend: 'pi', provider: 'deepseek', model: 'flash', mode: 'deepseek' }));
+  const spec = buildEngineSpec(cleanRequest(), attemptFixture({ backend: 'pi', provider: 'deepseek', model: 'flash', connection: null }));
   const inputs = { agentDir: '/srv/pi', sessionDir: '/srv/pi/sessions', sessionPath: null, cwd: WORKSPACE, streamDeltas: false };
   const request = buildSessionRequest(spec, inputs);
   assert.equal(request.noContextFiles, true);
   assert.equal(request.env[PI_CLEAN_WORKSPACE_ENV], WORKSPACE);
 
-  const plain = buildSessionRequest(buildEngineSpec(runRequestFixture({ channel: 'web:clean' }), attemptFixture({ backend: 'pi', provider: 'deepseek', model: 'flash', mode: 'deepseek' })), {
+  const plain = buildSessionRequest(buildEngineSpec(runRequestFixture({ channel: 'web:clean' }), attemptFixture({ backend: 'pi', provider: 'deepseek', model: 'flash', connection: null })), {
     ...inputs, cwd: path.dirname(WORKSPACE),
   });
   assert.equal('noContextFiles' in plain, false);

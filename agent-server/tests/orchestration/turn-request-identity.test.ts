@@ -48,10 +48,10 @@ import { sessionStore, type Session } from '../../src/store/session-registry-rep
 import { sessionUse } from '../../src/domain/sessions/session-use.js';
 import * as sessions from '../../src/domain/sessions/session.js';
 import { buildEngineSpec } from '../../src/domain/runs/engine-spec.js';
-import { requestRoute } from '../../src/domain/runs/config-resolver.js';
+import { resolveRunRoute } from '../../src/domain/runs/config-resolver.js';
+import { upsertConnection } from '../../src/core/connections-file.js';
 import { engines } from '../../src/domain/runs/engines.js';
 import type { RunRequest } from '../../src/domain/runs/request.js';
-import { _testSetHealthy } from '../../src/domain/costs/gateway-manager.js';
 import type { EngineSession, EngineSpec } from '../../src/agent-adapter/types.js';
 import { compactSessionContext } from '../../src/orchestration/session-compact.js';
 import { claudeSpecIdentity } from '../../src/agent-adapter/claude/adapter.js';
@@ -67,12 +67,15 @@ const SESSION: Session = {
   sessionId: 'track-lead', backendSessionId: 'backend-lead', projectId: 'general',
   channel: CHANNEL, backend: 'claude', kind: 'local', origin: 'direct',
   createdAt: '2026-01-01T00:00:00.000Z', lastUsedAt: '2026-01-01T00:00:00.000Z',
-  label: null, selection: { ...CLAUDE_SELECTION, thinking: 'high', mode: 'plan' },
+  label: null, selection: { ...CLAUDE_SELECTION, thinking: 'high', connection: 'subscription' },
 } as Session;
 
 beforeAll(() => {
   seedSelections();
-  _testSetHealthy(true);
+  // A second Claude connection, so a turn on another route is a different engine.
+  upsertConnection({
+    id: 'api', backend: 'claude', label: 'API', authStyle: 'x-api-key', key: 'sk-ant-fake', billing: 'metered',
+  });
   fs.writeFileSync(path.join(CONFIG_DIR, 'settings.json'), JSON.stringify({ teamEnabled: true }));
   resetSettingsForTests();
 });
@@ -88,7 +91,7 @@ beforeEach(() => {
 
 /** The spec is built directly from the request's materialized selection. */
 function runSpec(request: RunRequest): EngineSpec {
-  return buildEngineSpec(request, request.selection, { route: requestRoute(request, request.selection) });
+  return buildEngineSpec(request, request.selection, { route: resolveRunRoute(request.selection) });
 }
 
 async function identityOf(input: TurnInput): Promise<string> {
@@ -164,7 +167,7 @@ test('manual compaction uses the session selection instead of a stale pooled eng
   const userTurn = await userTurnIdentity();
   const { request } = await captured.at(-1)!.prepareRequest(captured.at(-1)!.session);
   expect(request.selection).toEqual(SESSION.selection);
-  const staleTurn = claudeSpecIdentity(runSpec({ ...request, selection: { ...request.selection, mode: 'api' } }));
+  const staleTurn = claudeSpecIdentity(runSpec({ ...request, selection: { ...request.selection, connection: 'api' } }));
   expect(staleTurn).not.toBe(userTurn);
   const live = {
     backend: 'claude', identity: staleTurn, backendSessionId: SESSION.backendSessionId, isAlive: () => true,

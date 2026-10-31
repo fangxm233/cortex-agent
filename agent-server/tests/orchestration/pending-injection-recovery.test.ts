@@ -14,7 +14,7 @@ function record(id = 'pin-1'): PendingInjectionRecord {
     channel: 'web:sess-1',
     messageId: `web-${id}`,
     backend: 'claude',
-    selection: { backend: 'claude', model: 'opus', provider: null, thinking: null, mode: 'plan' },
+    selection: { backend: 'claude', model: 'opus', provider: null, thinking: null, connection: 'subscription' },
     text: 'change direction',
     attachments: [{ name: 'note.txt', path: 'workspace/attachments/note.txt', size: 4, mimeType: 'text/plain', type: 'file' }],
     agentMessage: '[context]\nchange direction',

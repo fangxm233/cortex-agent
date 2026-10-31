@@ -5,6 +5,7 @@ import { AsyncMutex } from '@core/async-mutex.js';
 import { createLogger } from '@core/log.js';
 import { createFileWatchMonitor } from '@core/resilient-watch.js';
 import { Icons } from '@core/icons.js';
+import { withLegacyConnection } from '@core/connections-file.js';
 import type { ModelsFile } from '@domain/agents/engine-selection.js';
 
 const log = createLogger('models-repo');
@@ -15,13 +16,18 @@ export const modelsWriteLock = new AsyncMutex();
 
 export function getModelsConfigRevision(): number { return modelsConfigRevision; }
 
+function parseModelsFile(raw: string): ModelsFile {
+  const parsed = JSON.parse(raw) as ModelsFile;
+  return parsed?.default ? { ...parsed, default: withLegacyConnection(parsed.default) } : parsed;
+}
+
 export class ModelsRepo {
   private cache: ModelsFile | null = null;
 
   constructor(private readonly filePath: string = MODELS_FILE) {}
 
   readSync(): ModelsFile {
-    if (!this.cache) this.cache = JSON.parse(readFileSync(this.filePath, 'utf8')) as ModelsFile;
+    if (!this.cache) this.cache = parseModelsFile(readFileSync(this.filePath, 'utf8'));
     return this.cache;
   }
 
@@ -37,8 +43,7 @@ export class ModelsRepo {
 
   /** Parse before replacing the cache: a failed reload keeps the last usable snapshot. */
   reload(): void {
-    const parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as ModelsFile;
-    this.cache = parsed;
+    this.cache = parseModelsFile(readFileSync(this.filePath, 'utf8'));
   }
 }
 

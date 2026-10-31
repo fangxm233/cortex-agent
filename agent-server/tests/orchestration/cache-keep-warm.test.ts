@@ -21,7 +21,7 @@ function session(overrides: Partial<Session> = {}): Session {
     projectId: 'nimbus',
     channel: 'web:track-1',
     backend: 'claude',
-    selection: { backend: 'claude', provider: null, model: 'claude-x', thinking: null, mode: 'plan' },
+    selection: { backend: 'claude', provider: null, model: 'claude-x', thinking: null, connection: 'subscription' },
     contextUsage: {
       usedTokens: 165_000, contextWindow: 1_000_000, percent: 16.5, accuracy: 'exact',
       updatedAt: '2026-10-19T19:00:00.000Z',
@@ -53,7 +53,7 @@ function makeDeps(sessions: Session[], clock: Clock, overrides: Partial<KeepWarm
   const log: Log = { refreshed: [], queued: [], noted: [], costs: [] };
   const deps: KeepWarmDeps = {
     listSessions: async () => sessions,
-    settings: () => ({ hours: 6, subscriptionModes: ['plan'] }),
+    settings: () => ({ hours: 6, subscriptionConnections: ['subscription'] }),
     selection: (s) => s.selection!,
     transcriptPath: (id) => `/transcripts/${id}.jsonl`,
     lastActivity: (p) => clock.active[idOf(p)] ?? null,
@@ -82,7 +82,7 @@ describe('sweepCacheKeepWarm', () => {
     assert.deepEqual(log.queued, ['web:track-1']);
     assert.deepEqual(log.noted, [['backend-1', NOW]]);
     assert.deepEqual(log.costs, [{
-      project: 'nimbus', trigger: 'cache-refresh', cost_usd: 0.041, backend: 'claude', mode: 'plan',
+      project: 'nimbus', trigger: 'cache-refresh', cost_usd: 0.041, backend: 'claude', mode: 'subscription',
       source: 'estimate', input_tokens: 2, output_tokens: 4, prompt_tokens: 166_199,
       cache_read_tokens: 165_180, cache_creation_tokens: 1_017, provider: 'anthropic', model: 'claude-x',
       session_id: 'track-1',
@@ -91,7 +91,7 @@ describe('sweepCacheKeepWarm', () => {
 
   test('does nothing when the setting is 0', async () => {
     const { deps, log } = makeDeps([session()], { active: { 'backend-1': NOW - 55 * MIN } }, {
-      settings: () => ({ hours: 0, subscriptionModes: ['plan'] }),
+      settings: () => ({ hours: 0, subscriptionConnections: ['subscription'] }),
     });
     assert.equal(await sweepCacheKeepWarm(deps), 0);
     assert.deepEqual(log.refreshed, []);
@@ -105,12 +105,12 @@ describe('sweepCacheKeepWarm', () => {
       contextUsage: { ...session().contextUsage!, usedTokens: 99_999 },
     });
     const noHistory = session({ sessionId: 'fresh', backendSessionId: null });
-    const apiMode = session({
+    const apiConnection = session({
       sessionId: 'api', backendSessionId: 'api',
-      selection: { backend: 'claude', provider: null, model: 'claude-x', thinking: null, mode: 'api' },
+      selection: { backend: 'claude', provider: null, model: 'claude-x', thinking: null, connection: 'api' },
     });
     const noTranscript = session({ sessionId: 'gone', backendSessionId: 'gone' });
-    const { deps, log } = makeDeps([pi, small, noHistory, apiMode, noTranscript], {
+    const { deps, log } = makeDeps([pi, small, noHistory, apiConnection, noTranscript], {
       active: { pi: due, small: due, api: due },
     });
     assert.equal(await sweepCacheKeepWarm(deps), 0);
@@ -170,7 +170,7 @@ describe('sweepCacheKeepWarm', () => {
     const beyond = makeDeps([session()], { active: { 'backend-1': NOW - 6 * 60 * MIN - 1 }, touched });
     assert.equal(await sweepCacheKeepWarm(beyond.deps), 0);
     const shorterCap = makeDeps([session()], { active: { 'backend-1': NOW - 2 * 60 * MIN }, touched }, {
-      settings: () => ({ hours: 1.5, subscriptionModes: ['plan'] }),
+      settings: () => ({ hours: 1.5, subscriptionConnections: ['subscription'] }),
     });
     assert.equal(await sweepCacheKeepWarm(shorterCap.deps), 0);
   });

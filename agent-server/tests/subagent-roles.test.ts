@@ -30,7 +30,7 @@ function role(overrides: Partial<AgentRole> = {}): AgentRole {
 
 // --- frontmatter ---
 
-test('parseRole reads the unified fields, including backend and mode', () => {
+test('parseRole reads the unified fields, including backend, and drops the retired mode key', () => {
   const parsed = parseRole([
     '---',
     'name: scout',
@@ -49,7 +49,6 @@ test('parseRole reads the unified fields, including backend and mode', () => {
     tools: ['read', 'grep'],
     model: 'deepseek/deepseek-chat:high',
     backend: 'pi',
-    mode: 'deepseek',
     systemPrompt: 'Go look.',
   });
 });
@@ -59,7 +58,6 @@ test('parseRole accepts a YAML list for tools and leaves the optional fields und
   assert.deepEqual(parsed.tools, ['read', 'bash']);
   assert.equal(parsed.model, undefined);
   assert.equal(parsed.backend, undefined);
-  assert.equal(parsed.mode, undefined);
 });
 
 test('parseRole ignores a backend that is not a real one, rather than trusting it', () => {

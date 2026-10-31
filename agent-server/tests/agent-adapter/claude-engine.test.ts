@@ -310,9 +310,9 @@ test('Claude forwards rate_limit_event to the injected reporter, with no turn in
     onRateLimit: async (info, origin) => { seen.push({ info, origin }); },
   });
   const children: any[] = [];
-  const engine = adapter.open(specFor('engine-ratelimit', [], children, {
-    anthropicBaseUrl: 'http://127.0.0.1:9881/m/max20/anthropic',
-  }));
+  const spec = specFor('engine-ratelimit', [], children);
+  spec.route.connection = 'max20';
+  const engine = adapter.open(spec);
 
   const info = { rateLimitType: 'five_hour', utilization: 0.93, resetsAt: 1786160107 };
   // Staged directly on stdout with no prompt written: this is the case the plan's "emit a
@@ -322,7 +322,7 @@ test('Claude forwards rate_limit_event to the injected reporter, with no turn in
 
   assert.deepEqual(seen, [{
     info,
-    // `mode` is recovered from the gateway sub-path, exactly as the inline call did.
+    // `mode` is the connection the route was resolved for.
     origin: { provider: 'anthropic', displayName: 'Anthropic', mode: 'max20' },
   }]);
   await engine.close();

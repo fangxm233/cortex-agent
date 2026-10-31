@@ -47,13 +47,16 @@ import {
 import { startAttempt, type RunAttempt } from '../../../src/domain/runs/attempt.js';
 import { engines, SessionEngines } from '../../../src/domain/runs/engines.js';
 import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
+import type { ClaudeRoute } from '../../../src/domain/connections/claude-route.js';
 import type { RunRequest } from '../../../src/domain/runs/request.js';
 import {
   makeFakeRuntimeFactory, type FakeRuntimeFactory,
 } from '../../agent-adapter/pi-fake-runtime.js';
 import { attemptOf, runRequestFixture } from '../../run-request-fixture.js';
 
-const TRIAL_ROUTE = { ANTHROPIC_BASE_URL: 'http://proxy.invalid/m/trial/anthropic' };
+const TRIAL_ROUTE: ClaudeRoute = {
+  connection: 'trial', baseUrl: 'http://proxy.invalid/relay/anthropic', sets: {}, unsets: [],
+};
 const SHA = 'a'.repeat(64);
 
 let root: string;
@@ -123,7 +126,7 @@ function initialize(backend: Backend): ProductionBenchmarkEvidenceContext {
 
 function selection(backend: Backend): EngineSelection {
   return {
-    model: `${backend}-model`, backend, mode: 'trial',
+    model: `${backend}-model`, backend, connection: backend === 'claude' ? 'trial' : null,
     provider: backend === 'claude' ? null : 'deepseek', thinking: null,
   };
 }

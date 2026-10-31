@@ -237,3 +237,15 @@ export function connectionForLegacyMode(backend: unknown, mode: unknown): string
   if (backend !== 'claude' || typeof mode !== 'string' || !mode) return null;
   return mode === LEGACY_SUBSCRIPTION_MODE ? SUBSCRIPTION_CONNECTION : mode;
 }
+
+/**
+ * A stored selection in the current shape: one written before connections replaced gateway modes
+ * names the connection its `mode` stood for. Anything else comes back as it is. The startup
+ * migration converts what a home stores; read paths apply this too, so a home it does not convert
+ * (a sealed one) still loads.
+ */
+export function withLegacyConnection<T>(selection: T): T {
+  if (!isObject(selection) || !('mode' in selection) || 'connection' in selection) return selection;
+  const { mode, ...rest } = selection;
+  return { ...rest, connection: connectionForLegacyMode(rest.backend, mode) } as T;
+}

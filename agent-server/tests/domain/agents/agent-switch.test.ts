@@ -5,7 +5,7 @@ import { importWithFreshRegistry } from '../../helpers/fresh-module.js';
 
 const HOME = process.env.CORTEX_HOME!;
 const STATE = path.join(HOME, 'data/agent-state.json');
-const selection = { backend: 'pi', provider: 'deepseek', model: 'flash', thinking: 'xhigh', mode: 'deepseek' };
+const selection = { backend: 'pi', provider: 'deepseek', model: 'flash', thinking: 'xhigh', connection: null };
 let patches: unknown[] = [];
 vi.mock('@store/session-registry-repo.js', () => ({ sessionStore: {
   getBoundSessionId: async () => 'session-1',

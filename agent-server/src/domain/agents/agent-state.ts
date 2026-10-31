@@ -1,5 +1,6 @@
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
+import { withLegacyConnection } from '@core/connections-file.js';
 import { STORE_DIR } from '@core/paths.js';
 import { copySelection, validateEngineSelection, type EngineSelection } from './engine-selection.js';
 
@@ -20,7 +21,8 @@ function record(value: unknown): Record<string, unknown> {
     ? value as Record<string, unknown> : {};
 }
 
-function parseSelection(value: unknown): EngineSelection | null {
+function parseSelection(raw: unknown): EngineSelection | null {
+  const value = withLegacyConnection(raw);
   try {
     validateEngineSelection(value);
     return copySelection(value);

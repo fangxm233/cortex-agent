@@ -24,9 +24,9 @@ const DISPLAY_NAMES: Record<string, string> = {
 
 /**
  * Resolve the two keys the dispatch gate looks a throttle up by. `configIsRateLimited` asks
- * `isProviderModeRateLimited(resolveRateLimitProvider(config), rateLimitRoute(config))`, so a
- * reading filed under any other pair would be recorded and then never consulted. The provider
- * mirrors `resolveRateLimitProvider` (selection provider, else the backend name); the route is the
+ * `isProviderModeRateLimited(resolveRateLimitProvider(config), routeName(selection))`, so a reading
+ * filed under any other pair would be recorded and then never consulted. The provider mirrors
+ * `resolveRateLimitProvider` (selection provider, else the backend name); the route is the
  * selection's connection, and a PI selection — which names none — is throttled by its provider.
  */
 export function resolveQuotaSource(

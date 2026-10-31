@@ -1,3 +1,5 @@
+// Must stay first: the migrations under test resolve files under the OS home.
+import '../helpers/isolate-os-home.js';
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';

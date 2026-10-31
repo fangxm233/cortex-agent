@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { JsonRepository } from '@core/json-repository.js';
 import { STORE_DIR } from '@core/paths.js';
+import { withLegacyConnection } from '@core/connections-file.js';
 import type { EngineSelection } from '@domain/agents/engine-selection.js';
 
 export const SCHEDULES_FILE = path.join(STORE_DIR, 'schedules.json');
@@ -91,6 +92,7 @@ function makeMigrate(channelRegistryPath?: string): (raw: unknown) => SchedulesD
       const t = task as unknown as Record<string, unknown>;
       delete t.target;
       delete t.fallback;
+      if (t.selection) t.selection = withLegacyConnection(t.selection);
     }
     return data;
   };

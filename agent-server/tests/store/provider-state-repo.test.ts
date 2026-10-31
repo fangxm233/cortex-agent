@@ -1,3 +1,5 @@
+// Must stay first: the migrations under test resolve files under the OS home.
+import '../helpers/isolate-os-home.js';
 import { afterAll, afterEach, beforeAll, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -149,8 +151,10 @@ test('runMigrations moves legacy provider state and strips schedules idempotentl
 
   await runMigrations({ dataDir, storeDir, defaultsDir });
 
+  // The later connections step renames the subscription route `plan` to `subscription`.
+  const renamed = { providers: throttle.providers.map((entry) => ({ ...entry, modes: ['subscription'] })) };
   assert.deepEqual(await readJson(providerStateFile), {
-    rateLimitThrottle: throttle,
+    rateLimitThrottle: renamed,
     resumeQueue: resumes,
     providerUsage: [],
   });

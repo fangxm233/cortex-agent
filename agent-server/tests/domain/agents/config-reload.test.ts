@@ -6,13 +6,13 @@ import { importWithFreshRegistry } from '../../helpers/fresh-module.js';
 vi.mock('../../../src/agent-adapter/pi/discovery.js', () => ({ piProviderDiscovery: { peekModels: () => [] } }));
 
 const STATE = path.join(process.env.CORTEX_HOME!, 'data/agent-state.json');
-const claude = { backend: 'claude' as const, provider: null, model: 'opus', thinking: 'high', mode: 'plan' };
-const pi = { backend: 'pi' as const, provider: 'deepseek', model: 'flash', thinking: 'xhigh', mode: 'deepseek' };
+const claude = { backend: 'claude' as const, provider: null, model: 'opus', thinking: 'high', connection: 'subscription' };
+const pi = { backend: 'pi' as const, provider: 'deepseek', model: 'flash', thinking: 'xhigh', connection: null };
 const migrated = {
   channelSelections: { 'web:a': claude, 'slack:b': pi },
   modelMemory: {
-    '["claude",null,"opus"]': { thinking: 'high', mode: 'plan' },
-    '["pi","deepseek","flash"]': { thinking: 'xhigh', mode: 'deepseek' },
+    '["claude",null,"opus"]': { thinking: 'high', connection: 'subscription' },
+    '["pi","deepseek","flash"]': { thinking: 'xhigh', connection: null },
   },
   defaultAgent: 'main', channelAgents: { 'web:a': 'creative', 'slack:b': 'research' },
   selectionDefault: { ...pi, agentName: 'creative' },

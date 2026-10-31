@@ -4,10 +4,10 @@ import { modelsRepo } from '../../src/store/models-repo.js';
 import type { EngineSelection } from '../../src/domain/agents/engine-selection.js';
 
 export const CLAUDE_SELECTION: EngineSelection = {
-  backend: 'claude', provider: null, model: 'claude-opus-4-6', thinking: null, mode: 'plan',
+  backend: 'claude', provider: null, model: 'claude-opus-4-6', thinking: null, connection: 'subscription',
 };
 export const PI_SELECTION: EngineSelection = {
-  backend: 'pi', provider: 'deepseek', model: 'deepseek-chat', thinking: 'high', mode: 'deepseek',
+  backend: 'pi', provider: 'deepseek', model: 'deepseek-chat', thinking: 'high', connection: null,
 };
 
 /** Local boundary fixtures do not depend on the full-suite config bootstrap. */

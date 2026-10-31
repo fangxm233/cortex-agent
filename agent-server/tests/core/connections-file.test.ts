@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   connectionForLegacyMode, maskKey, parseConnections, readConnections, removeConnection,
-  upsertConnection, writeConnections, type StoredConnection,
+  upsertConnection, withLegacyConnection, writeConnections, type StoredConnection,
 } from '../../src/core/connections-file.js';
 
 const RELAY: StoredConnection = {
@@ -96,5 +96,18 @@ describe('connectionForLegacyMode', () => {
     expect(connectionForLegacyMode('claude', 'api')).toBe('api');
     expect(connectionForLegacyMode('claude', '')).toBeNull();
     expect(connectionForLegacyMode('pi', 'deepseek')).toBeNull();
+  });
+});
+
+describe('withLegacyConnection', () => {
+  it('reads a gateway-era selection in the connection shape and leaves current ones alone', () => {
+    const claude = { backend: 'claude', provider: null, model: 'opus', thinking: null };
+    expect(withLegacyConnection({ ...claude, mode: 'plan' })).toEqual({ ...claude, connection: 'subscription' });
+    expect(withLegacyConnection({ ...claude, mode: 'relay' })).toEqual({ ...claude, connection: 'relay' });
+    expect(withLegacyConnection({ backend: 'pi', provider: 'deepseek', model: 'm', thinking: 'off', mode: 'trial' }))
+      .toEqual({ backend: 'pi', provider: 'deepseek', model: 'm', thinking: 'off', connection: null });
+    const current = { ...claude, connection: 'api' };
+    expect(withLegacyConnection(current)).toBe(current);
+    expect(withLegacyConnection(null)).toBeNull();
   });
 });

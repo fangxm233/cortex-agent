@@ -18,7 +18,7 @@ function record(id: string, sessionId = 'sess-1'): PendingInjectionRecord {
     channel: `web:${sessionId}`,
     messageId: `web-${id}`,
     backend: 'claude',
-    selection: { backend: 'claude', provider: null, model: 'opus', thinking: 'high', mode: 'plan' },
+    selection: { backend: 'claude', provider: null, model: 'opus', thinking: 'high', connection: 'subscription' },
     text: `message ${id}`,
     createdAt: `2026-07-26T00:00:0${id.slice(-1)}.000Z`,
   };

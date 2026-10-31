@@ -2,7 +2,9 @@ import { engineSpecFixture } from '../../engine-spec-fixture.js';
 
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { test } from 'vitest';
 
 import { PIAdapter } from '../../../src/agent-adapter/pi/adapter.js';
@@ -15,20 +17,17 @@ import type { PIEngineSession } from '../../../src/agent-adapter/pi/engine.js';
 import { handleCreateAndSend } from '../../../src/domain/ui-service/mutate/sessions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 import { makeFakeRuntimeFactory } from '../../agent-adapter/pi-fake-runtime.js';
+import { upsertConnection } from '../../../src/core/connections-file.js';
+import { buildPiCatalog } from '../../../src/domain/connections/pi-catalog.js';
+import { readRuntimeKeys } from '../../../src/agent-adapter/pi/providers-config.js';
 
-test('fresh PI createAndSend responds and exposes the user event before slow discovery fails', async () => {
-  let rejectDiscovery!: (error: Error) => void;
-  let discoverySettled = false;
+test('fresh PI createAndSend responds and exposes the user event without consulting slow discovery', async () => {
   let scans = 0;
-  const slowDiscovery = new Promise<PiDiscoveredModel[]>((_, reject) => { rejectDiscovery = reject; });
+  // A scan that never answers: the spawn path writes its catalog from connections, not discovery.
   const discovery = createPIProviderDiscovery({
-    scan: async () => {
+    scan: () => {
       scans += 1;
-      try {
-        return await slowDiscovery;
-      } finally {
-        discoverySettled = true;
-      }
+      return new Promise<PiDiscoveredModel[]>(() => {});
     },
   });
   const timeline: string[] = [];
@@ -39,7 +38,13 @@ test('fresh PI createAndSend responds and exposes the user event before slow dis
     timeline.push('pi-spawn');
     return fake.factory(request, callbacks);
   };
-  const adapter = new PIAdapter(factory, PI_SESSIONS_DIR, discovery);
+  // The catalog the session runs with comes from a PI connection: anthropic behind a relay URL.
+  const connections = path.join(mkdtempSync(path.join(os.tmpdir(), 'pi-create-')), 'connections.json');
+  upsertConnection({
+    id: 'anthropic', backend: 'pi', provider: 'anthropic', baseUrl: 'https://relay.example.test', key: 'fake-relay-key',
+  }, connections);
+  const catalog = () => buildPiCatalog({ file: connections, userModelsPath: null });
+  const adapter = new PIAdapter(factory, PI_SESSIONS_DIR, discovery, { catalog });
   let engine: PIEngineSession | null = null;
   let markVisible!: () => void;
   const visible = new Promise<void>((resolve) => { markVisible = resolve; });
@@ -60,8 +65,6 @@ test('fresh PI createAndSend responds and exposes the user event before slow dis
         resume: false,
         model: 'claude-sonnet-4-6',
         piProvider: 'anthropic',
-        piGatewayBaseUrl: 'http://127.0.0.1:9880',
-        piGatewayPath: '/m/default/anthropic',
       }));
     },
   } as unknown as UiServiceDeps;
@@ -69,7 +72,7 @@ test('fresh PI createAndSend responds and exposes the user event before slow dis
   try {
     const response = await handleCreateAndSend(deps, {
       projectId: 'nimbus',
-      selection: { backend: 'pi', provider: 'anthropic', model: 'claude-sonnet-4-6', thinking: null, mode: 'anthropic' },
+      selection: { backend: 'pi', provider: 'anthropic', model: 'claude-sonnet-4-6', thinking: null, connection: null },
       text: 'hello',
     });
     timeline.push('response');
@@ -86,17 +89,12 @@ test('fresh PI createAndSend responds and exposes the user event before slow dis
       'response',
       'user-event-visible',
     ]);
-    assert.equal(scans, 1);
-    assert.equal(discoverySettled, false, 'response and visibility do not await discovery');
+    assert.equal(scans, 0, 'neither the response nor the spawn consults discovery');
 
     const models = JSON.parse(readFileSync(piModelsPath(PI_AGENT_DIR), 'utf8'));
     assert.deepEqual(Object.keys(models.providers), ['anthropic']);
-    assert.equal(models.providers.anthropic.baseUrl, 'http://127.0.0.1:9880/m/default/anthropic');
-
-    rejectDiscovery(new Error('provider discovery timed out'));
-    await Promise.resolve();
-    await Promise.resolve();
-    assert.equal(discoverySettled, true);
+    assert.equal(models.providers.anthropic.baseUrl, 'https://relay.example.test');
+    assert.deepEqual(readRuntimeKeys(PI_AGENT_DIR), { anthropic: 'fake-relay-key' });
   } finally {
     await engine?.close();
     await piPool(adapter).close('fresh-web-pi');

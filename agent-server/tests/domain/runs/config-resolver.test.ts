@@ -4,12 +4,12 @@ const mocks = vi.hoisted(() => ({ channel: vi.fn(), defaults: vi.fn(), present: 
 vi.mock('../../../src/domain/agents/config.js', () => ({ getChannelSelection: mocks.channel }));
 vi.mock('../../../src/domain/agents/models.js', () => ({ getDefaultSelection: mocks.defaults }));
 vi.mock('../../../src/store/models-repo.js', () => ({ modelsRepo: { readIfPresent: mocks.present } }));
-vi.mock('../../../src/domain/runs/mode-env.js', () => ({ resolveModeEnv: mocks.route }));
-import { resolveRunSelection, resolveRunBackend, resolveConfiguredDefaultRun, requestRoute } from '../../../src/domain/runs/config-resolver.js';
+vi.mock('../../../src/domain/connections/claude-route.js', () => ({ resolveClaudeRoute: mocks.route }));
+import { resolveRunSelection, resolveRunBackend, resolveConfiguredDefaultRun, resolveRunRoute } from '../../../src/domain/runs/config-resolver.js';
 
-const defaults: EngineSelection = { backend: 'claude', provider: null, model: 'opus', mode: 'plan', thinking: 'high' };
-const channel: EngineSelection = { ...defaults, model: 'sonnet', mode: 'api' };
-const session: EngineSelection = { backend: 'pi', provider: 'openai', model: 'gpt', mode: 'openai', thinking: null };
+const defaults: EngineSelection = { backend: 'claude', provider: null, model: 'opus', connection: 'subscription', thinking: 'high' };
+const channel: EngineSelection = { ...defaults, model: 'sonnet', connection: 'api' };
+const session: EngineSelection = { backend: 'pi', provider: 'openai', model: 'gpt', connection: null, thinking: null };
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.defaults.mockReturnValue(defaults);
@@ -49,7 +49,13 @@ test('invalid configuration propagates instead of inventing an engine', () => {
   expect(() => resolveRunSelection()).toThrow('invalid models');
   expect(() => resolveConfiguredDefaultRun()).toThrow('invalid models');
 });
-test('route metadata respects the spawn-time trigger', () => {
-  requestRoute({ context: { project: 'p', trigger: 'compact', routeTrigger: 'user' } }, session);
-  expect(mocks.route).toHaveBeenCalledWith('openai', { project: 'p', trigger: 'user' });
+test('a Claude run resolves the route of its own connection', () => {
+  const route = { connection: 'api', sets: { ANTHROPIC_API_KEY: 'sk-fake' }, unsets: [] };
+  mocks.route.mockReturnValue(route);
+  expect(resolveRunRoute(channel)).toBe(route);
+  expect(mocks.route).toHaveBeenCalledWith('api');
+});
+test('a PI run has no Claude route', () => {
+  expect(resolveRunRoute(session)).toBeUndefined();
+  expect(mocks.route).not.toHaveBeenCalled();
 });

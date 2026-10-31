@@ -265,7 +265,7 @@ test('every TurnRecord and patch field round-trips through write → replay → 
     teamLeadId: 'sess-lead', workerName: 'scout',
   }));
   await repo.updateSession('sess-rt', {
-    label: 'renamed', selection: { backend: 'pi', provider: 'deepseek', model: 'v4', thinking: 'high', mode: 'deepseek' }, backendSessionId: 'be-9', lastUsedAt: '2025-02-02T00:00:00.000Z',
+    label: 'renamed', selection: { backend: 'pi', provider: 'deepseek', model: 'v4', thinking: 'high', connection: null }, backendSessionId: 'be-9', lastUsedAt: '2025-02-02T00:00:00.000Z',
   });
   await repo.updateContextUsage('sess-rt', usage(9.9));
   await repo.markRead('sess-rt');
@@ -280,7 +280,7 @@ test('every TurnRecord and patch field round-trips through write → replay → 
   const assertPreserved = async (r: SessionRegistryRepo) => {
     const rec = await r.getById('sess-rt') as Session;
     assert.equal(rec.label, 'renamed');
-    assert.deepEqual(rec.selection, { backend: 'pi', provider: 'deepseek', model: 'v4', thinking: 'high', mode: 'deepseek' });
+    assert.deepEqual(rec.selection, { backend: 'pi', provider: 'deepseek', model: 'v4', thinking: 'high', connection: null });
     assert.equal(rec.backendSessionId, 'be-9');
     assert.equal(rec.lastUsedAt, '2025-02-02T00:00:00.000Z');
     assert.equal(rec.scheduleId, 'sched-1');

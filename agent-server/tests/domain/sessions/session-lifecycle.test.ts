@@ -11,9 +11,12 @@ import type { SessionRegistryWriter } from '@domain/sessions/session-lifecycle.j
 import { setSessionAsync, getSessionAsync } from '@domain/sessions/session.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { getChannelSelection, setChannelSelection } from '@domain/agents/config.js';
+import { seedClaudeKeyConnection } from '../../_seed-connections.js';
 
-const selection: EngineSelection = { backend: 'claude', provider: null, model: 'opus', thinking: 'high', mode: 'plan' };
+const selection: EngineSelection = { backend: 'claude', provider: null, model: 'opus', thinking: 'high', connection: 'relay' };
 beforeAll(() => {
+  seedClaudeKeyConnection('relay');
+  seedClaudeKeyConnection('api');
   mkdirSync(`${process.env.CORTEX_HOME}/config`, { recursive: true });
   writeFileSync(`${process.env.CORTEX_HOME}/config/models.json`, JSON.stringify({ default: selection, favorites: [selection] }));
   modelsRepo.invalidate();
@@ -169,13 +172,13 @@ describe('attachExistingSession', () => {
 
   it('restores the complete session selection over a different channel selection', async () => {
     const channel = 'c1-attach-selection';
-    setChannelSelection(channel, { ...selection, model: 'other', thinking: 'low', mode: 'api' });
+    setChannelSelection(channel, { ...selection, model: 'other', thinking: 'low', connection: 'api' });
     await attachExistingSession(channel, {
       sessionId: 'sid-attach-p', backend: 'claude', selection,
     });
     assert.deepStrictEqual(getChannelSelection(channel), selection);
     const conv = await conversationLedger.getConversation(channel);
-    assert.deepStrictEqual(conv!.selection, selection, 'thinking and mode survive resume');
+    assert.deepStrictEqual(conv!.selection, selection, 'thinking and connection survive resume');
   });
 });
 

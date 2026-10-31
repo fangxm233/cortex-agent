@@ -3,20 +3,36 @@ import { test } from 'vitest';
 
 import { handleModelsCatalog, type ModelsCatalogReaders } from '../../../src/domain/ui-service/query/models.js';
 import { ANTHROPIC_MODELS } from '../../../src/core/anthropic-models.js';
+import type { ConnectionView } from '../../../src/domain/connections/inventory.js';
 import type { ModelCatalogRoute, UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
 const DEPS = {} as UiServiceDeps;
+
+function claudeView(id: string, overrides: Partial<ConnectionView> = {}): ConnectionView {
+  return {
+    id, backend: 'claude', provider: null, kind: 'key', label: id, baseUrl: null, billing: 'metered',
+    authenticated: true, keyHint: 'sk-…fake', models: null, ...overrides,
+  };
+}
+
+function piOverride(provider: string): ConnectionView {
+  return {
+    id: provider, backend: 'pi', provider, kind: 'override', label: provider,
+    baseUrl: 'https://relay.example.test', billing: 'metered', authenticated: true, keyHint: null, models: null,
+  };
+}
+
+const SUBSCRIPTION = claudeView('subscription', { kind: 'subscription', billing: 'subscription', keyHint: null });
 
 function readers(overrides: Partial<ModelsCatalogReaders> = {}): ModelsCatalogReaders {
   return {
     // Always injected: the default reader would ask the live Models API with this host's own
     // credential, which a unit test must never depend on.
-    claudeAvailable: () => true,
+    connections: () => [SUBSCRIPTION],
     claudeModels: async () => [],
     piModels: async () => [],
     piPeek: () => [{ provider: 'deepseek', model: 'deepseek-v4-flash' }],
     customProviders: () => [],
-    gatewayModes: () => ({}),
     ...overrides,
   };
 }
@@ -34,63 +50,65 @@ test('anthropic falls back to the built-in model table when discovery answers no
   assert.equal(anthropic.provider, null);
   assert.equal(anthropic.source, 'builtin');
   assert.deepEqual(anthropic.models, [...ANTHROPIC_MODELS]);
-  // No gateway section read ⇒ the claude endpoint still offers its conventional route.
-  assert.deepEqual(anthropic.modes, ['plan']);
+  assert.deepEqual(anthropic.connections, ['subscription']);
 });
 
-test('a host with no Claude credential offers no Claude models and skips discovery', async () => {
+test('a host with no Claude connection offers no Claude models and skips discovery', async () => {
   let discovered = 0;
   const snapshot = await handleModelsCatalog(DEPS, {}, readers({
-    claudeAvailable: () => false,
+    connections: () => [piOverride('deepseek')],
     claudeModels: async () => { discovered += 1; return []; },
-    gatewayModes: () => ({ anthropic: ['plan', 'api'], deepseek: ['deepseek'] }),
   }));
   assert.equal(snapshot.routes.some((route) => route.backend === 'claude'), false);
   assert.equal(discovered, 0);
   assert.equal(routeOf(snapshot.routes, 'deepseek').backend, 'pi');
 });
 
-test('gateway.yaml owns the mode list of an endpoint it declares', async () => {
+test('the Claude route lists the host\'s connections in order; a PI override alone declares its provider', async () => {
   const snapshot = await handleModelsCatalog(DEPS, {}, readers({
-    gatewayModes: () => ({ anthropic: ['plan', 'api'], deepseek: ['deepseek'] }),
+    piPeek: () => [],
+    connections: () => [SUBSCRIPTION, claudeView('api'), claudeView('relay'), piOverride('deepseek')],
   }));
-  assert.deepEqual(routeOf(snapshot.routes, 'anthropic').modes, ['plan', 'api']);
+  assert.deepEqual(routeOf(snapshot.routes, 'anthropic').connections, ['subscription', 'api', 'relay']);
   const deepseek = routeOf(snapshot.routes, 'deepseek');
   assert.equal(deepseek.backend, 'pi');
   assert.equal(deepseek.provider, 'deepseek');
-  assert.equal(deepseek.source, 'gateway');
+  assert.equal(deepseek.source, 'connection');
+  assert.deepEqual(deepseek.connections, []);
   // Known route, unknown models: the editor falls back to free text rather than blocking the field.
   assert.deepEqual(deepseek.models, []);
 });
 
-test('Claude Code and PI\'s anthropic are separate routes, each with only its own modes', async () => {
+test('Claude Code and PI\'s anthropic are separate routes; only Claude\'s names connections', async () => {
   const snapshot = await handleModelsCatalog(DEPS, {}, readers({
+    connections: () => [SUBSCRIPTION, claudeView('relay')],
     claudeModels: async () => [{ id: 'claude-opus-9', displayName: null, maxInputTokens: null, effortLevels: null }],
     piModels: async () => [{ provider: 'anthropic', model: 'claude-pi-only' }],
-    gatewayModes: () => ({ anthropic: ['plan', 'pi-anthropic', 'relay'] }),
   }));
   const anthropic = snapshot.routes.filter((route) => route.endpoint === 'anthropic');
-  assert.deepEqual(anthropic.map((route) => [route.backend, route.provider, route.modes]), [
-    ['claude', null, ['plan', 'relay']],
-    ['pi', 'anthropic', ['pi-anthropic']],
+  assert.deepEqual(anthropic.map((route) => [route.backend, route.provider, route.connections]), [
+    ['claude', null, ['subscription', 'relay']],
+    ['pi', 'anthropic', []],
   ]);
   assert.equal(anthropic[0].models.includes('claude-pi-only'), false, 'PI\'s models stay on PI\'s route');
   assert.deepEqual(anthropic[1].models, ['claude-pi-only']);
 });
 
-test('PI\'s anthropic falls back to its generated mode, and gateway.yaml alone can declare it', async () => {
-  const scanned = await handleModelsCatalog(DEPS, {}, readers({
-    piModels: async () => [{ provider: 'anthropic', model: 'claude-opus-4-7' }],
-    gatewayModes: () => ({ anthropic: ['plan'] }),
+test('a PI override of anthropic is PI\'s route, never a Claude one', async () => {
+  const overrideOnly = await handleModelsCatalog(DEPS, {}, readers({ connections: () => [piOverride('anthropic')] }));
+  assert.deepEqual(overrideOnly.routes.map((route) => [route.backend, route.provider, route.source]),
+    [['pi', 'anthropic', 'connection']]);
+});
+
+test('a Claude connection that serves its own models adds them to the Claude route', async () => {
+  const snapshot = await handleModelsCatalog(DEPS, {}, readers({
+    connections: () => [claudeView('local', { baseUrl: 'http://127.0.0.1:8100', models: ['local-model'] })],
   }));
-  const pi = scanned.routes.find((route) => route.backend === 'pi' && route.provider === 'anthropic');
-  assert.deepEqual(pi?.modes, ['pi-anthropic']);
-  const declaredOnly = await handleModelsCatalog(DEPS, {}, readers({
-    claudeAvailable: () => false,
-    gatewayModes: () => ({ anthropic: ['plan', 'pi-anthropic'] }),
-  }));
-  assert.deepEqual(declaredOnly.routes.map((route) => [route.backend, route.provider, route.source]),
-    [['pi', 'anthropic', 'gateway']]);
+  const anthropic = routeOf(snapshot.routes, 'anthropic');
+  assert.equal(anthropic.source, 'builtin');
+  assert.deepEqual(anthropic.connections, ['local']);
+  assert.ok(anthropic.models.includes('local-model'));
+  assert.ok(anthropic.models.includes(ANTHROPIC_MODELS[0]));
 });
 
 test('PI pairs group into one route per provider and dedupe', async () => {
@@ -105,9 +123,8 @@ test('PI pairs group into one route per provider and dedupe', async () => {
   const deepseek = routeOf(snapshot.routes, 'deepseek');
   assert.equal(deepseek.source, 'pi');
   assert.deepEqual(deepseek.models, ['deepseek-v4-flash', 'deepseek-v4']);
-  // No gateway section for this provider ⇒ mode falls back to the provider name, the same rule
-  // discoverEndpoints applies when it generates the route.
-  assert.deepEqual(deepseek.modes, ['deepseek']);
+  // The provider is the connection: a PI route never names one.
+  assert.deepEqual(deepseek.connections, []);
   assert.deepEqual(routeOf(snapshot.routes, 'openai-codex').models, ['gpt-6-astra']);
 });
 
@@ -139,7 +156,7 @@ test('sources union rather than override: a later source only adds models', asyn
       hasApiKey: false,
       routed: false,
     }]),
-    gatewayModes: () => ({ 'my-vllm': ['my-vllm'] }),
+    connections: () => [SUBSCRIPTION, piOverride('my-vllm')],
   }));
   assert.equal(snapshot.routes.filter((route) => route.endpoint === 'my-vllm').length, 1);
   const route = routeOf(snapshot.routes, 'my-vllm');

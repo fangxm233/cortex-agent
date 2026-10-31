@@ -83,7 +83,7 @@ beforeEach(async () => {
   await conversationHistory.clear(SESSION);
   await conversationHistory.appendUser(SESSION, { text: 'delegate' });
   fs.writeFileSync(path.join(CONFIG_DIR, 'models.json'), JSON.stringify({
-    default: { backend: 'claude', model: 'fixture-model', mode: 'api', provider: null, thinking: null },
+    default: { backend: 'claude', model: 'fixture-model', connection: 'api', provider: null, thinking: null },
     favorites: [{ backend: 'pi', model: 'fixture-model', provider: 'fixture' }],
   }));
   modelsRepo.invalidate();
@@ -196,7 +196,7 @@ async function spawn(fixture: Awaited<ReturnType<typeof parent>>, route: Route, 
       selection: {
         backend: route.parentBackend, model: 'fixture-model', thinking: null,
         provider: route.parentBackend === 'pi' ? 'fixture' : null,
-        mode: route.parentBackend === 'pi' ? 'fixture' : 'api',
+        connection: route.parentBackend === 'pi' ? null : 'api',
       }, cwd: CONFIG_DIR,
       params: { ...params, backend: route.childBackend },
     });

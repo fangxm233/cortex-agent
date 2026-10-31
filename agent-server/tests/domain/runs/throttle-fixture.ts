@@ -12,14 +12,15 @@ export function writeModelsFixture(home: string): void {
   const configDir = path.join(home, 'config');
   mkdirSync(configDir, { recursive: true });
   writeFileSync(path.join(configDir, 'models.json'), JSON.stringify({
-    default: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan', provider: null, thinking: null },
+    default: { model: 'claude-sonnet-4-6', backend: 'claude', connection: 'subscription', provider: null, thinking: null },
     favorites: [],
   }));
 }
 
 export interface ThrottleHome {
   rl: typeof import('../../../src/domain/costs/rate-limit-throttle.js');
-  /** Arm the throttle so every listed mode reads as rate-limited for provider `anthropic`. */
+  /** Arm the throttle so every listed route name (a Claude connection, or a PI provider) reads as
+   *  rate-limited for provider `anthropic`. */
   initThrottle(modes: string[]): Promise<typeof import('../../../src/domain/costs/rate-limit-throttle.js')>;
   dispose(): void;
 }

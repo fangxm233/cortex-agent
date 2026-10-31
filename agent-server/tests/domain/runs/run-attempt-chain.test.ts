@@ -48,7 +48,7 @@ function result(overrides: Partial<RunResult> = {}): RunResult {
 }
 
 function request(): RunRequest {
-  const attempt = { model: 'm1', backend: 'claude' as const, mode: 'plan', provider: null, thinking: null };
+  const attempt = { model: 'm1', backend: 'claude' as const, connection: 'subscription', provider: null, thinking: null };
   return {
     runId: 'run-single',
     session: { sessionId: 's-1', backendSessionId: null, engineKey: 's-1'},

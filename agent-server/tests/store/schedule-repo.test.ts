@@ -6,7 +6,7 @@ import os from 'node:os';
 import { ScheduleRepo, type ScheduleTask } from '../../src/store/schedule-repo.js';
 import type { EngineSelection } from '../../src/domain/agents/engine-selection.js';
 
-const selection: EngineSelection = { backend: 'pi', provider: 'openai', model: 'gpt-test', thinking: 'high', mode: 'openai' };
+const selection: EngineSelection = { backend: 'pi', provider: 'openai', model: 'gpt-test', thinking: 'high', connection: null };
 
 // ── Shared tmp directory ───────────────────────────────────────
 

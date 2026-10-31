@@ -1,3 +1,5 @@
+// Must stay first: the migrations under test resolve files under the OS home.
+import '../helpers/isolate-os-home.js';
 import { test, beforeAll, afterAll, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';

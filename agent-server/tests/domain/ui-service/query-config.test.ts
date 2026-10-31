@@ -9,7 +9,7 @@ import { resolveSettingsSnapshot } from '../../../src/core/settings.js';
 import type { ConfigLang, EngineSelection } from '../../../src/domain/ui-service/types.js';
 import { makeUiDeps } from './ui-deps-fixture.js';
 
-const selection: EngineSelection = { backend: 'claude', provider: null, model: 'm1', thinking: 'high', mode: 'plan' };
+const selection: EngineSelection = { backend: 'claude', provider: null, model: 'm1', thinking: 'high', connection: 'subscription' };
 const favorites = [
   { backend: 'claude', provider: null, model: 'm1' },
   { backend: 'pi', provider: 'deepseek', model: 'm2' },
@@ -192,7 +192,7 @@ test('readConfigSnapshot omits incomplete or unsupported engine choices', async 
 });
 
 test('config.get joins live model memory and the complete draft seed', async () => {
-  const memory = { '["claude",null,"m1"]': { thinking: 'high', mode: 'plan' } };
+  const memory = { '["claude",null,"m1"]': { thinking: 'high', connection: 'subscription' } };
   const seed = { ...selection, agentName: 'main' };
   const snap = await handleConfigGet(makeUiDeps({ getModelMemory: () => memory, getSelectionDefault: () => seed }), {});
   assert.deepEqual(snap.models.memory, memory);

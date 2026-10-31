@@ -17,6 +17,7 @@ import { RunRegistry } from '../src/core/run-registry.js';
 import { CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/capabilities.js';
 import { runRequestFixture } from './run-request-fixture.js';
 import { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js';
+import { seedClaudeKeyConnection } from './_seed-connections.js';
 
 const fixtures = vi.hoisted(() => ({
   current: null as unknown as ReturnType<typeof makeFakeRuntimeFactory>,
@@ -32,8 +33,10 @@ vi.mock('../src/domain/runs/engines.js', async (original) => {
   });
   return { ...actual, engines: fixtures.engines };
 });
+// The `api` key connection the Claude api_key case runs on; fake, in this file's own home.
+seedClaudeKeyConnection('api');
 const children: any[] = [];
-const PI: EngineSelection = { backend: 'pi', mode: 'deepseek', provider: 'deepseek', model: 'deepseek-fixture', thinking: null };
+const PI: EngineSelection = { backend: 'pi', connection: null, provider: 'deepseek', model: 'deepseek-fixture', thinking: null };
 let serial = 0;
 afterEach(async () => {
   for (const key of fixtures.engines.listKeys()) await fixtures.engines.close(key);
@@ -56,7 +59,7 @@ function request(backend: 'pi' | 'claude' = 'pi', lines: unknown[] = []): RunReq
     channel: 'web:retry', sessionKey: `run-${++serial}`, trackSessionId: 'track',
     loadCortexRules: false, recordCost: false,
     processSpawner: (() => ({ process: child(lines) })) as never,
-  }, backend === 'pi' ? PI : { backend: 'claude', mode: 'plan', provider: null });
+  }, backend === 'pi' ? PI : { backend: 'claude', connection: 'subscription', provider: null });
 }
 function open(req: RunRequest) {
   const events: RunEvent[] = [];
@@ -130,10 +133,10 @@ test.each([
 ])('preserves auth classification: %s', (message, kind) => expect(classifyAuthError(message)).toBe(kind));
 
 test.each([
-  ['claude', 'plan', 'anthropic', 'oauth', 'Please run /login', 'login_required'],
+  ['claude', 'subscription', 'anthropic', 'oauth', 'Please run /login', 'login_required'],
   ['claude', 'api', 'anthropic', 'api_key', 'invalid x-api-key', 'invalid_api_key'],
-  ['pi', 'deepseek', 'deepseek', null, 'authentication failed', 'invalid_api_key'],
-] as const)('auth required/recovered remains provider scoped: %s %s', async (backend, mode, provider, authType, message, kind) => {
+  ['pi', null, 'deepseek', null, 'authentication failed', 'invalid_api_key'],
+] as const)('auth required/recovered remains provider scoped: %s %s', async (backend, connection, provider, authType, message, kind) => {
   fixtures.current = makeFakeRuntimeFactory();
   const bus = new EventBus();
   const required: CortexEvent[] = [], recovered: CortexEvent[] = [];
@@ -142,7 +145,7 @@ test.each([
   initAuthEvents(bus);
   for (const failure of [message, 'context window exceeded', 'rate limit exceeded', undefined, undefined]) {
     const req = request(backend, [resultLine(failure)]);
-    req.selection.mode = mode;
+    req.selection.connection = connection;
     const { run } = open(req);
     if (backend === 'pi') await piOutcome(failure);
     if (failure && !(backend === 'claude' && failure === 'rate limit exceeded')) await expect(run.settled).rejects.toThrow(failure);

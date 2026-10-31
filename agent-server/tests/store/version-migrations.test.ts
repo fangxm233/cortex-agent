@@ -1,3 +1,5 @@
+// Must stay first: the migrations under test resolve files under the OS home.
+import '../helpers/isolate-os-home.js';
 import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -282,9 +284,11 @@ test('runMigrations - S10 retires the backfilled snapshot and tracks its sentine
   await runMigrations({ dataDir, defaultsDir, storeDir });
   const versions = await readJson(path.join(storeDir, 'versions.json')) as Record<string, string>;
   assert.equal(versions['sentinel:retire-profiles'], '2026.10.15');
+  // The connections step after S10 converts the mode-shaped selection: PI names no connection.
+  assert.equal(versions['sentinel:connections'], '2026.10.28');
   const models = await readJson(path.join(configDir, 'models.json')) as any;
   assert.deepEqual(models.default, {
-    backend: 'pi', provider: 'anthropic', model: 'deepseek-v4-flash', thinking: null, mode: 'anthropic',
+    backend: 'pi', provider: 'anthropic', model: 'deepseek-v4-flash', thinking: null, connection: null,
   });
   await assert.rejects(fs.stat(path.join(configDir, 'profiles.json')), { code: 'ENOENT' });
   const archives = (await fs.readdir(path.join(configDir, 'archive'))).filter(name => name.startsWith('profiles-'));

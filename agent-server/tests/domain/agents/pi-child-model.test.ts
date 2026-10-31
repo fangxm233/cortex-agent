@@ -1,5 +1,5 @@
-// A `pi` child's model is chosen once, by whoever launches it, and that one choice is what both the
-// route and the nested session see. The daemon runner is driven for real down to the session
+// A `pi` child's model is chosen once, by whoever launches it, and that one choice is what the
+// nested session sees. The daemon runner is driven for real down to the session
 // factory; the session itself is driven down to PI's resolver, which is faked.
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { AgentRole } from '../../../src/core/agents/roles.js';
@@ -8,7 +8,7 @@ import type { SubagentParentContext } from '../../../src/domain/agents/subagent/
 
 const fakes = vi.hoisted(() => ({
   childRequests: [] as unknown[],
-  routes: [] as unknown[],
+  catalogWrites: 0,
   resolverCalls: [] as unknown[],
   sessionOptions: [] as unknown[],
 }));
@@ -50,13 +50,13 @@ const { createChildSession } = await vi.importActual<
 >('../../../src/agent-adapter/pi/child-session.js');
 
 beforeEach(() => {
-  // The route is recorded, not written: nothing here should touch a models.json.
-  vi.spyOn(getPiEngineAdapter(), 'ensureProviderRouting').mockImplementation((route) => { fakes.routes.push(route); });
+  // The catalog write is recorded, not performed: nothing here should touch a models.json.
+  vi.spyOn(getPiEngineAdapter(), 'ensureCatalog').mockImplementation(() => { fakes.catalogWrites += 1; });
 });
 
 afterEach(() => {
   fakes.childRequests.length = 0;
-  fakes.routes.length = 0;
+  fakes.catalogWrites = 0;
   fakes.resolverCalls.length = 0;
   fakes.sessionOptions.length = 0;
 });
@@ -72,30 +72,31 @@ async function runPiChild(model: string | undefined, parent: SubagentParentConte
   return fakes.childRequests[0] as ChildSessionRequest;
 }
 
-const piParent: SubagentParentContext = { backend: 'pi', provider: 'zai', model: 'glm-parent', mode: 'zai' };
+const piParent: SubagentParentContext = { backend: 'pi', provider: 'zai', model: 'glm-parent', connection: null };
 
-test('a named provider/model:thinking is routed and handed to the child as the same three parts', async () => {
+test('a named provider/model:thinking is handed to the child as the same three parts, over a fresh catalog', async () => {
   const request = await runPiChild('deepseek/deepseek-chat:high', piParent);
   expect(request).toMatchObject({ provider: 'deepseek', model: 'deepseek-chat', thinking: 'high' });
-  expect(fakes.routes).toEqual([expect.objectContaining({ provider: 'deepseek', model: 'deepseek-chat' })]);
+  expect(fakes.catalogWrites).toBe(1);
 });
 
-test('a bare named model is not given the parent\'s provider, by the route or the child', async () => {
+test('a bare named model is not given the parent\'s provider', async () => {
   const request = await runPiChild('glm-5', piParent);
   expect(request).toMatchObject({ provider: null, model: 'glm-5', thinking: null });
-  expect(fakes.routes).toEqual([]);
+  // The catalog covers every provider, so it is written whether or not the child names one.
+  expect(fakes.catalogWrites).toBe(1);
 });
 
 test('with nothing named, a PI parent\'s own selection is the child\'s', async () => {
   const request = await runPiChild(undefined, piParent);
   expect(request).toMatchObject({ provider: 'zai', model: 'glm-parent', thinking: null });
-  expect(fakes.routes).toEqual([expect.objectContaining({ provider: 'zai', model: 'glm-parent' })]);
+  expect(fakes.catalogWrites).toBe(1);
 });
 
 test('a Claude parent\'s model is never offered to a PI child', async () => {
   const request = await runPiChild(undefined, { backend: 'claude', model: 'claude-opus-4-8' });
   expect(request).toMatchObject({ provider: null, model: null, thinking: null });
-  expect(fakes.routes).toEqual([]);
+  expect(fakes.catalogWrites).toBe(1);
 });
 
 test('the child session resolves the selection as one pattern and runs at the level PI found', async () => {

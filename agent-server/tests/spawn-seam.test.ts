@@ -42,15 +42,13 @@ import { makeFakeRuntimeFactory } from './agent-adapter/pi-fake-runtime.js';
 import { generateMcpConfig } from '../src/core/config-generator.js';
 import { CONFIG_DIR, DATA_DIR } from '../src/core/paths.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
-import { getSavedApiEnv } from '../src/domain/auth/anthropic-env.js';
-import type { ModeEnv } from '../src/domain/runs/mode-env.js';
+import { CONNECTIONS_FILE, writeConnections } from '../src/core/connections-file.js';
+import type { ClaudeRoute } from '../src/domain/connections/claude-route.js';
 import type { EngineSelection } from '../src/domain/agents/engine-selection.js';
 import { buildEngineSpec } from '../src/domain/runs/engine-spec.js';
 import { startAttempt } from '../src/domain/runs/attempt.js';
 import { resolveRunRoute } from '../src/domain/runs/config-resolver.js';
 import { engines } from '../src/domain/runs/engines.js';
-import { _testSetHealthy } from '../src/domain/costs/gateway-manager.js';
-import { gatewayUrl } from '../src/core/gateway-endpoint.js';
 import { generateConfigs, getResolvedPaths, type InitAnswers } from '../src/entry/init.js';
 
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -65,10 +63,12 @@ const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 // so every host spawn runs against Cortex's own Claude config dir instead of the terminal's ~/.claude.
 // AMENDED for engine selection, in `environment` only: CORTEX_PROFILE is removed; the selected
 // model and mode join CORTEX_BACKEND. Null provider/thinking have no environment keys.
+// AMENDED for connections, in `environment` only: CORTEX_MODE=plan became
+// CORTEX_CONNECTION=subscription.
 // Everything else in the goldens is still the untouched base capture.
 const DIRECT_GOLDEN = path.join(TEST_DIR, 'spawn-seam-direct.golden.json');
 const FIXTURE_CONFIG: EngineSelection = {
-  model: 'claude-fixture', backend: 'claude', mode: 'plan', provider: null, thinking: null,
+  model: 'claude-fixture', backend: 'claude', connection: 'subscription', provider: null, thinking: null,
 };
 const originalEnv = { ...process.env };
 
@@ -159,7 +159,7 @@ function directSpawnConfig(): EngineSpec {
  */
 function runAttemptFixture(
   partial: RunRequestFixtureInput,
-  route?: ModeEnv,
+  route?: ClaudeRoute,
 ): ReturnType<typeof startAttempt> {
   return startAttempt({
     request: runRequestFixture(partial, FIXTURE_CONFIG),
@@ -343,7 +343,7 @@ function assertPortableRuntimePropagation(): void {
     const options = pluginRuntimeSpawnOptions();
     const claude = specFromFixture(options, FIXTURE_CONFIG);
     const pi = specFromFixture(options, {
-      model: 'pi-fixture', backend: 'pi', mode: 'anthropic', provider: 'anthropic',
+      model: 'pi-fixture', backend: 'pi', connection: null, provider: 'anthropic',
     });
     assertClaudePluginRuntime(claude);
     assertPiPluginRuntime(pi);
@@ -397,8 +397,8 @@ test(
 );
 
 const SELECTION_ENV_KEYS = [
-  'CORTEX_BACKEND', 'CORTEX_MODEL', 'CORTEX_PROVIDER', 'CORTEX_THINKING', 'CORTEX_MODE',
-  'CORTEX_PROFILE',
+  'CORTEX_BACKEND', 'CORTEX_MODEL', 'CORTEX_PROVIDER', 'CORTEX_THINKING', 'CORTEX_CONNECTION',
+  'CORTEX_MODE', 'CORTEX_PROFILE',
 ] as const;
 
 function piSessionRequest(spec: EngineSpec) {
@@ -410,10 +410,10 @@ function piSessionRequest(spec: EngineSpec) {
 
 test.each([
   { ...FIXTURE_CONFIG },
-  { ...FIXTURE_CONFIG, thinking: 'high', mode: 'api' },
-  { ...FIXTURE_CONFIG, backend: 'pi' as const, provider: 'deepseek', mode: 'deepseek' },
-  { ...FIXTURE_CONFIG, backend: 'pi' as const, provider: 'deepseek', mode: 'deepseek', thinking: 'high' },
-])('launch context reflects $backend selection thinking=$thinking mode=$mode', (selection) => {
+  { ...FIXTURE_CONFIG, thinking: 'high', connection: 'api' },
+  { ...FIXTURE_CONFIG, backend: 'pi' as const, provider: 'deepseek', connection: null },
+  { ...FIXTURE_CONFIG, backend: 'pi' as const, provider: 'deepseek', connection: null, thinking: 'high' },
+])('launch context reflects $backend selection thinking=$thinking connection=$connection', (selection) => {
   onTestFinished(overrideEnvironment(Object.fromEntries(
     SELECTION_ENV_KEYS.map(key => [key, 'stale-parent-value']),
   )));
@@ -424,7 +424,8 @@ test.each([
     CORTEX_MODEL: selection.model,
     CORTEX_PROVIDER: selection.provider ?? undefined,
     CORTEX_THINKING: selection.thinking ?? undefined,
-    CORTEX_MODE: selection.mode,
+    CORTEX_CONNECTION: selection.connection ?? undefined,
+    CORTEX_MODE: undefined,
     CORTEX_PROFILE: undefined,
   });
 });
@@ -528,7 +529,7 @@ function benchmarkSpec(cap: number | undefined, benchmark = true, backend: 'clau
     benchmarkMaxOutputTokens: cap,
   }, {
     backend, model: 'deepseek-v4-flash', provider: backend === 'pi' ? 'deepseek' : null,
-    mode: backend === 'pi' ? 'deepseek' : 'plan', thinking: 'high',
+    connection: backend === 'pi' ? null : 'subscription', thinking: 'high',
   });
   if (benchmark) request.benchmark = {
     identityDirective: '',
@@ -554,30 +555,33 @@ test('PI benchmark caps reach individual runtimes without mutating the shared ca
   const root = mkdtempSync(path.join(tmpdir(), 'pi-spawn-benchmark-'));
   const agentDir = path.join(root, 'agent');
   const fake = makeFakeRuntimeFactory();
-  const adapter = new PIAdapter(fake.factory, path.join(root, 'sessions'), undefined, { agentDir });
+  const catalog = () => ({ providers: { deepseek: { baseUrl: 'https://deepseek-relay.invalid' } }, runtimeKeys: {} });
+  const adapter = new PIAdapter(fake.factory, path.join(root, 'sessions'), undefined, { agentDir, catalog });
   const pool = piPool(adapter);
   const caps = [undefined, 8192, 4096, undefined];
   t.onTestFinished(async () => {
     for (const key of pool.listSessions()) await pool.close(key);
     rmSync(root, { recursive: true, force: true });
   });
-  let catalog: string | undefined;
+  let written: string | undefined;
   for (const [index, cap] of caps.entries()) {
     const spec = benchmarkSpec(cap, cap !== undefined);
     spec.engineKey = `benchmark-isolated-${index}`;
     pool.open(spec);
     assert.equal(fake.requests[index].benchmarkMaxOutputTokens, cap);
     const current = readFileSync(path.join(agentDir, 'models.json'), 'utf8');
-    catalog ??= current;
-    assert.equal(current, catalog, 'a per-session output cap may not rewrite the shared model catalog');
+    written ??= current;
+    assert.equal(current, written, 'a per-session output cap may not rewrite the shared model catalog');
   }
   assert.deepEqual(fake.requests.map(request => request.benchmarkMaxOutputTokens), caps);
 });
 
-test('retired PI options cannot reach the runtime request', () => {
+test('retired PI options cannot reach the runtime request', (t) => {
+  // PI has no Claude route, so its env is the inherited one: clear what the test process brought.
+  t.onTestFinished(clearRouteEnvironment());
   const spec = retiredFieldsSpec({
-    ...FIXTURE_CONFIG, backend: 'pi', provider: 'deepseek', mode: 'deepseek', thinking: 'high',
-  }, { ANTHROPIC_API_KEY: null, ANTHROPIC_BASE_URL: undefined });
+    ...FIXTURE_CONFIG, backend: 'pi', provider: 'deepseek', connection: null, thinking: 'high',
+  }, undefined);
   const request = piSessionRequest(spec);
   assert.equal(request.thinking, 'high');
   assert.equal(request.benchmarkMaxOutputTokens, undefined);
@@ -903,37 +907,62 @@ test.each(replacementCases)(
   runReplacementProbe,
 );
 
-// --- per-spawn mode route: the mode decision must travel with one spawn, not the daemon global ---
+// --- per-spawn connection route: the route travels with one spawn, never through the daemon env ---
 
-const ROUTE_FIXTURE_KEY = 'sk-fixture-route-key';
-const STALE_ROUTE_URL = 'http://127.0.0.1:9880/m/stale-mode/anthropic';
+const RELAY_KEY = 'sk-fixture-relay-key';
+const BEARER_KEY = 'fixture-bearer-token';
+const API_KEY = 'sk-ant-fixture-api-key';
+const RELAY_URL = 'https://relay.invalid';
+const BEARER_URL = 'https://bearer-relay.invalid';
+const STALE_ROUTE_URL = 'https://stale-daemon.invalid';
+const STALE_DAEMON_KEY = 'sk-fixture-stale-daemon-key';
 const ROUTE_ENV_KEYS = [
-  'ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CONFIG_DIR',
+  'ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_OAUTH_TOKEN',
 ] as const;
+const ALL_ROUTE_VARS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_OAUTH_TOKEN'];
 
-/** Pins every input the mode decision reads — the saved key, the stale daemon global, and the
- *  Claude-owned credential probe — so a resolved route is a function of the mode alone. */
+/** Three stored Claude connections in this suite's own CORTEX_HOME: a key relay, a bearer relay
+ *  and the official API on a key. */
+function writeRouteConnections(): void {
+  writeConnections([
+    { id: 'relay', backend: 'claude', label: 'Relay', baseUrl: RELAY_URL, authStyle: 'x-api-key', key: RELAY_KEY, billing: 'metered' },
+    { id: 'bearer', backend: 'claude', label: 'Bearer', baseUrl: BEARER_URL, authStyle: 'bearer', key: BEARER_KEY, billing: 'metered' },
+    { id: 'api', backend: 'claude', label: 'API', authStyle: 'x-api-key', key: API_KEY, billing: 'metered' },
+  ]);
+}
+
+/** Pins every input a route could leak from — a stale daemon base URL and key, no inherited OAuth
+ *  token — and writes the connections, so a resolved route is a function of the connection alone. */
 function pinRouteEnvironment(): () => void {
-  const previous = ROUTE_ENV_KEYS.map((key) => [key, process.env[key]] as const);
-  const claudeConfigDir = mkdtempSync(path.join(tmpdir(), 'cortex-route-claude-'));
-  process.env.CLAUDE_CONFIG_DIR = claudeConfigDir;
-  process.env.ANTHROPIC_API_KEY = ROUTE_FIXTURE_KEY;
+  const restoreEnvironment = clearRouteEnvironment();
+  process.env.ANTHROPIC_API_KEY = STALE_DAEMON_KEY;
   process.env.ANTHROPIC_BASE_URL = STALE_ROUTE_URL;
-  delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
-  getSavedApiEnv(); // fold the fixture key into the module's saved-credential snapshot
+  writeRouteConnections();
   return () => {
-    _testSetHealthy(null);
+    restoreEnvironment();
+    rmSync(CONNECTIONS_FILE, { force: true });
+  };
+}
+
+/** Delete every Anthropic routing variable the test process inherited; returns the restore. */
+function clearRouteEnvironment(): () => void {
+  const previous = ROUTE_ENV_KEYS.map((key) => [key, process.env[key]] as const);
+  for (const key of ROUTE_ENV_KEYS) delete process.env[key];
+  return () => {
     for (const [key, value] of previous) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
-    rmSync(claudeConfigDir, { recursive: true, force: true });
   };
+}
+
+function connectionConfig(connection: string, overrides: Partial<EngineSelection> = {}): EngineSelection {
+  return { ...FIXTURE_CONFIG, connection, ...overrides };
 }
 
 function routeSpawnConfig(
   key: string,
-  route: ModeEnv,
+  route: ClaudeRoute | undefined,
   config: EngineSelection = FIXTURE_CONFIG,
 ): EngineSpec {
   return specFromFixture({
@@ -941,70 +970,42 @@ function routeSpawnConfig(
   }, config, route);
 }
 
-function planConfig(): EngineSelection {
-  return { ...FIXTURE_CONFIG, mode: 'plan' };
-}
-
-/** Simulates another mode configuring the daemon between this spawn's route resolution and its
+/** Simulates another writer repointing the daemon between this spawn's route resolution and its
  *  actual launch — the K-053 race, reproduced deterministically. */
 function repointDaemonGlobals(): void {
   process.env.ANTHROPIC_BASE_URL = STALE_ROUTE_URL;
-  process.env.ANTHROPIC_API_KEY = ROUTE_FIXTURE_KEY;
+  process.env.ANTHROPIC_API_KEY = STALE_DAEMON_KEY;
 }
 
-test('interleaved mode configuration cannot cross-contaminate two concurrent spawns', (t) => {
+test('two concurrent spawns on different connections cannot cross-contaminate', (t) => {
   t.onTestFinished(pinRouteEnvironment());
-  _testSetHealthy(true);
-  const plan = resolveRunRoute(planConfig(), { project: 'alpha' });
-  const codex = resolveRunRoute(
-    { ...FIXTURE_CONFIG, mode: 'openai-codex' }, { project: 'beta' },
-  );
-  // Neither configuration wrote the daemon global — the race has nothing left to lose.
+  const subscription = resolveRunRoute(FIXTURE_CONFIG);
+  const relay = resolveRunRoute(connectionConfig('relay'));
   assert.equal(process.env.ANTHROPIC_BASE_URL, STALE_ROUTE_URL,
     'resolving a route may not repoint the daemon: that global is what the usage probe inherits');
-  assert.equal(process.env.ANTHROPIC_API_KEY, ROUTE_FIXTURE_KEY);
+  assert.equal(process.env.ANTHROPIC_API_KEY, STALE_DAEMON_KEY);
 
   // An unrelated writer flips the global while the two spawns launch; neither may read it.
   repointDaemonGlobals();
-  const planEnv = childEnvironment(routeSpawnConfig('route-plan', plan));
+  const subscriptionEnv = childEnvironment(routeSpawnConfig('route-subscription', subscription));
   delete process.env.ANTHROPIC_API_KEY;
-  const codexEnv = childEnvironment(routeSpawnConfig('route-codex', codex));
+  const relayEnv = childEnvironment(routeSpawnConfig('route-relay', relay, connectionConfig('relay')));
 
-  assert.equal(planEnv.ANTHROPIC_BASE_URL, `${gatewayUrl()}/m/plan/project=alpha/anthropic`);
-  assert.equal(planEnv.ANTHROPIC_API_KEY, undefined,
-    'the plan spawn must not inherit the key sitting in the daemon env when it launches');
-  assert.equal(codexEnv.ANTHROPIC_BASE_URL, `${gatewayUrl()}/m/openai-codex/project=beta/anthropic`);
-  assert.equal(codexEnv.ANTHROPIC_API_KEY, ROUTE_FIXTURE_KEY,
-    'the non-plan spawn must carry its own key even though the daemon env has none when it launches');
+  assert.equal(subscriptionEnv.ANTHROPIC_BASE_URL, undefined);
+  assert.equal(subscriptionEnv.ANTHROPIC_API_KEY, undefined,
+    'the subscription spawn must not inherit the key sitting in the daemon env when it launches');
+  assert.equal(relayEnv.ANTHROPIC_BASE_URL, RELAY_URL);
+  assert.equal(relayEnv.ANTHROPIC_API_KEY, RELAY_KEY,
+    'the relay spawn must carry its own key even though the daemon env has none when it launches');
 });
 
-test('a plan route deletes the API key and carries its base URL on exactly one field', (t) => {
+test('the subscription route deletes every inherited credential and the base URL', (t) => {
   t.onTestFinished(pinRouteEnvironment());
-  _testSetHealthy(true);
-  const spawn = routeSpawnConfig(
-    'route-plan-gateway', resolveRunRoute(planConfig()),
-  );
+  const spawn = routeSpawnConfig('route-subscription-direct', resolveRunRoute(FIXTURE_CONFIG));
 
-  assert.equal(spawn.route.anthropicBaseUrl, `${gatewayUrl()}/m/plan/anthropic`);
-  assert.equal(spawn.env.sets?.ANTHROPIC_BASE_URL, undefined,
-    'the base URL needs one source: production-attempt-identity reads config.env before the field');
-  assert.deepEqual(spawn.env.unsets, ['ANTHROPIC_API_KEY']);
-
-  repointDaemonGlobals();
-  const env = childEnvironment(spawn);
-  assert.equal(env.ANTHROPIC_API_KEY, undefined);
-  assert.equal(env.ANTHROPIC_BASE_URL, `${gatewayUrl()}/m/plan/anthropic`);
-});
-
-test('a route without a base URL deletes the one the daemon left behind', (t) => {
-  t.onTestFinished(pinRouteEnvironment());
-  _testSetHealthy(false);
-  const route = resolveRunRoute(planConfig());
-  assert.equal(route.ANTHROPIC_BASE_URL, undefined, 'the direct plan route has no base URL');
-
-  const spawn = routeSpawnConfig('route-plan-direct', route);
-  assert.equal(spawn.route.anthropicBaseUrl, undefined);
-  assert.deepEqual([...spawn.env.unsets!].sort(), ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL']);
+  assert.deepEqual(spawn.route, { anthropicBaseUrl: undefined, connection: 'subscription' });
+  assert.equal(spawn.env.sets, undefined, 'the subscription carries no placeholder key');
+  assert.deepEqual([...spawn.env.unsets!].sort(), ALL_ROUTE_VARS);
 
   repointDaemonGlobals();
   const env = childEnvironment(spawn);
@@ -1013,8 +1014,53 @@ test('a route without a base URL deletes the one the daemon left behind', (t) =>
   assert.equal(env.ANTHROPIC_API_KEY, undefined);
 });
 
+test('a relay route sets its key and carries its base URL on exactly one field', (t) => {
+  t.onTestFinished(pinRouteEnvironment());
+  const config = connectionConfig('relay');
+  const spawn = routeSpawnConfig('route-relay-field', resolveRunRoute(config), config);
+
+  assert.deepEqual(spawn.route, { anthropicBaseUrl: RELAY_URL, connection: 'relay' });
+  assert.deepEqual(spawn.env.sets, { ANTHROPIC_API_KEY: RELAY_KEY },
+    'the base URL needs one source: production-attempt-identity reads config.env before the field');
+  assert.deepEqual([...spawn.env.unsets!].sort(), ['ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN']);
+
+  repointDaemonGlobals();
+  const env = childEnvironment(spawn);
+  assert.equal(env.ANTHROPIC_API_KEY, RELAY_KEY);
+  assert.equal(env.ANTHROPIC_BASE_URL, RELAY_URL);
+});
+
+test('a bearer connection authenticates with ANTHROPIC_AUTH_TOKEN and deletes the inherited x-api-key', (t) => {
+  t.onTestFinished(pinRouteEnvironment());
+  const config = connectionConfig('bearer');
+  repointDaemonGlobals();
+  const env = childEnvironment(routeSpawnConfig('route-bearer', resolveRunRoute(config), config));
+
+  assert.equal(env.ANTHROPIC_AUTH_TOKEN, BEARER_KEY);
+  assert.equal(env.ANTHROPIC_API_KEY, undefined);
+  assert.equal(env.ANTHROPIC_BASE_URL, BEARER_URL);
+});
+
+test('an official-API key connection deletes the base URL the daemon left behind', (t) => {
+  t.onTestFinished(pinRouteEnvironment());
+  const config = connectionConfig('api');
+  const spawn = routeSpawnConfig('route-api', resolveRunRoute(config), config);
+  assert.equal(spawn.route.anthropicBaseUrl, undefined);
+  assert.ok(spawn.env.unsets?.includes('ANTHROPIC_BASE_URL'));
+
+  repointDaemonGlobals();
+  const env = childEnvironment(spawn);
+  assert.equal(env.ANTHROPIC_BASE_URL, undefined);
+  assert.equal(env.ANTHROPIC_API_KEY, API_KEY);
+});
+
+test('a named connection that is not configured is an error, never a fallback', (t) => {
+  t.onTestFinished(pinRouteEnvironment());
+  assert.throws(() => resolveRunRoute(connectionConfig('missing')), /'missing' is not configured/);
+});
+
 /** Pass obsolete properties straight to production, not through a fixture that strips them. */
-function retiredFieldsSpec(selection: EngineSelection, route: ModeEnv): EngineSpec {
+function retiredFieldsSpec(selection: EngineSelection, route: ClaudeRoute | undefined): EngineSpec {
   const retired = {
     profileName: 'retired-selection',
     extraEnv: { ANTHROPIC_API_KEY: 'retired-key', ANTHROPIC_BASE_URL: 'https://retired.example' },
@@ -1027,14 +1073,13 @@ function retiredFieldsSpec(selection: EngineSelection, route: ModeEnv): EngineSp
 
 test('retired selection fields cannot override route credentials or Claude thinking', (t) => {
   t.onTestFinished(pinRouteEnvironment());
-  _testSetHealthy(true);
-  const selection: EngineSelection = { ...FIXTURE_CONFIG, mode: 'openai-codex', thinking: 'high' };
+  const selection = connectionConfig('relay', { thinking: 'high' });
   const spec = retiredFieldsSpec(selection, resolveRunRoute(selection));
   const launch = childLaunch(spec);
 
-  assert.equal(spec.env.sets?.ANTHROPIC_API_KEY, ROUTE_FIXTURE_KEY);
-  assert.equal(launch.env.ANTHROPIC_API_KEY, ROUTE_FIXTURE_KEY);
-  assert.equal(launch.env.ANTHROPIC_BASE_URL, `${gatewayUrl()}/m/openai-codex/anthropic`);
+  assert.equal(spec.env.sets?.ANTHROPIC_API_KEY, RELAY_KEY);
+  assert.equal(launch.env.ANTHROPIC_API_KEY, RELAY_KEY);
+  assert.equal(launch.env.ANTHROPIC_BASE_URL, RELAY_URL);
   assert.equal(launch.env.CORTEX_PROFILE, undefined);
   assert.equal(launch.args[launch.args.indexOf('--effort') + 1], 'high');
   assert.ok(!launch.args.includes('--thinking'));
@@ -1042,12 +1087,11 @@ test('retired selection fields cannot override route credentials or Claude think
   assert.equal(spec.model.benchmarkMaxOutputTokens, undefined);
 });
 
-test('retired extraEnv cannot restore credentials deleted by a plan route', (t) => {
+test('retired extraEnv cannot restore credentials deleted by the subscription route', (t) => {
   t.onTestFinished(pinRouteEnvironment());
-  _testSetHealthy(false);
-  const spec = retiredFieldsSpec(planConfig(), resolveRunRoute(planConfig()));
+  const spec = retiredFieldsSpec(FIXTURE_CONFIG, resolveRunRoute(FIXTURE_CONFIG));
 
-  assert.deepEqual([...spec.env.unsets!].sort(), ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL']);
+  assert.deepEqual([...spec.env.unsets!].sort(), ALL_ROUTE_VARS);
   const launch = childLaunch(spec);
   assert.equal(launch.env.ANTHROPIC_API_KEY, undefined);
   assert.equal(launch.env.ANTHROPIC_BASE_URL, undefined);
@@ -1056,15 +1100,15 @@ test('retired extraEnv cannot restore credentials deleted by a plan route', (t) 
 
 // --- pool: a live session may only be reused when its child took the same route ---
 
-const POOL_ROUTE_URL = 'http://127.0.0.1:9880/m/plan/anthropic';
+const POOL_ROUTE_URL = 'https://pool-relay.invalid';
 const POOL_SECRET = 'sk-ant-oat01-pool-fixture-secret';
 const poolSpawner = (() => ({ process: stubBackendChild() })) as any;
 
-/** A pooled spawn whose route came out of the real mode resolver, so the pool sees what a mode
- *  switch actually produces rather than a hand-written approximation of it. */
+/** A pooled spawn whose route came out of the real connection resolver, so the pool sees what a
+ *  connection switch actually produces rather than a hand-written approximation of it. */
 function pooledRouteSpawn(
   key: string,
-  route: ModeEnv,
+  route: ClaudeRoute | undefined,
   config: EngineSelection = FIXTURE_CONFIG,
 ): EngineSpec {
   return specFromFixture({
@@ -1112,32 +1156,31 @@ test('a set, an inherited and a deleted credential are three different routes', 
     'a direct route deletes the base URL the daemon left behind — that is another endpoint');
 });
 
-test('a mode switch on one channel cannot reuse the session started on the old route', async (t) => {
+test('a connection switch on one channel cannot reuse the session started on the old route', async (t) => {
   t.onTestFinished(pinRouteEnvironment());
-  _testSetHealthy(true);
   const adapter = new ClaudeAdapter();
   const key = 'route-pool-switch';
-  const codex: EngineSelection = { ...FIXTURE_CONFIG, mode: 'openai-codex' };
+  const relay = connectionConfig('relay');
 
-  claudePool(adapter).open(pooledRouteSpawn(key, resolveRunRoute(planConfig()), planConfig()));
+  claudePool(adapter).open(pooledRouteSpawn(key, resolveRunRoute(FIXTURE_CONFIG), FIXTURE_CONFIG));
   const first = claudePool(adapter).getPooledSession(key);
-  claudePool(adapter).open(pooledRouteSpawn(key, resolveRunRoute(codex), codex));
+  claudePool(adapter).open(pooledRouteSpawn(key, resolveRunRoute(relay), relay));
 
   assert.ok(first);
   assert.notEqual(claudePool(adapter).getPooledSession(key), first,
-    'the pooled process was launched against the plan gateway with no key — it cannot serve codex');
+    'the pooled process was launched on the subscription with no key — it cannot serve the relay');
   await claudePool(adapter).close(key);
 });
 
-test('an unchanged mode route still reuses the pooled session', async (t) => {
+test('an unchanged connection route still reuses the pooled session', async (t) => {
   t.onTestFinished(pinRouteEnvironment());
-  _testSetHealthy(true);
   const adapter = new ClaudeAdapter();
   const key = 'route-pool-stable';
+  const relay = connectionConfig('relay');
 
-  claudePool(adapter).open(pooledRouteSpawn(key, resolveRunRoute(planConfig()), planConfig()));
+  claudePool(adapter).open(pooledRouteSpawn(key, resolveRunRoute(relay), relay));
   const first = claudePool(adapter).getPooledSession(key);
-  claudePool(adapter).open(pooledRouteSpawn(key, resolveRunRoute(planConfig()), planConfig()));
+  claudePool(adapter).open(pooledRouteSpawn(key, resolveRunRoute(relay), relay));
 
   assert.ok(first);
   assert.equal(claudePool(adapter).getPooledSession(key), first,

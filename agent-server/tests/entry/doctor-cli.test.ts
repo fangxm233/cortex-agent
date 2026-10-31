@@ -32,14 +32,14 @@ const GREEN_PRESENT = new Set([
 ]);
 const GREEN_TEXTS: Record<string, string> = {
   '/c/.env': '', '/s/mode.json': '{"backend":"claude"}',
-  '/c/models.json': '{"default":{"backend":"claude","provider":null,"model":"x","thinking":null,"mode":"plan"},"favorites":[]}',
+  '/c/models.json': '{"default":{"backend":"claude","provider":null,"model":"x","thinking":null,"connection":"subscription"},"favorites":[]}',
   '/c/mcp-config.json': '{}', '/h/.aistatus/gateway.yaml': 'x: 1',
 };
 
 function greenDeps(over: Partial<DoctorDeps> = {}): DoctorDeps {
   return {
     env: {
-      CORTEX_CLIENT_TOKEN: 'a', CORTEX_WEBHOOK_TOKEN: 'b', ANTHROPIC_API_KEY: 'sk',
+      CORTEX_CLIENT_TOKEN: 'a', CORTEX_WEBHOOK_TOKEN: 'b',
       CORTEX_PLATFORM: 'slack', SLACK_BOT_TOKEN: 'xoxb-1',
       SLACK_SIGNING_SECRET: 's', SLACK_APP_TOKEN: 'xapp-1',
     },
@@ -55,7 +55,8 @@ function greenDeps(over: Partial<DoctorDeps> = {}): DoctorDeps {
       generatedAt: '2026-08-02T00:00:00.000Z', accounts: [],
       piRuntime: { available: true, version: '0.82.1', entry: '/pi/index.js', error: null },
     }),
-    defaultSelection: () => ({ backend: 'claude', mode: 'plan' }),
+    defaultSelection: () => ({ backend: 'claude', connection: 'subscription' }),
+    claudeKeyConnections: () => [],
     ...over,
   };
 }
@@ -100,7 +101,7 @@ describe('cmdDoctor — --fix', () => {
   it('actuates fixes then re-runs diagnostics', async () => {
     // Missing tokens → fixable fail. After fix, the env gains tokens so the re-run passes.
     const env: Record<string, string | undefined> = {
-      CORTEX_CLIENT_TOKEN: '', CORTEX_WEBHOOK_TOKEN: '', ANTHROPIC_API_KEY: 'sk',
+      CORTEX_CLIENT_TOKEN: '', CORTEX_WEBHOOK_TOKEN: '',
       CORTEX_PLATFORM: 'slack', SLACK_BOT_TOKEN: 'xoxb-1', SLACK_SIGNING_SECRET: 's', SLACK_APP_TOKEN: 'xapp-1',
     };
     const diag = greenDeps({ env });

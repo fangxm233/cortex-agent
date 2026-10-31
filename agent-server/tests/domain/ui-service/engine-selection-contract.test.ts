@@ -4,12 +4,12 @@ import { mutateInputSchemas } from '../../../src/domain/ui-service/input-schemas
 import { createAppRouter } from '../../../src/domain/ui-service/app-router.js';
 import type { UiService } from '../../../src/domain/ui-service/types.js';
 
-const selection = { backend: 'claude', provider: null, model: 'opus', thinking: null, mode: 'plan' };
+const selection = { backend: 'claude', provider: null, model: 'opus', thinking: null, connection: 'subscription' };
 
 test('session mutation requires a complete selection and rejects retired fields', () => {
   const schema = mutateInputSchemas['sessions.setSelection'];
   assert.deepEqual(schema.parse({ sessionId: 's', selection }), { sessionId: 's', selection });
-  for (const input of [{ sessionId: 's' }, { sessionId: 's', selection: {} }, { sessionId: 's', profileName: 'plan', selection }]) {
+  for (const input of [{ sessionId: 's' }, { sessionId: 's', selection: {} }, { sessionId: 's', profileName: 'plan', selection }, { sessionId: 's', selection: { ...selection, mode: 'plan' } }]) {
     assert.equal(schema.safeParse(input).success, false);
   }
   for (const key of Object.keys(selection)) {

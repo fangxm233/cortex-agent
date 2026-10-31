@@ -6,10 +6,10 @@ import type { EngineSelection, ModelsFile } from '../src/domain/agents/engine-se
 import { MODELS_FILE, modelsRepo } from '../src/store/models-repo.js';
 
 export const TEST_CLAUDE_SELECTION: EngineSelection = {
-  backend: 'claude', provider: null, model: 'claude-sonnet-4-6', thinking: null, mode: 'plan',
+  backend: 'claude', provider: null, model: 'claude-sonnet-4-6', thinking: null, connection: null,
 };
 export const TEST_PI_SELECTION: EngineSelection = {
-  backend: 'pi', provider: 'anthropic', model: 'claude-sonnet-4-6', thinking: 'high', mode: 'anthropic',
+  backend: 'pi', provider: 'anthropic', model: 'claude-sonnet-4-6', thinking: 'high', connection: null,
 };
 export const TEST_MODELS: ModelsFile = {
   default: TEST_CLAUDE_SELECTION,

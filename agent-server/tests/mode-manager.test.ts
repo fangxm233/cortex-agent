@@ -1,84 +1,20 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
 import { CLAUDE_CONFIG_HOME, CONFIG_DIR } from '../src/core/paths.js';
+import { CONNECTIONS_FILE, upsertConnection } from '../src/core/connections-file.js';
+import { dropRoutingEnv, getSavedApiEnv } from '../src/domain/auth/anthropic-env.js';
+import { resolveClaudeRoute } from '../src/domain/connections/claude-route.js';
 import { importFresh } from './helpers/fresh-module.js';
 
-// Standard import (no cache buster) — same singleton instance that mode-manager uses
-import { _testSetHealthy } from './../src/domain/costs/gateway-manager.js';
-import { gatewayUrl } from '../src/core/gateway-endpoint.js';
-import * as anthropicEnv from './../src/domain/auth/anthropic-env.js';
-import { resolveModeEnv } from './../src/domain/runs/mode-env.js';
-import { GATEWAY_MANAGED_KEY_PLACEHOLDER } from './../src/core/utils.js';
+// The daemon's own environment and saved credentials. Per-spawn routing itself (which variables a
+// connection sets and unsets) is covered by tests/domain/connections/claude-route.test.ts.
 
-test('resolveModeEnv(api) sets placeholder key when no key available and gateway healthy', async (t) => {
-  const modeManager = await freshConfigWithSavedEnv(t, '', true);
+type Cleanup = { onTestFinished: (fn: () => void) => void };
 
-  const route = modeManager.resolveModeEnv('api');
-
-  assert.equal(typeof modeManager.GATEWAY_MANAGED_KEY_PLACEHOLDER, 'string',
-    'GATEWAY_MANAGED_KEY_PLACEHOLDER must be exported');
-  assert.ok(modeManager.GATEWAY_MANAGED_KEY_PLACEHOLDER.length > 0, 'placeholder must be non-empty');
-  assert.equal(route.ANTHROPIC_API_KEY, modeManager.GATEWAY_MANAGED_KEY_PLACEHOLDER,
-    'with no saved key, a placeholder must be set so Claude Code can start on machines without OAuth login');
-  assert.equal(process.env.ANTHROPIC_API_KEY, undefined,
-    'the placeholder is a per-spawn value: the aistatus gateway child inherits this env and resolves keys: [$ANTHROPIC_API_KEY] from it, so a placeholder here would be forwarded upstream as a credential');
-});
-
-test('resolveModeEnv(non-plan custom mode) keeps API key when gateway healthy', async (t) => {
-  const modeManager = await freshConfigWithSavedEnv(t, '', true);
-
-  process.env.ANTHROPIC_API_KEY = 'sk-test-custom';
-  const route = modeManager.resolveModeEnv('qwen-local');
-
-  assert.equal(route.ANTHROPIC_BASE_URL, `${gatewayUrl()}/m/qwen-local/anthropic`,
-    'custom mode should encode mode in URL path');
-  assert.equal(route.ANTHROPIC_API_KEY, 'sk-test-custom',
-    'non-plan modes should keep the API key — only plan mode requires the OAuth bearer path');
-  assert.equal(process.env.ANTHROPIC_BASE_URL, undefined,
-    'resolving a custom mode leaves the daemon env exactly as it was');
-});
-
-test('placeholder key never leaks into the daemon env (gateway healthy → unhealthy)', async (t) => {
-  const modeManager = await freshConfigWithSavedEnv(t, '', true);
-
-  // Healthy + no real key → the placeholder goes to the child and nowhere else
-  const gatewayRoute = modeManager.resolveModeEnv('api');
-  assert.equal(typeof modeManager.GATEWAY_MANAGED_KEY_PLACEHOLDER, 'string',
-    'GATEWAY_MANAGED_KEY_PLACEHOLDER must be exported');
-  assert.equal(gatewayRoute.ANTHROPIC_API_KEY, modeManager.GATEWAY_MANAGED_KEY_PLACEHOLDER);
-  assert.equal(process.env.ANTHROPIC_API_KEY, undefined,
-    'the placeholder cannot be folded back in as a saved key, because it never reaches the daemon env');
-
-  // Gateway goes down → direct fallback must NOT treat the placeholder as a real saved key
-  _testSetHealthy(false);
-  const directRoute = modeManager.resolveModeEnv('api');
-  assert.notEqual(directRoute.ANTHROPIC_API_KEY, modeManager.GATEWAY_MANAGED_KEY_PLACEHOLDER,
-    'direct fallback must not send the placeholder to api.anthropic.com');
-  assert.equal(directRoute.ANTHROPIC_API_KEY, null,
-    'no real key was ever available, so direct fallback should have no key');
-});
-
-test('getSavedApiEnv ignores a gateway placeholder persisted in dotenv', async (t) => {
-  const modeManager = await freshConfigWithSavedEnv(t, 'ANTHROPIC_API_KEY=cortex-gateway-managed\n', false);
-
-  assert.equal(modeManager.getSavedApiEnv().ANTHROPIC_API_KEY, undefined);
-});
-
-test('a live gateway placeholder cannot replace a real key saved in dotenv', async (t) => {
-  const modeManager = await freshConfigWithSavedEnv(t, 'ANTHROPIC_API_KEY="sk-ant-fixture-saved"\n', true);
-  pinClaudeCredential(t, false);
-  process.env.ANTHROPIC_API_KEY = 'cortex-gateway-managed';
-  assert.equal(modeManager.resolveModeEnv('api').ANTHROPIC_API_KEY, 'sk-ant-fixture-saved');
-  _testSetHealthy(false);
-  assert.equal(modeManager.resolveModeEnv('api').ANTHROPIC_API_KEY, 'sk-ant-fixture-saved');
-
-  modeManager.applyAuthEnv();
-  assert.equal(process.env.ANTHROPIC_API_KEY, 'sk-ant-fixture-saved',
-    'the daemon env is where the gateway child reads $ANTHROPIC_API_KEY: a stale placeholder there must be replaced by the real saved key');
-});
+const ROUTE_ENV_KEYS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL',
+  'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT'];
 
 function readOptionalFile(file: string): string | undefined {
   return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : undefined;
@@ -89,161 +25,26 @@ function restoreFile(file: string, contents: string | undefined): void {
   else fs.writeFileSync(file, contents);
 }
 
-test('importing the credential and route modules does NOT mutate ANTHROPIC_API_KEY (no module side effect)', async (t) => {
-  await freshConfigWithSavedEnv(t, '', false);
-
-  // CLI processes (cortex init / setup-gateway) import this module transitively and the
-  // gateway is always unhealthy there. With mode=plan (isolated home → default), an
-  // an import-time apply would delete the key BEFORE discoverEndpoints runs,
-  // making init unable to generate the api endpoint. Imports must be side-effect free.
-  _testSetHealthy(null);
-  process.env.ANTHROPIC_API_KEY = 'sk-import-probe';
-  process.env.ANTHROPIC_BASE_URL = 'https://import-probe.example.test';
-
-  for (const modulePath of [
-    '../src/domain/auth/anthropic-env.js',
-    '../src/domain/runs/mode-env.js',
-    '../src/domain/agents/config.js',
-  ]) await importFresh(new URL(modulePath, import.meta.url));
-
-  assert.equal(process.env.ANTHROPIC_API_KEY, 'sk-import-probe',
-    'importing these modules must not delete/rewrite ANTHROPIC_API_KEY');
-  assert.equal(process.env.ANTHROPIC_BASE_URL, 'https://import-probe.example.test',
-    'importing these modules must not delete/rewrite ANTHROPIC_BASE_URL');
-});
-
-// --- resolveModeEnv: the mode decision as a value, not a global write (plan §4.1) ---
-
-const ROUTE_ENV_KEYS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL',
-  'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT'];
-
-function snapshotRouteEnv(): Record<string, string | undefined> {
-  return Object.fromEntries(ROUTE_ENV_KEYS.map(key => [key, process.env[key]]));
-}
-
-function restoreRouteEnv(snapshot: Record<string, string | undefined>): void {
-  for (const [key, value] of Object.entries(snapshot)) {
-    if (value === undefined) delete process.env[key];
-    else process.env[key] = value;
-  }
-}
-
-// The saved-credential snapshot outlives a read, so it is reset AFTER the dotenv fixture lands;
-// process.env is cleared so the fixture is the only credential source (getSavedApiEnv prefers
-// process.env over the file).
-async function freshConfigWithSavedEnv(
-  t: { onTestFinished: (fn: () => void) => void },
-  dotenv: string,
-  healthy: boolean,
-) {
+/** Clear the route variables from process.env and seed CONFIG_DIR/.env; both restored after. */
+function withSavedEnv(t: Cleanup, dotenv: string): void {
   const envFile = path.join(CONFIG_DIR, '.env');
-  const originalFile = readOptionalFile(envFile);
-  const originalEnv = snapshotRouteEnv();
+  const files = [envFile, CONNECTIONS_FILE].map(file => [file, readOptionalFile(file)] as const);
+  const env = Object.fromEntries(ROUTE_ENV_KEYS.map(key => [key, process.env[key]]));
   t.onTestFinished(() => {
-    _testSetHealthy(null);
-    restoreFile(envFile, originalFile);
-    restoreRouteEnv(originalEnv);
+    for (const [file, contents] of files) restoreFile(file, contents);
+    for (const [key, value] of Object.entries(env)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
   });
   for (const key of ROUTE_ENV_KEYS) delete process.env[key];
+  fs.rmSync(CONNECTIONS_FILE, { force: true });
   fs.writeFileSync(envFile, dotenv);
-  _testSetHealthy(healthy);
-  anthropicEnv._testResetSavedApiEnv();
-  return { ...anthropicEnv, resolveModeEnv, GATEWAY_MANAGED_KEY_PLACEHOLDER };
 }
 
-test('resolveModeEnv(plan) routes via gateway and marks the API key for deletion', async (t) => {
-  const modeManager = await freshConfigWithSavedEnv(t, 'ANTHROPIC_API_KEY="sk-ant-fixture-plan"\n', true);
-
-  const modeEnv = modeManager.resolveModeEnv('plan');
-
-  assert.equal(modeEnv.ANTHROPIC_BASE_URL, `${gatewayUrl()}/m/plan/anthropic`);
-  assert.equal(modeEnv.ANTHROPIC_API_KEY, null,
-    'plan mode must report null (= delete the variable), not a value and not undefined');
-  assert.ok(!('CLAUDE_CODE_OAUTH_TOKEN' in modeEnv),
-    'the gateway route says nothing about the OAuth token — absent key means leave it alone');
-});
-
-test('resolveModeEnv(api) keeps the saved key on the gateway route', async (t) => {
-  const modeManager = await freshConfigWithSavedEnv(t, 'ANTHROPIC_API_KEY="sk-ant-fixture-api"\n', true);
-
-  const modeEnv = modeManager.resolveModeEnv('api');
-
-  assert.equal(modeEnv.ANTHROPIC_BASE_URL, `${gatewayUrl()}/m/api/anthropic`);
-  assert.equal(modeEnv.ANTHROPIC_API_KEY, 'sk-ant-fixture-api',
-    'non-plan modes keep the key so Claude Code passes its startup credential check');
-});
-
-test('resolveModeEnv(custom mode) uses the placeholder key and encodes metadata', async (t) => {
-  const modeManager = await freshConfigWithSavedEnv(t, '', true);
-
-  const modeEnv = modeManager.resolveModeEnv('qwen-local', { project: 'cortex-self' });
-
-  assert.equal(modeEnv.ANTHROPIC_BASE_URL, `${gatewayUrl()}/m/qwen-local/project=cortex-self/anthropic`,
-    'metadata must be encoded into the per-request mode URL');
-  assert.equal(modeEnv.ANTHROPIC_API_KEY, modeManager.GATEWAY_MANAGED_KEY_PLACEHOLDER,
-    'with no saved key the gateway route still needs a placeholder to start Claude Code');
-});
-
-test('resolveModeEnv(plan) unsets both route variables when the gateway is down', async (t) => {
-  const modeManager = await freshConfigWithSavedEnv(t, 'ANTHROPIC_API_KEY="sk-ant-fixture-plan"\n', false);
-
-  const modeEnv = modeManager.resolveModeEnv('plan');
-
-  assert.equal(modeEnv.ANTHROPIC_BASE_URL, undefined,
-    'direct plan mode talks to api.anthropic.com over OAuth — no base URL at all');
-  assert.equal(modeEnv.ANTHROPIC_API_KEY, null, 'direct plan mode must delete the API key');
-});
-
-test('resolveModeEnv(api) restores the saved credentials when the gateway is down', async (t) => {
-  const dotenv = 'ANTHROPIC_API_KEY="sk-ant-fixture-direct"\n'
-    + 'ANTHROPIC_BASE_URL="https://direct.example.test"\n'
-    + 'CLAUDE_CODE_OAUTH_TOKEN="oat-fixture-direct"\n';
-  const modeManager = await freshConfigWithSavedEnv(t, dotenv, false);
-
-  const modeEnv = modeManager.resolveModeEnv('api');
-
-  assert.equal(modeEnv.ANTHROPIC_API_KEY, 'sk-ant-fixture-direct');
-  assert.equal(modeEnv.ANTHROPIC_BASE_URL, 'https://direct.example.test');
-  assert.equal(modeEnv.CLAUDE_CODE_OAUTH_TOKEN, 'oat-fixture-direct',
-    'the direct route also projects the saved OAuth token, exactly as the old inline apply did');
-});
-
-test('resolveModeEnv(api) never hands the gateway placeholder to the direct route', async (t) => {
-  const modeManager = await freshConfigWithSavedEnv(t, '', false);
-
-  const modeEnv = modeManager.resolveModeEnv('api');
-
-  assert.equal(modeEnv.ANTHROPIC_API_KEY, null,
-    'no real key was ever saved, so the direct route must delete the key — not send a placeholder');
-  assert.equal(modeEnv.ANTHROPIC_BASE_URL, undefined);
-  assert.equal(modeEnv.CLAUDE_CODE_OAUTH_TOKEN, null);
-});
-
-test('resolveModeEnv decides without touching process.env', async (t) => {
-  const modeManager = await freshConfigWithSavedEnv(t, 'ANTHROPIC_API_KEY="sk-ant-fixture-pure"\n', true);
-  process.env.ANTHROPIC_API_KEY = 'sk-probe-untouched';
-  process.env.ANTHROPIC_BASE_URL = 'https://probe.example.test';
-
-  for (const healthy of [true, false]) {
-    _testSetHealthy(healthy);
-    modeManager.resolveModeEnv('plan');
-    modeManager.resolveModeEnv('api');
-    assert.equal(process.env.ANTHROPIC_API_KEY, 'sk-probe-untouched',
-      `resolveModeEnv must not write global env (gateway healthy=${healthy})`);
-    assert.equal(process.env.ANTHROPIC_BASE_URL, 'https://probe.example.test',
-      `resolveModeEnv must not write global env (gateway healthy=${healthy})`);
-  }
-});
-
-
-// --- applyAuthEnv: the daemon env carries saved credentials, never a mode route (plan §4.6) ---
-
 /** Pins the Claude-owned credential probe to Cortex's own Claude config dir (inside this test
- *  file's temp home), so the arbitration result never depends on the machine. */
-function pinClaudeCredential(
-  t: { onTestFinished: (fn: () => void) => void },
-  owned: boolean,
-): void {
+ *  file's temp home), so the result never depends on the machine. */
+function pinClaudeCredential(t: Cleanup, owned: boolean): void {
   const file = path.join(CLAUDE_CONFIG_HOME, '.credentials.json');
   t.onTestFinished(() => fs.rmSync(file, { force: true }));
   fs.rmSync(file, { force: true });
@@ -256,66 +57,103 @@ function pinClaudeCredential(
   );
 }
 
-test('applyAuthEnv hands the daemon a real key, never the gateway placeholder', async (t) => {
-  const modeManager = await freshConfigWithSavedEnv(t, 'ANTHROPIC_API_KEY="sk-ant-fixture-daemon"\n', true);
-  pinClaudeCredential(t, false);
+test('importing the credential and route modules does NOT mutate the routing env (no module side effect)', async (t) => {
+  withSavedEnv(t, '');
+  process.env.ANTHROPIC_API_KEY = 'sk-import-probe';
+  process.env.ANTHROPIC_BASE_URL = 'https://import-probe.example.test';
 
-  modeManager.applyAuthEnv();
+  for (const modulePath of [
+    '../src/domain/auth/anthropic-env.js',
+    '../src/domain/connections/claude-route.js',
+    '../src/domain/agents/config.js',
+  ]) await importFresh(new URL(modulePath, import.meta.url));
 
-  assert.equal(process.env.ANTHROPIC_API_KEY, 'sk-ant-fixture-daemon',
-    'the aistatus gateway child inherits this env and resolves keys: [$ANTHROPIC_API_KEY] from it');
-  assert.notEqual(process.env.ANTHROPIC_API_KEY, modeManager.GATEWAY_MANAGED_KEY_PLACEHOLDER);
+  assert.equal(process.env.ANTHROPIC_API_KEY, 'sk-import-probe',
+    'importing these modules must not delete/rewrite ANTHROPIC_API_KEY');
+  assert.equal(process.env.ANTHROPIC_BASE_URL, 'https://import-probe.example.test',
+    'importing these modules must not delete/rewrite ANTHROPIC_BASE_URL');
 });
 
-test('applyAuthEnv deletes a placeholder rather than leaving it for the gateway child', async (t) => {
-  const modeManager = await freshConfigWithSavedEnv(t, 'ANTHROPIC_API_KEY="cortex-gateway-managed"\n', true);
-  pinClaudeCredential(t, false);
-  process.env.ANTHROPIC_API_KEY = 'cortex-gateway-managed';
+test('resolveClaudeRoute decides without touching process.env', (t) => {
+  withSavedEnv(t, '');
+  upsertConnection({
+    id: 'api', backend: 'claude', label: 'API', authStyle: 'x-api-key', key: 'sk-ant-fixture-pure', billing: 'metered',
+  });
+  process.env.ANTHROPIC_API_KEY = 'sk-probe-untouched';
+  process.env.ANTHROPIC_BASE_URL = 'https://probe.example.test';
 
-  modeManager.applyAuthEnv();
+  for (const connection of ['subscription', 'api', null]) resolveClaudeRoute(connection);
 
-  assert.equal(process.env.ANTHROPIC_API_KEY, undefined,
-    'a real key or nothing: the placeholder is not a credential and would be forwarded upstream as one');
+  assert.equal(process.env.ANTHROPIC_API_KEY, 'sk-probe-untouched');
+  assert.equal(process.env.ANTHROPIC_BASE_URL, 'https://probe.example.test');
 });
 
-test('applyAuthEnv keeps the mode route out of the daemon env', async (t) => {
-  const modeManager = await freshConfigWithSavedEnv(t, 'ANTHROPIC_API_KEY="sk-ant-fixture-route"\n', true);
-  pinClaudeCredential(t, false);
-  process.env.ANTHROPIC_BASE_URL = 'https://untouched.example.test';
+test('getSavedApiEnv reads the api connection, not a key left in .env', (t) => {
+  withSavedEnv(t, 'ANTHROPIC_API_KEY="sk-ant-fixture-dotenv"\n');
+  assert.equal(getSavedApiEnv().ANTHROPIC_API_KEY, undefined,
+    'a pre-connections .env key is the migration\'s input, not a saved credential');
 
-  const route = modeManager.resolveModeEnv('openai-codex');
-  modeManager.applyAuthEnv();
-
-  assert.equal(route.ANTHROPIC_BASE_URL, `${gatewayUrl()}/m/openai-codex/anthropic`);
-  assert.equal(process.env.ANTHROPIC_BASE_URL, 'https://untouched.example.test',
-    'a mode URL in the daemon env is what made the usage probe inherit a non-subscription route (K-053)');
+  upsertConnection({
+    id: 'api', backend: 'claude', label: 'API', baseUrl: 'https://relay.example.test',
+    authStyle: 'x-api-key', key: 'sk-ant-fixture-connection', billing: 'metered',
+  });
+  assert.equal(getSavedApiEnv().ANTHROPIC_API_KEY, 'sk-ant-fixture-connection');
+  assert.equal(getSavedApiEnv().ANTHROPIC_BASE_URL, 'https://relay.example.test');
 });
 
-test('applyAuthEnv projects the legacy .env token while Claude owns no credential', async (t) => {
-  const modeManager = await freshConfigWithSavedEnv(t, 'CLAUDE_CODE_OAUTH_TOKEN="oat-fixture-legacy"\n', false);
-  pinClaudeCredential(t, false);
+test('getSavedApiEnv reports the legacy OAuth token with its expiry only when they belong together', (t) => {
+  withSavedEnv(t, 'CLAUDE_CODE_OAUTH_TOKEN="oat-fixture-legacy"\n'
+    + 'CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT="1893456000000"\n');
+  assert.equal(getSavedApiEnv().CLAUDE_CODE_OAUTH_TOKEN, 'oat-fixture-legacy');
+  assert.equal(getSavedApiEnv().CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT, '1893456000000');
 
-  modeManager.applyAuthEnv();
-
-  assert.equal(process.env.CLAUDE_CODE_OAUTH_TOKEN, 'oat-fixture-legacy',
-    'without a Claude-owned credential the saved token is the only way a spawn can authenticate');
+  process.env.CLAUDE_CODE_OAUTH_TOKEN = 'oat-fixture-shell';
+  assert.equal(getSavedApiEnv().CLAUDE_CODE_OAUTH_TOKEN, 'oat-fixture-shell', 'the environment wins');
+  assert.equal(getSavedApiEnv().CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT, undefined,
+    'the saved expiry describes the saved token, not the one from the environment');
 });
 
-test('applyAuthEnv never revives the legacy .env token once Claude owns the credential', async (t) => {
-  const dotenv = 'ANTHROPIC_API_KEY="sk-ant-fixture-arbitration"\n'
-    + 'CLAUDE_CODE_OAUTH_TOKEN="oat-fixture-legacy"\n'
-    + 'CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT="1893456000000"\n';
-  // Gateway down + a saved API key is exactly the combination whose direct-route projection
-  // used to write the token back after the ownership check had deleted it.
-  const modeManager = await freshConfigWithSavedEnv(t, dotenv, false);
+test('dropRoutingEnv leaves the daemon no endpoint or key to leak into a child', (t) => {
+  withSavedEnv(t, '');
+  pinClaudeCredential(t, false);
+  const env: NodeJS.ProcessEnv = {
+    ANTHROPIC_API_KEY: 'sk-ant-fixture-daemon', ANTHROPIC_AUTH_TOKEN: 'fixture-relay-token',
+    ANTHROPIC_BASE_URL: 'https://inherited.example.test', PATH: '/usr/bin',
+  };
+
+  dropRoutingEnv(env);
+
+  assert.deepEqual(env, { PATH: '/usr/bin' },
+    'every spawn takes its endpoint and key from its connection; nothing else may be inherited');
+});
+
+test('dropRoutingEnv keeps the legacy OAuth token while Claude owns no credential', (t) => {
+  withSavedEnv(t, '');
+  pinClaudeCredential(t, false);
+  const env: NodeJS.ProcessEnv = {
+    CLAUDE_CODE_OAUTH_TOKEN: 'oat-fixture-legacy', CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: '1893456000000',
+  };
+
+  dropRoutingEnv(env);
+
+  assert.equal(env.CLAUDE_CODE_OAUTH_TOKEN, 'oat-fixture-legacy',
+    'without a Claude-owned credential the static token is the subscription credential');
+  assert.equal(env.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT, '1893456000000');
+});
+
+test('dropRoutingEnv drops the legacy OAuth token once Claude owns the credential', (t) => {
+  withSavedEnv(t, '');
   pinClaudeCredential(t, true);
+  const env: NodeJS.ProcessEnv = {
+    ANTHROPIC_API_KEY: 'sk-ant-fixture-arbitration',
+    CLAUDE_CODE_OAUTH_TOKEN: 'oat-fixture-legacy', CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: '1893456000000',
+  };
 
-  modeManager.applyAuthEnv();
+  dropRoutingEnv(env);
 
-  assert.equal(process.env.CLAUDE_CODE_OAUTH_TOKEN, undefined,
-    'the arbitration: .credentials.json owns the account, so the static .env copy may not shadow the token claude login refreshes');
-  assert.equal(process.env.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT, undefined,
+  assert.equal(env.CLAUDE_CODE_OAUTH_TOKEN, undefined,
+    'the static copy may not shadow the token claude login refreshes');
+  assert.equal(env.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT, undefined,
     'an expiry without its token is a stale claim about a credential that is not there');
-  assert.equal(process.env.ANTHROPIC_API_KEY, 'sk-ant-fixture-arbitration',
-    'the arbitration covers the OAuth token only — the saved API key still reaches the daemon env');
+  assert.equal(env.ANTHROPIC_API_KEY, undefined);
 });
