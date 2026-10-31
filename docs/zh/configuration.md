@@ -120,7 +120,7 @@ $CORTEX_HOME/
 
 启动该实例及运行其 CLI 时，始终指定 `CORTEX_HOME=/absolute/path/to/cortex-second`。`.env` 中路径须写绝对路径，不展开 `~` 或 `$CORTEX_HOME`。
 
-为第二实例配置 provider 凭据并运行 `cortex setup-gateway`。网关从自己的 YAML 读取托管 key，或从后端请求接收透传 key，不从独立 home 下的 `~/.claude`、`~/.pi` 读取登录。`CORTEX_GATEWAY_HOME` 只改变网关子进程的 home，不改变 Cortex 的 Claude/PI 凭据位置。尤其是 `~/.pi/agent/` 中的 PI 凭据和自定义 provider 目录仍由使用同一 OS home 的 Cortex 实例共享；如需隔离它们，也要为 Cortex 使用独立 OS home。不要跨实例复制会轮换的 OAuth token，应使用后端登录流程。网关 usage-sharing 偏好也按 home 隔离，需单独配置。既有网关文件和凭据不会自动复制。
+为第二实例配置 provider 凭据并运行 `cortex setup-gateway`。网关从自己的 YAML 读取托管 key，或从后端请求接收透传 key，不从独立 home 下的 `~/.claude`、`~/.pi` 读取登录。`CORTEX_GATEWAY_HOME` 只改变网关子进程的 home，不改变 Cortex 的 Claude/PI 凭据位置。尤其是 `~/.pi/agent/` 中的 PI 凭据和自定义 provider 目录仍由使用同一 OS home 的 Cortex 实例共享；如需隔离它们，也要为 Cortex 使用独立 OS home。不要跨实例复制会轮换的 OAuth token，应使用后端登录流程。排行榜共享偏好（`.aistatus/config.yaml`）也按 home 隔离，需单独配置。既有网关文件和凭据不会自动复制。
 
 ### 平台 {#platform}
 
@@ -448,18 +448,16 @@ Web 与桌面 App、以及手机上，新对话的输入框里有一枚**干净*
 | `waitpointTtlMs` | number | `604800000` | agent 未指定时 waitpoint 的默认存活时长（7 天）。单个 waitpoint 可以要更短，也可以更长但不超过 30 天硬上限；超时后 waitpoint 过期，并告知会话什么都没来 | `CORTEX_WAITPOINT_TTL_MS` |
 | `waitpointMaxWakesPerHour` | number | `12` | 单个 waitpoint 每小时唤醒其会话的次数上限。失控的信号循环会被限流（并提示一次），而不是刷屏 | `CORTEX_WAITPOINT_MAX_WAKES_PER_HOUR` |
 | `injectWaitMaxS` | number | `600` | 一条中途注入的消息等待回复的时长上限（秒），超过即释放 busy 闸门。防止卡死的进程永久占住守护进程的重启闸门 | `CORTEX_INJECT_WAIT_MAX_S` |
-| `anthropicSubscriptionModes` | string[] | `["plan"]` | 为用量页面轮询其 Anthropic 账号额度的网关 mode。`[]` 关闭轮询 | — |
-| `subscriptionBillingModes` | string[] | `["plan", "openai-codex", "google-gemini-cli", "google-antigravity"]` | 由订阅付费的网关 mode。网关仍为其请求计价，但这些 mode 的用量行只显示额度、不显示费用 | — |
 | `providerUsageCollectionEnabled` | boolean | `true` | 运行内置的 provider 用量采集作业，刷新额度与花费读数 | — |
 | `providerUsageCollectionIntervalMs` | number | `300000` | provider 用量采集的间隔，单位为整数毫秒 | — |
-| `claudeWindowWarmupEnabled` | boolean | `false` | 仅限订阅 mode 下的 Claude（见 `anthropicSubscriptionModes`）。Claude 的 5 小时用量窗口从上一个窗口结束后的第一个请求开始计时。开启后，窗口结束且 10 分钟内没有 Claude 运行时，Cortex 会发一个极小请求（Haiku、不带工具，经 Claude Code、走第一个订阅 mode 的路由）开启下一个窗口，使它在 5 小时后结束，而不是从恢复工作时再算 5 小时。这次请求也让 Claude Code 续期自己的登录，Anthropic 用量读数因此保持最新。窗口结束时间取自 Anthropic 用量读数；预热失败 30 分钟后重试。也可以在 **Settings → Advanced** 中设置 | — |
+| `claudeWindowWarmupEnabled` | boolean | `false` | 仅限订阅连接上的 Claude。Claude 的 5 小时用量窗口从上一个窗口结束后的第一个请求开始计时。开启后，窗口结束且 10 分钟内没有 Claude 运行时，Cortex 会发一个极小请求（Haiku、不带工具，经 Claude Code、走订阅连接）开启下一个窗口，使它在 5 小时后结束，而不是从恢复工作时再算 5 小时。这次请求也让 Claude Code 续期自己的登录，Anthropic 用量读数因此保持最新。窗口结束时间取自 Anthropic 用量读数；预热失败 30 分钟后重试。也可以在 **Settings → Advanced** 中设置 | — |
 | `storeArchiveEnabled` | boolean | `true` | 每天一次，把超过一周的已终结执行记录从 `data/executions.json` 移到 `data/archive/`。启动时读取 | — |
 | `memoryIndexRegenEnabled` | boolean | `true` | 运行内置的实验/知识/模式索引重建。从 `false` 切换为 `true` 时立即执行一次 | — |
 | `memoryIndexRegenIntervalMs` | number | `86400000` | 记忆索引重建的间隔，单位为整数毫秒 | — |
 | `sessionRetentionDays` | number | `90` | 以天为单位的安全整数保留窗口（有效范围 `1` 到 `104249991`）。保留协调器在 daemon 启动时于后台启动一轮清理（启动流程不等待它），之后每 6 小时运行一次，并在热重载改动后再跑一轮；它会清理过期的 session registry 条目、孤儿 `conversation-history`、孤儿 PI transcript bundle、孤儿 Claude capture 日志、孤儿工具图片目录，并同步 Claude 用户设置里的 `cleanupPeriodDays`，同时跳过活跃会话/capture | — |
 | `piCompactReserveTokens` | number | `16384` | 仅 PI 后端：PI 预留的上下文余量，单位 token。上下文超过 `contextWindow - reserveTokens` 时 PI 就压缩——回合之间会压，PI 0.84.4 起也会*在运行中的回合内*于工具批次边界压——所以余量越大压缩越早，长的工具驱动回合里留下的工作空间越多。取值为 `1024` 到 `131072` 之间的整数。Cortex 把它写进私有 PI agent 目录的 `settings.json`，这是唯一的入口：PI 没有为它提供 setter | `CORTEX_PI_COMPACT_RESERVE_TOKENS` |
 | `maxContextTokens` | number \| null | `null` | 两个后端上每个模型可用上下文窗口的上限，单位 token：可用窗口取模型自身窗口与该值中较小者，各后端在到达它之前压缩。取值为 `100000` 到 `1000000` 之间的整数（Claude Code 自身接受的范围），或 `null` 表示每个模型使用自身窗口。Claude 以 `CLAUDE_CODE_AUTO_COMPACT_WINDOW` 接收它，优先级高于 Claude 设置文件里的任何 `autoCompactWindow`；模型窗口超过上限时，PI 在 `cap - piCompactReserveTokens` 处压缩。上下文占用百分比按截断后的窗口计算 | — |
-| `cacheKeepWarmHours` | number | `6` | 仅限订阅 mode 下的 Claude（见 `anthropicSubscriptionModes`），这类会话的 prompt cache 在最后一次使用后保留一小时。上下文不少于 100k token 的闲置会话只要还在等唤醒（有未结束的 waitpoint、有尚未回报的 worker、有在跑的后台 `agent`），Cortex 就每约 50 分钟读一次它的缓存，免得唤醒时按缓存写入价重新发送整段上下文。每次刷新是在会话的分叉上发一条很短的请求，不改动会话本身；花费约为这段上下文输入价的十分之一，在费用记录里归入 `cache-refresh` trigger。距会话最后一次调用模型超过这么多小时后停止刷新。可能已经过期的缓存不会被刷新（例如上次刷新发生在服务器重启之前），这类会话被唤醒时按冷缓存恢复。`0` 关闭；取值 `0` 到 `24`。也可在 **设置 → 高级** 中修改，该处输入框只接受整数小时 | — |
+| `cacheKeepWarmHours` | number | `6` | 仅限订阅连接上的 Claude，这类会话的 prompt cache 在最后一次使用后保留一小时。上下文不少于 100k token 的闲置会话只要还在等唤醒（有未结束的 waitpoint、有尚未回报的 worker、有在跑的后台 `agent`），Cortex 就每约 50 分钟读一次它的缓存，免得唤醒时按缓存写入价重新发送整段上下文。每次刷新是在会话的分叉上发一条很短的请求，不改动会话本身；花费约为这段上下文输入价的十分之一，在费用记录里归入 `cache-refresh` trigger。距会话最后一次调用模型超过这么多小时后停止刷新。可能已经过期的缓存不会被刷新（例如上次刷新发生在服务器重启之前），这类会话被唤醒时按冷缓存恢复。`0` 关闭；取值 `0` 到 `24`。也可在 **设置 → 高级** 中修改，该处输入框只接受整数小时 | — |
 | `coldResumeClearToolResults` | boolean | `true` | 仅限 Claude。上下文不少于 100k token 的会话在 prompt cache 过期后（距缓存最后一次使用超过 65 分钟）恢复时，Cortex 先把 transcript 中最近一次压缩之后、除最近 10 次以外的工具调用输出换成一句简短占位，再交给 Claude 重新读取，让这次未命中缓存的请求更小。工具调用、模型回复、你的消息、子 agent 的记录，以及换成占位也不会变短的简短工具输出都保持原样；模型看不到旧的工具输出，需要时会重新调用工具。可清掉的内容不足 40,000 字符时不改动 transcript。占位会一直留在 transcript 中，把对话回退到更早的回合后也是如此。也可在 **设置 → 高级** 中开关 | — |
 | `uiCorsOrigins` | string[] | `[]` | Web UI HTTP 宿主为哪些 origin 返回 CORS header。参见 [desktop-app.md](./desktop-app.md) | `CORTEX_UI_CORS_ORIGINS`（逗号分隔） |
 | `adminChannel` | string \| null | `null` | 发送系统通知（启动、限流、磁盘告警）的 Slack 频道。第一次给机器人发私信时会被自动探测并持久化到这里 | `SLACK_ADMIN_CHANNEL`，然后 `CORTEX_ADMIN_CHANNEL` |

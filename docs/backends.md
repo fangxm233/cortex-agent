@@ -526,7 +526,7 @@ windows. The provider key is the isolation boundary: multiple accounts or
 quota pools reported under the same provider key share one provider record,
 and windows with the same type and label retain the later reset time. Timed
 throttling requires a reset-bearing observation. Claude live account-usage
-pulls submit every reported window for each configured Anthropic mode, while
+pulls submit every reported window, while
 stale PI cache reads are never replayed; PI response-header observations
 arrive through their push path, and the OpenAI Codex and Claude account reads
 of each usage collection are described
@@ -570,10 +570,19 @@ screen, or **Refresh** — reads two subscription accounts directly:
   `seven_day_overage_included`, so its threshold control is the policy that
   window's throttle uses. Cortex uses the
   access token Claude Code stores and cannot refresh it, so with an expired
-  token, an API-key setup, or no login the row falls back to the gateway's
-  quota observation; a failed read falls back the same way and adds a note.
+  token, an API-key setup, or no login the row keeps the windows it last
+  read; a failed read keeps them too and adds a note.
   The account offers resets only to a current Claude Code client, so these
   requests identify as the installed `claude` CLI version.
+
+Each Usage row is one provider billed one way. Rows come from Cortex's own
+cost records (`data/costs.jsonl`): a provider with traffic in the last 30 days
+gets a row for each way its traffic was billed, and the connections that
+carried it are listed under its name. A connection's spend is metered unless
+it runs on a subscription — Claude's own login, or a PI provider signed in
+with OAuth. Metered rows show spend for today, the last 30 days and the last
+90 days, the period the cost records keep; subscription rows show quota and
+no spend.
 
 Signing out of a subscription in **Settings → Accounts** removes that
 provider's subscription row from the Usage screens; metered rows stay. The row

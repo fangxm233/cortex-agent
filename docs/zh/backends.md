@@ -209,7 +209,7 @@ Cortex 按 provider 跟踪滚动用量窗口。provider 标识是不透明字符
 
 被中断的对话会连同限制它的 provider 一起保存。某个 provider 完全恢复后，Cortex 只恢复该 provider 的工作；属于其他仍受限 provider 的条目继续排队。对话在原频道恢复，之前的上下文完整保留。恢复会错开启动，避免刚开放的窗口立刻再次耗尽。
 
-当前限流详情会显示每个 provider 正在等待的对话数，并保留同时生效的模型窗口的标签。provider key 是隔离边界：在同一 provider key 下上报的多个账号或额度池共享一条 provider 记录，类型与标签都相同的窗口保留较晚的重置时间。定时限流需要带重置时间的观测。Claude 实时账号用量拉取会为每个已配置的 Anthropic mode 提交所有上报的窗口，而过期的 PI 缓存读数从不重放；PI 响应头观测经其推送路径到达，每次用量采集对 OpenAI Codex 与 Claude 账号的读取见[下文](#account-usage-and-banked-resets)。
+当前限流详情会显示每个 provider 正在等待的对话数，并保留同时生效的模型窗口的标签。provider key 是隔离边界：在同一 provider key 下上报的多个账号或额度池共享一条 provider 记录，类型与标签都相同的窗口保留较晚的重置时间。定时限流需要带重置时间的观测。Claude 实时账号用量拉取会提交所有上报的窗口，而过期的 PI 缓存读数从不重放；PI 响应头观测经其推送路径到达，每次用量采集对 OpenAI Codex 与 Claude 账号的读取见[下文](#account-usage-and-banked-resets)。
 
 策略改动只作用于未来的额度观测，不会改写已经生效的窗口。已生效的额度窗口或 outage 重试窗口会持续生效，直到其重置时间或被手动 **立即恢复** 清除；Codex 或 Claude 额度窗口在新的账号读数显示低于阈值时也会解除。outage 重试行为使用自己的 outage 窗口，不受额度策略阈值改动影响。
 
@@ -222,7 +222,9 @@ Cortex 按 provider 跟踪滚动用量窗口。provider 标识是不透明字符
 每次用量采集——内置的 provider 用量作业、打开用量页面，或点击 **刷新**——都会直接读取两个订阅账号：
 
 - **OpenAI Codex**，以 ChatGPT 套餐登录。读数填入 Codex 订阅行的主窗口与次窗口。读取失败时，该行保留上次从 Codex 响应头观测到的窗口，并附上相应说明。
-- **Claude**，通过 `claude login` 登录。读数填入 Anthropic 订阅行的 5 小时与 7 天窗口，以及账号按单个模型计的周额度，显示为带模型名的一行，例如 **7 天（Fable）**。这个模型窗口就是 Claude Code 上报的 `seven_day_overage_included`，所以它的阈值控件就是该窗口限流所用的策略。Cortex 使用 Claude Code 保存的访问令牌，且无法刷新它，因此令牌过期、使用 API key 或未登录时，该行回退到网关的额度观测；读取失败时同样回退，并附上说明。账号只向当前版本的 Claude Code 客户端提供重置，因此这些请求以本机安装的 `claude` CLI 版本标识自己。
+- **Claude**，通过 `claude login` 登录。读数填入 Anthropic 订阅行的 5 小时与 7 天窗口，以及账号按单个模型计的周额度，显示为带模型名的一行，例如 **7 天（Fable）**。这个模型窗口就是 Claude Code 上报的 `seven_day_overage_included`，所以它的阈值控件就是该窗口限流所用的策略。Cortex 使用 Claude Code 保存的访问令牌，且无法刷新它，因此令牌过期、使用 API key 或未登录时，该行保留上次读到的窗口；读取失败时同样保留，并附上说明。账号只向当前版本的 Claude Code 客户端提供重置，因此这些请求以本机安装的 `claude` CLI 版本标识自己。
+
+每个用量行对应一个 provider 的一种计费方式。行来自 Cortex 自己的费用记录（`data/costs.jsonl`）：近 30 天内有流量的 provider，按其流量的每种计费方式各得一行，承载这些流量的连接列在名称旁。连接的花费按量计费，除非它跑在订阅上——Claude 自己的登录，或以 OAuth 登录的 PI provider。按量计费的行显示今日、近 30 天和近 90 天的花费，90 天即费用记录的保留时长；订阅行只显示额度，不显示花费。
 
 在 **设置 → 账号** 中登出某个订阅后，该 provider 的订阅行会从用量页面移除；按量计费的行保留。通过 Cortex 重新登录该账号，或在登出之后收到新的额度读数时，该行重新出现——在 Cortex 之外完成的登录会在下一次采集时以这种方式显示。
 
