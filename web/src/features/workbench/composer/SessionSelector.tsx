@@ -37,7 +37,7 @@ function SessionSelectionMenu({ selection, close }: { selection: SessionSelectio
     favorites={selection.favoriteOptions}
     modelGroups={selection.modelGroups}
     thinking={selection.thinkingOptions}
-    modes={selection.modeOptions}
+    connections={selection.connectionOptions}
     rootRows={selection.rootRows}
     modelsReady={selection.modelsReady}
     pane={selection.pane}
@@ -46,7 +46,7 @@ function SessionSelectionMenu({ selection, close }: { selection: SessionSelectio
     onToggleFavorite={selection.toggleFavorite}
     onPickModel={(option) => { backToRoot(); selection.pickModel(option); }}
     onPickThinking={(level) => { backToRoot(); selection.pickThinking(level); }}
-    onPickMode={(mode) => { backToRoot(); selection.pickMode(mode); }}
+    onPickConnection={(connection) => { backToRoot(); selection.pickConnection(connection); }}
   />;
 }
 

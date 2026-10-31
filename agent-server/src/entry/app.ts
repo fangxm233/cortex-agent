@@ -120,7 +120,7 @@ import { enqueue, conduitQueues } from '@orch/conduit-queue.js';
 import { initAuthEvents } from '@domain/auth/auth-events.js';
 import { registerAuthWatch } from '@domain/auth/auth-watch.js';
 import { onLoginSuccess } from '@domain/auth/login-flow.js';
-import { syncGatewayFromBackends } from '@domain/auth/gateway-sync.js';
+import { seedModelsFromCatalog } from '@domain/models/seed.js';
 import { createSessionRetentionController } from '@orch/session-retention-controller.js';
 import { ensureOwnBinsOnPath } from '@domain/system/own-bin-path.js';
 import { defaultTerminalCliContext, syncTerminalCli } from '@domain/system/terminal-cli/index.js';
@@ -305,18 +305,18 @@ const bus = new EventBus();
 createEventLogger(bus);
 installTelemetryCollectors(bus);
 initAuthEvents(bus);
-// A login only becomes useful once the models it unlocks are routable, and that mapping is derived
-// by scanning local backend state. Re-derive it whenever a login lands, so a user who authenticates
-// from the workbench gets usable models without dropping to a terminal for `cortex setup-gateway`.
-// Merge-aware and non-throwing (see gateway-sync.ts) — the existing default is never overwritten.
+// A login only becomes useful once the models it unlocks are in the picker. Seed them from the
+// model catalog whenever a login lands, so a user who authenticates from the workbench gets usable
+// models without a terminal. Merge-aware and non-throwing (see domain/models/seed.ts) — the
+// existing default and favorites are never overwritten.
 onLoginSuccess((event) => {
   if (event.authType === 'oauth') {
     void usageService.signIn(event.provider)
       .catch((error: unknown) => log.warn(`showing ${event.provider} subscription usage failed:`, error));
   }
-  void syncGatewayFromBackends({ backends: [event.backend] }).then((result) => {
-    if (!result.configured && result.reason !== 'no-endpoints') {
-      log.warn(`Gateway sync after ${event.backend} login did not complete: ${result.reason}`);
+  void seedModelsFromCatalog({ backends: [event.backend] }).then((result) => {
+    if (!result.configured && result.reason !== 'no-routes') {
+      log.warn(`Model seeding after ${event.backend} login did not complete: ${result.reason}`);
     }
   });
 });

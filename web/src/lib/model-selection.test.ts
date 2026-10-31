@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ConfigModels, EngineSelection, ModelCatalogSnapshot, ModelRef } from '@cortex-agent/ui-contract';
-import { catalogModels, matchesModelFilter, modelKey, modelLabel, selectionForModel } from './model-selection';
+import {
+  catalogModels, defaultConnectionFor, hasRoute, matchesModelFilter, modelKey, modelLabel, selectionForModel, servingConnections,
+} from './model-selection';
 
 const claude: ModelRef = { backend: 'claude', provider: null, model: 'claude-opus-5' };
 const pi: ModelRef = { backend: 'pi', provider: 'deepseek', model: 'deepseek-v4-flash' };
@@ -31,21 +33,29 @@ describe('model identity and labels', () => {
 });
 
 describe('selectionForModel', () => {
-  it('restores both remembered fields instead of inheriting the configured default', () => {
-    const config = { models: { ...models, memory: { [modelKey(pi)]: { thinking: 'xhigh', connection: null } } } };
+  it('restores the remembered thinking instead of inheriting the configured default', () => {
+    const config = { models: { ...models, memory: { [modelKey(pi)]: { thinking: 'xhigh' } } } };
     expect(selectionForModel(pi, config, catalog)).toEqual({ ...pi, thinking: 'xhigh', connection: null });
     expect(config.models.default).toEqual(defaultSelection);
   });
 
   it('preserves remembered null thinking and does not require a loaded catalog', () => {
-    const config = { models: { ...models, memory: { [modelKey(claude)]: { thinking: null, connection: 'subscription' } } } };
-    expect(selectionForModel(claude, config)).toEqual({ ...claude, thinking: null, connection: 'subscription' });
+    const config = { models: { ...models, memory: { [modelKey(claude)]: { thinking: null } } } };
+    expect(selectionForModel(claude, config)).toEqual({ ...claude, thinking: null, connection: null });
   });
 
-  it.each([claude, pi])('uses the first matching catalog route for $backend without memory', (ref) => {
-    expect(selectionForModel(ref, { models }, catalog)).toEqual({
-      ...ref, thinking: null, connection: ref.backend === 'claude' ? 'api' : null,
-    });
+  it.each([claude, pi])('names no connection for $backend when nothing carries one: the run computes it', (ref) => {
+    expect(selectionForModel(ref, { models }, catalog)).toEqual({ ...ref, thinking: null, connection: null });
+  });
+
+  it('keeps the current connection while it serves the new model, and drops it otherwise', () => {
+    const current = { ...defaultSelection, model: 'claude-sonnet-5', connection: 'api' };
+    expect(selectionForModel(claude, { models }, catalog, current).connection).toBe('api');
+    const listed = { ...catalog, routes: [{ ...catalog.routes[0], modelConnections: { [claude.model]: ['subscription'] } }] };
+    expect(selectionForModel(claude, { models }, listed, current).connection).toBeNull();
+    // Without a catalog nothing shows the connection serves the model.
+    expect(selectionForModel(claude, { models }, null, current).connection).toBeNull();
+    expect(selectionForModel(pi, { models }, catalog, current).connection).toBeNull();
   });
 
   it.each([null, undefined])('does not guess a route without memory or catalog (%s)', (config) => {
@@ -53,10 +63,34 @@ describe('selectionForModel', () => {
     expect(selectionForModel(pi, config)).toEqual({ ...pi, thinking: null, connection: null });
   });
 
-  it('does not borrow memory or a route from another provider with the same model id', () => {
+  it('does not borrow memory from another provider with the same model id', () => {
     const other = { ...pi, provider: 'other' };
-    const config = { models: { ...models, memory: { [modelKey(pi)]: { thinking: 'high', connection: null } } } };
+    const config = { models: { ...models, memory: { [modelKey(pi)]: { thinking: 'high' } } } };
     expect(selectionForModel(other, config, catalog)).toEqual({ ...other, thinking: null, connection: null });
+  });
+});
+
+describe('serving and default connections', () => {
+  const local = { ...catalog, routes: [{ ...catalog.routes[0], connections: ['subscription', 'api', 'qwen'],
+    models: [...catalog.routes[0].models, 'qwen-coder'], modelConnections: { 'qwen-coder': ['qwen'] } }, catalog.routes[1]] };
+
+  it('serves a listed model only on its own connections, every other on all of them', () => {
+    expect(servingConnections(local, { ...claude, model: 'qwen-coder' })).toEqual(['qwen']);
+    expect(servingConnections(local, claude)).toEqual(['subscription', 'api', 'qwen']);
+    expect(servingConnections(local, pi)).toEqual([]);
+    expect(servingConnections(null, claude)).toEqual([]);
+  });
+
+  it('runs on the default connection when it serves the model, else the first that does', () => {
+    expect(defaultConnectionFor(local, claude)).toBe('subscription');
+    expect(defaultConnectionFor(local, { ...claude, model: 'qwen-coder' })).toBe('qwen');
+    expect(defaultConnectionFor(null, claude)).toBeNull();
+  });
+
+  it('counts a Claude model runnable only when a connection serves it', () => {
+    expect(hasRoute({ ...claude, thinking: null, connection: null }, local)).toBe(true);
+    expect(hasRoute({ ...claude, thinking: null, connection: null }, { ...catalog, routes: [catalog.routes[1]] })).toBe(false);
+    expect(hasRoute({ ...pi, thinking: null, connection: null }, null)).toBe(true);
   });
 });
 

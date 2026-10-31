@@ -53,7 +53,6 @@ beforeEach(() => {
   const piAdapter = new PIAdapter(
     piFake.factory,
     path.join(root, 'pi-sessions'),
-    undefined,
     { agentDir: path.join(root, 'pi-agent') },
   );
   pool = new SessionEngines({ claude: new ClaudeAdapter(), pi: piAdapter });

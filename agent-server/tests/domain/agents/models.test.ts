@@ -1,7 +1,6 @@
 import { beforeEach, expect, test, vi } from 'vitest';
-import { writeFileSync } from 'node:fs';
+import { rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { upsertConnection } from '../../../src/core/connections-file.js';
 import { importWithFreshRegistry } from '../../helpers/fresh-module.js';
 
 vi.mock('../../../src/agent-adapter/pi/discovery.js', () => ({
@@ -17,26 +16,19 @@ beforeEach(() => {
   writeFileSync(state, '{}');
 });
 
-test('backend default uses configured default, then first favorite, never another backend', async () => {
+test('a backend starts from the configured default, then its first favorite, never another backend', async () => {
   const api = await fresh();
-  expect(api.getDefaultSelectionForBackend('claude')).toEqual(selection);
-  expect(api.getDefaultSelectionForBackend('pi')).toEqual({ ...pi, thinking: null, connection: null });
+  expect(api.backendStartingPoint('claude')).toEqual({ backend: 'claude', provider: null, model: 'opus' });
+  expect(api.backendStartingPoint('pi')).toEqual(pi);
   writeFileSync(file, JSON.stringify({ default: selection, favorites: [] }));
-  expect((await fresh()).getDefaultSelectionForBackend('pi')).toBeNull();
+  expect((await fresh()).backendStartingPoint('pi')).toBeNull();
 });
 
-test('model selection restores memory and otherwise uses null thinking and the default connection', async () => {
-  writeFileSync(state, JSON.stringify({ modelMemory: {
-    '["pi","deepseek","flash"]': { thinking: 'xhigh', connection: 'stray' },
-  } }));
-  const api = await fresh();
-  const sonnet = { backend: 'claude' as const, provider: null, model: 'sonnet' };
-  expect(api.selectionForModel(pi as never)).toEqual({ ...pi, thinking: 'xhigh', connection: null });
-  expect(api.selectionForModel(sonnet)).toEqual({ ...sonnet, thinking: null, connection: null });
-  upsertConnection({
-    id: 'api', backend: 'claude', label: 'API', authStyle: 'x-api-key', key: 'sk-test-fake', billing: 'metered',
-  });
-  expect(api.selectionForModel(sonnet)).toEqual({ ...sonnet, thinking: null, connection: 'api' });
+test('the configured default is null before models.json exists', async () => {
+  rmSync(file);
+  expect((await fresh()).configuredDefault()).toBeNull();
+  writeFileSync(file, JSON.stringify({ default: selection, favorites: [] }));
+  expect((await fresh()).configuredDefault()).toEqual(selection);
 });
 
 test('refs parse explicit providers, retain model slashes, use favorites and cached catalog synchronously', async () => {

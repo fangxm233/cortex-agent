@@ -9,7 +9,7 @@ import { emitCortexEvent } from '@core/hook-bus.js';
 import { ScheduleRepo, scheduleRepo, SCHEDULES_FILE, type ScheduleTask } from '@store/schedule-repo.js';
 import { nextFireDelayMs, type ScheduleSpec, type SchedulePatch } from './schedule-spec.js';
 import { addSchedule, pauseSchedule, resumeSchedule, updateSchedule } from './schedule-ops.js';
-import { getDefaultSelection } from '../agents/models.js';
+import { resolveDaemonSelection } from '../agents/model-selection.js';
 import type { EngineSelection } from '../agents/engine-selection.js';
 
 const log = createLogger('scheduler');
@@ -320,7 +320,7 @@ class Scheduler {
         message: `[Scheduled Task] ${task.message}`,
         projectId: task.projectId,
         scheduleTaskId: task.id,
-        selection: task.selection ?? getDefaultSelection(),
+        selection: scheduledSelection(task),
       });
       return;
     }
@@ -332,6 +332,14 @@ class Scheduler {
     emitScheduleFired(task);
     await handler({ channel: task.projectId, scheduleTaskId: task.id });
   }
+}
+
+/** The task's stored selection as it can run now: a connection removed since creation falls back
+ *  to the computed one instead of failing a run nobody is watching. */
+function scheduledSelection(task: ScheduleTask): EngineSelection {
+  const resolution = resolveDaemonSelection({ request: task.selection });
+  if (resolution.ok === false) throw new Error(`no runnable model selection (${resolution.reason})`);
+  return resolution.effective;
 }
 
 function emitScheduleFired(task: ScheduleTask): void {

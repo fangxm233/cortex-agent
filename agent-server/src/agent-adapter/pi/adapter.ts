@@ -18,7 +18,7 @@ import type { OpenBundledMcpServer } from './mcp-bridge.js';
 type SubmitRateLimit = CodexQuotaSinkDeps['submit'];
 import { CODEX_PROVIDER, type CodexQuotaReading } from '@core/codex-quota.js';
 import type { ProviderUsage, UsageStore } from '@domain/costs/usage-store.js';
-import type { PIProviderDiscovery } from './discovery.js';
+import { scanAgentDirModels, type PiDiscoveredModel } from './model-scan.js';
 import { PISession } from './pi-session.js';
 import { PIEngineSession, type PIEngineOpenHooks } from './engine.js';
 import { createPiRuntime, type PiRuntimeFactory } from './runtime.js';
@@ -35,15 +35,6 @@ export interface PIEnginePoolLookup {
 }
 
 const log = createLogger('pi-adapter');
-
-/** Discovery that reports nothing when the daemon does not inject its cached scanner. */
-const NO_PROVIDER_DISCOVERY: PIProviderDiscovery = {
-  getProviders: () => [],
-  getModels: () => [],
-  peekModels: () => [],
-  ensureModels: async () => [],
-  refresh: () => {},
-};
 
 function neverCodexUsage(mode: string): ProviderUsage {
   return {
@@ -99,7 +90,6 @@ export class PIAdapter implements EngineAdapter {
   readonly capabilities: Set<Capability> = CAPABILITIES_BY_BACKEND.pi;
   private poolLookup: PIEnginePoolLookup | null = null;
   private readonly runtimeFactory: PiRuntimeFactory;
-  private readonly providerDiscovery: PIProviderDiscovery;
   private readonly sessionPathRegistry = new Map<string, string>();
   /** Injected PI home, or undefined when the caller left it to the daemon default. */
   private readonly configuredAgentDir: string | undefined;
@@ -117,12 +107,10 @@ export class PIAdapter implements EngineAdapter {
   constructor(
     runtimeFactory: PiRuntimeFactory = createPiRuntime,
     sessionDir: string = PI_SESSIONS_DIR,
-    providerDiscovery: PIProviderDiscovery = NO_PROVIDER_DISCOVERY,
     hooks: PIAdapterHooks = {},
   ) {
     this.runtimeFactory = runtimeFactory;
     this.sessionDir = sessionDir;
-    this.providerDiscovery = providerDiscovery;
     this.configuredAgentDir = hooks.agentDir;
     this.prepareAgentDir = hooks.prepareAgentDir;
     this.catalog = hooks.catalog;
@@ -187,6 +175,13 @@ export class PIAdapter implements EngineAdapter {
    */
   ensureCatalog(): void {
     this.syncAgentDir(this.agentDir);
+  }
+
+  /** The models sessions of this adapter can run: the catalog brought up to date, then scanned
+   *  through the same credential store, models.json and runtime keys a session uses. */
+  scanModels(): Promise<PiDiscoveredModel[]> {
+    this.ensureCatalog();
+    return scanAgentDirModels(this.agentDir);
   }
 
   /** The one construction of a `PiSessionRequest`; `specIdentity` and `prepareRequest` both come

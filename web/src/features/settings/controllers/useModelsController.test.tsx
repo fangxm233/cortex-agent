@@ -10,9 +10,10 @@ import { useModelsController, type ModelsController } from './useModelsControlle
 const ref: ModelRef = { backend: 'claude', provider: null, model: 'opus' };
 const other: ModelRef = { backend: 'pi', provider: 'deepseek', model: 'flash' };
 const snapshot = { models: { default: { ...ref, connection: 'subscription', thinking: 'high' }, favorites: [ref, other],
-  memory: { [modelKey(ref)]: { connection: 'api', thinking: 'max' } } } } as ConfigSnapshot;
+  memory: { [modelKey(ref)]: { thinking: 'max' } } } } as unknown as ConfigSnapshot;
 const catalog = { routes: [{ endpoint: 'deepseek', backend: 'pi', provider: 'deepseek',
-  connections: [], models: ['flash', 'new-model'], source: 'pi' }], piPending: false };
+  connections: [], models: ['flash', 'new-model'], source: 'pi' }, { endpoint: 'anthropic', backend: 'claude', provider: null,
+  connections: ['subscription', 'api'], models: ['opus'], source: 'builtin' }], piPending: false };
 const adapter = vi.hoisted(() => ({ config: vi.fn(), catalog: vi.fn(), add: vi.fn(), remove: vi.fn(), setDefault: vi.fn(), setThinking: vi.fn(), toast: vi.fn() }));
 vi.mock('@/lib/trpc', () => {
   const mutation = (fn: (input: unknown) => unknown) => ({ mutationOptions: (options: object) => ({ ...options, mutationFn: (input: unknown) => fn(input) }) });
@@ -106,10 +107,10 @@ describe('model settings writes', () => {
     expect(controller.catalogOpen).toBe(false);
     act(() => view.unmount());
   });
-  it('writes a complete selection using memory and refreshes config', async () => {
+  it('writes a complete selection: remembered thinking, the default\'s connection while it serves', async () => {
     const { view, invalidate } = await mount();
     await act(async () => controller.setDefault(modelKey(ref)));
-    expect(adapter.setDefault).toHaveBeenCalledWith({ selection: { ...ref, connection: 'api', thinking: 'max' } });
+    expect(adapter.setDefault).toHaveBeenCalledWith({ selection: { ...ref, connection: 'subscription', thinking: 'max' } });
     expect(invalidate).toHaveBeenCalled();
     act(() => view.unmount());
   });

@@ -398,11 +398,13 @@ Remote login is also available through `!login` in Slack or Feishu; see
 [Backends: Remote login](./backends.md#remote-login).
 
 For non-interactive model choices, `--answers` accepts `defaultChoice` and
-`favorites`, each choice an object with `mode` and `model`. An explicit
-`defaultChoice` replaces the saved default; otherwise it is preserved. Favorites
-are merged, with the selected default included. In the positional stdin protocol,
-the model-selection tail is two lines: `mode:model` for the default, followed by
-comma-separated `mode:model` favorites.
+`favorites`, each choice an object with `backend`, `provider` (PI only) and
+`model`. An explicit `defaultChoice` replaces the saved default; otherwise it is
+preserved. Favorites are merged, with the selected default included, and every
+backend or PI provider without a favorite gains its recommended model. In the
+positional stdin protocol, the model-selection tail is two lines: `route:model`
+for the default, followed by comma-separated `route:model` favorites, where the
+route is `claude` or a PI provider.
 
 ### 2.11 When the backend login expires
 

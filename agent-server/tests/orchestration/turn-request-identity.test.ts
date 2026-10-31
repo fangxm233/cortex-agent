@@ -61,6 +61,7 @@ import { runRetryAgent } from '../../src/orchestration/edit-retry.js';
 import { resumeAskUserQuestionGroup } from '../../src/orchestration/interactions/ask-user-resume.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import { CLAUDE_SELECTION, seedSelections } from './selection-fixture.js';
+import { seedClaudeSubscription } from '../_seed-connections.js';
 
 const CHANNEL = 'web:lead';
 const SESSION: Session = {
@@ -72,6 +73,7 @@ const SESSION: Session = {
 
 beforeAll(() => {
   seedSelections();
+  seedClaudeSubscription();
   // A second Claude connection, so a turn on another route is a different engine.
   upsertConnection({
     id: 'api', backend: 'claude', label: 'API', authStyle: 'x-api-key', key: 'sk-ant-fake', billing: 'metered',

@@ -10,11 +10,11 @@ import { setSessionAsync } from '@domain/sessions/session.js';
 import { isTeamLead, isTeamWorker, MAX_RUNNING_WORKERS, WORKER_NAME_RE } from '@domain/sessions/team.js';
 import { sessionState } from '@core/session-state.js';
 import {
-  applyChannelSelection, readChannelSelection, resolveBackendForChannel,
+  applyChannelSelection, readChannelSelection, resolveBackendForChannel, resolveDaemonSelection,
 } from '@domain/agents/index.js';
-import { getDefaultSelectionForBackend, resolveModelRef } from '@domain/agents/models.js';
+import { resolveModelRef } from '@domain/agents/models.js';
 import type { EngineSelection } from '@domain/agents/engine-selection.js';
-import { parseModelSpec } from '@core/agents/subagent/model-spec.js';
+import { parseModelSpec, type ModelSpec } from '@core/agents/subagent/model-spec.js';
 import { isRebuildHeld } from '@domain/system/rebuild-hold.js';
 import { deliverToSessionDetached, type DeliverToSessionOptions } from './session-gateway.js';
 import { orchestrationBus } from './runtime.js';
@@ -52,7 +52,8 @@ export interface TeamWebhookDeps {
   deliver: (opts: Pick<DeliverToSessionOptions, 'channel' | 'text' | 'origin'>) => void;
   cancel: (channel: string) => Promise<number>;
   readSelection: (channel: string) => EngineSelection;
-  defaultSelection: (backend: Backend) => EngineSelection | null;
+  /** Complete a worker's selection from the lead's (see resolveSelection). */
+  resolveSelection: typeof resolveDaemonSelection;
   applySelection: typeof applyChannelSelection;
   interactions: Pick<InteractionRecords, 'get'>;
   answerQuestion: (requestId: string, answers: Record<string, string>) => Outcome;
@@ -85,7 +86,7 @@ const defaultDeps: TeamWebhookDeps = {
   deliver: (opts) => deliverToSessionDetached(opts),
   cancel: (channel) => cancelChannelRuns(channel),
   readSelection: (channel) => readChannelSelection(channel),
-  defaultSelection: getDefaultSelectionForBackend,
+  resolveSelection: (layers, partial) => resolveDaemonSelection(layers, partial),
   applySelection: (request) => applyChannelSelection(request),
   interactions: interactionRecords,
   answerQuestion: (requestId, answers) => answerQuestion(requestId, answers, 'agent'),
@@ -146,6 +147,14 @@ function capError(): TeamError {
   );
 }
 
+/** The model fields a spawn names: `provider/model[:thinking]`, where a provider means PI. A bare
+ *  PI model name is looked up among the configured models and the catalog. */
+function workerModelFields(spec: ModelSpec, backend: Backend): Partial<EngineSelection> {
+  if (!spec.model) return {};
+  if (backend === 'claude') return { model: spec.model };
+  return spec.provider ? { provider: spec.provider, model: spec.model } : resolveModelRef(spec.model, 'pi');
+}
+
 /** Copy the lead's exact choice; another backend starts from its default or first favorite. */
 function resolveWorkerSelection(lead: Session, data: Record<string, any>, deps: TeamWebhookDeps): EngineSelection {
   const own = lead.selection ?? deps.readSelection(lead.channel);
@@ -155,16 +164,19 @@ function resolveWorkerSelection(lead: Session, data: Record<string, any>, deps: 
   }
   const spec = parseModelSpec(str(data.model) || undefined);
   const backend: Backend = (requested as Backend) || (spec.provider ? 'pi' : own.backend);
-  const base = backend === own.backend ? own : deps.defaultSelection(backend);
-  if (!base) throw new TeamError(`no default or favorite for the ${backend} backend; favorite a model first`);
-  const ref = spec.model ? resolveModelRef(spec.provider && backend === 'pi'
-    ? `${spec.provider}/${spec.model}` : spec.model, backend) : base;
-  const provider = backend === 'pi' ? (spec.provider ?? (backend === own.backend ? own.provider : ref.provider)) : null;
-  return {
-    ...base, backend, provider, model: ref.model,
-    thinking: spec.thinking ?? base.thinking,
-    connection: backend === 'pi' ? null : base.connection,
-  };
+  const resolution = deps.resolveSelection({ request: own }, {
+    ...(backend !== own.backend ? { backend } : {}),
+    ...workerModelFields(spec, backend),
+    ...(spec.thinking ? { thinking: spec.thinking } : {}),
+  });
+  if (resolution.ok === false && resolution.reason === 'no-model-for-backend') {
+    throw new TeamError(`no default or favorite for the ${backend} backend; favorite a model first`);
+  }
+  if (resolution.ok === false) {
+    const allowed = resolution.allowed?.length ? ` (allowed: ${resolution.allowed.join(', ')})` : '';
+    throw new TeamError(`cannot run the worker on that model: ${resolution.reason}${allowed}`);
+  }
+  return resolution.selection;
 }
 
 async function spawn(lead: Session, data: Record<string, any>, deps: TeamWebhookDeps): Promise<TeamWebhookReply> {

@@ -5,7 +5,7 @@ import { modelKey } from '@/lib/model-selection';
 
 const ref: ModelRef = { backend: 'pi', provider: 'deepseek', model: 'flash' };
 const snapshot = { models: { default: { ...ref, thinking: 'high', connection: null },
-  favorites: [ref], memory: { [modelKey(ref)]: { thinking: 'xhigh', connection: null } } } } as ConfigSnapshot;
+  favorites: [ref], memory: { [modelKey(ref)]: { thinking: 'xhigh' } } } } as ConfigSnapshot;
 const catalog: ModelCatalogSnapshot = { piPending: false, routes: [
   { backend: 'pi', provider: 'deepseek', endpoint: 'deepseek', connections: [], models: ['flash', 'flash', 'pro'], source: 'pi' },
   { backend: 'claude', provider: null, endpoint: 'anthropic', connections: ['subscription'], models: ['opus'], source: 'builtin' },

@@ -7,7 +7,7 @@ import { buildAgentSheet, buildSelectionSheet, type SelectionSheetRow, type Sele
 export type MChatSelection = Pick<SessionSelection,
   | 'open' | 'setOpen' | 'agentOpen' | 'setAgentOpen' | 'agents'
   | 'catalogLoading' | 'modelsReady' | 'effective' | 'favoriteOptions' | 'modelGroups'
-  | 'thinkingOptions' | 'modeOptions' | 'rootRows' | 'toggleFavorite'
+  | 'thinkingOptions' | 'connectionOptions' | 'rootRows' | 'toggleFavorite'
   | 'agentOptions' | 'agentName'>;
 
 export interface MChatSelectionView {
@@ -26,7 +26,7 @@ function engineSheet(selection: MChatSelection, L: Vocab): MChatSelectionView['s
   const vm = buildSelectionSheet({
     ...selection,
     copy: {
-      favorites: L.chatFavoritesTitle, model: L.wbModel, thinking: L.wbThinking, mode: L.wbRoute,
+      favorites: L.chatFavoritesTitle, model: L.wbModel, thinking: L.wbThinking, connection: L.wbConnection,
       defaultThinking: L.chatThinkingDefault, crossBackend: L.chatModelCrossBackend,
     },
   });

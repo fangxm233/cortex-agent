@@ -84,13 +84,13 @@ async function call(url: string, token: string, method: string, mutation = false
 }
 const query = (url: string, token: string, method: string) => call(url, token, method);
 /** The Provider page's model refresh. */
-const refreshModels = (url: string, token: string) => call(url, token, 'auth.syncGateway', true) as Promise<{
+const refreshModels = (url: string, token: string) => call(url, token, 'auth.syncModels', true) as Promise<{
   configured: boolean; reason?: string; defaultSet: boolean; favorites: {backend:string;provider:string|null;model:string}[];
 }>;
 
 /** Model refresh before and after the first PI login, while no models.json exists yet. */
 async function firstLoginRefresh(home: string, endpoint: { uiUrl: string; clientToken: string }) {
-  expect(await refreshModels(endpoint.uiUrl, endpoint.clientToken)).toMatchObject({ configured: false, reason: 'no-endpoints' });
+  expect(await refreshModels(endpoint.uiUrl, endpoint.clientToken)).toMatchObject({ configured: false, reason: 'no-routes' });
   mkdirSync(join(home, '.pi/agent'), { recursive: true });
   writeFileSync(join(home, '.pi/agent/auth.json'), JSON.stringify({ openai: { type: 'api_key', key: 'sk-test' } }));
   expect(await refreshModels(endpoint.uiUrl, endpoint.clientToken)).toMatchObject({ configured: true, defaultSet: true, favorites: [expect.objectContaining({ backend: 'pi', provider: 'openai' })] });

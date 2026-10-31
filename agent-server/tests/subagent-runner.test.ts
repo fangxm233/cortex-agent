@@ -15,6 +15,7 @@ import {
 } from '../src/domain/agents/subagent/runner.js';
 import { parseModelSpec, selectChildModel } from '@core/agents/subagent/model-spec.js';
 import { modelsRepo } from '../src/store/models-repo.js';
+import { clearSeededConnections, seedClaudeKeyConnection } from './_seed-connections.js';
 import { emptyUsage } from '@core/agents/subagent/usage.js';
 import type {
   RunChildFn, SubagentResult, SubagentTask,
@@ -135,15 +136,20 @@ test('a cross-backend Claude child uses the Claude backend default, never the PI
 });
 
 test('a Claude child keeps its Claude parent model and route', () => {
-  const request = {
-    parent: { backend: 'claude', model: 'parent-model', connection: 'api', channel: 'web:claude' },
-  } as any;
-  const config = subagentRunnerTest.claudeChildConfig(request, {});
-  assert.equal(config.model, 'parent-model');
-  assert.equal(config.connection, 'api');
+  seedClaudeKeyConnection('api');
+  try {
+    const request = {
+      parent: { backend: 'claude', model: 'parent-model', connection: 'api', channel: 'web:claude' },
+    } as any;
+    const config = subagentRunnerTest.claudeChildConfig(request, {});
+    assert.equal(config.model, 'parent-model');
+    assert.equal(config.connection, 'api');
+  } finally {
+    clearSeededConnections();
+  }
 });
 
-test('a cross-backend Claude child fails clearly when no Claude favorite can supply its route', () => {
+test('a cross-backend Claude child without a model fails clearly when no Claude favorite can supply one', () => {
   withModels({
     default: { model: 'pi-model', backend: 'pi', connection: null, provider: 'deepseek', thinking: null },
     favorites: [],
@@ -151,10 +157,10 @@ test('a cross-backend Claude child fails clearly when no Claude favorite can sup
     const request = {
       parent: { backend: 'pi', model: 'pi-model', connection: null, channel: 'web:pi' },
     } as any;
-    assert.throws(
-      () => subagentRunnerTest.claudeChildConfig(request, parseModelSpec('claude-haiku-4-5')),
-      /favorite a Claude model first/,
-    );
+    assert.throws(() => subagentRunnerTest.claudeChildConfig(request, {}), /favorite a Claude model/);
+    // A spec that names the model needs no favorite: the run computes its connection.
+    const named = subagentRunnerTest.claudeChildConfig(request, parseModelSpec('claude-haiku-4-5'));
+    assert.equal(named.model, 'claude-haiku-4-5');
   });
 });
 

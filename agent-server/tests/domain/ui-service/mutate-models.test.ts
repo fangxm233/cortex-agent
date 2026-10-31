@@ -8,7 +8,6 @@ import { addFavorite, removeFavorite, setDefaultModel, setModelThinking, handleM
 import { modelsFavoriteInput, modelsSetDefaultInput, modelsSetThinkingInput } from '../../../src/domain/ui-service/input-schemas.js';
 import { getModelMemory, getChannelSelection, getSelectionDefault, reloadAgentState, rememberModelSelection, setChannelSelection, setSelectionDefault } from '../../../src/domain/agents/config.js';
 import { loadAgentState } from '../../../src/domain/agents/agent-state.js';
-import { selectionForModel } from '../../../src/domain/agents/models.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 import { modelKey } from '../../../src/domain/agents/engine-selection.js';
 import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
@@ -90,44 +89,49 @@ test('missing or malformed models file is rejected by favorites rather than over
 test('setDefault replaces the whole choice, preserves favorites and reports no-op', async () => {
   const dir = await seed({ future: true });
   const next = { ...pi, thinking: null, connection: null };
-  assert.equal(await setDefaultModel(dir, { selection: next }, inventory), true);
+  assert.equal(await setDefaultModel(dir, { selection: next }, { inventory }), true);
   assert.deepEqual(await read(dir), { default: next, favorites: [ref], future: true });
-  assert.equal(await setDefaultModel(dir, { selection: next }, inventory), false);
+  assert.equal(await setDefaultModel(dir, { selection: next }, { inventory }), false);
 });
 
 test('setDefault treats equivalent field order as a no-op', async () => {
   const dir = await seed({ default: { connection: 'api', thinking: 'high', model: 'opus', provider: null, backend: 'claude' } });
   invalidate.mockClear();
-  assert.equal(await setDefaultModel(dir, { selection }, inventory), false);
+  assert.equal(await setDefaultModel(dir, { selection }, { inventory }), false);
   assert.equal(invalidate.mock.calls.length, 0);
 });
 
 test('setDefault initializes a missing file without inventing favorites', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'models-init-'));
-  assert.equal(await setDefaultModel(dir, { selection }, inventory), true);
+  assert.equal(await setDefaultModel(dir, { selection }, { inventory }), true);
   assert.deepEqual(await read(dir), { default: selection, favorites: [] });
 });
 
 test('setDefault rejects invalid thinking or provider and preserves the old selection', async () => {
   const dir = await seed();
   for (const next of [{ ...pi, thinking: 'ultra', connection: null }, { ...selection, provider: 'openai' }, { ...pi, thinking: null, connection: 'api' }]) {
-    await assert.rejects(() => setDefaultModel(dir, { selection: next }, inventory), (e: any) => e.code === 'invalid-args');
+    await assert.rejects(() => setDefaultModel(dir, { selection: next }, { inventory }), (e: any) => e.code === 'invalid-args');
   }
   assert.deepEqual((await read(dir)).default, selection);
 });
 
-test('setDefault checks that a named connection exists before writing', async () => {
+test('setDefault checks that a newly named connection exists before writing', async () => {
   const dir = await seed();
-  await assert.rejects(() => setDefaultModel(dir, { selection: { ...selection, connection: 'missing' } }, inventory),
-    (e: any) => e.code === 'invalid-args' && /missing/.test(e.message));
-  await assert.rejects(() => setDefaultModel(dir, { selection }, inventoryWith([])), (e: any) => e.code === 'invalid-args');
+  await assert.rejects(() => setDefaultModel(dir, { selection: { ...selection, connection: 'missing' } }, { inventory: inventoryWith(['api', 'other']) }),
+    (e: any) => e.code === 'invalid-args' && /invalid-connection/.test(e.message) && /api, other/.test(e.message));
   assert.deepEqual((await read(dir)).default, selection);
+});
+
+test('setDefault keeping a connection that has since been removed drops it instead of failing', async () => {
+  const dir = await seed();
+  assert.equal(await setDefaultModel(dir, { selection: { ...selection, thinking: 'low' } }, { inventory: inventoryWith([]) }), true);
+  assert.deepEqual((await read(dir)).default, { ...selection, thinking: 'low', connection: null });
 });
 
 test('setDefault naming no connection runs on the default and needs none to exist', async () => {
   const dir = await seed();
   const next = { ...selection, connection: null };
-  assert.equal(await setDefaultModel(dir, { selection: next }, inventoryWith([])), true);
+  assert.equal(await setDefaultModel(dir, { selection: next }, { inventory: inventoryWith([]) }), true);
   assert.deepEqual((await read(dir)).default, next);
 });
 
@@ -144,13 +148,13 @@ test('strict models schemas accept concrete nullable fields but reject retired o
 
 test('setDefault completes an unconfigured file and remembers its model settings', async () => {
   const dir = await seed({ default: null });
-  assert.equal(await setDefaultModel(dir, { selection }, inventory), true);
+  assert.equal(await setDefaultModel(dir, { selection }, { inventory }), true);
   assert.deepEqual((await read(dir)).default, selection);
   const { getModelMemory } = await import('../../../src/domain/agents/config.js');
-  assert.deepEqual(getModelMemory()['["claude",null,"opus"]'], { thinking: 'high', connection: 'api' });
+  assert.deepEqual(getModelMemory()['["claude",null,"opus"]'], { thinking: 'high' });
 });
 
-test('setThinking persists only the favorite memory and preserves connection and independent choices', async () => {
+test('setThinking persists only the favorite memory and preserves independent choices', async () => {
   const dir = await seed({ favorites: [ref, pi] });
   rememberModelSelection({ ...selection, connection: 'subscription' });
   rememberModelSelection({ ...pi, thinking: 'off', connection: null });
@@ -160,10 +164,9 @@ test('setThinking persists only the favorite memory and preserves connection and
   const file = await fs.readFile(path.join(dir, 'models.json'), 'utf8');
   assert.equal(await setModelThinking(dir, { ref, thinking: 'max' }), true);
   reloadAgentState();
-  assert.deepEqual(getModelMemory()[modelKey(ref)], { thinking: 'max', connection: 'subscription' });
-  assert.deepEqual(selectionForModel(ref), { ...ref, thinking: 'max', connection: 'subscription' });
+  assert.deepEqual(getModelMemory()[modelKey(ref)], { thinking: 'max' });
   assert.deepEqual(loadAgentState(), { ...before, modelMemory: {
-    ...before.modelMemory, [modelKey(ref)]: { thinking: 'max', connection: 'subscription' },
+    ...before.modelMemory, [modelKey(ref)]: { thinking: 'max' },
   } });
   assert.deepEqual(getChannelSelection('test-channel'), selection);
   assert.deepEqual(getSelectionDefault(), { ...selection, agentName: 'main' });
@@ -179,16 +182,16 @@ test('setThinking distinguishes null from off and reports no-op without persisti
   assert.equal(await setModelThinking(dir, { ref: pi, thinking: null }), false);
   assert.equal((await fs.stat(path.join(STORE_DIR, 'agent-state.json'))).mtimeMs, stat.mtimeMs);
   reloadAgentState();
-  assert.deepEqual(getModelMemory()[modelKey(pi)], { thinking: null, connection: null });
+  assert.deepEqual(getModelMemory()[modelKey(pi)], { thinking: null });
 });
 
-test('setThinking initializes first-time memory using the existing route rules', async () => {
+test('setThinking initializes first-time memory', async () => {
   const first = { ...pi, model: 'first-time' };
   const dir = await seed({ favorites: [first] });
   assert.equal(await setModelThinking(dir, { ref: first, thinking: null }), true);
-  assert.deepEqual(getModelMemory()[modelKey(first)], { thinking: null, connection: null });
+  assert.deepEqual(getModelMemory()[modelKey(first)], { thinking: null });
   rememberModelSelection({ ...first, thinking: 'high', connection: null });
-  assert.deepEqual(getModelMemory()[modelKey(first)], { thinking: 'high', connection: null });
+  assert.deepEqual(getModelMemory()[modelKey(first)], { thinking: 'high' });
 });
 
 test('setThinking rejects invalid identity, unfavorited models and backend-invalid levels without writes', async () => {
@@ -204,14 +207,6 @@ test('setThinking rejects invalid identity, unfavorited models and backend-inval
     await assert.rejects(() => setModelThinking(dir, input), (error: any) => error.code === 'invalid-args');
   }
   assert.deepEqual(loadAgentState(), before);
-});
-
-test('setThinking rejects an unusable resolved route without creating memory', async () => {
-  const first = { ...ref, model: 'no-route' };
-  const dir = await seed({ favorites: [first] });
-  await assert.rejects(() => setModelThinking(dir, { ref: first, thinking: 'high' },
-    () => ({ ...first, thinking: null, connection: '' })), (error: any) => error.code === 'invalid-args');
-  assert.equal(getModelMemory()[modelKey(first)], undefined);
 });
 
 test('setThinking schema accepts only a model ref and explicit nullable thinking', () => {

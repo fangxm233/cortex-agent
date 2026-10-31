@@ -413,7 +413,7 @@ test('every open rewrites the agent dir catalog from the host catalog hook', () 
     runtimeKeys: {},
   };
   const fake = makeFakeRuntimeFactory();
-  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR, undefined, { agentDir, catalog: () => catalog });
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR, { agentDir, catalog: () => catalog });
   const open = (sessionKey: string, piProvider: string) => piPool(adapter).open(engineSpecFixture({
     sessionId: null, sessionKey, resume: false, piProvider,
   }));
@@ -433,7 +433,7 @@ test('every open rewrites the agent dir catalog from the host catalog hook', () 
 test('a failing catalog hook is logged and does not block the session', () => {
   const agentDir = pathJoin(G_SESSION_DIR, 'catalog-failing-agent');
   const fake = makeFakeRuntimeFactory();
-  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR, undefined, {
+  const adapter = new PIAdapter(fake.factory, G_SESSION_DIR, {
     agentDir, catalog: () => { throw new Error('connections unreadable'); },
   });
   const engine = piPool(adapter).open(engineSpecFixture({

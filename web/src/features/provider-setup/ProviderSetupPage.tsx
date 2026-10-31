@@ -217,7 +217,7 @@ export function ProviderSetupPage() {
   const exit = useProviderSetupExit();
   const controller = useMemo(() => new ProviderSetupController({
     status: () => client.auth.status.query({}), config: () => client.config.get.query({}),
-    sync: () => client.auth.syncGateway.mutate({}),
+    sync: () => client.auth.syncModels.mutate({}),
     catalog: () => client.models.catalog.query({}),
     select: selection => client.models.setDefault.mutate({ selection }),
     claude: () => setupClaude(false), install: () => setupClaude(true), canInstall: canSetupClaude,

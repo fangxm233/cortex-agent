@@ -163,7 +163,6 @@ describe('UsageService spend', () => {
     const pi = new PIAdapter(
       (() => { throw new Error('usage collection must not spawn PI'); }) as never,
       undefined,
-      undefined,
       { usageStore: {
         get: async (provider) => {
           const snapshot = await store.get(provider);

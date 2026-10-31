@@ -16,10 +16,11 @@ import {
   buildFullConfig,
   buildInteractionConfig,
 } from '@core/config-generator.js';
-import { discoverEndpoints, writeMergedGatewayYaml, validateModelsAgainstGateway } from '@core/gateway-generator.js';
-import { readExistingModels, writeModelsJson, listChoices, recommendedChoice } from '@core/models-generator.js';
 import { ENVIRONMENTS_DIRNAME, mergeDefaultEnvironments } from '@domain/agents/environments/index.js';
-import type { ModelChoice, WriteModelsOpts } from '@core/models-generator.js';
+import {
+  parseChoiceLine, parseChoiceValue, parseFavoritesLine, runModelSetup, type InitModelChoice,
+} from './init-models.js';
+import { handleCancel } from './init-prompt.js';
 import { createLogger } from '@core/log.js';
 import { INSTALL_ROOT, DEFAULTS_DIR, DATA_DIR } from '@core/paths.js';
 import { applyInitTelemetry, parseInitTelemetryAnswer } from '@domain/telemetry/init-answer.js';
@@ -106,10 +107,10 @@ export interface InitAnswers {
   /** Anonymous product telemetry choice; omitted keeps the default (on) and creates a fresh id. */
   telemetry?: InitTelemetryAnswer;
   installService: boolean;
-  /** Default model; omitted uses the discovery recommendation. */
-  defaultChoice?: ModelChoice;
+  /** Default model; omitted uses the catalog's recommendation. */
+  defaultChoice?: InitModelChoice;
   /** Favorite models; the default model is always included. */
-  favorites?: ModelChoice[];
+  favorites?: InitModelChoice[];
   /**
    * Enable the loopback Web UI endpoint the native desktop app connects to. Set by the desktop
    * setup wizard (`--answers`); the terminal wizard leaves it undefined, so a normal `cortex init`
@@ -126,15 +127,6 @@ export interface InitAnswers {
 
 function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
-}
-
-/** Parse a `{mode, model}` object; undefined when either half is missing. */
-function parseChoiceValue(value: unknown): ModelChoice | undefined {
-  if (!value || typeof value !== 'object') return undefined;
-  const { mode, model } = value as { mode?: unknown; model?: unknown };
-  if (typeof mode !== 'string' || typeof model !== 'string') return undefined;
-  if (!mode.trim() || !model.trim()) return undefined;
-  return { mode: mode.trim(), model: model.trim() };
 }
 
 function parseLocalUi(value: unknown): InitAnswers['localUi'] {
@@ -201,38 +193,12 @@ export function parseInitAnswersJson(raw: string): InitAnswers {
     installService: input.installService === true,
     defaultChoice: parseChoiceValue(input.defaultChoice),
     favorites: Array.isArray(input.favorites)
-      ? input.favorites.map(parseChoiceValue).filter((c): c is ModelChoice => !!c)
+      ? input.favorites.map(parseChoiceValue).filter((c): c is InitModelChoice => !!c)
       : undefined,
     localUi: parseLocalUi(input.localUi),
     localClient: parseLocalClientAnswer(input.localClient),
     clientListenHost: parseClientListenHost(input.clientListenHost),
   };
-}
-
-/** Parse "mode:model" stdin string into a ModelChoice. Returns undefined for empty/invalid. */
-function parseChoiceLine(raw: string | undefined): ModelChoice | undefined {
-  if (!raw) return undefined;
-  const trimmed = raw.trim();
-  if (!trimmed) return undefined;
-  const colonIdx = trimmed.indexOf(':');
-  if (colonIdx <= 0 || colonIdx === trimmed.length - 1) return undefined;
-  return {
-    mode: trimmed.substring(0, colonIdx).trim(),
-    model: trimmed.substring(colonIdx + 1).trim(),
-  };
-}
-
-/** Parse comma-separated "mode:model" favorites. Returns undefined for empty. */
-function parseFavoritesLine(raw: string | undefined): ModelChoice[] | undefined {
-  if (!raw) return undefined;
-  const trimmed = raw.trim();
-  if (!trimmed) return undefined;
-  const choices: ModelChoice[] = [];
-  for (const part of trimmed.split(',')) {
-    const choice = parseChoiceLine(part.trim());
-    if (choice) choices.push(choice);
-  }
-  return choices.length > 0 ? choices : undefined;
 }
 
 // ─── Dot env generation ──────────────────────────────────────────
@@ -733,13 +699,6 @@ function installService(dataDir: string): void {
 }
 
 // ─── Interactive prompts (TTY) ───────────────────────────────────
-
-function handleCancel(value: unknown): asserts value {
-  if (clack.isCancel(value)) {
-    clack.cancel(t('init.cancel'));
-    process.exit(0);
-  }
-}
 
 async function collectSlackConfig(prefill?: { signingSecret?: string; appToken?: string; botToken?: string }): Promise<SlackInitConfig> {
   clack.note(SLACK_APP_MANIFEST, t('init.slack.manifestTitle'));
@@ -1277,87 +1236,6 @@ export function writeDotEnv(paths: InitPaths, answers: InitAnswers, force: boole
   writeFileSync(envPath, content);
 }
 
-// ─── Gateway & model auto-setup ──────────────────────────────
-
-async function confirmDefaultOverwrite(configDir: string): Promise<boolean> {
-  if (!readExistingModels(configDir)?.default) return true;
-  const confirm = await clack.confirm({ message: t('init.gatewaySetup.overwritePrompt'), initialValue: false });
-  handleCancel(confirm);
-  return confirm as boolean;
-}
-
-/** Pick a recommended default and favorites. The default is included even if untoggled. */
-async function pickModelsInteractive(
-  endpoints: Awaited<ReturnType<typeof discoverEndpoints>>,
-  configDir: string,
-): Promise<WriteModelsOpts> {
-  if (!await confirmDefaultOverwrite(configDir)) return { overwrite: false };
-  const choices = listChoices(endpoints);
-  if (!choices.length) return { overwrite: true };
-  const format = (choice: ModelChoice) => `${choice.mode}:${choice.model}`;
-  const options = choices.map(choice => ({ value: format(choice), label: `${choice.mode} / ${choice.model}` }));
-  const selected = await clack.select({
-    message: t('init.gatewaySetup.defaultPrompt'), options,
-    initialValue: format(recommendedChoice(endpoints) ?? choices[0]),
-  });
-  handleCancel(selected);
-  const favorites = await clack.multiselect({
-    message: t('init.gatewaySetup.favoritesPrompt'), options,
-    required: false, initialValues: [selected as string],
-  });
-  handleCancel(favorites);
-  const values = new Set([selected as string, ...favorites as string[]]);
-  return { defaultChoice: parseChoiceLine(selected as string), favorites: [...values].map(v => parseChoiceLine(v)!), overwrite: true };
-}
-
-function writeDiscoveredGateway(endpoints: Awaited<ReturnType<typeof discoverEndpoints>>, configDir?: string) {
-  const summary = endpoints.map(ep =>
-    `  ${ep.mode}/${ep.endpoint}: ${ep.models.slice(0, 3).join(', ')}${ep.models.length > 3 ? ', ...' : ''} (${ep.keys.length > 0 ? 'with key' : 'passthrough'})`,
-  ).join('\n');
-  clack.log.success(t('init.gatewaySetup.discovered', { count: endpoints.length, summary }));
-  const { path: gatewayPath, result } = writeMergedGatewayYaml(endpoints, configDir);
-  clack.log.success(t('init.gatewaySetup.gatewayWritten', { path: gatewayPath }));
-  if (result.droppedFromDiscovery.length > 0) {
-    const list = result.droppedFromDiscovery.map(p => `${p.mode}/${p.endpoint}`).join(', ');
-    clack.log.warn(t('init.gatewaySetup.preservedModes', { count: result.droppedFromDiscovery.length, list }));
-    clack.log.info(t('init.gatewaySetup.preservedModesHint'));
-  }
-  return result.endpoints;
-}
-
-function reportModelsSetup(configDir: string, endpoints: ReturnType<typeof writeDiscoveredGateway>): void {
-  const models = readExistingModels(configDir)!;
-  clack.log.info(t('init.gatewaySetup.generatedModels', {
-    names: models.favorites!.map(ref => ref.model).join(', '), default: models.default!.model,
-  }));
-  const issues = validateModelsAgainstGateway(endpoints, configDir);
-  if (!issues.length) return;
-  const lines = issues.map(i => `  - ${i.model}: ${i.reason}`).join('\n');
-  clack.log.warn(t('init.gatewaySetup.modelIssues', { count: issues.length, lines }));
-  clack.log.info(t('init.gatewaySetup.modelIssuesHint'));
-}
-
-/** Returns false when no backend is logged in yet, so nothing could be generated. */
-async function runGatewaySetup(
-  backends: InitBackend[], paths: InitPaths, gatewayConfigDir?: string,
-  answers?: Pick<InitAnswers, 'defaultChoice' | 'favorites'>, interactive = false,
-): Promise<boolean> {
-  const endpoints = await discoverEndpoints(backends);
-  if (!endpoints.some(endpoint => endpoint.models.length > 0)) {
-    clack.log.warn(t('init.gatewaySetup.noBackends'));
-    clack.log.info(t('init.gatewaySetup.rerunHint'));
-    return false;
-  }
-  const mergedEndpoints = writeDiscoveredGateway(endpoints, gatewayConfigDir);
-  const options: WriteModelsOpts = interactive
-    ? await pickModelsInteractive(endpoints, paths.CONFIG_DIR)
-    : { ...answers, overwrite: !!answers?.defaultChoice };
-  const modelsPath = writeModelsJson(endpoints, { ...options, outputDir: paths.CONFIG_DIR });
-  clack.log.success(t('init.gatewaySetup.modelsWritten', { path: modelsPath }));
-  reportModelsSetup(paths.CONFIG_DIR, mergedEndpoints);
-  return true;
-}
-
 // ─── JSON progress stream (machine-driven init) ──────────────────
 
 interface JsonEmitter {
@@ -1428,20 +1306,21 @@ async function detectAuthAndGateway(
     emit(event);
     if (!emitter && !interactive) process.stdout.write(`${JSON.stringify(event)}\n`);
   });
+  // The progress step keeps its `gateway` name: the desktop wizard's event stream reads it.
   if (interactive) {
     const configured = authBackends.length > 0
-      && await runGatewaySetup(authBackends, paths, options.gatewayConfigDir, answers, true);
+      && await runModelSetup({ backends: authBackends, configDir: paths.CONFIG_DIR, answers, interactive: true });
     emit({ step: 'gateway', state: configured ? 'ok' : 'skip' });
     return;
   }
-  // Non-interactive: auto-detect silently, passing caller-supplied choices. A machine with no
-  // backend logged in yet yields no endpoints — expected on a fresh desktop install, where the
-  // user logs in from the workbench afterwards and the server syncs models from that login.
+  // Non-interactive: list silently, passing caller-supplied choices. A machine with no backend
+  // logged in yet has no models — expected on a fresh desktop install, where the user logs in
+  // from the workbench afterwards and the server seeds models from that login.
   try {
-    const configured = await runGatewaySetup(answers.backends, paths, options.gatewayConfigDir, answers);
+    const configured = await runModelSetup({ backends: answers.backends, configDir: paths.CONFIG_DIR, answers });
     emit({ step: 'gateway', state: configured ? 'ok' : 'skip', reason: configured ? undefined : 'no-backend-login' });
   } catch (e) {
-    log.warn(`Gateway setup failed (non-interactive): ${(e as Error).message}`);
+    log.warn(`Model setup failed (non-interactive): ${(e as Error).message}`);
     emit({ step: 'gateway', state: 'skip', reason: (e as Error).message });
   }
 }

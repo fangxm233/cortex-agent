@@ -20,8 +20,8 @@ function props(type: MScheduleEditorProps['form']['type']): MScheduleEditorProps
     mode: 'create', valid: true, pending: false, error: null,
     editableFields: { type: true, time: true, interval: true, delay: true, dayOfWeek: true, message: true, selection: true, projectId: true },
     modelOptions: [
-      { value: modelKey(selection), label: 'Flash', selection, favorite: true },
-      { value: 'unavailable', label: 'Unavailable', selection: { backend: 'claude', provider: null, model: 'opus', thinking: null, connection: null }, favorite: false },
+      { value: modelKey(selection), label: 'Flash', selection, favorite: true, runnable: true },
+      { value: 'unavailable', label: 'Unavailable', selection: { backend: 'claude', provider: null, model: 'opus', thinking: null, connection: null }, favorite: false, runnable: false },
     ],
     thinkingOptions: ['', 'high'], onChange: vi.fn(), onSubmit: vi.fn(), onBack: vi.fn(),
   };

@@ -17,6 +17,7 @@ import {
   claudeModelOptions, encodeSubagentModels, piModelOptions,
 } from '@core/agents/subagent/catalog.js';
 import { anthropicModelDiscovery, anthropicModelIds } from '@core/anthropic-model-discovery.js';
+import { ANTHROPIC_MODELS } from '@core/anthropic-models.js';
 import type { McpBundleName } from '@core/mcp-bundles.js';
 import type { CortexContextEnv, McpComposition } from '../types.js';
 import { piProviderDiscovery } from '../pi/discovery.js';
@@ -425,28 +426,46 @@ function applyHostClaudeEnv(env: NodeJS.ProcessEnv): void {
   if (cap !== null) env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = String(cap);
 }
 
+/** The models a subagent may be pointed at, as the sidecar lists them. */
+export interface SubagentModelSource {
+  pi: Array<{ provider: string; id: string }>;
+  /** Claude model ids; empty when nothing beyond the shipped table is known. */
+  claude: string[];
+}
+
+/** Until the host wires its model catalog: the discovery caches alone, peeked, never refreshed. */
+function discoveryModelSource(): SubagentModelSource {
+  const discovered = anthropicModelDiscovery.get();
+  return {
+    pi: piProviderDiscovery.peekModels().map((model) => ({ provider: model.provider, id: model.model })),
+    claude: discovered.length > 0 ? anthropicModelIds(discovered) : [],
+  };
+}
+
+let subagentModelSource: () => SubagentModelSource = discoveryModelSource;
+
+/** Point the subagent model lists at the host's model catalog (see domain/runs/adapters). */
+export function setSubagentModelSource(source: () => SubagentModelSource): void {
+  subagentModelSource = source;
+}
+
+function sameIds(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((id, index) => id === right[index]);
+}
+
 /** The provider/model catalogs the MCP sidecar offers subagents, read from the daemon's caches.
  *  Shared by Claude spawns and the injected PI session snapshot getter. */
 export function subagentModelEnv(): Record<string, string> {
   const env: Record<string, string> = {};
-  // The MCP sidecar cannot scan PI itself, so the daemon hands it the provider/model pairs it
-  // already cached. Peeked, never refreshed: decorating a Claude spawn must not be what loads the
-  // PI SDK. An empty cache writes nothing, so such a spawn stays byte-identical to one from before
-  // this variable existed.
-  const piModels = piModelOptions(
-    piProviderDiscovery.peekModels()
-      .slice(0, MAX_SUBAGENT_PI_MODELS)
-      .map((model) => ({ provider: model.provider, id: model.model })),
-  );
+  const source = subagentModelSource();
+  // The MCP sidecar cannot scan PI itself, so the daemon hands it the pairs it already knows. An
+  // empty list writes nothing, so such a spawn stays byte-identical to one without the variable.
+  const piModels = piModelOptions(source.pi.slice(0, MAX_SUBAGENT_PI_MODELS));
   if (piModels.length > 0) env.CORTEX_SUBAGENT_PI_MODELS = encodeSubagentModels(piModels);
-  // Same hand-off for the Anthropic side: the sidecar has no credential of its own to ask the
-  // Models API with, so it inherits what the daemon already discovered. Never waited on — a stale
-  // cache answers now and refreshes in the background — so an empty cache writes nothing and the
-  // sidecar falls back to the shipped table, exactly as before this variable existed.
-  const discoveredClaude = anthropicModelDiscovery.get();
-  if (discoveredClaude.length > 0) {
-    const claudeModels = claudeModelOptions(null, anthropicModelIds(discoveredClaude))
-      .slice(0, MAX_SUBAGENT_CLAUDE_MODELS);
+  // Same hand-off for the Anthropic side: the sidecar has no credential of its own. A list that is
+  // just the shipped table writes nothing — the sidecar falls back to that table itself.
+  if (source.claude.length > 0 && !sameIds(source.claude, ANTHROPIC_MODELS)) {
+    const claudeModels = claudeModelOptions(null, source.claude).slice(0, MAX_SUBAGENT_CLAUDE_MODELS);
     env.CORTEX_SUBAGENT_CLAUDE_MODELS = encodeSubagentModels(claudeModels);
   }
   return env;

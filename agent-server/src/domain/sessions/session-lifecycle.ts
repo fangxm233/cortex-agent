@@ -3,7 +3,7 @@ import { setSessionAsync, deleteSessionAsync } from './session.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { applyChannelSelection } from '@domain/agents/model-selection.js';
 import { setChannelSelection, setDefaultAgent, setSelectionDefaultAgent } from '@domain/agents/config.js';
-import { resolveRunSelection } from '@domain/runs/config-resolver.js';
+import { resolveRecordedSelection } from '@domain/runs/config-resolver.js';
 import type { EngineSelection } from '@domain/agents/engine-selection.js';
 import type { SessionOrigin } from '@store/session-registry-repo.js';
 import { shortSessionId } from '@core/short-session-id.js';
@@ -43,7 +43,7 @@ export interface RegisterSessionRecordOpts {
 /** Register a session by its stable ID, freezing the engine choice for future resumes. */
 export async function registerSessionRecord(store: SessionRegistryWriter, opts: RegisterSessionRecordOpts): Promise<void> {
   const scheduled = !!opts.scheduleId;
-  const selection = resolveRunSelection({ channel: opts.channel, selection: opts.selection });
+  const selection = resolveRecordedSelection({ channel: opts.channel, selection: opts.selection });
   await store.registerSession({
     sessionId: opts.sessionId, channel: opts.channel, backend: selection.backend,
     kind: scheduled ? 'scheduled' : 'local', origin: scheduled ? 'scheduled' : 'direct',
@@ -77,7 +77,7 @@ interface CreateDirectSessionOpts {
 
 /** A draft's explicit selection goes through the picker rule before the channel is bound. */
 async function initializeSelection(channel: string, opts: CreateDirectSessionOpts): Promise<EngineSelection> {
-  const selection = resolveRunSelection({ channel, selection: opts.selection });
+  const selection = resolveRecordedSelection({ channel, selection: opts.selection });
   const seedDefault = opts.seedDefault ?? !!opts.selection;
   const applied = await applyChannelSelection({ channel, ...selection, seedDefault });
   if (!applied.ok) throw new Error(applied.reason ?? 'Invalid engine selection');
@@ -113,7 +113,7 @@ export interface AttachExistingSessionOpts {
 
 /** Resume restores the record verbatim, not the last choice of the channel it replaces. */
 export async function attachExistingSession(channel: string, opts: AttachExistingSessionOpts): Promise<void> {
-  const selection = resolveRunSelection({ channel, selection: opts.selection });
+  const selection = resolveRecordedSelection({ channel, selection: opts.selection });
   // This restores another session rather than switching the engine of the current session.
   setChannelSelection(channel, selection);
   await setSessionAsync(channel, opts.sessionId);

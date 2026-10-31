@@ -556,7 +556,7 @@ test('PI benchmark caps reach individual runtimes without mutating the shared ca
   const agentDir = path.join(root, 'agent');
   const fake = makeFakeRuntimeFactory();
   const catalog = () => ({ providers: { deepseek: { baseUrl: 'https://deepseek-relay.invalid' } }, runtimeKeys: {} });
-  const adapter = new PIAdapter(fake.factory, path.join(root, 'sessions'), undefined, { agentDir, catalog });
+  const adapter = new PIAdapter(fake.factory, path.join(root, 'sessions'), { agentDir, catalog });
   const pool = piPool(adapter);
   const caps = [undefined, 8192, 4096, undefined];
   t.onTestFinished(async () => {

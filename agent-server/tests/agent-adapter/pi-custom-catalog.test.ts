@@ -19,10 +19,6 @@ const CUSTOM_ENTRY = {
   models: [{ id: 'Model-27B' }],
 };
 
-const NO_DISCOVERY = {
-  getProviders: () => [], refresh: () => {}, getModels: () => [], peekModels: () => [], ensureModels: async () => [],
-};
-
 function withTempDir(run: (dir: string) => void): void {
   const dir = mkdtempSync(pathJoin(tmpdir(), 'cortex-pi-custom-catalog-'));
   try {
@@ -46,7 +42,7 @@ function openWithCatalog(
 ): Record<string, any> {
   const agentDir = pathJoin(dir, 'agent');
   mkdirSync(agentDir, { recursive: true });
-  const adapter = new PIAdapter(makeFakeRuntimeFactory().factory, pathJoin(dir, 'sessions'), NO_DISCOVERY, {
+  const adapter = new PIAdapter(makeFakeRuntimeFactory().factory, pathJoin(dir, 'sessions'), {
     agentDir, catalog: () => buildPiCatalog(catalog),
   });
   piPool(adapter).open(engineSpecFixture({ sessionId: null, resume: false, ...spec }));
@@ -123,7 +119,7 @@ test('open: DeepSeek child preserves the admitted cap after a model-store refres
       { id: 'deepseek', backend: 'pi', provider: 'deepseek', baseUrl: 'https://relay.example.invalid/ds' },
     ]);
     const stub = makeFakeRuntimeFactory();
-    const adapter = new PIAdapter(stub.factory, pathJoin(dir, 'sessions'), NO_DISCOVERY, {
+    const adapter = new PIAdapter(stub.factory, pathJoin(dir, 'sessions'), {
       agentDir, catalog: () => buildPiCatalog({ file, userModelsPath: null }),
     });
     const openSession = (sessionKey: string) => piPool(adapter).open(engineSpecFixture({

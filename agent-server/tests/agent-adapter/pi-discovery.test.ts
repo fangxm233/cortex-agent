@@ -6,7 +6,7 @@ import {
   PI_PROVIDER_RETRY_MS,
   createPIProviderDiscovery,
 } from '../../src/agent-adapter/pi/discovery.js';
-import type { PiDiscoveredModel } from '../../src/core/gateway-generator.js';
+import type { PiDiscoveredModel } from '../../src/agent-adapter/pi/model-scan.js';
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -271,4 +271,22 @@ test('ensureModels reuses an in-flight scan rather than starting a second one', 
   pending.resolve([{ provider: 'anthropic', model: 'claude-opus-5' }]);
   assert.deepEqual(await waiting, [{ provider: 'anthropic', model: 'claude-opus-5' }]);
   assert.equal(scans, 1);
+});
+
+test('rescan answers with a fresh scan even when the cache is warm, outlasting one already in flight', async () => {
+  const first = deferred<PiDiscoveredModel[]>();
+  const answers = [first.promise, Promise.resolve([{ provider: 'deepseek', model: 'deepseek-chat' }])];
+  let scans = 0;
+  const discovery = createPIProviderDiscovery({ scan: () => answers[scans++] });
+  discovery.getProviders();
+  // A scan that started before the login is still running: its answer is stale.
+  const rescanned = discovery.rescan(5_000);
+  first.resolve([{ provider: 'anthropic', model: 'claude-sonnet' }]);
+  assert.deepEqual(await rescanned, [{ provider: 'deepseek', model: 'deepseek-chat' }]);
+  assert.equal(scans, 2);
+});
+
+test('rescan gives up at its deadline with what the cache holds', async () => {
+  const discovery = createPIProviderDiscovery({ scan: () => new Promise<PiDiscoveredModel[]>(() => {}) });
+  assert.deepEqual(await discovery.rescan(10), []);
 });
