@@ -21,6 +21,7 @@ import { retireProfiles } from './retire-profiles-migration.js';
 import { appendMemoryIndexIgnores } from './gitignore-migration.js';
 import { keepPreMainPortEndpoints } from './main-port-migration.js';
 import { migrateToConnections } from './connections-migration.js';
+import { retireGatewayChild } from './retire-gateway-migration.js';
 import {
   CODER_COMMIT_POLICY_REPLACEMENTS,
   CODER_REVIEWER_COMMIT_POLICY_REPLACEMENTS,
@@ -610,6 +611,19 @@ const stepMigrations: StepMigration[] = [
         gatewayPath: path.join(AISTATUS_DIR, 'gateway.yaml'), piModelsPath: piUserModelsPath(),
       });
       if (report.skipped === 'immutable') return false;
+    },
+  },
+  // S15: the server no longer runs an aistatus gateway. Stop one an earlier server left running
+  // with nothing supervising it (see store/retire-gateway-migration.ts). Runs for a sealed home
+  // too: it changes no file there beyond the gateway's own pid file.
+  {
+    key: 'sentinel:retire-gateway',
+    version: '2026.10.28',
+    run: async ({ dataDir, storeDir }) => {
+      const stopped = await retireGatewayChild({
+        storeDir, homeDir: dataDir, gatewayConfigPath: path.join(AISTATUS_DIR, 'gateway.yaml'),
+      });
+      if (stopped.length > 0) log.info(`Stopped the aistatus gateway an earlier server left running (PID ${stopped.join(', ')})`);
     },
   },
 ];
