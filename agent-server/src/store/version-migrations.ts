@@ -8,6 +8,7 @@ import { atomicWrite } from '@core/atomic-write.js';
 import { RETIRED_MCP_TOOLS } from '@core/mcp-tool-gate.js';
 import { migrateRetiredPiUpstreams } from '@core/gateway-generator.js';
 import { createLogger } from '@core/log.js';
+import { piUserModelsPath } from '@core/pi-sdk.js';
 import { validateHookEntry, type HookEntry, type HookRun } from './hook-registry.js';
 import { migrateProviderStateFromSchedules } from './provider-state-repo.js';
 import { RETIRED_SCHEDULE_TYPES } from './schedule-repo.js';
@@ -19,6 +20,7 @@ import { migrateToBuiltinOverlay } from './builtin-overlay-migration.js';
 import { retireProfiles } from './retire-profiles-migration.js';
 import { appendMemoryIndexIgnores } from './gitignore-migration.js';
 import { keepPreMainPortEndpoints } from './main-port-migration.js';
+import { migrateToConnections } from './connections-migration.js';
 import {
   CODER_COMMIT_POLICY_REPLACEMENTS,
   CODER_REVIEWER_COMMIT_POLICY_REPLACEMENTS,
@@ -593,6 +595,21 @@ const stepMigrations: StepMigration[] = [
     run: async ({ dataDir, upgrade }) => {
       if (process.env.CORTEX_CONFIG_IMMUTABLE === '1') return;
       await keepPreMainPortEndpoints(dataDir, { upgrade });
+    },
+  },
+  // S14: spawns reach their providers directly. The credentials gateway.yaml, config/.env and PI's
+  // catalog held for the gateway become connections, and stored selections name a connection
+  // instead of a gateway mode (see store/connections-migration.ts). After S10, whose selections it
+  // converts. A sealed home is left as it is.
+  {
+    key: 'sentinel:connections',
+    version: '2026.10.28',
+    run: async ({ dataDir, storeDir }) => {
+      const report = await migrateToConnections({
+        homeDir: dataDir, storeDir,
+        gatewayPath: path.join(AISTATUS_DIR, 'gateway.yaml'), piModelsPath: piUserModelsPath(),
+      });
+      if (report.skipped === 'immutable') return false;
     },
   },
 ];

@@ -19,6 +19,9 @@ export const CONNECTIONS_FILE = path.join(CONFIG_DIR, 'connections.json');
 /** Claude Code's own login. Implicit: present whenever Claude's store holds a credential. */
 export const SUBSCRIPTION_CONNECTION = 'subscription';
 
+/** The gateway-era name of the subscription route. */
+export const LEGACY_SUBSCRIPTION_MODE = 'plan';
+
 export const CONNECTION_ID_RE = /^[a-zA-Z0-9_-]+$/;
 
 export type ConnectionBilling = 'subscription' | 'metered';
@@ -228,9 +231,9 @@ export function maskKey(key: string | null | undefined): string | null {
 }
 
 /** The connection a gateway-era route name stands for: Claude's `plan` is its subscription and any
- *  other Claude route kept its name as a connection id; PI selections name no connection. */
-export function connectionForLegacyMode(backend: string, mode: unknown): string | null {
-  if (backend !== 'claude') return null;
-  if (typeof mode !== 'string' || !mode || mode === 'plan') return SUBSCRIPTION_CONNECTION;
-  return mode;
+ *  other Claude route kept its name as a connection id; PI selections and a selection naming no
+ *  route name no connection. */
+export function connectionForLegacyMode(backend: unknown, mode: unknown): string | null {
+  if (backend !== 'claude' || typeof mode !== 'string' || !mode) return null;
+  return mode === LEGACY_SUBSCRIPTION_MODE ? SUBSCRIPTION_CONNECTION : mode;
 }
