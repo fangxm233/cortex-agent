@@ -65,6 +65,12 @@ _PROVIDER_IDENTIFIER_BODY_KEYS = frozenset({
 _HOME_PATH = re.compile(rb"/home/(?!\.)[^/\x00\s\"']+(?:/[^\x00\s\"']*)?")
 
 
+# What a handshake records about its upstream: the provider and where the upstream came from —
+# the vendor's own endpoint, a Cortex connection's base-URL override, or a gateway.yaml route —
+# never the host, which for a relay is private and the evidence files are committed.
+UPSTREAM_SOURCES = frozenset({"vendor", "connection-override", "gateway-file"})
+
+
 class LiveHandshakePermitRefused(Exception):
     """A bootstrap permit was reused or asked to exceed its one-request authority."""
 
@@ -89,6 +95,7 @@ class _HandshakeAuthority:
 class _PermitGrant:
     authority: _HandshakeAuthority
     upstream: str
+    upstream_source: str
     spec: TrialProxySpec
     request: LiveHandshakeRequest
 
@@ -149,13 +156,17 @@ class _HandshakeResponse:
 
 def issue_live_handshake_permit(
     *, capability_id: str, model: str, limits: Mapping[str, object],
-    upstream_base_url: str, spec: TrialProxySpec, request: LiveHandshakeRequest,
+    upstream_base_url: str, upstream_source: str, spec: TrialProxySpec,
+    request: LiveHandshakeRequest,
 ) -> LiveHandshakePermit:
+    if upstream_source not in UPSTREAM_SOURCES:
+        raise LiveHandshakePermitRefused(
+            f"live handshake upstream source must be one of {sorted(UPSTREAM_SOURCES)}")
     sealed_limits = MappingProxyType(dict(limits))
     sealed_request = LiveHandshakeRequest(
         request.target, MappingProxyType(dict(request.headers)), bytes(request.body))
     authority = _authorize(capability_id, model, sealed_limits, spec, sealed_request)
-    grant = _PermitGrant(authority, upstream_base_url, spec, sealed_request)
+    grant = _PermitGrant(authority, upstream_base_url, upstream_source, spec, sealed_request)
     return LiveHandshakePermit(grant, _issuer=_ISSUER)
 
 
@@ -171,7 +182,7 @@ def run_live_handshake(
     _require_contained(artifact_dir / "proxy", (artifact_dir,))
     grant = permit.consume(capability_id)
     session = _start_session(
-        grant.authority, grant.upstream, grant.spec,
+        grant.authority, grant.upstream, grant.upstream_source, grant.spec,
         artifact_dir / "proxy", host_credential,
     )
     try:
@@ -326,8 +337,8 @@ def _output_cap_field(protocol: str) -> str:
 
 
 def _start_session(
-    authority: _HandshakeAuthority, upstream: str, spec: TrialProxySpec,
-    proxy_dir: Path, host_credential: str,
+    authority: _HandshakeAuthority, upstream: str, upstream_source: str,
+    spec: TrialProxySpec, proxy_dir: Path, host_credential: str,
 ) -> _HandshakeSession:
     arm = {"model": authority.model, "limits": authority.limits}
     # Same binding a trial gets: a handshake spec that declares OAuth refresh material reads it
@@ -341,7 +352,7 @@ def _start_session(
         arm, authority, upstream, spec, proxy_dir, adapter, armed_at_ms, deadline_ms)
     return _HandshakeSession(
         proxy, authority, adapter.adapter_id, armed_at_ms, deadline_ms,
-        _upstream_identity(upstream),
+        _upstream_identity(authority.key.provider, upstream_source),
     )
 
 
@@ -714,9 +725,8 @@ def _write_validated_evidence(
         raise
 
 
-def _upstream_identity(upstream_base_url: str) -> str:
-    target = urlsplit(upstream_base_url)
-    return f"{target.netloc}{target.path.rstrip('/')}"
+def _upstream_identity(provider: str, upstream_source: str) -> str:
+    return f"{provider}/{upstream_source}"
 
 
 def _sha256(payload: bytes) -> str:

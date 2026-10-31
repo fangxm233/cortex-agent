@@ -4,11 +4,14 @@ from pathlib import Path
 import pytest
 
 from cortex_bench_harness.launcher.deepseek_upstream import (
+    SOURCE_CONNECTION,
+    SOURCE_GATEWAY,
     DeepSeekUpstream,
     DeepSeekUpstreamError,
     default_cortex_home,
     load_deepseek_upstream,
 )
+from cortex_bench_harness.launcher.live_handshake import UPSTREAM_SOURCES
 
 RELAY = "https://deepseek-relay.example.com/v1"
 FAKE_KEY = "fake-relay-token-0001"
@@ -36,7 +39,7 @@ def test_reads_the_deepseek_pi_connection_by_default(tmp_path: Path) -> None:
         {"id": "relay", "backend": "claude", "baseUrl": "https://claude.example.com", "key": "fake-claude"},
         {"id": "deepseek", "backend": "pi", "provider": "deepseek", "baseUrl": RELAY, "key": FAKE_KEY},
     ])
-    assert load_deepseek_upstream(cortex_home=home) == DeepSeekUpstream(RELAY, FAKE_KEY)
+    assert load_deepseek_upstream(cortex_home=home) == DeepSeekUpstream(RELAY, FAKE_KEY, SOURCE_CONNECTION)
 
 
 def test_the_credential_never_shows_in_repr(tmp_path: Path) -> None:
@@ -70,7 +73,12 @@ def test_reads_a_named_gateway_route_when_one_is_given(tmp_path: Path) -> None:
         "  other:\n    base_url: https://other.example.com\n    keys: [fake-other]\n"
         f"  deepseek:\n    base_url: {RELAY}\n    keys: [{FAKE_KEY}]\n"))
     home = _home(tmp_path, [{"id": "deepseek", "backend": "pi", "baseUrl": "https://ignored.invalid", "key": "x"}])
-    assert load_deepseek_upstream(cortex_home=home, gateway_path=gateway) == DeepSeekUpstream(RELAY, FAKE_KEY)
+    assert load_deepseek_upstream(cortex_home=home, gateway_path=gateway) == DeepSeekUpstream(
+        RELAY, FAKE_KEY, SOURCE_GATEWAY)
+
+
+def test_every_source_the_loader_reports_is_one_a_handshake_records() -> None:
+    assert {SOURCE_CONNECTION, SOURCE_GATEWAY} <= UPSTREAM_SOURCES
 
 
 def test_reads_a_flat_section_or_its_first_mode(tmp_path: Path) -> None:

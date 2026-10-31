@@ -20,6 +20,9 @@ from typing import Any
 import yaml
 
 PROVIDER = "deepseek"
+# Where the upstream came from, as a handshake records it in place of the host.
+SOURCE_CONNECTION = "connection-override"
+SOURCE_GATEWAY = "gateway-file"
 # Keys that, directly on a gateway.yaml section, make the section itself the one route.
 FLAT_ROUTE_KEYS = frozenset({
     "keys", "base_url", "auth_style", "passthrough", "fallbacks", "model_fallbacks",
@@ -35,6 +38,7 @@ class DeepSeekUpstreamError(ValueError):
 class DeepSeekUpstream:
     base_url: str
     credential: str = field(repr=False)
+    source: str = SOURCE_CONNECTION
 
 
 def default_cortex_home(environ: Mapping[str, str] = os.environ) -> Path:
@@ -82,6 +86,7 @@ def _from_gateway(path: Path, env_path: Path) -> DeepSeekUpstream:
     return DeepSeekUpstream(
         base_url=_required(route, "base_url", label),
         credential=_resolve_reference(key.strip(), env_path, label),
+        source=SOURCE_GATEWAY,
     )
 
 

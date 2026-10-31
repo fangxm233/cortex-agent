@@ -239,7 +239,7 @@ def run_codex_handshake(
     permit = issue_live_handshake_permit(
         capability_id=CODEX_CAPABILITY_ID, model=CODEX_MODEL,
         limits=handshake_limits(max_output_tokens=65_536), upstream_base_url=upstream,
-        spec=spec, request=codex_request(),
+        upstream_source="vendor", spec=spec, request=codex_request(),
     )
     return run_live_handshake(
         permit=permit, capability_id=CODEX_CAPABILITY_ID,
@@ -253,13 +253,14 @@ def run_codex_handshake(
 def issue_permit(
     *, capability_id: str = CAPABILITY_ID, upstream: str | None = None,
     limits: dict[str, object] | None = None, spec=None,
-    request: LiveHandshakeRequest | None = None,
+    request: LiveHandshakeRequest | None = None, upstream_source: str = "vendor",
 ) -> LiveHandshakePermit:
     return issue_live_handshake_permit(
         capability_id=capability_id,
         model=MODEL,
         limits=handshake_limits() if limits is None else limits,
         upstream_base_url=closed_upstream() if upstream is None else upstream,
+        upstream_source=upstream_source,
         spec=handshake_spec() if spec is None else spec,
         request=handshake_request() if request is None else request,
     )
@@ -348,6 +349,30 @@ def test_offline_capability_consumes_one_request_and_writes_schema_v2_evidence(
     assert diagnostic["complete"] is True
     assert diagnostic_body(diagnostic).startswith(b'{"model":')
     assert_live_evidence(tmp_path, evidence_path)
+
+
+def test_evidence_names_the_upstream_by_provider_and_source_never_by_host(
+    tmp_path: Path,
+) -> None:
+    with handshake_upstream() as upstream:
+        url = f"http://127.0.0.1:{upstream.server_port}/relay/path"
+        permit = issue_permit(upstream=url, upstream_source="connection-override")
+        evidence_path = run_handshake(tmp_path, permit=permit, upstream=url)
+
+    evidence = json.loads(evidence_path.read_bytes())
+    run_config = json.loads(
+        (tmp_path / "artifacts" / "live-handshake-run-config.json").read_bytes())
+    for identity in (evidence["upstream_identity"], run_config["upstream_identity"]):
+        assert identity == "anthropic/connection-override"
+    for text in (evidence_path.read_text(), json.dumps(run_config)):
+        assert "127.0.0.1" not in text
+        assert str(upstream.server_port) not in text  # type: ignore[attr-defined]
+        assert "/relay/path" not in text
+
+
+def test_an_unknown_upstream_source_is_refused_before_anything_is_armed() -> None:
+    with pytest.raises(LiveHandshakePermitRefused, match="upstream source"):
+        issue_permit(upstream_source="relay.example.invalid")
 
 
 class DriftingLimits(dict):
