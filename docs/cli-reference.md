@@ -56,19 +56,21 @@ Options:
 - `--answers <file>` — read answers from a JSON document without prompting. Omitted fields use defaults; `{}` creates a single-machine installation using PI, with provider login still required if no credentials are detected. Used by the desktop installer. An explicit `backends` array retains its selection and installation semantics (`claude`, `pi`, or both); an explicit empty array selects Claude.
 - `--json` — emit newline-delimited progress events on stdout and move human-readable output to stderr. The final event reports the home directory, the version, the client token, and the local Web UI URL.
 
-Model answers use this shape (the selected pair must be among detected models):
+Model answers use this shape (the model must be one this host can run):
 
 ```json
 {
-  "defaultChoice": { "mode": "openai-codex", "model": "gpt-6.1-sol" },
-  "favorites": [{ "mode": "openai-codex", "model": "gpt-6.1-sol" }]
+  "defaultChoice": { "backend": "pi", "provider": "openai-codex", "model": "gpt-6.1-sol" },
+  "favorites": [{ "backend": "claude", "model": "claude-opus-5" }]
 }
 ```
 
 An explicit `defaultChoice` replaces the saved default; otherwise it is preserved.
-Favorites are merged and include the selected default. The positional stdin
-protocol ends with two model lines: default `mode:model`, then comma-separated
-favorite `mode:model` pairs.
+Favorites are merged and include the selected default; every backend or PI
+provider without a favorite also gains its recommended model. Older answers
+written as `{ "mode": …, "model": … }` are still read. The positional stdin
+protocol ends with two model lines: default `route:model`, then comma-separated
+favorite `route:model` pairs, where the route is `claude` or a PI provider.
 
 **`cortex ui enable [--port <n>] [--home <path>] [--json]`**
 

@@ -10,6 +10,7 @@ const DEPS = {} as UiServiceDeps;
 test('the picker DTO mirrors the catalog, naming each route\'s endpoint for older clients', async () => {
   const catalog: ModelCatalog = {
     peek: () => { throw new Error('the picker waits for the list; it never peeks'); },
+    reload: () => { throw new Error('the picker never rescans'); },
     load: async () => ({
       routes: [
         {

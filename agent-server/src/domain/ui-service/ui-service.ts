@@ -115,7 +115,7 @@ import {
 import {
   handleAuthCancelFlow,
   handleAuthLogout,
-  handleAuthSyncGateway,
+  handleAuthSyncModels,
   handleAuthRespondPrompt,
   handleAuthStartLogin,
 } from './mutate/auth.js';
@@ -230,7 +230,7 @@ export const mutateHandlers = {
   'auth.respondPrompt': (deps, args) => handleAuthRespondPrompt(deps, args),
   'auth.cancelFlow': (deps, args) => handleAuthCancelFlow(deps, args),
   'auth.logout': (deps, args) => handleAuthLogout(deps, args),
-  'auth.syncGateway': (deps, args) => handleAuthSyncGateway(deps, args),
+  'auth.syncModels': (deps, args) => handleAuthSyncModels(deps, args),
   'auth.upsertCustomProvider': (deps, args) => handleCustomProviderUpsert(deps, args),
   'auth.removeCustomProvider': (deps, args) => handleCustomProviderRemove(deps, args),
   'usageSharing.set': (deps, args) => handleUsageSharingSet(deps, args),

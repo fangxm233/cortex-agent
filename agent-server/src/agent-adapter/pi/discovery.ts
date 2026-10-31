@@ -34,6 +34,8 @@ export interface PIProviderDiscovery {
    */
   ensureModels(timeoutMs?: number): Promise<PiDiscoveredModel[]>;
   refresh(): void;
+  /** Rescan now and wait (bounded) for the result: for a caller that just changed PI's auth. */
+  rescan(timeoutMs?: number): Promise<PiDiscoveredModel[]>;
 }
 
 export interface PIProviderDiscoveryOptions {
@@ -65,6 +67,7 @@ export function createPIProviderDiscovery(
     peekModels: () => cache.peek(),
     ensureModels: (timeoutMs: number = PI_PROVIDER_ENSURE_TIMEOUT_MS) => cache.ensure(timeoutMs),
     refresh: () => cache.refresh(),
+    rescan: (timeoutMs: number = PI_PROVIDER_ENSURE_TIMEOUT_MS) => cache.settle(timeoutMs),
   };
 }
 

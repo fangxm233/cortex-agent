@@ -66,7 +66,7 @@ import {
   authRespondPromptInput,
   authCancelFlowInput,
   authLogoutInput,
-  authSyncGatewayInput,
+  authSyncModelsInput,
   authCustomProvidersInput,
   authUpsertCustomProviderInput,
   authRemoveCustomProviderInput,
@@ -342,7 +342,7 @@ function authRouter(service: UiService) {
     respondPrompt: makeMutation(service, 'auth.respondPrompt', authRespondPromptInput),
     cancelFlow: makeMutation(service, 'auth.cancelFlow', authCancelFlowInput),
     logout: makeMutation(service, 'auth.logout', authLogoutInput),
-    syncGateway: makeMutation(service, 'auth.syncGateway', authSyncGatewayInput),
+    syncModels: makeMutation(service, 'auth.syncModels', authSyncModelsInput),
     // Self-hosted and proxied endpoints, which have no login flow: they are defined, edited and
     // deleted rather than logged in and out of.
     customProviders: makeQuery(service, 'auth.customProviders', authCustomProvidersInput),

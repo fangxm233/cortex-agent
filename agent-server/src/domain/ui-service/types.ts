@@ -164,10 +164,11 @@ export interface SessionsPendingInteraction {
 
 export type AuthLogoutReturn = AuthLogoutSuccess;
 
-export interface AuthSyncGatewayReturn {
+export interface AuthSyncModelsReturn {
   /** False when nothing was written (see `reason`); not an error. */
   configured: boolean;
-  endpoints: number;
+  /** How many routes (Claude, each PI provider) the host can reach. */
+  routes: number;
   defaultSet: boolean;
   favorites: ModelRef[];
   reason?: string;
@@ -1726,7 +1727,7 @@ export interface MutateReturnMap {
   'auth.respondPrompt': LoginFlowState;
   'auth.cancelFlow': LoginFlowState;
   'auth.logout': AuthLogoutReturn;
-  'auth.syncGateway': AuthSyncGatewayReturn;
+  'auth.syncModels': AuthSyncModelsReturn;
   'auth.upsertCustomProvider': CustomProviderView;
   'auth.removeCustomProvider': AuthRemoveCustomProviderReturn;
   'usageSharing.set': UsageSharingSettings;
@@ -1795,8 +1796,8 @@ export interface UiServiceDeps {
   getAuthStatus?: () => Promise<AuthStatusSnapshot>;
   authLogin?: AuthLoginService;
   logoutAccount?: (input: LogoutAccountInput) => Promise<AuthLogoutResult>;
-  /** Re-derives gateway routes and favorites; defaults to discovery-backed sync. */
-  syncGateway?: (options: { backends?: string[] }) => Promise<AuthSyncGatewayReturn>;
+  /** Seeds favorites and a missing default from the model catalog; defaults to the host's own. */
+  syncModels?: (options: { backends?: Array<'claude' | 'pi'> }) => Promise<AuthSyncModelsReturn>;
   /** Files custom providers are read from and written to; defaults to the host's own two files. */
   customProviderStores?: CustomProviderStores;
   /** Directory holding the aistatus `config.yaml`; defaults to `~/.aistatus`. */

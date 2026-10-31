@@ -30,13 +30,21 @@ export interface ModelCatalogSources {
   connections: () => ConnectionView[];
   /** Anthropic Models API: `get` answers from cache, `ensure` waits out a cold fetch. */
   claudeModels: { get(): DiscoveredAnthropicModel[]; ensure(): Promise<DiscoveredAnthropicModel[]> };
-  /** PI scan: `peek` never starts a scan, `ensure` waits out a cold one. */
-  piModels: { peek(): PiDiscoveredModel[]; ensure(): Promise<PiDiscoveredModel[]> };
+  /** PI scan: `peek` never starts a scan, `ensure` waits out a cold one, `rescan` waits out a new
+   *  one (falling back to `ensure` when a source cannot rescan). */
+  piModels: {
+    peek(): PiDiscoveredModel[];
+    ensure(): Promise<PiDiscoveredModel[]>;
+    rescan?(): Promise<PiDiscoveredModel[]>;
+  };
 }
 
 export interface ModelCatalog {
   /** Waits (bounded) for cold sources: for callers whose purpose is the list. */
   load(): Promise<CatalogSnapshot>;
+  /** Like `load`, but PI is rescanned first: for a caller that just changed what PI can reach (a
+   *  login), where a warm list would still miss the new provider. */
+  reload(): Promise<CatalogSnapshot>;
   /** Warm caches only, never a wait or a PI scan: for validation and command parsing. */
   peek(): CatalogSnapshot;
 }
@@ -45,7 +53,11 @@ function defaultSources(): ModelCatalogSources {
   return {
     connections: () => credentialInventory.list(),
     claudeModels: { get: () => anthropicModelDiscovery.get(), ensure: () => anthropicModelDiscovery.ensure() },
-    piModels: { peek: () => piProviderDiscovery.peekModels(), ensure: () => piProviderDiscovery.ensureModels() },
+    piModels: {
+      peek: () => piProviderDiscovery.peekModels(),
+      ensure: () => piProviderDiscovery.ensureModels(),
+      rescan: () => piProviderDiscovery.rescan(),
+    },
   };
 }
 
@@ -67,15 +79,17 @@ function buildSnapshot(
 export function createModelCatalog(sources: Partial<ModelCatalogSources> = {}): ModelCatalog {
   const resolved = { ...defaultSources(), ...sources };
   const hasClaude = (connections: ConnectionView[]): boolean => connections.some((view) => view.backend === 'claude');
+  const loadWith = async (pi: () => Promise<PiDiscoveredModel[]>): Promise<CatalogSnapshot> => {
+    const connections = resolved.connections();
+    const [claude, piModels] = await Promise.all([
+      hasClaude(connections) ? resolved.claudeModels.ensure() : Promise.resolve([]),
+      pi(),
+    ]);
+    return buildSnapshot(connections, claude, piModels);
+  };
   return {
-    async load() {
-      const connections = resolved.connections();
-      const [claude, pi] = await Promise.all([
-        hasClaude(connections) ? resolved.claudeModels.ensure() : Promise.resolve([]),
-        resolved.piModels.ensure(),
-      ]);
-      return buildSnapshot(connections, claude, pi);
-    },
+    load: () => loadWith(() => resolved.piModels.ensure()),
+    reload: () => loadWith(() => (resolved.piModels.rescan ? resolved.piModels.rescan() : resolved.piModels.ensure())),
     peek() {
       const connections = resolved.connections();
       const claude = hasClaude(connections) ? resolved.claudeModels.get() : [];

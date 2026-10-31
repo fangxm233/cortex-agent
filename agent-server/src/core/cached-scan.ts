@@ -62,6 +62,19 @@ export class CachedScan<T> {
     return this.peek();
   }
 
+  /**
+   * Rescan now and wait (bounded) until no scan is left in flight, including one a concurrent
+   * `refresh` queued — for a caller that just changed what the scan reads (a login) and needs the
+   * list that reflects it. On timeout, whatever the cache holds is returned.
+   */
+  async settle(timeoutMs: number): Promise<T[]> {
+    this.refresh();
+    let timedOut = false;
+    const deadline = delay(timeoutMs).then(() => { timedOut = true; });
+    while (this.inFlight && !timedOut) await Promise.race([this.inFlight, deadline]);
+    return this.peek();
+  }
+
   refresh(): void {
     if (!this.inFlight) {
       this.startRefresh();
