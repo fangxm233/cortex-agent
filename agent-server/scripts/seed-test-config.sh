@@ -24,7 +24,7 @@ sed -i "s|CORTEX_HOME_PLACEHOLDER|$CORTEX_HOME|g" "$CONFIG_DIR/machines.json"
 
 cat > "$CONFIG_DIR/models.json" <<'MODELS'
 {
-  "default": { "backend": "claude", "provider": null, "model": "claude-sonnet-4-6", "thinking": null, "mode": "plan" },
+  "default": { "backend": "claude", "provider": null, "model": "claude-sonnet-4-6", "thinking": null, "connection": null },
   "favorites": [
     { "backend": "claude", "provider": null, "model": "claude-sonnet-4-6" },
     { "backend": "pi", "provider": "anthropic", "model": "claude-sonnet-4-6" }

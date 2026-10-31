@@ -4,6 +4,7 @@ import * as http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { parse as parseDotenvLib } from 'dotenv';
 
+import { withLegacyConnection } from '@core/connections-file.js';
 import { isGitAvailable } from '@core/git-availability.js';
 import { credentialInventory, routeName, SUBSCRIPTION_CONNECTION } from '../connections/index.js';
 import { AISTATUS_DIR, GATEWAY_CONFIG, DATA_DIR, CONFIG_DIR, STORE_DIR, DAEMON_PID_FILE } from '@core/paths.js';
@@ -370,6 +371,7 @@ function checkModels(deps: DoctorDeps, p: string): CheckResult {
   }
   try {
     const parsed = JSON.parse(deps.readText(p) ?? '') as { default?: unknown; favorites?: unknown } | null;
+    if (parsed?.default) parsed.default = withLegacyConnection(parsed.default);
     validateEngineSelection(parsed?.default);
     if (!Array.isArray(parsed?.favorites)) throw new Error('missing `favorites` array');
     parsed.favorites.forEach(validateModelRef);

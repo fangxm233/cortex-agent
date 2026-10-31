@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync } from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'vitest';
+import { writeConnections } from '../../src/core/connections-file.js';
 
 import {
   anthropicModelIds,
@@ -12,6 +15,11 @@ import {
 
 const CLAUDE_DIR = '/fixture/.claude';
 const CREDENTIALS = path.join(CLAUDE_DIR, '.credentials.json');
+/** The daemon's own Anthropic key is the official-API key connection's. */
+const KEYED = path.join(mkdtempSync(path.join(os.tmpdir(), 'anthropic-discovery-')), 'connections.json');
+writeConnections([
+  { id: 'api', backend: 'claude', label: 'api', authStyle: 'x-api-key', key: 'sk-ant-k', billing: 'metered' },
+], KEYED);
 
 function reader(files: Record<string, string>) {
   return (filePath: string): string => {
@@ -55,7 +63,8 @@ function model(
 test('the fetch goes through ANTHROPIC_BASE_URL with the resolved credential', async () => {
   const calls: Array<{ url: string; headers: Record<string, string> }> = [];
   const models = await fetchAnthropicModels({
-    env: { ANTHROPIC_BASE_URL: 'http://127.0.0.1:9880/m/plan/x/anthropic/', ANTHROPIC_API_KEY: 'sk-ant-k' },
+    env: { ANTHROPIC_BASE_URL: 'http://127.0.0.1:9880/m/plan/x/anthropic/' },
+    connectionsFile: KEYED,
     claudeConfigDir: CLAUDE_DIR,
     readFile: reader({}),
     fetchImpl: (async (url: string, init: RequestInit) => {
@@ -72,13 +81,14 @@ test('the fetch goes through ANTHROPIC_BASE_URL with the resolved credential', a
 
 test('no credential, a non-2xx answer or a shapeless body all throw, so the backoff applies', async () => {
   const noCredential = fetchAnthropicModels({
-    env: {}, claudeConfigDir: CLAUDE_DIR, readFile: reader({}), platform: 'linux',
+    env: {}, connectionsFile: path.join(path.dirname(KEYED), 'none.json'),
+    claudeConfigDir: CLAUDE_DIR, readFile: reader({}), platform: 'linux',
     fetchImpl: (async () => jsonResponse({ data: [] })) as unknown as typeof fetch,
   });
   await assert.rejects(noCredential, /no Anthropic credential/);
 
   const credentialed = {
-    env: { ANTHROPIC_API_KEY: 'sk-ant-k' }, claudeConfigDir: CLAUDE_DIR, readFile: reader({}),
+    env: {}, connectionsFile: KEYED, claudeConfigDir: CLAUDE_DIR, readFile: reader({}),
   };
   await assert.rejects(
     fetchAnthropicModels({
@@ -198,7 +208,8 @@ test('on macOS with no other credential, the keychain login authenticates the mo
 test('the keychain is not read when another credential already answers', async () => {
   let reads = 0;
   await fetchAnthropicModels({
-    env: { ANTHROPIC_API_KEY: 'sk-ant-k' },
+    env: {},
+    connectionsFile: KEYED,
     claudeConfigDir: CLAUDE_DIR,
     readFile: reader({}),
     platform: 'darwin',

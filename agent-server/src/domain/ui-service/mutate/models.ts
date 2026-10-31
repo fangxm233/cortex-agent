@@ -2,6 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { CONFIG_DIR } from '@core/paths.js';
 import { atomicWrite } from '@core/atomic-write.js';
+import { withLegacyConnection } from '@core/connections-file.js';
 import {
   modelKey, validateModelRef, validateEngineSelection,
   type EngineSelection, type ModelRef, type ModelsFile,
@@ -30,6 +31,7 @@ async function readModelsFile(configDir: string, initial?: EngineSelection): Pro
     if (!raw || typeof raw !== 'object' || !Array.isArray(raw.favorites)) {
       throw invalid('models.json must contain a default selection and favorites array');
     }
+    if (raw.default) raw.default = withLegacyConnection(raw.default);
     validate(() => validateEngineSelection(raw.default ?? initial));
     return raw;
   } catch (error) {
