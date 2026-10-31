@@ -24,11 +24,11 @@ Server lifecycle and initialization CLI. `cortex --help` lists every command.
 
 ### Commands
 
-**`cortex init [--home <path>] [--gateway-config-dir <path>] [--force] [--answers <file>] [--json]`**
+**`cortex init [--home <path>] [--force] [--answers <file>] [--json]`**
 
 Initialize `CORTEX_HOME`. The interactive wizard uses bundled PI by default
 without a backend-selection prompt, collects platform (Slack / Feishu),
-machine, usage-reporting, and service settings, writes `.env`, copies default
+machine, usage-sharing, and service settings, writes `.env`, copies default
 configs, and generates the `mcp-config*.json` files, `machines.json`,
 `preferences.json` and `agent-state.json`. It also seeds `schedules.json`,
 creates a git repository in `CORTEX_HOME` when `git` is available, and can
@@ -41,9 +41,9 @@ After writing configs, it detects local provider credentials and offers
 login, rescan, continue with configured providers, or a warned skip. Login
 uses the same flow as `cortex auth login`; choosing Claude Code reuses an
 existing installation or asks permission to install a missing copy. Continue
-configures gateway routes and asks for a default model and favorites from
-detected endpoints. The recommended default is preselected and included among
-favorites. Detection
+asks for a default model and favorites among the models the detected logins
+and [connections](./configuration.md#configconnectionsjson) can run. The
+recommended default is preselected and included among favorites. Detection
 makes no paid inference request and does not verify model access.
 
 `--answers` and `--json` runs do not start provider login or wait for input.
@@ -51,7 +51,6 @@ They report credential status and can finish with provider setup incomplete.
 
 Options:
 - `--home <path>` — set `CORTEX_HOME` (default: `$CORTEX_HOME` or `~/.cortex/`)
-- `--gateway-config-dir <path>` — gateway config output directory (default: `~/.aistatus/`)
 - `--force` — overwrite existing configs (`.env`, `budget.json`, `agent-state.json`, etc.)
 - `--answers <file>` — read answers from a JSON document without prompting. Omitted fields use defaults; `{}` creates a single-machine installation using PI, with provider login still required if no credentials are detected. Used by the desktop installer. An explicit `backends` array retains its selection and installation semantics (`claude`, `pi`, or both); an explicit empty array selects Claude.
 - `--json` — emit newline-delimited progress events on stdout and move human-readable output to stderr. The final event reports the home directory, the version, the client token, and the local Web UI URL.
@@ -65,10 +64,18 @@ Model answers use this shape (the model must be one this host can run):
 }
 ```
 
-An explicit `defaultChoice` replaces the saved default; otherwise it is preserved.
+A Claude choice may add `"connection"` to run on one of the host's Claude
+connections; without it the model runs on the connection chosen for it. An
+explicit `defaultChoice` replaces the saved default; otherwise it is preserved.
 Favorites are merged and include the selected default; every backend or PI
-provider without a favorite also gains its recommended model. Older answers
-written as `{ "mode": …, "model": … }` are still read. The positional stdin
+provider without a favorite also gains its recommended model. A choice written
+as `{ "mode": …, "model": … }` is read too, `mode` naming `claude`, a Claude
+connection or a PI provider.
+
+The usage-sharing answer is
+`"usageSharing": { "enabled": true, "name": …, "org": …, "email": … }` or
+`{ "enabled": false }`; without it the existing choice stays. `gatewayUsage` is
+accepted as another name for the same key. The positional stdin
 protocol ends with two model lines: default `route:model`, then comma-separated
 favorite `route:model` pairs, where the route is `claude` or a PI provider.
 

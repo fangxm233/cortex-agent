@@ -357,8 +357,8 @@ that a model call will succeed.
 The terminal offers these actions:
 
 - **Continue with configured providers** — shown once credentials are
-  detected. Uses them to configure gateway routes and `models.json` from the
-  discovered endpoints. Choose one default model (the recommended model is
+  detected. Writes `models.json` from the models those credentials can run.
+  Choose one default model (the recommended model is
   preselected), then select favorites. The default model is included among
   favorites even if you deselect it in this step.
 - **Login / install and login Claude Code** — choose a backend, provider,

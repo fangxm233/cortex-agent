@@ -268,7 +268,7 @@ Cortex 运行 `nvidia-smi` 并打印数量。无需输入。如果没有 NVIDIA 
 
 终端提供以下操作：
 
-- **使用已配置的服务商继续**（Continue with configured providers）——检测到凭据后才出现。使用这些凭据，从发现的端点配置 gateway 路由与 `models.json`。先单选默认模型（预选推荐模型），再多选收藏。即使在此步骤取消勾选默认模型，它也会包含在收藏中。
+- **使用已配置的服务商继续**（Continue with configured providers）——检测到凭据后才出现。根据这些凭据能运行的模型写入 `models.json`。先单选默认模型（预选推荐模型），再多选收藏。即使在此步骤取消勾选默认模型，它也会包含在收藏中。
 - **登录 / 安装并登录 Claude Code**（Login / install and login Claude Code）——选择后端、Provider 及其支持的 OAuth 或 API key 方式。PI 已内置；Claude Code 已安装时直接复用，只有选择其登录路径时才会询问是否安装缺失的程序。登录后返回凭据检测。
 - **重新扫描凭据**（Rescan credentials）——重新检测凭据（例如在其他终端配置的凭据），然后回到这个菜单。
 - **稍后配置**（Configure later (Agent may be unavailable)）——不配置 Provider 直接完成初始化；配置好凭据与默认模型 前，Agent 不可用。

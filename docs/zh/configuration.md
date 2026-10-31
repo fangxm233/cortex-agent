@@ -106,7 +106,7 @@ $CORTEX_HOME/
 
 | 变量 | 默认值 | 用途 |
 |---|---|---|
-| `CORTEX_GATEWAY_HOME` | OS 用户 home | 为 `.aistatus/` 目录另指一个 home，必须是绝对路径；[用量共享](./quickstart.md#28-aistatus-token-usage-reporting)设置（`.aistatus/config.yaml`）就在其中 |
+| `CORTEX_AISTATUS_HOME` | OS 用户 home | 为 `.aistatus/` 目录另指一个 home，必须是绝对路径；[用量共享](./quickstart.md#28-aistatus-token-usage-reporting)设置（`.aistatus/config.yaml`）就在其中。未设置时读取 `CORTEX_GATEWAY_HOME` |
 
 Cortex 在启动时先读启动环境，再读 `$CORTEX_HOME/config/.env`；CLI 也按同样方式读取。相对路径会阻止启动。修改后须重启该实例的 daemon。
 
@@ -116,7 +116,7 @@ Cortex 在启动时先读启动环境，再读 `$CORTEX_HOME/config/.env`；CLI 
 
 启动该实例及运行其 CLI 时，始终指定 `CORTEX_HOME=/absolute/path/to/cortex-second`。`.env` 中路径须写绝对路径，不展开 `~` 或 `$CORTEX_HOME`。
 
-通过第二实例自己的登录流程配置 provider 凭据。它的[连接](#configconnectionsjson)和 Claude Code 登录都只属于它的 `CORTEX_HOME`。`~/.pi/agent/` 中的 PI 凭据和 PI provider 目录由使用同一 OS home 的 Cortex 实例共享；如需隔离它们，也要为 Cortex 使用独立 OS home。不要跨实例复制会轮换的 OAuth token，应使用后端登录流程。排行榜共享偏好（`.aistatus/config.yaml`）由同一 OS 用户的实例共享，除非用 `CORTEX_GATEWAY_HOME` 给某个实例指定独立目录。
+通过第二实例自己的登录流程配置 provider 凭据。它的[连接](#configconnectionsjson)和 Claude Code 登录都只属于它的 `CORTEX_HOME`。`~/.pi/agent/` 中的 PI 凭据和 PI provider 目录由使用同一 OS home 的 Cortex 实例共享；如需隔离它们，也要为 Cortex 使用独立 OS home。不要跨实例复制会轮换的 OAuth token，应使用后端登录流程。排行榜共享偏好（`.aistatus/config.yaml`）由同一 OS 用户的实例共享，除非用 `CORTEX_AISTATUS_HOME` 给某个实例指定独立目录。
 
 ### 平台 {#platform}
 
@@ -624,7 +624,7 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 | `defaults/plugins/`, `defaults/config/hooks/`, `defaults/hooks/`, `defaults/rules/`, `defaults/agents/`, `defaults/prompts/` | — | 不复制：原地读取，你的文件叠加其上（见[内置资源与你的覆盖](#built-in-assets-and-your-overrides)） |
 | `defaults/board/` | — | 不复制：看板的预设样式表和新看板的骨架从安装包读取 |
 
-init 还会在 `config/machines.json`、`config/preferences.json` 和 `data/agent-state.json` 缺失时（或使用 `--force` 时）生成它们，写入 `config/mcp-config*.json` 文件，并设置网关配置和 `models.json`（见 [`cortex init`](./cli-reference.md#commands)）。服务器每次启动都会重写 `mcp-config*.json` 文件，所以对它们的编辑不会保留。
+init 还会在 `config/machines.json`、`config/preferences.json` 和 `data/agent-state.json` 缺失时（或使用 `--force` 时）生成它们，写入 `config/mcp-config*.json` 文件，并写入 `models.json`（见 [`cortex init`](./cli-reference.md#commands)）。服务器每次启动都会重写 `mcp-config*.json` 文件，所以对它们的编辑不会保留。
 
 因此升级会带来当前版本的内置插件、钩子、规则、角色与提示词，新随包的执行环境也能到达已有安装，同时不动你的改动。整文件型配置（如 `budget.json`）需要 `--force` 才能替换。
 

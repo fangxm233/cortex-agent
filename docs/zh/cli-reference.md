@@ -24,17 +24,16 @@ cortex <command> [options]
 
 ### 命令 {#commands}
 
-**`cortex init [--home <path>] [--gateway-config-dir <path>] [--force] [--answers <file>] [--json]`**
+**`cortex init [--home <path>] [--force] [--answers <file>] [--json]`**
 
-初始化 `CORTEX_HOME`。交互式向导默认使用内置 PI，不询问后端选择；收集平台（Slack / 飞书）、机器、用量报告与服务设置，写入 `.env`、复制默认配置，并生成 `mcp-config*.json` 文件、`machines.json`、`preferences.json` 和 `agent-state.json`。它还会初始化 `schedules.json`，在 `git` 可用时在 `CORTEX_HOME` 中创建 git 仓库，并可按回答启用本地 Web UI、安装系统服务。它保留已配置的 `CORTEX_UI_PORT`，未配置时把 26789 起（至 26999）第一个空闲端口写为实例的[主端口](./configuration.md#main-port)。
+初始化 `CORTEX_HOME`。交互式向导默认使用内置 PI，不询问后端选择；收集平台（Slack / 飞书）、机器、用量分享与服务设置，写入 `.env`、复制默认配置，并生成 `mcp-config*.json` 文件、`machines.json`、`preferences.json` 和 `agent-state.json`。它还会初始化 `schedules.json`，在 `git` 可用时在 `CORTEX_HOME` 中创建 git 仓库，并可按回答启用本地 Web UI、安装系统服务。它保留已配置的 `CORTEX_UI_PORT`，未配置时把 26789 起（至 26999）第一个空闲端口写为实例的[主端口](./configuration.md#main-port)。
 
-写入配置后，向导检测本地 Provider 凭据，提供登录、重新检测、使用已配置的 Provider 继续，或带警告跳过。登录使用与 `cortex auth login` 相同的流程；选择 Claude Code 时复用已有安装，缺失时询问是否允许安装。继续操作会从检测到的端点配置 gateway 路由，并询问默认模型与收藏。默认项预选推荐模型，并包含在收藏中。检测不会发起付费推理请求，也不验证模型是否可调用。
+写入配置后，向导检测本地 Provider 凭据，提供登录、重新检测、使用已配置的 Provider 继续，或带警告跳过。登录使用与 `cortex auth login` 相同的流程；选择 Claude Code 时复用已有安装，缺失时询问是否允许安装。继续操作会在检测到的登录与[连接](./configuration.md#configconnectionsjson)能运行的模型中询问默认模型与收藏。默认项预选推荐模型，并包含在收藏中。检测不会发起付费推理请求，也不验证模型是否可调用。
 
 使用 `--answers` 或 `--json` 运行时，不会启动 Provider 登录或等待输入；命令会报告凭据状态，并允许在 Provider 设置未完成时结束。
 
 选项：
 - `--home <path>` — 设置 `CORTEX_HOME`（默认：`$CORTEX_HOME` 或 `~/.cortex/`）
-- `--gateway-config-dir <path>` — 网关配置输出目录（默认：`~/.aistatus/`）
 - `--force` — 覆盖已有配置（`.env`、`budget.json`、`agent-state.json` 等）
 - `--answers <file>` — 从 JSON 文档读取回答，不进行交互提问。省略的字段使用默认值；`{}` 创建使用 PI 的单机安装，若未检测到凭据，仍需登录 Provider。桌面安装器使用此选项。显式 `backends` 数组保留指定的后端选择与安装语义（`claude`、`pi` 或两者）；显式空数组保留回退到 Claude 的行为。
 - `--json` — 在 stdout 输出按行分隔的进度事件，并将面向人的输出改到 stderr。最后一条事件报告 home 目录、版本、客户端 token 与本地 Web UI 地址。
@@ -48,7 +47,9 @@ cortex <command> [options]
 }
 ```
 
-显式 `defaultChoice` 会替换保存的默认值，否则保留它。收藏合并并包含所选默认模型；尚无收藏的后端或 PI provider 也会加入其推荐模型。旧格式 `{ "mode": …, "model": … }` 仍可读取。按位置读取的 stdin 协议以两行模型选择结束：默认模型的 `route:model`，以及逗号分隔的收藏 `route:model`，其中 route 是 `claude` 或 PI provider。
+Claude 的选择可加上 `"connection"`，指定在本机的某个 Claude 连接上运行；不指定时，模型在为它选定的连接上运行。显式 `defaultChoice` 会替换保存的默认值，否则保留它。收藏合并并包含所选默认模型；尚无收藏的后端或 PI provider 也会加入其推荐模型。写成 `{ "mode": …, "model": … }` 的选择同样可读，`mode` 指 `claude`、某个 Claude 连接或 PI provider。
+
+用量分享的回答为 `"usageSharing": { "enabled": true, "name": …, "org": …, "email": … }` 或 `{ "enabled": false }`；不提供时保留现有选择。`gatewayUsage` 是同一键的另一个名字。按位置读取的 stdin 协议以两行模型选择结束：默认模型的 `route:model`，以及逗号分隔的收藏 `route:model`，其中 route 是 `claude` 或 PI provider。
 
 **`cortex ui enable [--port <n>] [--home <path>] [--json]`**
 

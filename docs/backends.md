@@ -593,7 +593,10 @@ cost records (`data/costs.jsonl`): a provider with traffic in the last 30 days
 gets a row for each way its traffic was billed, and the connections that
 carried it are listed under its name. A connection's spend is metered unless
 it runs on a subscription — Claude's own login, or a PI provider signed in
-with OAuth. Metered rows show spend for today, the last 30 days and the last
+with OAuth. A PI connection that carries a key is metered; one that only moves
+a provider's base URL keeps the billing of PI's own login for it. A Claude
+selection that names no connection is filed under the connection its run
+used. Metered rows show spend for today, the last 30 days and the last
 90 days, the period the cost records keep; subscription rows show quota and
 no spend.
 

@@ -154,7 +154,7 @@ start (see [Automatic migration out of .env](#automatic-migration-out-of-env)).
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `CORTEX_GATEWAY_HOME` | OS user home | Absolute path of another home for the `.aistatus/` directory, where the [usage-sharing](./quickstart.md#28-aistatus-token-usage-reporting) settings (`.aistatus/config.yaml`) live |
+| `CORTEX_AISTATUS_HOME` | OS user home | Absolute path of another home for the `.aistatus/` directory, where the [usage-sharing](./quickstart.md#28-aistatus-token-usage-reporting) settings (`.aistatus/config.yaml`) live. `CORTEX_GATEWAY_HOME` is read when it is unset |
 
 Cortex reads it at startup from the launcher environment first, then from
 `$CORTEX_HOME/config/.env`; the CLI reads it the same way. A relative path
@@ -178,7 +178,7 @@ private to its `CORTEX_HOME`. PI credentials and the PI provider catalog under
 separate OS home as well if those must be isolated. Do not copy rotating OAuth
 tokens between instances; use the backend's login flow. Leaderboard sharing
 preferences (`.aistatus/config.yaml`) are shared by instances of the same OS
-user unless `CORTEX_GATEWAY_HOME` gives one a home of its own.
+user unless `CORTEX_AISTATUS_HOME` gives one a home of its own.
 
 ### Platform
 
@@ -1083,8 +1083,7 @@ built-in assets are read in place:
 
 Init also generates `config/machines.json`, `config/preferences.json` and
 `data/agent-state.json` when they are missing (or with `--force`), writes the
-`config/mcp-config*.json` files, and sets up the gateway configuration and
-`models.json` (see [`cortex init`](./cli-reference.md#commands)). The server
+`config/mcp-config*.json` files, and writes `models.json` (see [`cortex init`](./cli-reference.md#commands)). The server
 rewrites the `mcp-config*.json` files at every start, so edits to them do not
 persist.
 
