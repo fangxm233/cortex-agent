@@ -26,7 +26,11 @@ BUNDLE_CREDENTIAL_CAPABILITIES: Mapping[str, str] = {
     "direct-pi-deepseek": "pi-deepseek-api-key",
     "direct-pi-openai-codex": "pi-openai-codex-oauth",
 }
-IDENTITY_FIELDS = ("backend", "provider", "model", "thinking", "mode")
+IDENTITY_FIELDS = ("backend", "provider", "model", "thinking", "connection")
+# A selection written before connections replaced gateway modes names a `mode`; Cortex reads it as
+# the connection that mode stood for, and so does this. Claude's subscription was the `plan` mode.
+LEGACY_SUBSCRIPTION_MODE = "plan"
+SUBSCRIPTION_CONNECTION = "subscription"
 
 
 class ProductionArmError(RuntimeError):
@@ -44,7 +48,7 @@ class ProductionArmBundle:
     provider: str | None
     model: str
     thinking: str | None
-    mode: str
+    connection: str | None
     credential_capability: str
     webhook_endpoints: tuple[str, ...]
 
@@ -84,14 +88,29 @@ def _read_bundle_json(home: Path, key: str, relative: str) -> Mapping[str, objec
     return document
 
 
+def _legacy_connection(selection: Mapping[str, object]) -> str | None:
+    """The connection a gateway-era `mode` stood for: none for PI, whose provider is its route."""
+    mode = selection["mode"]
+    if selection.get("backend") != "claude" or not isinstance(mode, str) or not mode:
+        return None
+    return SUBSCRIPTION_CONNECTION if mode == LEGACY_SUBSCRIPTION_MODE else mode
+
+
+def _current_selection(selection: Mapping[str, object]) -> Mapping[str, object]:
+    if "connection" in selection or "mode" not in selection:
+        return selection
+    return {**selection, "connection": _legacy_connection(selection)}
+
+
 def _bundle_selection(home: Path, key: str) -> dict[str, str | None]:
     document = _read_bundle_json(home, key, "config/models.json")
     try:
-        identity = {field: document["default"][field] for field in IDENTITY_FIELDS}
+        selection = _current_selection(document["default"])
+        identity = {field: selection[field] for field in IDENTITY_FIELDS}
     except (KeyError, TypeError) as error:
         raise ProductionArmError(f"committed bundle {key!r} selection is incomplete") from error
-    required = (identity[field] for field in ("backend", "model", "mode"))
-    nullable = (identity[field] for field in ("provider", "thinking"))
+    required = (identity[field] for field in ("backend", "model"))
+    nullable = (identity[field] for field in ("provider", "thinking", "connection"))
     if not all(isinstance(value, str) and value for value in required):
         raise ProductionArmError(f"committed bundle {key!r} selection is incomplete")
     if not all(value is None or isinstance(value, str) and value for value in nullable):

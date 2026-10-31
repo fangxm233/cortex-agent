@@ -50,7 +50,7 @@ def cortex_arm(**overrides: object) -> dict[str, object]:
         "provider": "deepseek",
         "model": "deepseek-v4-flash",
         "credential_capability": "pi-deepseek-api-key",
-        "bundle": "direct-pi-deepseek", "mode": "trial", "thinking": "off",
+        "bundle": "direct-pi-deepseek", "connection": None, "thinking": "off",
         "limits": dict(LIMITS),
     }
     arm.update(overrides)

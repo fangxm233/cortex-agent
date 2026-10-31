@@ -202,7 +202,9 @@ def expected_attestation(
         "trial_id": "trial-direct-001", "capture_boundary": "launcher_pre_boot",
         "arm_bundle": {
             "key": "direct-pi-deepseek",
-            "selection": EXPECTED_MODELS["default"],
+            # The sealed file's gateway-era mode is attested as the connection it stands for.
+            "selection": {**{k: v for k, v in EXPECTED_MODELS["default"].items() if k != "mode"},
+                          "connection": None},
             "environment": "main",
         },
         "arm_confinement": DIRECT_BUNDLE.confinement_record(),

@@ -1043,7 +1043,7 @@ def test_a_cortex_arm_reads_what_it_runs_from_its_bundle(tmp_path: Path) -> None
 
     assert arm == {
         "schema_version": "cortex-benchmark-arm/4", "kind": "cortex", "name": "cortex-pi-codex",
-        "bundle": "direct-pi-openai-codex", "mode": "trial", "backend": "pi", "provider": "openai-codex",
+        "bundle": "direct-pi-openai-codex", "connection": None, "backend": "pi", "provider": "openai-codex",
         "model": "gpt-5.6-sol", "thinking": "xhigh",
         "credential_capability": "pi-openai-codex-oauth",
         "limits": {

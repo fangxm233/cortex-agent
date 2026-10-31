@@ -182,7 +182,7 @@ def arm() -> dict[str, object]:
         "provider": "deepseek",
         "model": "deepseek-v4-flash",
         "credential_capability": "pi-deepseek-api-key",
-        "bundle": "direct-pi-deepseek", "mode": "trial", "thinking": "off",
+        "bundle": "direct-pi-deepseek", "connection": None, "thinking": "off",
         "limits": {
             "max_provider_requests": 8,
             "max_cost_usd": "2.50",

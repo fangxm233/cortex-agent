@@ -60,16 +60,18 @@ def test_direct_openai_codex_arm_resolves_to_its_committed_bundle() -> None:
 def test_bundle_identity_is_read_from_the_committed_selection() -> None:
     for bundle in PRODUCTION_ARM_BUNDLES:
         selection = read_json(bundle.bundle_dir / "config/models.json")["default"]
-        fields = ("backend", "provider", "model", "thinking", "mode")
+        fields = ("backend", "provider", "model", "thinking")
         assert {field: selection[field] for field in fields} == {
             field: getattr(bundle, field) for field in fields}
+        # The sealed selection still names its gateway-era mode; a PI selection names no connection.
+        assert bundle.connection is None
 
 
 @pytest.mark.parametrize("drift", [
     {"bundle": "no-such-bundle"},
     {"model": "deepseek-v4-pro"},
     {"thinking": "high"},
-    {"mode": "other"},
+    {"connection": "other"},
     {"provider": "openai-codex"},
     {"credential_capability": "pi-openai-codex-oauth"},
     {"kind": "vendor-baseline"},
@@ -101,7 +103,7 @@ def test_every_arm_records_the_one_session_endpoint_it_needs_open() -> None:
         assert bundle.attested_record() == {
             "key": bundle.key, "environment": "main",
             "selection": {field: getattr(bundle, field) for field in
-                          ("backend", "provider", "model", "thinking", "mode")},
+                          ("backend", "provider", "model", "thinking", "connection")},
         }
 
 
@@ -194,12 +196,25 @@ def test_sealed_state_cannot_override_the_fresh_default(tmp_path: Path, change) 
 
 def test_bundle_selection_preserves_nullable_thinking(tmp_path: Path) -> None:
     selection = {"backend": "pi", "provider": "deepseek", "model": "deepseek-v4-flash",
-                 "thinking": None, "mode": "trial"}
+                 "thinking": None, "connection": None}
     (tmp_path / "config").mkdir()
     path = tmp_path / "config/models.json"
     path.write_text(json.dumps({"default": selection, "favorites": []}))
     assert _bundle_selection(tmp_path, "test") == selection
-    del selection["mode"]
+    del selection["connection"]
     path.write_text(json.dumps({"default": selection, "favorites": []}))
     with pytest.raises(ProductionArmError, match="incomplete"):
         _bundle_selection(tmp_path, "test")
+
+
+@pytest.mark.parametrize(("backend", "mode", "connection"), [
+    ("pi", "trial", None), ("claude", "plan", "subscription"), ("claude", "relay", "relay"),
+])
+def test_a_gateway_era_mode_reads_as_its_connection(
+    tmp_path: Path, backend: str, mode: str, connection: str | None,
+) -> None:
+    selection = {"backend": backend, "provider": None, "model": "m", "thinking": None, "mode": mode}
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config/models.json").write_text(json.dumps({"default": selection, "favorites": []}))
+    assert _bundle_selection(tmp_path, "test") == {
+        "backend": backend, "provider": None, "model": "m", "thinking": None, "connection": connection}

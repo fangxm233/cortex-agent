@@ -44,7 +44,7 @@ def cortex_arm(credential_capability: str = "pi-deepseek-api-key") -> dict[str, 
         "kind": "cortex", "name": ARM_NAME, "backend": "pi",
         "provider": "deepseek", "model": MODEL,
         "credential_capability": credential_capability,
-        "bundle": "direct-pi-deepseek", "mode": "trial", "thinking": "off",
+        "bundle": "direct-pi-deepseek", "connection": None, "thinking": "off",
         "limits": {
             "max_provider_requests": 8, "max_cost_usd": "2.50",
             "deadline_seconds": DEADLINE_SECONDS, "max_output_tokens": 65536,
