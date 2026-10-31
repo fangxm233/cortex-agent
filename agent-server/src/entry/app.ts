@@ -37,7 +37,6 @@ import { recordMigrationFailure } from '@domain/telemetry/upgrade.js';
 import { buildUiService } from './ui-service-wiring.js';
 import { startPlatformAdapters } from './platform-connect.js';
 import { subscribeDaemonNotices } from './daemon-notice.js';
-import { startGateway } from '@domain/costs/gateway-manager.js';
 import { prewarmPiSdk } from '@core/pi-sdk.js';
 import { startAllRemoteClients, releaseUnregisteredDevices } from '@domain/remote/client-lifecycle.js';
 import { initClientHotReload } from '@domain/remote/client-hot-reload.js';
@@ -305,10 +304,10 @@ const bus = new EventBus();
 createEventLogger(bus);
 installTelemetryCollectors(bus);
 initAuthEvents(bus);
-// A login only becomes useful once the models it unlocks are routable, and that mapping is derived
-// by scanning local backend state. Re-derive it whenever a login lands, so a user who authenticates
-// from the workbench gets usable models without dropping to a terminal for `cortex setup-gateway`.
-// Merge-aware and non-throwing (see gateway-sync.ts) — the existing default is never overwritten.
+// A login only becomes useful once the models it unlocks are in the favorites, derived by scanning
+// local backend state. Re-derive them whenever a login lands, so a user who authenticates from the
+// workbench gets usable models without dropping to a terminal. Merge-aware and non-throwing (see
+// gateway-sync.ts) — the existing default is never overwritten.
 onLoginSuccess((event) => {
   if (event.authType === 'oauth') {
     void usageService.signIn(event.provider)
@@ -316,7 +315,7 @@ onLoginSuccess((event) => {
   }
   void syncGatewayFromBackends({ backends: [event.backend] }).then((result) => {
     if (!result.configured && result.reason !== 'no-endpoints') {
-      log.warn(`Gateway sync after ${event.backend} login did not complete: ${result.reason}`);
+      log.warn(`Model sync after ${event.backend} login did not complete: ${result.reason}`);
     }
   });
 });
@@ -463,8 +462,6 @@ installSigtermShutdown(shutdownHandles);
   if (syncManagedAssets) ensureMcpConfig();
   // Migrate old aistatus config from wrong location (CORTEX_HOME/config) to correct location (~/.aistatus)
   await migrateAistatusConfigLocation(DATA_DIR);
-  // The gateway port is fixed here, before recovery or a platform message can spawn a session.
-  await startGateway();
   initConfiguredHooks();
   executionRepo.load();
   // An in-process execution dies with the server, so stale it immediately — otherwise a

@@ -2,8 +2,8 @@
 //
 //   importFresh             re-evaluates ONLY the target. A unique query string gives it a module id
 //                           of its own, while everything it imports stays the shared, already-loaded
-//                           instance — so a singleton the test imported statically (e.g.
-//                           gateway-manager) is the same object the fresh module talks to.
+//                           instance — so a singleton the test imported statically (e.g. the
+//                           models repo) is the same object the fresh module talks to.
 //   importWithFreshRegistry throws the whole module registry away first. Use it when the state to
 //                           reset lives in a transitive import (config.ts caches, paths.ts constants)
 //                           or when vi.doMock must reach every module in the graph.

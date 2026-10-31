@@ -14,7 +14,6 @@ import { forgetDeviceBrowsers } from '@domain/remote/device-browser.js';
 import { shutdownBrowserBroker } from '@domain/browser/broker.js';
 import { stopDiskMonitor } from '@domain/monitor/disk-monitor.js';
 import { stopEventLoopMonitor } from '@domain/monitor/event-loop-monitor.js';
-import { stopGateway } from '@domain/costs/gateway-manager.js';
 import { flushLeaderboardUploads } from '@domain/costs/leaderboard-upload.js';
 import { stopBrowser } from '@platform/browser/managed-browser.js';
 import { stopWaitpointSweep } from '../orchestration/waitpoint-sweep.js';
@@ -84,7 +83,6 @@ function drainSteps(h: ShutdownHandles): ShutdownStep[] {
     { name: 'flush stores', run: () => Promise.allSettled([h.bus.close(), h.outboundQueue.flush(), flushAllRepositories()]) },
     // After the engines closed, so the last turns' ledger rows are already queued.
     { name: 'usage uploads', run: () => flushLeaderboardUploads() },
-    { name: 'gateway', run: stopGateway },
   ];
 }
 

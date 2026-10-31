@@ -28,12 +28,12 @@ function greenPiRuntime() {
 
 const GREEN_PRESENT = new Set([
   '/d', '/c', '/s', '/c/.env', '/s/mode.json', '/c/models.json',
-  '/c/mcp-config.json', '/h/.aistatus/gateway.yaml',
+  '/c/mcp-config.json',
 ]);
 const GREEN_TEXTS: Record<string, string> = {
   '/c/.env': '', '/s/mode.json': '{"backend":"claude"}',
   '/c/models.json': '{"default":{"backend":"claude","provider":null,"model":"x","thinking":null,"connection":"subscription"},"favorites":[]}',
-  '/c/mcp-config.json': '{}', '/h/.aistatus/gateway.yaml': 'x: 1',
+  '/c/mcp-config.json': '{}',
 };
 
 function greenDeps(over: Partial<DoctorDeps> = {}): DoctorDeps {
@@ -44,11 +44,10 @@ function greenDeps(over: Partial<DoctorDeps> = {}): DoctorDeps {
       SLACK_SIGNING_SECRET: 's', SLACK_APP_TOKEN: 'xapp-1',
     },
     paths: { DATA_DIR: '/d', CONFIG_DIR: '/c', STORE_DIR: '/s' },
-    aistatusDir: '/h/.aistatus', nodeVersion: 'v20.0.0', requiredNodeMajor: 20,
+    nodeVersion: 'v20.0.0', requiredNodeMajor: 20,
     fileExists: p => GREEN_PRESENT.has(p), isWritable: () => true,
     readText: p => (p in GREEN_TEXTS ? GREEN_TEXTS[p] : null),
     parseDotenv: parseEnv, commandExists: () => true, pidAlive: () => true,
-    probeGateway: async () => true,
     resolvePiSdk: () => ({ package: '@earendil-works/pi-coding-agent', version: '0.82.1' }),
     loadPiRuntime: async () => greenPiRuntime(),
     getAuthStatus: async () => ({

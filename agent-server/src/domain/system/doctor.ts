@@ -1,14 +1,12 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { parse as parseDotenvLib } from 'dotenv';
 
 import { withLegacyConnection } from '@core/connections-file.js';
 import { isGitAvailable } from '@core/git-availability.js';
 import { credentialInventory, routeName, SUBSCRIPTION_CONNECTION } from '../connections/index.js';
-import { AISTATUS_DIR, GATEWAY_CONFIG, DATA_DIR, CONFIG_DIR, STORE_DIR, DAEMON_PID_FILE } from '@core/paths.js';
-import { gatewayUrl } from '@core/gateway-endpoint.js';
+import { DATA_DIR, CONFIG_DIR, STORE_DIR, DAEMON_PID_FILE } from '@core/paths.js';
 import { ensureAuthTokens, CLIENT_TOKEN_ENV, WEBHOOK_TOKEN_ENV } from '@core/auth.js';
 import { generateMcpConfig } from '@core/config-generator.js';
 import { isProcessAlive } from '@core/singleton-lock.js';
@@ -69,7 +67,6 @@ export interface DoctorDeps {
   platform?: NodeJS.Platform;
   env: Record<string, string | undefined>;
   paths: DoctorPaths;
-  aistatusDir: string;
   nodeVersion: string;        // e.g. 'v20.11.0'
   requiredNodeMajor: number;  // e.g. 20
   fileExists(p: string): boolean;
@@ -78,8 +75,6 @@ export interface DoctorDeps {
   parseDotenv(text: string): Record<string, string>;
   commandExists(bin: string): boolean;
   pidAlive(pid: number): boolean;
-  gatewayUrl?: string;
-  probeGateway(): Promise<boolean>;
   /** Locate the bundled PI SDK without importing it; null when it cannot be resolved. */
   resolvePiSdk(): PiSdkInfo | null;
   loadPiRuntime(): Promise<PiRuntimeLoadResult>;
@@ -367,7 +362,7 @@ function pushJsonCheck(checks: CheckResult[], deps: DoctorDeps, p: string, id: s
 function checkModels(deps: DoctorDeps, p: string): CheckResult {
   const base = { id: 'models', label: 'models.json' };
   if (!deps.fileExists(p)) {
-    return { ...base, status: 'warn', detail: `missing (${p})`, hint: 'run `cortex setup-gateway`' };
+    return { ...base, status: 'warn', detail: `missing (${p})`, hint: 'run `cortex init`' };
   }
   try {
     const parsed = JSON.parse(deps.readText(p) ?? '') as { default?: unknown; favorites?: unknown } | null;
@@ -377,7 +372,7 @@ function checkModels(deps: DoctorDeps, p: string): CheckResult {
     parsed.favorites.forEach(validateModelRef);
     return { ...base, status: 'pass', detail: `default: ${parsed.default.model}; favorites: ${parsed.favorites.length}` };
   } catch (error) {
-    return { ...base, status: 'fail', detail: (error as Error).message, hint: 're-run `cortex setup-gateway`' };
+    return { ...base, status: 'fail', detail: (error as Error).message, hint: 're-run `cortex init`' };
   }
 }
 
@@ -420,44 +415,14 @@ function sectionPlatform(deps: DoctorDeps, getEnv: (n: string) => string | undef
   return { title: 'Messaging Platform', checks };
 }
 
-// ─── Section: Gateway ─────────────────────────────────────────────
-
-function sectionGateway(
-  deps: DoctorDeps,
-  getEnv: (name: string) => string | undefined,
-  healthy: boolean,
-): DoctorSection {
-  const checks: CheckResult[] = [];
-  const gwYaml = path.join(deps.aistatusDir, 'gateway.yaml');
-  const gwConfigured = deps.fileExists(gwYaml);
-  const gatewayAddress = new URL(deps.gatewayUrl ?? gatewayUrl()).host;
-  const missingConfig = GATEWAY_CONFIG.home ? gwYaml : '~/.aistatus/gateway.yaml';
-  checks.push(gwConfigured
-    ? { id: 'gateway-config', label: 'Gateway config', status: 'pass', detail: gwYaml }
-    : { id: 'gateway-config', label: 'Gateway config', status: 'skip', detail: `not configured (no ${missingConfig})`, hint: 'run `cortex setup-gateway` if you use the gateway' });
-
-  const gatewayInUse = gwConfigured;
-  if (healthy) {
-    checks.push({ id: 'gateway-health', label: 'Gateway health', status: 'pass', detail: `responding at ${gatewayAddress}` });
-  } else if (gatewayInUse) {
-    checks.push({ id: 'gateway-health', label: 'Gateway health', status: 'fail', detail: `no response at ${gatewayAddress}/status`, hint: 'check gateway.log or restart Cortex (the server auto-starts the gateway)' });
-  } else {
-    checks.push({ id: 'gateway-health', label: 'Gateway health', status: 'skip', detail: 'not running (not required for current backend)' });
-  }
-
-  return { title: 'Gateway', checks };
-}
-
 // ─── Engine ───────────────────────────────────────────────────────
 
 export async function runDiagnostics(deps: DoctorDeps): Promise<DoctorReport> {
   const getEnv = buildEnvReader(deps);
-  const gatewayHealthy = await deps.probeGateway();
   const sections: DoctorSection[] = [
     sectionRuntime(deps),
     await sectionBackend(deps, getEnv),
     sectionPlatform(deps, getEnv),
-    sectionGateway(deps, getEnv, gatewayHealthy),
   ];
 
   const counts = { pass: 0, warn: 0, fail: 0, skip: 0 };
@@ -537,23 +502,10 @@ function resolveBundledPiSdk(): PiSdkInfo | null {
   }
 }
 
-function probeGatewayHttp(): Promise<boolean> {
-  return new Promise((resolve) => {
-    const req = http.get(`${gatewayUrl()}/status`, { timeout: 5000 }, (res) => {
-      res.resume();
-      resolve(res.statusCode === 200);
-    });
-    req.on('error', () => resolve(false));
-    req.on('timeout', () => { req.destroy(); resolve(false); });
-  });
-}
-
 export function createDefaultDoctorDeps(): DoctorDeps {
   return {
     env: process.env,
     paths: { DATA_DIR, CONFIG_DIR, STORE_DIR },
-    aistatusDir: AISTATUS_DIR,
-    gatewayUrl: gatewayUrl(),
     nodeVersion: process.version,
     requiredNodeMajor: 20,
     fileExists: (p) => { try { return fs.existsSync(p); } catch { return false; } },
@@ -562,7 +514,6 @@ export function createDefaultDoctorDeps(): DoctorDeps {
     parseDotenv: (t) => parseDotenvLib(t) as Record<string, string>,
     commandExists: commandExistsOnPath,
     pidAlive: isProcessAlive,
-    probeGateway: probeGatewayHttp,
     resolvePiSdk: resolveBundledPiSdk,
     loadPiRuntime: () => loadInstalledPiRuntime(),
     getAuthStatus: () => readAuthStatus(),

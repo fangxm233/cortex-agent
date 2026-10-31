@@ -59,14 +59,13 @@ function authSnapshot(accounts: AuthAccountStatus[] = [authAccount()]): AuthStat
 
 const BASE_PRESENT = new Set([
   '/d', '/c', '/s', '/c/.env', '/s/mode.json', '/c/models.json',
-  '/c/mcp-config.json', '/h/.aistatus/gateway.yaml',
+  '/c/mcp-config.json',
 ]);
 const BASE_TEXTS: Record<string, string> = {
   '/c/.env': '',
   '/s/mode.json': '{"backend":"claude","mode":"api"}',
   '/c/models.json': '{"default":{"backend":"claude","provider":null,"model":"x","thinking":null,"connection":"api"},"favorites":[]}',
   '/c/mcp-config.json': '{}',
-  '/h/.aistatus/gateway.yaml': 'endpoints: {}',
 };
 const BASE_ENV = {
   CORTEX_CLIENT_TOKEN: 'ctok', CORTEX_WEBHOOK_TOKEN: 'wtok',
@@ -79,14 +78,13 @@ function baseDeps(over: Partial<DoctorDeps> = {}): DoctorDeps {
   return {
     env: { ...BASE_ENV }, platform: 'linux',
     paths: { DATA_DIR: '/d', CONFIG_DIR: '/c', STORE_DIR: '/s' },
-    aistatusDir: '/h/.aistatus', nodeVersion: 'v20.11.0', requiredNodeMajor: 20,
+    nodeVersion: 'v20.11.0', requiredNodeMajor: 20,
     fileExists: p => BASE_PRESENT.has(p),
     isWritable: () => true,
     readText: p => (p in BASE_TEXTS ? BASE_TEXTS[p] : null),
     parseDotenv: parseEnv,
     commandExists: () => true,
     pidAlive: () => true,
-    probeGateway: async () => true,
     resolvePiSdk: () => ({ ...PI_SDK }),
     loadPiRuntime: async () => healthyPiRuntime(),
     getAuthStatus: async () => authSnapshot(),
@@ -121,11 +119,11 @@ describe('models configuration diagnostics', () => {
 // ─── runDiagnostics: happy path ───────────────────────────────────
 
 describe('runDiagnostics — all green', () => {
-  it('reports ok=true with zero failures and four sections', async () => {
+  it('reports ok=true with zero failures and three sections', async () => {
     const report = await runDiagnostics(baseDeps());
     assert.equal(report.ok, true);
     assert.equal(report.counts.fail, 0);
-    assert.equal(report.sections.length, 4);
+    assert.equal(report.sections.length, 3);
   });
 
   it('never looks for a pi binary when the PI backend is selected', async () => {
@@ -310,27 +308,6 @@ describe('runDiagnostics — platform creds', () => {
     assert.equal(checks['feishu-creds'].status, 'fail');
     assert.equal(checks['slack-creds'], undefined);
   });
-});
-
-// ─── Gateway ──────────────────────────────────────────────────────
-
-describe('runDiagnostics — gateway', () => {
-  it('fails health when gateway is in use (gateway.yaml configured) but down', async () => {
-    const checks = byId(await runDiagnostics(baseDeps({
-      probeGateway: async () => false,
-    })));
-    assert.equal(checks['gateway-health'].status, 'fail');
-  });
-
-  it('skips health when gateway is idle (not configured) and down', async () => {
-    const checks = byId(await runDiagnostics(baseDeps({
-      fileExists: (p: string) => p !== '/h/.aistatus/gateway.yaml',
-      probeGateway: async () => false,
-    })));
-    assert.equal(checks['gateway-health'].status, 'skip');
-    assert.equal(checks['gateway-config'].detail, 'not configured (no ~/.aistatus/gateway.yaml)');
-  });
-
 });
 
 // ─── Runtime ──────────────────────────────────────────────────────

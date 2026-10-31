@@ -32,7 +32,7 @@ test('each shutdown step runs under its own crash phase', async () => {
   assert.deepEqual(phases, ['phase:shutdown:platforms', 'phase:shutdown:http server']);
 });
 
-test('timers and the outbound loop stop before the stores drain; the gateway goes last', () => {
+test('timers and the outbound loop stop before the stores drain; the usage uploads go last', () => {
   const names = shutdownSteps(handles([])).map((step) => step.name);
   const flush = names.indexOf('flush stores');
   for (const before of ['scheduler', 'waitpoint sweep', 'cache keep-warm', 'outbound drain loop', 'platforms', 'http server']) {
@@ -40,7 +40,7 @@ test('timers and the outbound loop stop before the stores drain; the gateway goe
   }
   assert.ok(names.indexOf('usage uploads') > names.indexOf('agent engines'), 'the last ledger rows are queued first');
   assert.equal(names[0], 'announce');
-  assert.equal(names.at(-1), 'gateway');
+  assert.equal(names.at(-1), 'usage uploads');
 });
 
 test('shutdown stops the models watcher before draining stores', async () => {
