@@ -8,7 +8,7 @@ import { installGuards } from './bundle-daemon-guards.mjs';
 const root = process.env.CORTEX_BUNDLE_TESTROOT;
 assert(root && /^\/tmp\/cortex-bundle-[^/]+$/.test(root), 'Preload requires a /tmp/cortex-bundle-* root');
 assert.equal(fs.realpathSync(root), root, 'Symlink test root is forbidden');
-for (const key of ['HOME', 'CORTEX_GATEWAY_HOME', 'CORTEX_HOME', 'CORTEX_NPM_PREFIX', 'npm_config_prefix', 'CORTEX_BUNDLE_EVENTS']) {
+for (const key of ['HOME', 'CORTEX_AISTATUS_HOME', 'CORTEX_HOME', 'CORTEX_NPM_PREFIX', 'npm_config_prefix', 'CORTEX_BUNDLE_EVENTS']) {
   assert(process.env[key]?.startsWith(root + '/'), `Preload refuses nonisolated ${key}`);
 }
 const eventFile = process.env.CORTEX_BUNDLE_EVENTS;
@@ -34,7 +34,7 @@ function observeBoot(stream) {
 const mainPortSearch = Array.from({ length: 211 }, (_, i) => 26789 + i);
 installGuards(record, [...ports, ...mainPortSearch]);
 record('process-start', { argv: process.argv, execArgv: process.execArgv, sourceMaps: process.sourceMapsEnabled,
-  gatewayHome: process.env.CORTEX_GATEWAY_HOME,
+  aistatusHome: process.env.CORTEX_AISTATUS_HOME,
   cwd: process.cwd(), home: process.env.HOME, cortexHome: process.env.CORTEX_HOME, npmPrefix: process.env.npm_config_prefix,
   identity: fs.readFileSync(`/proc/${process.pid}/stat`, 'utf8').split(') ').at(-1).split(' ')[19] });
 observeBoot(process.stdout);

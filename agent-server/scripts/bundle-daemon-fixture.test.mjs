@@ -84,7 +84,7 @@ test('preload records the isolated aistatus home and boot timing without rewriti
   const result = spawnSync(process.execPath, ['-e', script], { env, encoding: 'utf8', timeout: 5000 });
   assert.equal(result.status, 0, result.stderr);
   const records = events(env);
-  assert.equal(records.find(event => event.type === 'process-start').gatewayHome, env.CORTEX_GATEWAY_HOME);
+  assert.equal(records.find(event => event.type === 'process-start').aistatusHome, env.CORTEX_AISTATUS_HOME);
   assert.equal(records.find(event => event.type === 'app-ready').importsMs, 7);
 });
 

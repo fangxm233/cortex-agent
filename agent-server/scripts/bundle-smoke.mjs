@@ -31,7 +31,7 @@ const env = {
     TEMP: testRoot, TMP: testRoot,
   } : {}),
   CORTEX_TELEMETRY: '0', CORTEX_UI_HTTP: '1', CORTEX_PORT_FORWARD: '0',
-  CORTEX_GATEWAY_HOME: process.env.HOME, CORTEX_UI_PORT: '17304',
+  CORTEX_AISTATUS_HOME: process.env.HOME, CORTEX_UI_PORT: '17304',
   CORTEX_CLIENT_TOKEN: 'bundle-smoke-client-token', CORTEX_WEBHOOK_TOKEN: 'bundle-smoke-webhook-token',
 };
 Object.assign(process.env, env);

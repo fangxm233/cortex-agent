@@ -39,7 +39,7 @@ export function isolatedEnv(root, worktree, slot = 0) {
   for (const dir of [prefix, home, osHome, path.join(root, 'tmp'), path.join(home, 'config'), path.join(home, 'data')]) fs.mkdirSync(dir, { recursive: true });
   const npmrc = path.join(root, 'npmrc');
   fs.writeFileSync(npmrc, '');
-  const env = { PATH: `${prefix}/bin:${process.env.PATH}`, HOME: osHome, CORTEX_GATEWAY_HOME: osHome, CORTEX_HOME: home,
+  const env = { PATH: `${prefix}/bin:${process.env.PATH}`, HOME: osHome, CORTEX_AISTATUS_HOME: osHome, CORTEX_HOME: home,
     CORTEX_NPM_PREFIX: prefix, npm_config_prefix: prefix, npm_config_cache: path.join(root, 'npm-cache'),
     npm_config_userconfig: npmrc, npm_config_globalconfig: path.join(root, 'global-npmrc'),
     npm_config_update_notifier: 'false', npm_config_audit: 'false', npm_config_fund: 'false',

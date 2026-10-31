@@ -14,7 +14,7 @@ const output = path.join(path.dirname(home), 'turns');
 fs.mkdirSync(output, { recursive: true });
 const env = {
   PATH: process.env.PATH, HOME: process.env.HOME, CORTEX_HOME: home,
-  CORTEX_GATEWAY_HOME: process.env.HOME,
+  CORTEX_AISTATUS_HOME: process.env.HOME,
   CORTEX_TELEMETRY: '0', CORTEX_UI_HTTP: '1', CORTEX_PORT_FORWARD: '0',
   CORTEX_UI_PORT: '17304', CORTEX_CLIENT_TOKEN: 'bundle-smoke-client-token',
   CORTEX_WEBHOOK_TOKEN: 'bundle-smoke-webhook-token',

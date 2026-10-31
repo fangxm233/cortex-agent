@@ -15,21 +15,31 @@ describe('the aistatus directory', () => {
     expect(resolveAistatusDir({}, {}, OS_HOME)).toBe(path.join(OS_HOME, '.aistatus'));
   });
 
-  it('moves under CORTEX_GATEWAY_HOME, the process env winning over config/.env', () => {
+  it('moves under CORTEX_AISTATUS_HOME, the process env winning over config/.env', () => {
     const fromEnv = path.join(os.tmpdir(), 'env-home');
     const fromFile = path.join(os.tmpdir(), 'file-home');
-    expect(resolveAistatusDir({}, { CORTEX_GATEWAY_HOME: fromFile }, OS_HOME)).toBe(path.join(fromFile, '.aistatus'));
-    expect(resolveAistatusDir({ CORTEX_GATEWAY_HOME: fromEnv }, { CORTEX_GATEWAY_HOME: fromFile }, OS_HOME))
+    expect(resolveAistatusDir({}, { CORTEX_AISTATUS_HOME: fromFile }, OS_HOME)).toBe(path.join(fromFile, '.aistatus'));
+    expect(resolveAistatusDir({ CORTEX_AISTATUS_HOME: fromEnv }, { CORTEX_AISTATUS_HOME: fromFile }, OS_HOME))
       .toBe(path.join(fromEnv, '.aistatus'));
   });
 
+  it('still reads the setting\'s earlier name, CORTEX_GATEWAY_HOME, below the current one', () => {
+    const current = path.join(os.tmpdir(), 'current-home');
+    const earlier = path.join(os.tmpdir(), 'earlier-home');
+    expect(resolveAistatusDir({ CORTEX_GATEWAY_HOME: earlier }, {}, OS_HOME)).toBe(path.join(earlier, '.aistatus'));
+    expect(resolveAistatusDir({ CORTEX_GATEWAY_HOME: earlier }, { CORTEX_AISTATUS_HOME: current }, OS_HOME))
+      .toBe(path.join(earlier, '.aistatus'));
+    expect(resolveAistatusDir({ CORTEX_GATEWAY_HOME: earlier, CORTEX_AISTATUS_HOME: current }, {}, OS_HOME))
+      .toBe(path.join(current, '.aistatus'));
+  });
+
   it('refuses a relative home', () => {
-    expect(() => resolveAistatusDir({ CORTEX_GATEWAY_HOME: 'relative' }, {}, OS_HOME)).toThrow(/absolute/);
+    expect(() => resolveAistatusDir({ CORTEX_AISTATUS_HOME: 'relative' }, {}, OS_HOME)).toThrow(/absolute/);
   });
 
   it('reads config/.env, which a CLI process has not loaded', () => {
     const home = path.join(os.tmpdir(), 'dotenv-home');
-    fs.writeFileSync(path.join(configDir, '.env'), `CORTEX_GATEWAY_HOME=${home}\n`);
+    fs.writeFileSync(path.join(configDir, '.env'), `CORTEX_AISTATUS_HOME=${home}\n`);
     expect(loadAistatusDir(configDir, {}, OS_HOME)).toBe(path.join(home, '.aistatus'));
     expect(loadAistatusDir(path.join(configDir, 'missing'), {}, OS_HOME)).toBe(path.join(OS_HOME, '.aistatus'));
   });

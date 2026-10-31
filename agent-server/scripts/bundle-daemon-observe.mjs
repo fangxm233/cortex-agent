@@ -89,7 +89,7 @@ export function assertGuardEvidence(env, app) {
   const records = events(env);
   assert(!records.some(event => event.type === 'blocked-network'), 'Forbidden port access attempted; inspect events.jsonl');
   assert(records.some(event => event.type === 'process-start' && event.pid === app.pid
-    && event.gatewayHome === env.CORTEX_GATEWAY_HOME), 'Missing isolated aistatus home evidence for app');
+    && event.aistatusHome === env.CORTEX_AISTATUS_HOME), 'Missing isolated aistatus home evidence for app');
   return records.findLast(event => event.type === 'process-start' && event.pid === app.pid);
 }
 

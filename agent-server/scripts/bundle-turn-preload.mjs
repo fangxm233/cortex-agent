@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { isAbsolute } from 'node:path';
 import { installGuards } from './bundle-daemon-guards.mjs';
-for (const key of ['HOME', 'CORTEX_HOME', 'CORTEX_GATEWAY_HOME']) {
+for (const key of ['HOME', 'CORTEX_HOME', 'CORTEX_AISTATUS_HOME']) {
   assert(isAbsolute(process.env[key] ?? ''), `Bundle tests require an isolated ${key}`);
 }
 const ports = [Number(process.env.CORTEX_UI_PORT)];
