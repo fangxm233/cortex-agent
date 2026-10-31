@@ -322,9 +322,8 @@ function conversationContext(
     ...(state.teamLead ? { teamLead: true } : {}),
     ...(state.teamWorker ? { teamWorker: true } : {}),
     ...own,
-    // Another surface records itself as the trigger, but the route keeps the session's own: the
-    // live engine was spawned on it, and a different route would respawn it for this one turn.
-    ...(opts.trigger ? { trigger: opts.trigger, routeTrigger: own.trigger } : {}),
+    // Another surface opening a turn on the session records itself as the trigger.
+    ...(opts.trigger ? { trigger: opts.trigger } : {}),
   };
 }
 

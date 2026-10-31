@@ -175,8 +175,8 @@ test('runHookInjection (onMessageEnd) — reuses the finished turn\'s request so
   assert.notEqual(injected.runId, turn.runId);
   assert.deepEqual(injected.session, { ...turn.session, backendSessionId: 'backend-live' });
   assert.deepEqual(injected.prompt, { text: 'reminder', attachments: [] });
-  // Recorded as the hook's turn, routed like the turn it follows (the route is the engine's).
-  assert.deepEqual(injected.context, { ...turn.context, trigger: 'hook:onMessageEnd', routeTrigger: 'user' });
+  // Recorded as the hook's turn; everything else follows the turn it continues.
+  assert.deepEqual(injected.context, { ...turn.context, trigger: 'hook:onMessageEnd' });
   assert.equal(injected.spec, turn.spec);
   assert.equal(injected.policy, turn.policy);
   assert.equal(injected.selection, turn.selection);

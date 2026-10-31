@@ -50,11 +50,6 @@ export interface RunRequest {
     teamLead?: boolean;
     /** The session is a team worker: its engine also loads `mark_routine`. */
     teamWorker?: boolean;
-    /** The trigger the engine's route is attributed to, when it is not `trigger`. The route is
-     *  fixed when the process spawns, so a surface that opens a turn or runs a command on a
-     *  session's live engine keeps the session's own trigger here, and records itself in
-     *  `trigger`. */
-    routeTrigger?: string;
   };
   policy: {
     background: 'none' | 'hold';

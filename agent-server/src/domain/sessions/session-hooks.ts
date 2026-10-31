@@ -123,9 +123,8 @@ const defaultInjectDeps: InjectDeps = {
   },
 };
 
-/** The next turn on the engine `after` ran on: same session, agent, selection, policy and route —
- *  the route keeps `after`'s trigger, since the process was spawned on it; the follow-up's own
- *  trigger is what its execution and cost are recorded under. */
+/** The next turn on the engine `after` ran on: same session, agent, selection and policy; the
+ *  follow-up's own trigger is what its execution and cost are recorded under. */
 function followUpRequest(
   after: RunRequest,
   next: { prompt: string; trigger: string; backendSessionId: string },
@@ -135,11 +134,7 @@ function followUpRequest(
     runId: randomUUID(),
     session: { ...after.session, backendSessionId: next.backendSessionId },
     prompt: { text: next.prompt, attachments: [] },
-    context: {
-      ...after.context,
-      trigger: next.trigger,
-      routeTrigger: after.context.routeTrigger ?? after.context.trigger,
-    },
+    context: { ...after.context, trigger: next.trigger },
   };
 }
 

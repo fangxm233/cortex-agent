@@ -35,7 +35,7 @@ function target(selectionOverrides: Partial<EngineSelection> = {}): CompactAgent
       spec: bareSpec(),
       prompt: { text: '' },
       context: {
-        channel: 'web:track-1', project: 'nimbus', trigger: 'manual-compact', routeTrigger: 'user',
+        channel: 'web:track-1', project: 'nimbus', trigger: 'manual-compact',
         executionKind: 'local', isUserInitiated: true,
       },
       policy: {
