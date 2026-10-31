@@ -91,7 +91,7 @@ The shared kernel every other layer builds on: types, path constants, settings, 
 | `types/environment-types.ts` | Execution environment types: `AgentDefinition` (one `config/environments/*.json` file) and the `ResolvedEnvironment` a run opens with |
 | `config-generator.ts` | Config file initialization for new installs, and the MCP configs written at every start |
 | `connections-file.ts` | The connections file (`config/connections.json`): parsing, owner-only writes, and the masked key hint every surface shows |
-| `models-generator.ts` | Default model and favorites JSON generation |
+| `aistatus-dir.ts` | Where aistatus keeps the usage-sharing `config.yaml`: `.aistatus` under the OS home, or under `CORTEX_AISTATUS_HOME` |
 
 ### Layer 1: `store/` — Persistence
 

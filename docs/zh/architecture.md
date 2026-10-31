@@ -87,7 +87,7 @@ L5  entry/         → everything (composition root)
 | `types/environment-types.ts` | 执行环境类型：`AgentDefinition`（对应一个 `config/environments/*.json` 文件），以及一次运行打开时使用的 `ResolvedEnvironment` |
 | `config-generator.ts` | 新安装的配置文件初始化，以及每次启动时写入的 MCP 配置 |
 | `connections-file.ts` | 连接文件（`config/connections.json`）：解析、仅属主可读写的写入，以及各界面显示的密钥掩码提示 |
-| `models-generator.ts` | 默认模型与收藏 JSON 生成 |
+| `aistatus-dir.ts` | aistatus 存放用量分享 `config.yaml` 的位置：OS home 下的 `.aistatus`，或 `CORTEX_AISTATUS_HOME` 下的 |
 
 ### 第 1 层：`store/` — 持久化 {#layer-1-store-persistence}
 
