@@ -64,7 +64,7 @@ function button(renderer: ReactTestRenderer, action: string) {
 }
 
 describe('mobile custom providers', () => {
-  it('arms a delete before it removes the gateway route', () => {
+  it('arms a delete before it removes the provider', () => {
     const view = mountView();
     act(() => { button(view.renderer, 'delete').props.onClick(); });
     expect(view.onDelete).toHaveBeenCalledWith('my-vllm');

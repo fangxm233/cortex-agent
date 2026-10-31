@@ -40,7 +40,7 @@ describe('formStateFromCustomProvider', () => {
     expect(state.upstreamUrl).toBe('http://127.0.0.1:8100');
   });
 
-  it('tolerates a definition with no gateway route', () => {
+  it('tolerates a definition with no upstream URL', () => {
     expect(formStateFromCustomProvider(view({ upstreamUrl: null, routed: false })).upstreamUrl).toBe('');
   });
 });
