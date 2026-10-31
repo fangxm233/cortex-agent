@@ -4,7 +4,7 @@
 // document it is given and returns how many selections it changed, so a re-run changes nothing.
 
 import { connectionForLegacyMode, LEGACY_SUBSCRIPTION_MODE, SUBSCRIPTION_CONNECTION } from '@core/connections-file.js';
-import { PI_ANTHROPIC_MODE } from '@core/gateway-routes.js';
+import { PI_ANTHROPIC_MODE } from './legacy-gateway.js';
 
 type Json = Record<string, unknown>;
 

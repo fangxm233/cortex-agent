@@ -6,7 +6,6 @@ import { AISTATUS_DIR, DATA_DIR, DEFAULTS_DIR, PROJECTS_DIR } from '@core/paths.
 import { compareCalVer } from '@core/calver.js';
 import { atomicWrite } from '@core/atomic-write.js';
 import { RETIRED_MCP_TOOLS } from '@core/mcp-tool-gate.js';
-import { migrateRetiredPiUpstreams } from '@core/gateway-generator.js';
 import { createLogger } from '@core/log.js';
 import { piUserModelsPath } from '@core/pi-sdk.js';
 import { validateHookEntry, type HookEntry, type HookRun } from './hook-registry.js';
@@ -570,13 +569,6 @@ const stepMigrations: StepMigration[] = [
       if (report.skipped === 'immutable') return false;
     },
   },
-  // S11: PI 1.3.0 moved Kimi Coding and OpenCode to new base URLs. Gateway routes Cortex wrote for
-  // the old ones follow; hand-pointed relays are left alone.
-  {
-    key: 'sentinel:pi-retired-upstreams',
-    version: '2026.10.22',
-    run: async () => { migrateRetiredPiUpstreams(path.join(AISTATUS_DIR, 'gateway.yaml')); },
-  },
   // S12: rewinding cuts the backend transcript back to an anchor (an entry id) recorded per turn
   // instead of restoring a full per-turn copy. Turns recorded with a copy get the anchor that copy
   // stands for, so they stay rewindable; then every copy in Cortex's PI and Claude transcript dirs
@@ -600,8 +592,9 @@ const stepMigrations: StepMigration[] = [
   },
   // S14: spawns reach their providers directly. The credentials gateway.yaml, config/.env and PI's
   // catalog held for the gateway become connections, and stored selections name a connection
-  // instead of a gateway mode (see store/connections-migration.ts). After S10, whose selections it
-  // converts. A sealed home is left as it is.
+  // instead of a gateway mode (see store/connections-migration.ts). A PI route still on an upstream
+  // URL Cortex generated, including one PI has since moved off, is Cortex's own and not a relay.
+  // After S10, whose selections it converts. A sealed home is left as it is.
   {
     key: 'sentinel:connections',
     version: '2026.10.28',

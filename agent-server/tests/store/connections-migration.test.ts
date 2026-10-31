@@ -224,6 +224,22 @@ describe('gateway-era credentials become connections', () => {
   });
 });
 
+describe('PI routes on an upstream Cortex generated', () => {
+  it('reads a route on a URL PI has since moved off as Cortex\'s own, and a relay as a connection', async () => {
+    write(gatewayPath, [
+      'kimi-coding:', '  kimi-coding:', '    base_url: https://api.kimi.com/coding', '    auth_style: bearer',
+      'opencode:', '  opencode:', '    base_url: https://opencode.ai/zen/', '    auth_style: bearer',
+      'groq:', '  base_url: https://groq-relay.example.com/v1', '  auth_style: bearer', '  keys:', '    - fake-groq-key',
+      '',
+    ].join('\n'));
+    const report = await migrate();
+    expect(report.added).toEqual(['pi:groq']);
+    expect(readConnections(connectionsFile())).toEqual([
+      { id: 'groq', backend: 'pi', provider: 'groq', baseUrl: 'https://groq-relay.example.com/v1', key: 'fake-groq-key' },
+    ]);
+  });
+});
+
 describe('an install without gateway.yaml', () => {
   it('makes the saved .env key the api connection and retires it from .env', async () => {
     write(at('config/.env'), DOTENV);

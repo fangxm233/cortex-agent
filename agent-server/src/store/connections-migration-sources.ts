@@ -4,14 +4,14 @@
 // placeholder key while the real one sat in the gateway route. Pure: reading and writing the files
 // is the caller's.
 
-import type { EndpointMap } from '@core/gateway-generator.js';
-import { PI_PROVIDER_UPSTREAM } from '@core/gateway-generator.js';
-import { ANTHROPIC_ENDPOINT, PI_ANTHROPIC_MODE, piGatewayMode } from '@core/gateway-routes.js';
 import {
   CONNECTION_ID_RE, LEGACY_SUBSCRIPTION_MODE, SUBSCRIPTION_CONNECTION, connectionKey,
   type ClaudeAuthStyle, type ClaudeKeyConnection, type PiCustomConnection, type PiModelDefinition,
   type StoredConnection,
 } from '@core/connections-file.js';
+import {
+  ANTHROPIC_ENDPOINT, GENERATED_PI_UPSTREAMS, PI_ANTHROPIC_MODE, piGatewayMode, type EndpointMap,
+} from './legacy-gateway.js';
 
 type Json = Record<string, unknown>;
 
@@ -128,10 +128,10 @@ function piRoute(endpoints: EndpointMap, provider: string): Json | undefined {
 
 function addPiOverrides(sources: LegacySources, plan: ConnectionsPlan): void {
   const endpoints = sources.endpoints ?? {};
-  for (const [provider, upstream] of Object.entries(PI_PROVIDER_UPSTREAM)) {
+  for (const [provider, generated] of Object.entries(GENERATED_PI_UPSTREAMS)) {
     const route = piRoute(endpoints, provider);
     const baseUrl = text(route?.base_url);
-    if (!route || !baseUrl || sameUrl(baseUrl, upstream.url)) continue;
+    if (!route || !baseUrl || generated.some((url) => sameUrl(baseUrl, url))) continue;
     const key = routeKey(route, sources);
     plan.connections.push({ id: provider, backend: 'pi', provider, baseUrl, ...(key ? { key } : {}) });
   }

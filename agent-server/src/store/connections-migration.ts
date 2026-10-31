@@ -11,9 +11,9 @@ import * as path from 'node:path';
 import { parse as parseDotenv } from 'dotenv';
 import { atomicWrite, mutateFileAtomically } from '@core/atomic-write.js';
 import { connectionKey, readConnections, writeConnections } from '@core/connections-file.js';
-import { readGatewayYaml } from '@core/gateway-generator.js';
 import { createLogger } from '@core/log.js';
 import { planConnections, type ConnectionsPlan, type LegacySources } from './connections-migration-sources.js';
+import { readGatewayEndpoints } from './legacy-gateway.js';
 import {
   convertAgentState, convertModelsFile, convertPendingInjections, convertProviderState, convertSchedules,
 } from './connections-migration-selections.js';
@@ -111,7 +111,7 @@ async function readSources(options: ConnectionsMigrationOptions): Promise<Legacy
   const dotenv = await readOptional(path.join(options.homeDir, 'config', '.env'));
   const piCatalog = await readJsonObject(options.piModelsPath);
   return {
-    endpoints: readGatewayYaml(options.gatewayPath)?.endpoints ?? null,
+    endpoints: readGatewayEndpoints(options.gatewayPath),
     dotenv: dotenv ? parseDotenv(dotenv) : {},
     env: options.env ?? process.env,
     piProviders: isJson(piCatalog?.providers) ? piCatalog.providers : {},
