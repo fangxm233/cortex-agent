@@ -10,7 +10,7 @@ export interface AccountsController {
   statusLoading: boolean;
   statusError: { message: string } | null;
   logout: (target: AccountActionTarget) => void;
-  syncGateway: () => void;
+  syncModels: () => void;
   logoutPending: boolean;
   syncPending: boolean;
 }
@@ -33,11 +33,12 @@ export function useAccountsController(): AccountsController {
     },
     onError: error => toast({ title: `${L.accountsLogoutFailed}: ${error.message}`, tone: 'failed' }),
   }));
-  const sync = useMutation(trpc.auth.syncGateway.mutationOptions({
+  const sync = useMutation(trpc.auth.syncModels.mutationOptions({
     onSuccess: result => {
       if (!result.configured) return toast({ title: L.accountsSyncModelsEmpty, tone: 'waiting' });
       void queryClient.invalidateQueries(trpc.auth.status.queryFilter({}));
       void queryClient.invalidateQueries(trpc.config.get.queryFilter({}));
+      void queryClient.invalidateQueries(trpc.models.catalog.queryFilter({}));
       toast({ title: L.accountsSyncModelsDone, tone: 'done' });
     },
     onError: error => toast({ title: `${L.accountsSyncModelsFailed}: ${error.message}`, tone: 'failed' }),
@@ -48,7 +49,7 @@ export function useAccountsController(): AccountsController {
       { backend: target.backend, provider: target.provider, authType: target.authType },
       { onSuccess: () => toast({ title: fmt(L.accountsLogoutDone, { provider: accountLabel(target) }), tone: 'done' }) },
     ),
-    syncGateway: () => sync.mutate({}),
+    syncModels: () => sync.mutate({}),
     logoutPending: logout.isPending, syncPending: sync.isPending,
   };
 }

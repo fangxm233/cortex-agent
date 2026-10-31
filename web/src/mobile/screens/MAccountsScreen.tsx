@@ -37,7 +37,7 @@ export function MAccountsScreen() {
           : <MAccountsView vm={vm} filter={filter} onFilter={setFilter} onBack={() => mobileHeaderBack(navigate, '/m/settings')}
               onLogin={openLogin} onLogout={accounts.logout}
               actionsDisabled={accounts.logoutPending}
-              onRescan={accounts.syncGateway} rescanning={accounts.syncPending}
+              onRescan={accounts.syncModels} rescanning={accounts.syncPending}
               custom={{
                 providers: custom.providers, confirmingDelete: custom.confirmingDelete,
                 savePending: custom.savePending, removePending: custom.removePending,

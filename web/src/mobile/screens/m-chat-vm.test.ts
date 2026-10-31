@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { en, zh } from '@/i18n';
 import type { ConfigSnapshot, EngineSelection, ModelCatalogSnapshot, SessionTranscript } from '@cortex-agent/ui-contract';
 import {
-  buildFavoriteOptions, buildModelOptions, buildThinkingOptions, buildModeOptions,
+  buildConnectionOptions, buildFavoriteOptions, buildModelOptions, buildThinkingOptions,
   groupModelOptions, selectionRootRows,
 } from '@/features/session/list/selection-menu';
 import { modelKey } from '@/lib/model-selection';
@@ -13,7 +13,7 @@ const pi: EngineSelection = { backend: 'pi', provider: 'deepseek', model: 'deeps
 const models: ConfigSnapshot['models'] = {
   default: current,
   favorites: [current, pi],
-  memory: { [modelKey(pi)]: { thinking: 'xhigh', connection: null } },
+  memory: { [modelKey(pi)]: { thinking: 'xhigh' } },
 };
 const catalog: ModelCatalogSnapshot = {
   routes: [
@@ -23,18 +23,18 @@ const catalog: ModelCatalogSnapshot = {
   thinkingLevels: { claude: ['low', 'high'], pi: ['off', 'high'] }, piPending: false,
 };
 const copy = {
-  favorites: 'Favorites', model: 'model', thinking: 'thinking', mode: 'route',
+  favorites: 'Favorites', model: 'model', thinking: 'thinking', connection: 'connection',
   defaultThinking: 'Default', crossBackend: 'New conversation only · {backend}',
 };
 function sheet(hasHistory = false, source: ModelCatalogSnapshot | null = catalog) {
   const thinkingOptions = buildThinkingOptions(source, current);
-  const modeOptions = buildModeOptions(source, current);
+  const connectionOptions = buildConnectionOptions(source, current, 'Default (subscription)');
   return buildSelectionSheet({
     effective: current, copy,
     favoriteOptions: buildFavoriteOptions(models, current, { hasHistory }),
     modelGroups: groupModelOptions(buildModelOptions(source, models, current, { hasHistory }), current.backend),
-    thinkingOptions, modeOptions,
-    rootRows: selectionRootRows(current, copy, { hasThinking: thinkingOptions.length > 1, hasModes: modeOptions.length > 0 }),
+    thinkingOptions, connectionOptions,
+    rootRows: selectionRootRows(current, copy, { hasThinking: thinkingOptions.length > 1, hasConnections: connectionOptions.length > 0 }),
   });
 }
 
@@ -85,11 +85,11 @@ describe('buildSelectionSheet', () => {
     expect(vm.sections[1].rows).toEqual([]);
   });
 
-  it('shows concrete model/thinking/route drill rows', () => {
+  it('shows concrete model/thinking/connection drill rows', () => {
     expect(sheet().rootRows).toEqual([
       { key: 'model', label: 'model', value: 'sonnet-4.5' },
       { key: 'thinking', label: 'thinking', value: 'high' },
-      { key: 'mode', label: 'route', value: 'subscription' },
+      { key: 'connection', label: 'connection', value: 'subscription' },
     ]);
   });
 
@@ -120,9 +120,10 @@ describe('buildSelectionSheet', () => {
     });
   });
 
-  it('mode writes a complete selection and a single route needs no pane', () => {
-    expect(sheet().sections.find((section) => section.key === 'mode')!.rows[1].change)
-      .toEqual({ selection: { ...current, connection: 'api' } });
+  it('a connection row writes a complete selection and a single connection needs no pane', () => {
+    const rows = sheet().sections.find((section) => section.key === 'connection')!.rows;
+    expect(rows[0]).toMatchObject({ id: 'connection:default', label: 'Default (subscription)', change: { selection: { ...current, connection: null } } });
+    expect(rows[2].change).toEqual({ selection: { ...current, connection: 'api' } });
     const single = { ...catalog, routes: catalog.routes.map((route) => ({ ...route, connections: route.connections.slice(0, 1) })) };
     expect(sheet(false, single).rootRows.map((row) => row.key)).toEqual(['model', 'thinking']);
   });

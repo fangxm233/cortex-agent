@@ -32,11 +32,19 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
               { model: 'opus', backend: 'claude', provider: null },
               { model: 'sonnet', backend: 'claude', provider: null },
             ],
-            memory: { '["claude",null,"sonnet"]': { thinking: null, connection: 'subscription' } },
+            memory: { '["claude",null,"sonnet"]': { thinking: null } },
           },
           agents: [],
         },
         isPending: false,
+      };
+      // A Claude pick reads the catalog to know which connections serve the model.
+      if (options.__kind === 'models.catalog') return {
+        data: { piPending: false, thinkingLevels: { claude: [], pi: [] }, routes: [{
+          backend: 'claude', provider: null, endpoint: 'anthropic', connections: ['subscription'],
+          models: ['opus', 'sonnet'], source: 'builtin', modelThinking: {}, modelConnections: {},
+        }] },
+        isPending: false, isLoading: false,
       };
       return { data: undefined, isPending: false };
     },

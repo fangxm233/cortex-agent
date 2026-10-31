@@ -32,8 +32,7 @@ const catalog: ModelCatalogSnapshot = {
 
 function modelConfig(): Pick<ConfigSnapshot, 'models'> {
   return { models: { default: selection, favorites: [piSelection, selection],
-    memory: { [modelKey(piSelection)]: { thinking: 'xhigh', connection: null },
-      [modelKey(selection)]: { thinking: 'low', connection: 'subscription' } } } };
+    memory: { [modelKey(piSelection)]: { thinking: 'xhigh' }, [modelKey(selection)]: { thinking: 'low' } } } };
 }
 
 describe('scheduleModelOptions', () => {
@@ -43,23 +42,26 @@ describe('scheduleModelOptions', () => {
     ]);
     expect(scheduleModelOptions(undefined, undefined, null)).toEqual([]);
   });
-  it('merges favorites then catalog, retaining identity and full remembered choices', () => {
+  it('merges favorites then catalog; a pick keeps the current connection while it serves the model', () => {
     const options = scheduleModelOptions(modelConfig(), catalog, selection);
     expect(options.map((option) => option.value)).toEqual([
       modelKey(piSelection), modelKey(selection), modelKey({ ...selection, model: 'flash' }),
     ]);
     expect(options.map((option) => option.favorite)).toEqual([true, true, false]);
     expect(options.map((option) => option.selection)).toEqual([
-      piSelection, selection, { ...selection, model: 'flash', thinking: null, connection: 'subscription' },
+      piSelection, selection, { ...selection, model: 'flash', thinking: null, connection: 'api' },
     ]);
+    expect(options.every((option) => option.runnable)).toBe(true);
     expect(options[0].label).toContain('deepseek');
     expect(options[2].label).toContain('claude');
   });
-  it('renders favorites and their remembered settings before catalog loads', () => {
+  it('renders favorites and their remembered thinking before catalog loads', () => {
     const options = scheduleModelOptions(modelConfig(), undefined, null);
     expect(options.map((option) => option.selection)).toEqual([
-      piSelection, { ...selection, thinking: 'low', connection: 'subscription' },
+      piSelection, { ...selection, thinking: 'low', connection: null },
     ]);
+    // Whether a Claude connection serves the model is the catalog's to say.
+    expect(options.map((option) => option.runnable)).toEqual([true, false]);
   });
   it('uses model-specific thinking levels and tolerates an older catalog without ladders', () => {
     expect(scheduleThinkingOptions(catalog, piSelection)).toEqual(['', 'high', 'xhigh']);
@@ -259,11 +261,11 @@ describe('buildScheduleUpdateArgs', () => {
 });
 
 describe('scheduleModelPatch', () => {
-  it('waits for the catalog route when a favorite has no remembered mode', () => {
+  it('waits for the catalog to show a connection serves a Claude favorite', () => {
     const config = { models: { default: null, favorites: [selection], memory: {} } };
     const pending = scheduleModelOptions(config, undefined, null);
     expect(scheduleModelPatch(pending, modelKey(selection))).toEqual({});
     const ready = scheduleModelOptions(config, catalog, null);
-    expect(scheduleModelPatch(ready, modelKey(selection))).toEqual({ selection: { ...selection, thinking: null, connection: 'subscription' } });
+    expect(scheduleModelPatch(ready, modelKey(selection))).toEqual({ selection: { ...selection, thinking: null, connection: null } });
   });
 });

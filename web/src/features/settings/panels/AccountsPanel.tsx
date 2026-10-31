@@ -35,7 +35,7 @@ export function AccountsPanel({ onLogin }: AccountsPanelProps) {
   const vm = buildAccountsVm(controller.status, filter);
   const handlers = { onLogin, onLogout: controller.logout, disabled: controller.logoutPending };
   const rescan = (
-    <SLinkAction data-accounts-sync disabled={controller.syncPending} onClick={controller.syncGateway}>
+    <SLinkAction data-accounts-sync disabled={controller.syncPending} onClick={controller.syncModels}>
       {L.accountsSyncModels}
     </SLinkAction>
   );

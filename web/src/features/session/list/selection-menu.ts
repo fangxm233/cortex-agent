@@ -1,7 +1,7 @@
 import type {
   ConfigAgentEntry, ConfigModels, EngineSelection, ModelCatalogSnapshot, ModelRef,
 } from '@cortex-agent/ui-contract';
-import { catalogModels, modelKey, modelLabel, selectionForModel } from '@/lib/model-selection';
+import { catalogModels, modelKey, modelLabel, selectionForModel, servingConnections } from '@/lib/model-selection';
 import type { SelectionChange } from '@/features/session/state/selected-session';
 
 export type EffectiveSelection = EngineSelection;
@@ -23,7 +23,8 @@ export interface AgentOption {
   disabled: boolean;
 }
 export interface ThinkingOption { level: string | null; active: boolean }
-export interface ModeOption { mode: string; active: boolean }
+/** A Claude connection the current model can run on; `id: null` follows the default connection. */
+export interface ConnectionOption { id: string | null; label: string; active: boolean }
 
 function modelOption(
   ref: ModelRef, models: ConfigModels | null, current: EngineSelection,
@@ -35,14 +36,15 @@ function modelOption(
     group: ref.provider ?? ref.backend, active: modelKey(ref) === modelKey(current),
     disabled, disabledReason: disabled ? 'cross-backend' : null,
     favorite: models?.favorites.some((entry) => modelKey(entry) === modelKey(ref)) ?? false,
-    selection: selectionForModel(ref, models ? { models } : null, catalog),
+    selection: selectionForModel(ref, models ? { models } : null, catalog, current),
   };
 }
 
 export function buildFavoriteOptions(
-  models: ConfigModels | null, current: EngineSelection, opts: { hasHistory: boolean },
+  models: ConfigModels | null, current: EngineSelection,
+  opts: { hasHistory: boolean; catalog?: ModelCatalogSnapshot | null },
 ): ModelOption[] {
-  return (models?.favorites ?? []).map((ref) => modelOption(ref, models, current, opts.hasHistory));
+  return (models?.favorites ?? []).map((ref) => modelOption(ref, models, current, opts.hasHistory, opts.catalog));
 }
 
 export function buildModelOptions(
@@ -72,10 +74,14 @@ export function buildThinkingOptions(catalog: ModelCatalogSnapshot | null | unde
   return [null, ...levels].map((level) => ({ level, active: level === current.thinking }));
 }
 
-export function buildModeOptions(catalog: ModelCatalogSnapshot | null | undefined, current: EngineSelection): ModeOption[] {
-  const connections = routeOf(catalog, current)?.connections ?? [];
-  const active = current.connection ?? connections[0];
-  return connections.length < 2 ? [] : connections.map((mode) => ({ mode, active: mode === active }));
+/** Offered only when more than one Claude connection serves the current model. `defaultLabel`
+ *  names the row that follows the default connection. */
+export function buildConnectionOptions(
+  catalog: ModelCatalogSnapshot | null | undefined, current: EngineSelection, defaultLabel: string,
+): ConnectionOption[] {
+  const serving = servingConnections(catalog, current);
+  if (serving.length < 2) return [];
+  return [null, ...serving].map((id) => ({ id, label: id ?? defaultLabel, active: id === (current.connection ?? null) }));
 }
 
 export function hasAgentChoice(agents: readonly unknown[]): boolean { return agents.length > 1; }
@@ -104,18 +110,27 @@ export function agentChange(options: AgentOption[], agentName: string | null, na
 export function thinkingChange(current: EngineSelection, level: string | null): SelectionChange | null {
   return current.thinking === level ? null : { selection: { ...current, thinking: level } };
 }
-export function modeChange(current: EngineSelection, mode: string): SelectionChange | null {
-  return current.connection === mode ? null : { selection: { ...current, connection: mode } };
+export function connectionChange(current: EngineSelection, connection: string | null): SelectionChange | null {
+  return (current.connection ?? null) === connection ? null : { selection: { ...current, connection } };
 }
-export interface SelectionRootRow { key: 'model' | 'thinking' | 'mode'; label: string; value: string }
+export interface SelectionRootRow { key: 'model' | 'thinking' | 'connection'; label: string; value: string }
 export type SelectionPane = 'root' | SelectionRootRow['key'];
+export interface SelectionRowCopy {
+  model: string;
+  thinking: string;
+  connection: string;
+  default?: string;
+  /** What a selection that names no connection shows: the default it runs on. */
+  connectionDefault?: string;
+}
 export function selectionRootRows(
-  current: EngineSelection, copy: { model: string; thinking: string; mode: string; default?: string },
-  opts: { hasThinking: boolean; hasModes: boolean },
+  current: EngineSelection, copy: SelectionRowCopy, opts: { hasThinking: boolean; hasConnections: boolean },
 ): SelectionRootRow[] {
   return [
     { key: 'model', label: copy.model, value: current.model || '—' },
     ...(opts.hasThinking ? [{ key: 'thinking' as const, label: copy.thinking, value: current.thinking ?? copy.default ?? '—' }] : []),
-    ...(opts.hasModes ? [{ key: 'mode' as const, label: copy.mode, value: current.connection ?? '—' }] : []),
+    ...(opts.hasConnections ? [{
+      key: 'connection' as const, label: copy.connection, value: current.connection ?? copy.connectionDefault ?? '—',
+    }] : []),
   ];
 }

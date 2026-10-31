@@ -3,8 +3,8 @@ import type { ConfigAgentEntry, ConfigModels, EngineSelection, ModelCatalogSnaps
 import { modelKey } from '@/lib/model-selection';
 import {
   agentChange, agentChipParts, agentRowSub, buildAgentOptions, buildFavoriteOptions,
-  buildModeOptions, buildModelOptions, buildThinkingOptions, groupModelOptions, hasAgentChoice,
-  modeChange, modelChange, selectionChipParts, selectionRootRows, thinkingChange,
+  buildConnectionOptions, buildModelOptions, buildThinkingOptions, connectionChange, groupModelOptions,
+  hasAgentChoice, modelChange, selectionChipParts, selectionRootRows, thinkingChange,
 } from './selection-menu';
 
 const current: EngineSelection = { backend: 'claude', provider: null, model: 'claude-opus-5', thinking: 'high', connection: 'subscription' };
@@ -14,8 +14,8 @@ const models: ConfigModels = {
   default: current,
   favorites: [current, sonnet, pi].map(({ backend, provider, model }) => ({ backend, provider, model })),
   memory: {
-    [modelKey(sonnet)]: { thinking: 'low', connection: 'api' },
-    [modelKey(pi)]: { thinking: 'xhigh', connection: null },
+    [modelKey(sonnet)]: { thinking: 'low' },
+    [modelKey(pi)]: { thinking: 'xhigh' },
   },
 };
 const catalog: ModelCatalogSnapshot = {
@@ -35,13 +35,16 @@ function options(hasHistory = false, selection = current) {
 }
 
 describe('favorite and catalog options', () => {
-  it('renders favorites with identity and remembered thinking/route without a catalog', () => {
+  it('renders favorites with identity and remembered thinking without a catalog', () => {
     const favorites = buildFavoriteOptions(models, current, { hasHistory: false });
     expect(favorites.map((option) => [option.id, option.backend, option.provider, option.favorite])).toEqual([
       [current.model, 'claude', null, true], [sonnet.model, 'claude', null, true], [pi.model, 'pi', 'deepseek', true],
     ]);
-    expect(favorites[1].selection).toEqual(sonnet);
+    // Which connection serves a model needs the catalog: without it none is named.
+    expect(favorites[1].selection).toEqual({ ...sonnet, connection: null });
     expect(favorites[2].selection).toEqual(pi);
+    const withCatalog = buildFavoriteOptions(models, current, { hasHistory: false, catalog });
+    expect(withCatalog[1].selection).toEqual({ ...sonnet, connection: 'subscription' });
     expect(favorites[0]).toMatchObject({ active: true, selection: { thinking: null, connection: null } });
   });
 
@@ -90,7 +93,7 @@ describe('favorite and catalog options', () => {
   });
 });
 
-describe('thinking and mode options', () => {
+describe('thinking and connection options', () => {
   it('prepends an explicit backend-default thinking choice', () => {
     expect(buildThinkingOptions(catalog, current)).toEqual([
       { level: null, active: false }, { level: 'low', active: false },
@@ -110,16 +113,28 @@ describe('thinking and mode options', () => {
     expect(buildThinkingOptions(restricted, current)).toEqual([{ level: null, active: false }]);
   });
 
-  it('only offers mode choice when the matching route has multiple modes', () => {
-    expect(buildModeOptions(catalog, current)).toEqual([{ mode: 'subscription', active: true }, { mode: 'api', active: false }]);
-    expect(buildModeOptions(catalog, pi)).toEqual([]);
-    expect(buildModeOptions(null, current)).toEqual([]);
+  it('offers the connections serving the model, plus following the default, when there is a choice', () => {
+    expect(buildConnectionOptions(catalog, current, 'Default')).toEqual([
+      { id: null, label: 'Default', active: false },
+      { id: 'subscription', label: 'subscription', active: true },
+      { id: 'api', label: 'api', active: false },
+    ]);
+    expect(buildConnectionOptions(catalog, { ...current, connection: null }, 'Default')[0].active).toBe(true);
+    expect(buildConnectionOptions(catalog, pi, 'Default')).toEqual([]);
+    expect(buildConnectionOptions(null, current, 'Default')).toEqual([]);
+  });
+
+  it('offers no choice for a model only one connection serves', () => {
+    const local = { ...catalog, routes: [{ ...catalog.routes[0], models: [...catalog.routes[0].models, 'qwen-coder'],
+      connections: ['subscription', 'api', 'qwen'], modelConnections: { 'qwen-coder': ['qwen'] } }] };
+    expect(buildConnectionOptions(local, { ...current, model: 'qwen-coder' }, 'Default')).toEqual([]);
+    expect(buildConnectionOptions(local, current, 'Default').map((option) => option.id)).toEqual([null, 'subscription', 'api', 'qwen']);
   });
 });
 
 describe('complete selection changes', () => {
-  it('replaces the entire selection with the picked model memory on either backend', () => {
-    expect(modelChange(current, options()[1])).toEqual({ selection: sonnet });
+  it('replaces the selection with the picked model\'s thinking; the connection carries while it serves', () => {
+    expect(modelChange(current, options()[1])).toEqual({ selection: { ...sonnet, connection: 'subscription' } });
     expect(modelChange(current, options()[2])).toEqual({ selection: pi });
   });
 
@@ -135,27 +150,33 @@ describe('complete selection changes', () => {
     expect(thinkingChange({ ...pi, thinking: null }, null)).toBeNull();
   });
 
-  it('changes only the route and ignores repeated picks', () => {
-    expect(modeChange(current, 'api')).toEqual({ selection: { ...current, connection: 'api' } });
-    expect(modeChange(current, 'subscription')).toBeNull();
+  it('changes only the connection, back to the default included, and ignores repeated picks', () => {
+    expect(connectionChange(current, 'api')).toEqual({ selection: { ...current, connection: 'api' } });
+    expect(connectionChange(current, null)).toEqual({ selection: { ...current, connection: null } });
+    expect(connectionChange(current, 'subscription')).toBeNull();
+    expect(connectionChange({ ...current, connection: null }, null)).toBeNull();
   });
 });
 
 describe('selection presentation', () => {
-  const copy = { model: 'Model', thinking: 'Thinking', mode: 'Mode', default: 'Default' };
+  const copy = {
+    model: 'Model', thinking: 'Thinking', connection: 'Connection', default: 'Default', connectionDefault: 'Default (subscription)',
+  };
 
   it('uses the concrete model and thinking without override state', () => {
     expect(selectionChipParts(current)).toEqual({ main: 'opus-5', sub: 'high' });
     expect(selectionChipParts({ ...current, model: '', thinking: null })).toEqual({ main: '—', sub: null });
-    expect(selectionRootRows({ ...current, thinking: null }, copy, { hasThinking: true, hasModes: true })).toEqual([
+    expect(selectionRootRows({ ...current, thinking: null }, copy, { hasThinking: true, hasConnections: true })).toEqual([
       { key: 'model', label: 'Model', value: current.model },
       { key: 'thinking', label: 'Thinking', value: 'Default' },
-      { key: 'mode', label: 'Mode', value: 'subscription' },
+      { key: 'connection', label: 'Connection', value: 'subscription' },
     ]);
+    expect(selectionRootRows({ ...current, connection: null }, copy, { hasThinking: false, hasConnections: true })[1])
+      .toEqual({ key: 'connection', label: 'Connection', value: 'Default (subscription)' });
   });
 
   it('omits unavailable drill-downs rather than adding follow or clear rows', () => {
-    expect(selectionRootRows(current, copy, { hasThinking: false, hasModes: false }))
+    expect(selectionRootRows(current, copy, { hasThinking: false, hasConnections: false }))
       .toEqual([{ key: 'model', label: 'Model', value: current.model }]);
   });
 });

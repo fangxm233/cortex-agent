@@ -68,7 +68,7 @@ const selection: MChatSelection = {
   open: false, setOpen: () => {}, agentOpen: false, setAgentOpen: () => {},
   agents: [], catalogLoading: false, modelsReady: true,
   effective: { backend: 'claude', model: 'claude-opus-5', provider: null, thinking: 'high', connection: 'subscription' },
-  favoriteOptions: [], modelGroups: [], thinkingOptions: [], modeOptions: [], rootRows: [],
+  favoriteOptions: [], modelGroups: [], thinkingOptions: [], connectionOptions: [], rootRows: [],
   toggleFavorite: () => {}, agentOptions: [], agentName: null,
 };
 

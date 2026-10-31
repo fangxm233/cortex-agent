@@ -377,7 +377,7 @@ unstar models. For backend details, see [backends.md](./backends.md).
     "provider": null,
     "model": "opus",
     "thinking": "high",
-    "mode": "plan"
+    "connection": null
   },
   "favorites": [
     { "backend": "claude", "provider": null, "model": "opus" },
@@ -395,29 +395,34 @@ unstar models. For backend details, see [backends.md](./backends.md).
 | `default.provider` | string or null | yes | `null` for Claude; an explicit provider id for PI, such as `openai-codex`, `deepseek`, or a [custom provider](./backends.md#custom-providers) |
 | `default.model` | string | yes | Non-empty model identifier, as the backend names it |
 | `default.thinking` | string or null | yes | Backend-native reasoning level; `null` uses the backend's default |
-| `default.mode` | string | yes | Gateway route, such as `plan` or `api` for Claude; PI uses its provider name (`pi-anthropic` for PI's `anthropic` provider) |
+| `default.connection` | string or null | yes | Claude: a connection id (`subscription`, `api`, a relay's id) or `null` to use the default connection each run. PI: always `null` |
 | `favorites` | object[] | yes | Ordered model references, each with `backend`, `provider`, and `model`. Each model identity occurs at most once |
 
-Favorites store model identities, not thinking levels or routes. The default
+Favorites store model identities, not thinking levels or connections. The default
 need not be a favorite, and the favorites list may be empty. `thinking` accepts
 `low`/`medium`/`high`/`xhigh`/`max` on Claude and
 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max` on PI.
 
 ### Selection resolution
 
-An ordinary turn uses the session's recorded selection, then the channel's
-selection in `data/agent-state.json`, then `models.json`'s `default`. An explicit
-run request, such as a scheduled fire, can supply a complete selection directly.
-Each selection contains `backend`, `provider`, `model`, `thinking`, and `mode`;
-execution environments are independent of this choice.
+An explicit run request, such as a scheduled fire, uses its own complete
+selection. Otherwise a turn uses the session's recorded selection once the
+session exists; before that, the channel's draft selection in
+`data/agent-state.json`; then `models.json`'s `default`. Each selection contains
+`backend`, `provider`, `model`, `thinking`, and `connection`; execution
+environments are independent of this choice. A Claude `connection` of `null` is
+resolved on every run: the default connection if it serves the model, otherwise
+the first connection that does. A named connection that no longer exists falls
+back the same way, with a warning in the log; only a request that names a
+missing connection is refused.
 
 `data/agent-state.json` stores `channelSelections`, per-model `modelMemory`
-(`thinking` and `mode`, keyed by the JSON array `[backend, provider, model]`),
-and `selectionDefault`, the last Web engine choice used to seed new conversations.
-Selecting a model restores its remembered thinking and route. Without a memory,
-thinking is `null`; Claude uses the first Anthropic route in `gateway.yaml`
-(`plan` if none is declared), and PI uses its provider name. User selection
-changes update this memory. See
+(`thinking` only, keyed by the JSON array `[backend, provider, model]`), and
+`selectionDefault`, the last Web engine choice used to seed new conversations.
+Selecting a model restores its remembered thinking (`null` without a memory) and
+keeps the conversation's connection while it serves the new model. User
+selection changes update this memory. Older memory entries that also name a
+connection are read for their thinking only. See
 [per-session controls](./backends.md#per-session-model-thinking-level-and-route).
 
 `!backend <claude|pi>` uses the configured default when it belongs to the target
@@ -426,11 +431,12 @@ remembered settings. If neither exists, favorite a model on that backend first.
 
 ### Validation rules
 
-`mode` and PI `provider` must match `^[a-zA-Z0-9_-]+$`. Claude requires a null
-provider. Thinking must be null or one of the backend's allowed values, and
-favorite identities must be unique. Selection writes validate the route against
-`gateway.yaml` when it is available. A file that parses but fails schema
-validation is rejected as a whole until corrected.
+PI `provider` must match `^[a-zA-Z0-9_-]+$`. Claude requires a null provider;
+PI requires a null connection. Thinking must be null or one of the levels the
+model accepts (its own where the catalog knows them, otherwise the backend's),
+and favorite identities must be unique. A selection write that names a
+connection checks it against this host's connections. A file that parses but
+fails schema validation is rejected as a whole until corrected.
 
 ## Execution environments
 
@@ -522,7 +528,7 @@ until its backend process restarts.
 
 ## Environments and engine selection
 
-The engine selection decides backend, provider, model, thinking, and mode. An
+The engine selection decides backend, provider, model, thinking, and connection. An
 **execution environment** decides the prompt, tools, plugins, MCP surface, and
 ambient context. They change independently: `!model <id>` changes the model;
 `!agent <name>` changes the environment. `!agent reset` also leaves the engine

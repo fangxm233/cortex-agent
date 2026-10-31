@@ -14,7 +14,7 @@ const STATUS: AuthStatusSnapshot = {
 const adapter = vi.hoisted(() => ({
   status: vi.fn(),
   logout: vi.fn(),
-  syncGateway: vi.fn(),
+  syncModels: vi.fn(),
   toast: vi.fn(),
 }));
 
@@ -32,9 +32,9 @@ vi.mock('@/lib/trpc', () => ({
           ...options, mutationFn: (input: unknown) => adapter.logout(input),
         }),
       },
-      syncGateway: {
+      syncModels: {
         mutationOptions: (options: object) => ({
-          ...options, mutationFn: (input: unknown) => adapter.syncGateway(input),
+          ...options, mutationFn: (input: unknown) => adapter.syncModels(input),
         }),
       },
     },
@@ -87,7 +87,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   adapter.status.mockResolvedValue(STATUS);
   adapter.logout.mockResolvedValue({});
-  adapter.syncGateway.mockResolvedValue({ configured: true });
+  adapter.syncModels.mockResolvedValue({ configured: true });
 });
 
 describe('useAccountsController', () => {
@@ -115,13 +115,13 @@ describe('useAccountsController', () => {
     mounted.queryClient.clear();
   });
 
-  it('rescans independently and invalidates status plus config only when models were configured', async () => {
-    adapter.syncGateway.mockResolvedValueOnce({ configured: false });
+  it('rescans independently and invalidates status, config and the catalog only when models were configured', async () => {
+    adapter.syncModels.mockResolvedValueOnce({ configured: false });
     const empty = await mount();
 
-    act(() => { controller?.syncGateway(); });
+    act(() => { controller?.syncModels(); });
     await vi.waitFor(() => expect(adapter.toast).toHaveBeenCalled());
-    expect(adapter.syncGateway).toHaveBeenCalledWith({});
+    expect(adapter.syncModels).toHaveBeenCalledWith({});
     expect(empty.invalidate).not.toHaveBeenCalled();
     empty.renderer.unmount();
     empty.queryClient.clear();
@@ -129,9 +129,9 @@ describe('useAccountsController', () => {
     vi.clearAllMocks();
     adapter.status.mockResolvedValue(STATUS);
     const gate = deferred<{ configured: boolean }>();
-    adapter.syncGateway.mockReturnValue(gate.promise);
+    adapter.syncModels.mockReturnValue(gate.promise);
     const configured = await mount();
-    act(() => { controller?.syncGateway(); });
+    act(() => { controller?.syncModels(); });
     await vi.waitFor(() => expect(controller?.syncPending).toBe(true));
     expect(controller?.logoutPending).toBe(false);
     gate.resolve({ configured: true });
@@ -140,6 +140,7 @@ describe('useAccountsController', () => {
     expect(configured.invalidate.mock.calls.map(call => call[0])).toEqual([
       { queryKey: ['auth.status', {}] },
       { queryKey: ['config.get', {}] },
+      { queryKey: ['models.catalog', {}] },
     ]);
     configured.renderer.unmount();
     configured.queryClient.clear();
@@ -147,12 +148,12 @@ describe('useAccountsController', () => {
 
   it('reports operation-specific failures without invalidating successful snapshots', async () => {
     adapter.logout.mockRejectedValue(new Error('logout denied'));
-    adapter.syncGateway.mockRejectedValue(new Error('scan denied'));
+    adapter.syncModels.mockRejectedValue(new Error('scan denied'));
     const mounted = await mount();
 
     act(() => {
       controller?.logout({ backend: 'claude', provider: 'anthropic', authType: 'api_key' });
-      controller?.syncGateway();
+      controller?.syncModels();
     });
     await vi.waitFor(() => expect(adapter.toast).toHaveBeenCalledTimes(2));
 

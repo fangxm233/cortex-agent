@@ -60,7 +60,7 @@ vi.mock('@/lib/trpc', () => {
       customProviders: query('auth.customProviders'),
       upsertCustomProvider: mutation('auth.upsertCustomProvider'),
       removeCustomProvider: mutation('auth.removeCustomProvider'),
-      syncGateway: mutation('auth.syncGateway'),
+      syncModels: mutation('auth.syncModels'),
     },
   }) };
 });

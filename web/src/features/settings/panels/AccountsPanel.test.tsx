@@ -8,7 +8,7 @@ const harness = vi.hoisted(() => ({
   logoutCalls: [] as unknown[],
   invalidations: [] as unknown[],
   syncCalls: [] as unknown[],
-  syncResult: { configured: true, endpoints: 2, defaultSet: false, favorites: [] } as Record<string, unknown>,
+  syncResult: { configured: true, routes: 2, defaultSet: false, favorites: [] } as Record<string, unknown>,
   toasts: [] as unknown[],
 }));
 
@@ -65,7 +65,7 @@ vi.mock('@/lib/trpc', () => {
       customProviders: query('auth.customProviders'),
       upsertCustomProvider: mutation('auth.upsertCustomProvider'),
       removeCustomProvider: mutation('auth.removeCustomProvider'),
-      syncGateway: mutation('auth.syncGateway'),
+      syncModels: mutation('auth.syncModels'),
     },
     config: {
       get: query('config.get'),
@@ -83,7 +83,7 @@ vi.mock('@tanstack/react-query', async importOriginal => ({
     : { data: status, isLoading: false, isError: false, error: null }),
   useMutation: (options: any) => ({
     mutate: (variables: unknown, call?: { onSuccess?: (...args: unknown[]) => void }) => {
-      if (options.__kind === 'auth.syncGateway') {
+      if (options.__kind === 'auth.syncModels') {
         harness.syncCalls.push(variables);
         options.onSuccess?.(harness.syncResult, variables);
         return;
@@ -121,7 +121,7 @@ beforeEach(() => {
   harness.invalidations = [];
   harness.syncCalls = [];
   harness.toasts = [];
-  harness.syncResult = { configured: true, endpoints: 2, defaultSet: false, favorites: [] };
+  harness.syncResult = { configured: true, routes: 2, defaultSet: false, favorites: [] };
 });
 
 function visibleText(renderer: ReactTestRenderer): string {
