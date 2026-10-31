@@ -7,8 +7,8 @@ import {
   type PendingCreatedSession,
 } from './selected-session';
 
-const claude: EngineSelection = { backend: 'claude', provider: null, model: 'claude-opus-5', thinking: 'high', mode: 'plan' };
-const pi: EngineSelection = { backend: 'pi', provider: 'deepseek', model: 'deepseek-v4-flash', thinking: null, mode: 'deepseek' };
+const claude: EngineSelection = { backend: 'claude', provider: null, model: 'claude-opus-5', thinking: 'high', connection: 'subscription' };
+const pi: EngineSelection = { backend: 'pi', provider: 'deepseek', model: 'deepseek-v4-flash', thinking: null, connection: null };
 
 function sess(id: string, lastUsedAt: string, projectId = 'p1'): SessionInfo {
   return {

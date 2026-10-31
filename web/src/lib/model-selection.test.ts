@@ -6,12 +6,12 @@ const claude: ModelRef = { backend: 'claude', provider: null, model: 'claude-opu
 const pi: ModelRef = { backend: 'pi', provider: 'deepseek', model: 'deepseek-v4-flash' };
 const catalog: ModelCatalogSnapshot = {
   routes: [
-    { endpoint: 'anthropic', backend: 'claude', provider: null, modes: ['api', 'plan'], models: [claude.model, 'claude-sonnet-5'], source: 'builtin', modelThinking: {} },
-    { endpoint: 'deepseek', backend: 'pi', provider: 'deepseek', modes: ['deepseek'], models: [pi.model], source: 'pi', modelThinking: {} },
+    { endpoint: 'anthropic', backend: 'claude', provider: null, connections: ['api', 'subscription'], models: [claude.model, 'claude-sonnet-5'], source: 'builtin', modelThinking: {} },
+    { endpoint: 'deepseek', backend: 'pi', provider: 'deepseek', connections: [], models: [pi.model], source: 'pi', modelThinking: {} },
   ],
   thinkingLevels: { claude: ['low', 'high'], pi: ['off', 'high'] }, piPending: false,
 };
-const defaultSelection: EngineSelection = { ...claude, thinking: 'high', mode: 'plan' };
+const defaultSelection: EngineSelection = { ...claude, thinking: 'high', connection: 'subscription' };
 const models: ConfigModels = { default: defaultSelection, favorites: [claude, pi], memory: {} };
 
 describe('model identity and labels', () => {
@@ -32,31 +32,31 @@ describe('model identity and labels', () => {
 
 describe('selectionForModel', () => {
   it('restores both remembered fields instead of inheriting the configured default', () => {
-    const config = { models: { ...models, memory: { [modelKey(pi)]: { thinking: 'xhigh', mode: 'remembered-route' } } } };
-    expect(selectionForModel(pi, config, catalog)).toEqual({ ...pi, thinking: 'xhigh', mode: 'remembered-route' });
+    const config = { models: { ...models, memory: { [modelKey(pi)]: { thinking: 'xhigh', connection: null } } } };
+    expect(selectionForModel(pi, config, catalog)).toEqual({ ...pi, thinking: 'xhigh', connection: null });
     expect(config.models.default).toEqual(defaultSelection);
   });
 
   it('preserves remembered null thinking and does not require a loaded catalog', () => {
-    const config = { models: { ...models, memory: { [modelKey(claude)]: { thinking: null, mode: 'plan' } } } };
-    expect(selectionForModel(claude, config)).toEqual({ ...claude, thinking: null, mode: 'plan' });
+    const config = { models: { ...models, memory: { [modelKey(claude)]: { thinking: null, connection: 'subscription' } } } };
+    expect(selectionForModel(claude, config)).toEqual({ ...claude, thinking: null, connection: 'subscription' });
   });
 
   it.each([claude, pi])('uses the first matching catalog route for $backend without memory', (ref) => {
     expect(selectionForModel(ref, { models }, catalog)).toEqual({
-      ...ref, thinking: null, mode: ref.backend === 'claude' ? 'api' : 'deepseek',
+      ...ref, thinking: null, connection: ref.backend === 'claude' ? 'api' : null,
     });
   });
 
   it.each([null, undefined])('does not guess a route without memory or catalog (%s)', (config) => {
-    expect(selectionForModel(claude, config)).toEqual({ ...claude, thinking: null, mode: '' });
-    expect(selectionForModel(pi, config)).toEqual({ ...pi, thinking: null, mode: '' });
+    expect(selectionForModel(claude, config)).toEqual({ ...claude, thinking: null, connection: null });
+    expect(selectionForModel(pi, config)).toEqual({ ...pi, thinking: null, connection: null });
   });
 
   it('does not borrow memory or a route from another provider with the same model id', () => {
     const other = { ...pi, provider: 'other' };
-    const config = { models: { ...models, memory: { [modelKey(pi)]: { thinking: 'high', mode: 'deepseek' } } } };
-    expect(selectionForModel(other, config, catalog)).toEqual({ ...other, thinking: null, mode: '' });
+    const config = { models: { ...models, memory: { [modelKey(pi)]: { thinking: 'high', connection: null } } } };
+    expect(selectionForModel(other, config, catalog)).toEqual({ ...other, thinking: null, connection: null });
   });
 });
 

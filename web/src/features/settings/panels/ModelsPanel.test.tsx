@@ -16,7 +16,7 @@ vi.mock('@/design', async importOriginal => ({
 
 const ref = { backend: 'pi' as const, provider: 'deepseek', model: `flash-${'long-identifier-'.repeat(8)}` };
 function controller(): ModelsController {
-  return { snapshot: { models: { default: { ...ref, thinking: 'high', mode: 'deepseek' }, favorites: [ref], memory: {} } } as ConfigSnapshot,
+  return { snapshot: { models: { default: { ...ref, thinking: 'high', connection: null }, favorites: [ref], memory: {} } } as ConfigSnapshot,
     facts: [{ ref, key: modelKey(ref), thinking: 'high', current: true }], options: [ref],
     loading: false, error: null, catalogOpen: false, catalogModels: [], catalogPending: false, catalogError: null,
     catalog: { piPending: false, routes: [], thinkingLevels: { pi: ['off', 'high'], claude: ['high'] } },

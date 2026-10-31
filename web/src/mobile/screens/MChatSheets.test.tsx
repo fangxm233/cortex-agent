@@ -68,7 +68,7 @@ describe.each(floatingMenus)('$name menu dismissal', ({ render }) => {
 // `buildSelectionSheet` decides what the rows SAY (m-chat-vm.test); this is only about drawing them:
 // favorites close the sheet; pane picks return to the root; stars change only favorite state.
 
-const engine = { backend: 'claude' as const, provider: null, model: 'opus', thinking: null, mode: 'plan' };
+const engine = { backend: 'claude' as const, provider: null, model: 'opus', thinking: null, connection: 'subscription' };
 const sonnet = {
   id: 'sonnet', backend: 'claude' as const, provider: null, group: 'claude', active: false,
   disabled: false, disabledReason: null, favorite: false, selection: { ...engine, model: 'sonnet' },

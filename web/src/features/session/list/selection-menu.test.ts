@@ -7,24 +7,24 @@ import {
   modeChange, modelChange, selectionChipParts, selectionRootRows, thinkingChange,
 } from './selection-menu';
 
-const current: EngineSelection = { backend: 'claude', provider: null, model: 'claude-opus-5', thinking: 'high', mode: 'plan' };
-const sonnet: EngineSelection = { ...current, model: 'claude-sonnet-5', thinking: 'low', mode: 'api' };
-const pi: EngineSelection = { backend: 'pi', provider: 'deepseek', model: 'deepseek-v4-flash', thinking: 'xhigh', mode: 'deepseek' };
+const current: EngineSelection = { backend: 'claude', provider: null, model: 'claude-opus-5', thinking: 'high', connection: 'subscription' };
+const sonnet: EngineSelection = { ...current, model: 'claude-sonnet-5', thinking: 'low', connection: 'api' };
+const pi: EngineSelection = { backend: 'pi', provider: 'deepseek', model: 'deepseek-v4-flash', thinking: 'xhigh', connection: null };
 const models: ConfigModels = {
   default: current,
   favorites: [current, sonnet, pi].map(({ backend, provider, model }) => ({ backend, provider, model })),
   memory: {
-    [modelKey(sonnet)]: { thinking: 'low', mode: 'api' },
-    [modelKey(pi)]: { thinking: 'xhigh', mode: 'deepseek' },
+    [modelKey(sonnet)]: { thinking: 'low', connection: 'api' },
+    [modelKey(pi)]: { thinking: 'xhigh', connection: null },
   },
 };
 const catalog: ModelCatalogSnapshot = {
   routes: [
-    { endpoint: 'anthropic', backend: 'claude', provider: null, modes: ['plan', 'api'],
+    { endpoint: 'anthropic', backend: 'claude', provider: null, connections: ['subscription', 'api'],
       models: [current.model, sonnet.model], source: 'builtin', modelThinking: {} },
-    { endpoint: 'deepseek', backend: 'pi', provider: 'deepseek', modes: ['deepseek'],
+    { endpoint: 'deepseek', backend: 'pi', provider: 'deepseek', connections: [],
       models: [pi.model], source: 'pi', modelThinking: { [pi.model]: ['high', 'xhigh'] } },
-    { endpoint: 'other', backend: 'pi', provider: 'other', modes: ['other'],
+    { endpoint: 'other', backend: 'pi', provider: 'other', connections: [],
       models: [pi.model, 'another-model'], source: 'pi', modelThinking: {} },
   ],
   thinkingLevels: { claude: ['low', 'high', 'max'], pi: ['off', 'low', 'high'] }, piPending: false,
@@ -42,7 +42,7 @@ describe('favorite and catalog options', () => {
     ]);
     expect(favorites[1].selection).toEqual(sonnet);
     expect(favorites[2].selection).toEqual(pi);
-    expect(favorites[0]).toMatchObject({ active: true, selection: { thinking: null, mode: '' } });
+    expect(favorites[0]).toMatchObject({ active: true, selection: { thinking: null, connection: null } });
   });
 
   it('returns empty lists while configuration/catalog is unavailable', () => {
@@ -111,7 +111,7 @@ describe('thinking and mode options', () => {
   });
 
   it('only offers mode choice when the matching route has multiple modes', () => {
-    expect(buildModeOptions(catalog, current)).toEqual([{ mode: 'plan', active: true }, { mode: 'api', active: false }]);
+    expect(buildModeOptions(catalog, current)).toEqual([{ mode: 'subscription', active: true }, { mode: 'api', active: false }]);
     expect(buildModeOptions(catalog, pi)).toEqual([]);
     expect(buildModeOptions(null, current)).toEqual([]);
   });
@@ -136,8 +136,8 @@ describe('complete selection changes', () => {
   });
 
   it('changes only the route and ignores repeated picks', () => {
-    expect(modeChange(current, 'api')).toEqual({ selection: { ...current, mode: 'api' } });
-    expect(modeChange(current, 'plan')).toBeNull();
+    expect(modeChange(current, 'api')).toEqual({ selection: { ...current, connection: 'api' } });
+    expect(modeChange(current, 'subscription')).toBeNull();
   });
 });
 
@@ -150,7 +150,7 @@ describe('selection presentation', () => {
     expect(selectionRootRows({ ...current, thinking: null }, copy, { hasThinking: true, hasModes: true })).toEqual([
       { key: 'model', label: 'Model', value: current.model },
       { key: 'thinking', label: 'Thinking', value: 'Default' },
-      { key: 'mode', label: 'Mode', value: 'plan' },
+      { key: 'mode', label: 'Mode', value: 'subscription' },
     ]);
   });
 

@@ -46,7 +46,7 @@ vi.mock('@/lib/trpc', () => ({
   }),
 }));
 
-const selection = { backend: 'claude' as const, provider: null, model: 'opus', thinking: 'high', mode: 'api' };
+const selection = { backend: 'claude' as const, provider: null, model: 'opus', thinking: 'high', connection: 'api' };
 const config = { models: { default: selection, favorites: [selection], memory: {} } };
 
 function schedule(p: Partial<ScheduleInfo> = {}): ScheduleInfo {
@@ -138,12 +138,12 @@ describe('useScheduleEditorController', () => {
   });
 
   it('never replaces a persisted selection with the configured default or model memory', async () => {
-    const stored = { ...selection, thinking: null, mode: 'plan' };
+    const stored = { ...selection, thinking: null, connection: 'subscription' };
     const { queryClient } = await mount({ mode: 'edit', schedule: schedule({ selection: stored }) });
     await act(async () => {
       queryClient.setQueryData(['config.get'], { models: {
         default: { ...selection, model: 'other' }, favorites: [],
-        memory: { '["claude",null,"opus"]': { thinking: 'xhigh', mode: 'api' } },
+        memory: { '["claude",null,"opus"]': { thinking: 'xhigh', connection: 'api' } },
       } });
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
@@ -162,7 +162,7 @@ describe('useScheduleEditorController', () => {
 
   it('does not overwrite a picked model when configuration refreshes', async () => {
     const { queryClient } = await mount({ mode: 'create', projectId: 'nimbus' });
-    const picked = { backend: 'pi' as const, provider: 'deepseek', model: 'flash', thinking: null, mode: 'deepseek' };
+    const picked = { backend: 'pi' as const, provider: 'deepseek', model: 'flash', thinking: null, connection: null };
     act(() => controller?.onChange({ selection: picked, message: 'new task' }));
     await act(async () => {
       queryClient.setQueryData(['config.get'], { models: { ...config.models, default: { ...selection, model: 'new-default' } } });

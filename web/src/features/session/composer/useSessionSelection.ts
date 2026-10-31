@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { EngineSelection } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { selectionForModel } from '@/lib/model-selection';
+import { hasRoute, selectionForModel } from '@/lib/model-selection';
 import { useToastOptional } from '@/design';
 import { useVocab } from '@/i18n';
 import {
@@ -77,7 +77,7 @@ function useApplySelection(input: SessionSelectionInput, mutations: ReturnType<t
   };
 }
 
-const EMPTY_ENGINE: EngineSelection = { backend: 'claude', provider: null, model: '', thinking: null, mode: '' };
+const EMPTY_ENGINE: EngineSelection = { backend: 'claude', provider: null, model: '', thinking: null, connection: null };
 
 function useSelectionData(input: SessionSelectionInput, open: boolean) {
   const trpc = useTRPC();
@@ -115,9 +115,9 @@ function useModelActions(data: ReturnType<typeof useSelectionData>, mutations: R
   const pickModel = (option: ModelOption, onApplied?: () => void): void => {
     if (option.disabled || option.active) return;
     const pick = async () => {
-      const catalog = option.selection.mode ? data.catalogQuery.data : await client.fetchQuery(trpc.models.catalog.queryOptions({}));
+      const catalog = hasRoute(option.selection) ? data.catalogQuery.data : await client.fetchQuery(trpc.models.catalog.queryOptions({}));
       const selection = selectionForModel({ backend: option.backend, provider: option.provider, model: option.id }, data.config, catalog);
-      if (selection.mode) apply({ selection }, onApplied);
+      if (hasRoute(selection)) apply({ selection }, onApplied);
     };
     void pick().catch(mutations.onError);
   };

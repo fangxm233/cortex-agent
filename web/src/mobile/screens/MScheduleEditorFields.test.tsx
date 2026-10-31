@@ -11,7 +11,7 @@ vi.mock('@/design/BottomSheet', async importOriginal => ({
   MBottomSheet: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-const selection = { backend: 'pi' as const, provider: 'deepseek', model: 'flash', thinking: 'high', mode: 'deepseek' };
+const selection = { backend: 'pi' as const, provider: 'deepseek', model: 'flash', thinking: 'high', connection: null };
 
 function props(type: MScheduleEditorProps['form']['type']): MScheduleEditorProps {
   return {
@@ -21,7 +21,7 @@ function props(type: MScheduleEditorProps['form']['type']): MScheduleEditorProps
     editableFields: { type: true, time: true, interval: true, delay: true, dayOfWeek: true, message: true, selection: true, projectId: true },
     modelOptions: [
       { value: modelKey(selection), label: 'Flash', selection, favorite: true },
-      { value: 'unavailable', label: 'Unavailable', selection: { ...selection, mode: '' }, favorite: false },
+      { value: 'unavailable', label: 'Unavailable', selection: { backend: 'claude', provider: null, model: 'opus', thinking: null, connection: null }, favorite: false },
     ],
     thinkingOptions: ['', 'high'], onChange: vi.fn(), onSubmit: vi.fn(), onBack: vi.fn(),
   };

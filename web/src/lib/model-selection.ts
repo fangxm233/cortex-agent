@@ -15,7 +15,14 @@ export function selectionForModel(
 ): EngineSelection {
   const remembered = config?.models.memory[modelKey(ref)];
   const route = catalog?.routes.find((entry) => entry.backend === ref.backend && entry.provider === ref.provider);
-  return { ...ref, thinking: remembered?.thinking ?? null, mode: remembered?.mode ?? route?.modes[0] ?? '' };
+  const connection = ref.backend === 'pi' ? null : remembered?.connection ?? route?.connections[0] ?? null;
+  return { ...ref, thinking: remembered?.thinking ?? null, connection };
+}
+
+/** Whether a selection is ready to apply: PI's provider is its connection, so PI always is; Claude
+ *  needs a connection from memory or the catalog route. */
+export function hasRoute(selection: EngineSelection): boolean {
+  return selection.backend === 'pi' || selection.connection !== null;
 }
 
 export function catalogModels(catalog?: ModelCatalogSnapshot | null): ModelRef[] {

@@ -11,7 +11,7 @@ import type { EngineSelection } from '@cortex-agent/ui-contract';
 import type { LiveSessionMessage, PendingUserMessage } from '@/features/session/transcript/transcript-vm';
 
 const DEFAULT_SELECTION: EngineSelection = {
-  backend: 'claude', provider: null, model: 'claude-sonnet', thinking: null, mode: 'plan',
+  backend: 'claude', provider: null, model: 'claude-sonnet', thinking: null, connection: 'subscription',
 };
 
 const harness = vi.hoisted(() => ({
@@ -424,8 +424,8 @@ afterEach(() => {
 
 describe('mounted optimistic sender wiring', () => {
   it.each<EngineSelection>([
-    { backend: 'claude', provider: null, model: 'claude-opus-5', thinking: null, mode: 'execute' },
-    { backend: 'pi', provider: 'gateway', model: 'deepseek', thinking: 'high', mode: 'deepseek' },
+    { backend: 'claude', provider: null, model: 'claude-opus-5', thinking: null, connection: 'subscription' },
+    { backend: 'pi', provider: 'gateway', model: 'deepseek', thinking: 'high', connection: null },
   ])('sends the complete draft selection and independent agent ($backend)', async (engine) => {
     harness.sessions = [];
     harness.selection = { ...selection(true), draftSelection: { selection: engine, agentName: 'research' } };

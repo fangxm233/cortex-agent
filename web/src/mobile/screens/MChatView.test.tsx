@@ -67,7 +67,7 @@ import type { MChatSelection } from './m-chat-selection';
 const selection: MChatSelection = {
   open: false, setOpen: () => {}, agentOpen: false, setAgentOpen: () => {},
   agents: [], catalogLoading: false, modelsReady: true,
-  effective: { backend: 'claude', model: 'claude-opus-5', provider: null, thinking: 'high', mode: 'plan' },
+  effective: { backend: 'claude', model: 'claude-opus-5', provider: null, thinking: 'high', connection: 'subscription' },
   favoriteOptions: [], modelGroups: [], thinkingOptions: [], modeOptions: [], rootRows: [],
   toggleFavorite: () => {}, agentOptions: [], agentName: null,
 };

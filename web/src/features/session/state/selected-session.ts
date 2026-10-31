@@ -37,8 +37,8 @@ export function seedDraftSelection(
 ): DraftSelection | null {
   const picked = seed ?? fallback;
   if (!picked) return null;
-  const { backend, provider, model, thinking, mode } = picked;
-  return { selection: { backend, provider, model, thinking, mode }, ...(seed?.agentName ? { agentName: seed.agentName } : {}) };
+  const { backend, provider, model, thinking, connection } = picked;
+  return { selection: { backend, provider, model, thinking, connection }, ...(seed?.agentName ? { agentName: seed.agentName } : {}) };
 }
 
 /** Most-recently-used session id (by lastUsedAt, then createdAt), else null. */

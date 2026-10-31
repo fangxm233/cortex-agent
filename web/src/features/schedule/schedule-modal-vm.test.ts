@@ -19,21 +19,21 @@ function form(overrides: Partial<ScheduleForm> = {}): ScheduleForm {
   return { ...defaultScheduleForm('nimbus'), ...overrides };
 }
 
-const selection = { backend: 'claude' as const, provider: null, model: 'claude-haiku', thinking: 'high', mode: 'api' };
+const selection = { backend: 'claude' as const, provider: null, model: 'claude-haiku', thinking: 'high', connection: 'api' };
 
-const piSelection = { backend: 'pi' as const, provider: 'deepseek', model: 'flash', thinking: 'xhigh', mode: 'deepseek' };
+const piSelection = { backend: 'pi' as const, provider: 'deepseek', model: 'flash', thinking: 'xhigh', connection: null };
 const catalog: ModelCatalogSnapshot = {
   routes: [
-    { backend: 'claude', provider: null, endpoint: 'anthropic', modes: ['plan', 'api'], models: ['claude-haiku', 'flash'], source: 'builtin' },
-    { backend: 'pi', provider: 'deepseek', endpoint: 'deepseek', modes: ['deepseek'], models: ['flash'], source: 'pi', modelThinking: { flash: ['high', 'xhigh'] } },
+    { backend: 'claude', provider: null, endpoint: 'anthropic', connections: ['subscription', 'api'], models: ['claude-haiku', 'flash'], source: 'builtin' },
+    { backend: 'pi', provider: 'deepseek', endpoint: 'deepseek', connections: [], models: ['flash'], source: 'pi', modelThinking: { flash: ['high', 'xhigh'] } },
   ],
   thinkingLevels: { claude: ['low', 'high'], pi: ['off', 'low', 'high', 'xhigh'] }, piPending: false,
 };
 
 function modelConfig(): Pick<ConfigSnapshot, 'models'> {
   return { models: { default: selection, favorites: [piSelection, selection],
-    memory: { [modelKey(piSelection)]: { thinking: 'xhigh', mode: 'deepseek' },
-      [modelKey(selection)]: { thinking: 'low', mode: 'plan' } } } };
+    memory: { [modelKey(piSelection)]: { thinking: 'xhigh', connection: null },
+      [modelKey(selection)]: { thinking: 'low', connection: 'subscription' } } } };
 }
 
 describe('scheduleModelOptions', () => {
@@ -50,7 +50,7 @@ describe('scheduleModelOptions', () => {
     ]);
     expect(options.map((option) => option.favorite)).toEqual([true, true, false]);
     expect(options.map((option) => option.selection)).toEqual([
-      piSelection, selection, { ...selection, model: 'flash', thinking: null, mode: 'plan' },
+      piSelection, selection, { ...selection, model: 'flash', thinking: null, connection: 'subscription' },
     ]);
     expect(options[0].label).toContain('deepseek');
     expect(options[2].label).toContain('claude');
@@ -58,7 +58,7 @@ describe('scheduleModelOptions', () => {
   it('renders favorites and their remembered settings before catalog loads', () => {
     const options = scheduleModelOptions(modelConfig(), undefined, null);
     expect(options.map((option) => option.selection)).toEqual([
-      piSelection, { ...selection, thinking: 'low', mode: 'plan' },
+      piSelection, { ...selection, thinking: 'low', connection: 'subscription' },
     ]);
   });
   it('uses model-specific thinking levels and tolerates an older catalog without ladders', () => {
@@ -264,6 +264,6 @@ describe('scheduleModelPatch', () => {
     const pending = scheduleModelOptions(config, undefined, null);
     expect(scheduleModelPatch(pending, modelKey(selection))).toEqual({});
     const ready = scheduleModelOptions(config, catalog, null);
-    expect(scheduleModelPatch(ready, modelKey(selection))).toEqual({ selection: { ...selection, thinking: null, mode: 'plan' } });
+    expect(scheduleModelPatch(ready, modelKey(selection))).toEqual({ selection: { ...selection, thinking: null, connection: 'subscription' } });
   });
 });

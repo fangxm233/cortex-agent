@@ -44,13 +44,13 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
       if (options.__kind === 'config.get') return {
         data: {
           models: {
-            default: { backend: 'claude', provider: null, model: 'opus', thinking: 'high', mode: 'plan' },
+            default: { backend: 'claude', provider: null, model: 'opus', thinking: 'high', connection: 'subscription' },
             favorites: [
               { model: 'opus', backend: 'claude', provider: null },
               { model: 'sonnet', backend: 'claude', provider: null },
               { model: 'glm-5', backend: 'pi', provider: 'zai' },
             ],
-            memory: { '["claude",null,"sonnet"]': { thinking: null, mode: 'plan' } },
+            memory: { '["claude",null,"sonnet"]': { thinking: null, connection: 'subscription' } },
           },
           agents: harness.agents,
         },
@@ -60,11 +60,11 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
         data: {
           routes: [
             {
-              endpoint: 'anthropic', backend: 'claude', provider: null, modes: ['plan', 'api'],
+              endpoint: 'anthropic', backend: 'claude', provider: null, connections: ['subscription', 'api'],
               models: ['opus', 'sonnet'], source: 'builtin', modelThinking: {},
             },
             {
-              endpoint: 'zai', backend: 'pi', provider: 'zai', modes: ['zai'],
+              endpoint: 'zai', backend: 'pi', provider: 'zai', connections: [],
               models: ['glm-5'], source: 'pi', modelThinking: {},
             },
           ],
@@ -204,7 +204,7 @@ import { MChatScreen } from './MChatScreen';
 const SESSION = {
   sessionId: 's1', label: null, running: false, backgroundRunning: false,
   contextUsage: null, contextCompactionSupported: false, backendSessionId: null,
-  selection: { backend: 'claude', provider: null, model: 'opus', thinking: 'high', mode: 'plan' }, numTurns: null, costUsd: null,
+  selection: { backend: 'claude', provider: null, model: 'opus', thinking: 'high', connection: 'subscription' }, numTurns: null, costUsd: null,
 };
 
 function emptyTranscript(sessionId: string) {
@@ -666,7 +666,7 @@ describe('mobile engine picker', () => {
 
     typeAndSend(mounted, 'first turn');
     expect(harness.createAndSendMutateAsync.mock.calls[0][0]).toMatchObject({
-      selection: { backend: 'pi', model: 'glm-5', provider: 'zai', thinking: null, mode: 'zai' },
+      selection: { backend: 'pi', model: 'glm-5', provider: 'zai', thinking: null, connection: null },
     });
   });
   it('carries no environment — the agent left the engine sheet for one of its own', () => {

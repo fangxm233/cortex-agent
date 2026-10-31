@@ -8,17 +8,17 @@ import {
 import { modelKey } from '@/lib/model-selection';
 import { interactionHeaderStatus, buildAgentSheet, buildSelectionSheet, buildMobileChatRows, mobileRunStatus, type MobileRunStatusInput } from './m-chat-vm';
 
-const current: EngineSelection = { backend: 'claude', provider: null, model: 'sonnet-4.5', thinking: 'high', mode: 'plan' };
-const pi: EngineSelection = { backend: 'pi', provider: 'deepseek', model: 'deepseek-v4', thinking: 'xhigh', mode: 'deepseek' };
+const current: EngineSelection = { backend: 'claude', provider: null, model: 'sonnet-4.5', thinking: 'high', connection: 'subscription' };
+const pi: EngineSelection = { backend: 'pi', provider: 'deepseek', model: 'deepseek-v4', thinking: 'xhigh', connection: null };
 const models: ConfigSnapshot['models'] = {
   default: current,
   favorites: [current, pi],
-  memory: { [modelKey(pi)]: { thinking: 'xhigh', mode: 'deepseek' } },
+  memory: { [modelKey(pi)]: { thinking: 'xhigh', connection: null } },
 };
 const catalog: ModelCatalogSnapshot = {
   routes: [
-    { endpoint: 'anthropic', backend: 'claude', provider: null, modes: ['plan', 'api'], models: ['sonnet-4.5', 'haiku-4'], source: 'builtin', modelThinking: {} },
-    { endpoint: 'deepseek', backend: 'pi', provider: 'deepseek', modes: ['deepseek'], models: ['deepseek-v4'], source: 'pi', modelThinking: {} },
+    { endpoint: 'anthropic', backend: 'claude', provider: null, connections: ['subscription', 'api'], models: ['sonnet-4.5', 'haiku-4'], source: 'builtin', modelThinking: {} },
+    { endpoint: 'deepseek', backend: 'pi', provider: 'deepseek', connections: [], models: ['deepseek-v4'], source: 'pi', modelThinking: {} },
   ],
   thinkingLevels: { claude: ['low', 'high'], pi: ['off', 'high'] }, piPending: false,
 };
@@ -89,7 +89,7 @@ describe('buildSelectionSheet', () => {
     expect(sheet().rootRows).toEqual([
       { key: 'model', label: 'model', value: 'sonnet-4.5' },
       { key: 'thinking', label: 'thinking', value: 'high' },
-      { key: 'mode', label: 'route', value: 'plan' },
+      { key: 'mode', label: 'route', value: 'subscription' },
     ]);
   });
 
@@ -122,8 +122,8 @@ describe('buildSelectionSheet', () => {
 
   it('mode writes a complete selection and a single route needs no pane', () => {
     expect(sheet().sections.find((section) => section.key === 'mode')!.rows[1].change)
-      .toEqual({ selection: { ...current, mode: 'api' } });
-    const single = { ...catalog, routes: catalog.routes.map((route) => ({ ...route, modes: [route.modes[0]] })) };
+      .toEqual({ selection: { ...current, connection: 'api' } });
+    const single = { ...catalog, routes: catalog.routes.map((route) => ({ ...route, connections: route.connections.slice(0, 1) })) };
     expect(sheet(false, single).rootRows.map((row) => row.key)).toEqual(['model', 'thinking']);
   });
 });

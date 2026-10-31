@@ -29,8 +29,8 @@ function pageFixture(defaultModel = '') {
     state: 'logged-in', capabilities: ['oauth'], credentials: [] }], piRuntime: { available: true } });
   const ref = { backend: 'pi', provider: 'openai', model: 'fixture-model' } as const;
   const config = vi.fn().mockResolvedValue({ models: {
-    default: defaultModel ? { ...ref, provider: defaultModel === 'ready' ? 'openai' : 'unready', thinking: null, mode: 'openai' } : null,
-    favorites: [ref], memory: { [JSON.stringify(['pi', 'openai', 'fixture-model'])]: { thinking: null, mode: 'openai' } },
+    default: defaultModel ? { ...ref, provider: defaultModel === 'ready' ? 'openai' : 'unready', thinking: null, connection: null } : null,
+    favorites: [ref], memory: { [JSON.stringify(['pi', 'openai', 'fixture-model'])]: { thinking: null, connection: null } },
   } });
   const sync = vi.fn().mockResolvedValue({ configured: true });
   const select = vi.fn();
@@ -120,7 +120,7 @@ it('writes the selected favorite as a complete default engine selection', async 
   expect(view.root.findByProps({ htmlFor: 'setup-model' })).toBeDefined();
   await act(async () => picker.props.onValueChange(key));
   expect(select).toHaveBeenCalledWith({ selection: {
-    backend: 'pi', provider: 'openai', model: 'fixture-model', thinking: null, mode: 'openai',
+    backend: 'pi', provider: 'openai', model: 'fixture-model', thinking: null, connection: null,
   } });
   act(() => view.unmount());
 });

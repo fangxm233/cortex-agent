@@ -10,7 +10,7 @@ const account = (patch: Partial<AuthAccountStatus> = {}): AuthAccountStatus => (
   expiresAt: null, refreshExpiresAt: null, inUse: false, credentials: [], ...patch,
 });
 const selection = (patch: Partial<EngineSelection> = {}): EngineSelection => ({
-  backend: 'pi', provider: 'openai', model: 'gpt-test', mode: 'openai', thinking: null, ...patch,
+  backend: 'pi', provider: 'openai', model: 'gpt-test', connection: null, thinking: null, ...patch,
 });
 const models = (patch: Partial<ConfigModels> = {}): ConfigModels => ({
   default: selection(), favorites: [selection()], memory: {}, ...patch,
@@ -20,7 +20,7 @@ function fixture() {
     status: vi.fn().mockResolvedValue({ accounts: [account()], piRuntime: { available: true }, generatedAt: 'now' }),
     config: vi.fn().mockResolvedValue({ models: models() }),
     catalog: vi.fn().mockResolvedValue({ piPending: false, routes: [{ backend: 'pi', provider: 'openai',
-      endpoint: 'openai', modes: ['openai'], models: ['gpt-test'], source: 'pi' }] }),
+      endpoint: 'openai', connections: [], models: ['gpt-test'], source: 'pi' }] }),
     sync: vi.fn().mockResolvedValue({ configured: true }), select: vi.fn().mockResolvedValue({}),
     claude: vi.fn().mockResolvedValue({ installed: false, version: null }),
     install: vi.fn().mockResolvedValue({ installed: true, version: '1' }), canInstall: () => true,
@@ -35,18 +35,18 @@ describe('provider onboarding model readiness', () => {
   it('requires matching provider, runtime and installed CC independently', () => {
     expect(readyModels([selection()], [account({ provider: 'anthropic' })], true, true)).toEqual([]);
     expect(readyModels([selection()], [account()], false, true)).toEqual([]);
-    const cc = selection({ backend: 'claude', provider: null, mode: 'plan' });
+    const cc = selection({ backend: 'claude', provider: null, connection: 'subscription' });
     const auth = account({ backend: 'claude', provider: 'anthropic' });
     expect(readyModels([cc], [auth], true, false)).toEqual([]);
     expect(readyModels([cc], [auth], false, true)).toEqual([cc]);
     expect(readyModels([cc], [auth], false, null)).toEqual([]);
-    expect(readyModels([selection({ mode: '' })], [account()], true, true)).toEqual([]);
+    expect(readyModels([{ ...cc, connection: null }], [auth], false, true)).toEqual([]);
   });
   it('matches Claude plan selections to subscription credentials, including inactive slots', () => {
-    const cc = selection({ backend: 'claude', provider: null, mode: 'plan' });
+    const cc = selection({ backend: 'claude', provider: null, connection: 'subscription' });
     const api = account({ backend: 'claude', provider: 'anthropic', authType: 'api_key' });
     expect(readyModels([cc], [api], true, true)).toEqual([]);
-    expect(readyModels([{ ...cc, mode: 'api' }], [api], true, true)).toHaveLength(1);
+    expect(readyModels([{ ...cc, connection: 'api' }], [api], true, true)).toHaveLength(1);
     expect(readyModels([cc], [{ ...api, authType: 'oauth' }], true, true)).toEqual([cc]);
     const credentials = [{ authType: 'oauth', state: 'expiring' }] as AuthAccountStatus['credentials'];
     expect(readyModels([cc], [{ ...api, credentials }], true, true)).toEqual([cc]);
@@ -86,7 +86,7 @@ describe('provider onboarding model readiness', () => {
   });
   it('selects only usable favorites and writes a full remembered selection', async () => {
     const { ports, controller } = fixture();
-    const memory = { [modelKey(selection())]: { thinking: 'high', mode: 'openai' } };
+    const memory = { [modelKey(selection())]: { thinking: 'high', connection: null } };
     ports.config.mockResolvedValue({ models: models({ default: null, memory }) });
     await controller.load();
     expect(controller.canContinue()).toBe(false);
@@ -99,11 +99,11 @@ describe('provider onboarding model readiness', () => {
   });
   it('checks the actual default route rather than a remembered favorite with the same identity', async () => {
     const { ports, controller } = fixture();
-    const cc = selection({ backend: 'claude', provider: null, mode: 'api' });
+    const cc = selection({ backend: 'claude', provider: null, connection: 'api' });
     ports.claude.mockResolvedValue({ installed: true, version: '1' });
     ports.status.mockResolvedValue({ accounts: [account({ backend: 'claude', provider: 'anthropic' })], piRuntime: { available: true } });
     ports.config.mockResolvedValue({ models: models({ default: cc, favorites: [cc],
-      memory: { [modelKey(cc)]: { thinking: null, mode: 'plan' } } }) });
+      memory: { [modelKey(cc)]: { thinking: null, connection: 'subscription' } } }) });
     await controller.load();
     expect(controller.available()).toHaveLength(1);
     expect(controller.canContinue()).toBe(false);

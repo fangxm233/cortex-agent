@@ -27,12 +27,12 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
       if (options.__kind === 'config.get') return {
         data: {
           models: {
-            default: { backend: 'claude', provider: null, model: 'opus', thinking: null, mode: 'plan' },
+            default: { backend: 'claude', provider: null, model: 'opus', thinking: null, connection: 'subscription' },
             favorites: [
               { model: 'opus', backend: 'claude', provider: null },
               { model: 'sonnet', backend: 'claude', provider: null },
             ],
-            memory: { '["claude",null,"sonnet"]': { thinking: null, mode: 'plan' } },
+            memory: { '["claude",null,"sonnet"]': { thinking: null, connection: 'subscription' } },
           },
           agents: [],
         },

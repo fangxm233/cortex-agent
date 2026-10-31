@@ -1,5 +1,5 @@
 import type { ConfigSnapshot, EngineSelection, ModelCatalogSnapshot, ModelRef, ScheduleInfo, MutateArgs } from '@cortex-agent/ui-contract';
-import { modelKey, modelLabel, selectionForModel } from '@/lib/model-selection';
+import { hasRoute, modelKey, modelLabel, selectionForModel } from '@/lib/model-selection';
 import { formatSpan, formatSpanPrecise, type TimeLang } from '@/i18n/time-format';
 import { fmt } from '@/i18n/fmt';
 import { pickVocab } from '@/i18n/lang';
@@ -61,7 +61,7 @@ export function scheduleThinkingOptions(
 
 export function scheduleModelPatch(options: ScheduleModelOption[], value: string): Partial<ScheduleForm> {
   const option = options.find((candidate) => candidate.value === value);
-  return option?.selection.mode ? { selection: option.selection } : {};
+  return option && hasRoute(option.selection) ? { selection: option.selection } : {};
 }
 
 export function scheduleThinkingPatch(form: ScheduleForm, value: string): Partial<ScheduleForm> {

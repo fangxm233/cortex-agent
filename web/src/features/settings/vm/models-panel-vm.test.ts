@@ -4,11 +4,11 @@ import { buildModelFacts, catalogModels, defaultModelOptions, favoriteThinkingCo
 import { modelKey } from '@/lib/model-selection';
 
 const ref: ModelRef = { backend: 'pi', provider: 'deepseek', model: 'flash' };
-const snapshot = { models: { default: { ...ref, thinking: 'high', mode: 'deepseek' },
-  favorites: [ref], memory: { [modelKey(ref)]: { thinking: 'xhigh', mode: 'deepseek' } } } } as ConfigSnapshot;
+const snapshot = { models: { default: { ...ref, thinking: 'high', connection: null },
+  favorites: [ref], memory: { [modelKey(ref)]: { thinking: 'xhigh', connection: null } } } } as ConfigSnapshot;
 const catalog: ModelCatalogSnapshot = { piPending: false, routes: [
-  { backend: 'pi', provider: 'deepseek', endpoint: 'deepseek', modes: ['deepseek'], models: ['flash', 'flash', 'pro'], source: 'pi' },
-  { backend: 'claude', provider: null, endpoint: 'anthropic', modes: ['plan'], models: ['opus'], source: 'builtin' },
+  { backend: 'pi', provider: 'deepseek', endpoint: 'deepseek', connections: [], models: ['flash', 'flash', 'pro'], source: 'pi' },
+  { backend: 'claude', provider: null, endpoint: 'anthropic', connections: ['subscription'], models: ['opus'], source: 'builtin' },
 ] };
 
 const copy = { stThinkingBackendDefault: 'Backend default', stThinkingUnsupported: 'unsupported' };

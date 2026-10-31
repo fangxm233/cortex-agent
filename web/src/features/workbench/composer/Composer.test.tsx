@@ -7,7 +7,7 @@ import type { ModelOption } from '@/features/session/list/selection-menu';
 const MODEL_OPTION: ModelOption = {
   id: 'claude-sonnet', backend: 'claude', provider: null, group: 'claude',
   active: false, disabled: false, disabledReason: null, favorite: true,
-  selection: { backend: 'claude', provider: null, model: 'claude-sonnet', thinking: null, mode: 'execute' },
+  selection: { backend: 'claude', provider: null, model: 'claude-sonnet', thinking: null, connection: 'subscription' },
 };
 
 const harness = vi.hoisted(() => ({
@@ -83,7 +83,7 @@ vi.mock('@/features/session/composer/useSessionSelection', () => {
       open: false, setOpen: vi.fn(),
       effective: {
         backend: 'claude', model: 'claude-opus-5', provider: null,
-        thinking: 'high', mode: 'plan',
+        thinking: 'high', connection: 'subscription',
       },
       agentName: null,
       favoriteOptions: [MODEL_OPTION],
@@ -128,7 +128,7 @@ function mountComposer(
         turns={1}
         cost={null}
         turnClock={null}
-        currentSelection={{ backend: 'claude', provider: null, model: 'claude-opus-5', thinking: 'high', mode: 'plan' }}
+        currentSelection={{ backend: 'claude', provider: null, model: 'claude-opus-5', thinking: 'high', connection: 'subscription' }}
         hasHistory
         optimistic={{
           pendingUser: [],

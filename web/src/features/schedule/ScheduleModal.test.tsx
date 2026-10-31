@@ -13,7 +13,7 @@ vi.mock('@/design', async () => ({
 
 import { ScheduleModal } from './ScheduleModal';
 
-const selection = { backend: 'pi' as const, provider: 'deepseek', model: 'flash', thinking: 'xhigh', mode: 'deepseek' };
+const selection = { backend: 'pi' as const, provider: 'deepseek', model: 'flash', thinking: 'xhigh', connection: null };
 
 let onWindowKeyDown: ((event: { key: string; defaultPrevented: boolean }) => void) | null;
 

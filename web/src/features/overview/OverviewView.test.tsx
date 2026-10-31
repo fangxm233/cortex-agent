@@ -22,7 +22,7 @@ const schedule = {
   type: 'daily',
   message: 'Review project status',
   projectId: 'nimbus',
-  selection: { backend: 'claude', provider: null, model: 'claude-opus', thinking: 'high', mode: 'plan' },
+  selection: { backend: 'claude', provider: null, model: 'claude-opus', thinking: 'high', connection: 'subscription' },
   nextRun: '2030-01-02T09:00:00.000Z',
   lastRun: null,
   paused: true,

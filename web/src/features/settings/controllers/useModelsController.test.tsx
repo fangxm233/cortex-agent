@@ -9,10 +9,10 @@ import { useModelsController, type ModelsController } from './useModelsControlle
 
 const ref: ModelRef = { backend: 'claude', provider: null, model: 'opus' };
 const other: ModelRef = { backend: 'pi', provider: 'deepseek', model: 'flash' };
-const snapshot = { models: { default: { ...ref, mode: 'plan', thinking: 'high' }, favorites: [ref, other],
-  memory: { [modelKey(ref)]: { mode: 'api', thinking: 'max' } } } } as ConfigSnapshot;
+const snapshot = { models: { default: { ...ref, connection: 'subscription', thinking: 'high' }, favorites: [ref, other],
+  memory: { [modelKey(ref)]: { connection: 'api', thinking: 'max' } } } } as ConfigSnapshot;
 const catalog = { routes: [{ endpoint: 'deepseek', backend: 'pi', provider: 'deepseek',
-  modes: ['deepseek'], models: ['flash', 'new-model'], source: 'pi' }], piPending: false };
+  connections: [], models: ['flash', 'new-model'], source: 'pi' }], piPending: false };
 const adapter = vi.hoisted(() => ({ config: vi.fn(), catalog: vi.fn(), add: vi.fn(), remove: vi.fn(), setDefault: vi.fn(), setThinking: vi.fn(), toast: vi.fn() }));
 vi.mock('@/lib/trpc', () => {
   const mutation = (fn: (input: unknown) => unknown) => ({ mutationOptions: (options: object) => ({ ...options, mutationFn: (input: unknown) => fn(input) }) });
@@ -109,7 +109,7 @@ describe('model settings writes', () => {
   it('writes a complete selection using memory and refreshes config', async () => {
     const { view, invalidate } = await mount();
     await act(async () => controller.setDefault(modelKey(ref)));
-    expect(adapter.setDefault).toHaveBeenCalledWith({ selection: { ...ref, mode: 'api', thinking: 'max' } });
+    expect(adapter.setDefault).toHaveBeenCalledWith({ selection: { ...ref, connection: 'api', thinking: 'max' } });
     expect(invalidate).toHaveBeenCalled();
     act(() => view.unmount());
   });
@@ -117,7 +117,7 @@ describe('model settings writes', () => {
     const { view } = await mount();
     await act(async () => controller.setDefault(modelKey(other)));
     expect(adapter.catalog).toHaveBeenCalledOnce();
-    expect(adapter.setDefault).toHaveBeenCalledWith({ selection: { ...other, thinking: null, mode: 'deepseek' } });
+    expect(adapter.setDefault).toHaveBeenCalledWith({ selection: { ...other, thinking: null, connection: null } });
     act(() => view.unmount());
   });
   it('allows removing the default or last favorite without changing the default', async () => {

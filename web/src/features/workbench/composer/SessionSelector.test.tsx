@@ -57,14 +57,14 @@ import { AgentSelectorView, SessionSelectorView } from './SessionSelector';
 import { useSessionSelection } from '@/features/session/composer/useSessionSelection';
 import { selectionChipParts } from '@/features/session/list/selection-menu';
 
-const current: EngineSelection = { backend: 'claude', provider: null, model: 'claude-opus-5', thinking: 'high', mode: 'plan' };
-const sonnet: EngineSelection = { ...current, model: 'claude-sonnet-5', thinking: 'low', mode: 'api' };
-const pi: EngineSelection = { backend: 'pi', provider: 'deepseek', model: 'deepseek-v4-flash', thinking: 'xhigh', mode: 'deepseek' };
+const current: EngineSelection = { backend: 'claude', provider: null, model: 'claude-opus-5', thinking: 'high', connection: 'subscription' };
+const sonnet: EngineSelection = { ...current, model: 'claude-sonnet-5', thinking: 'low', connection: 'api' };
+const pi: EngineSelection = { backend: 'pi', provider: 'deepseek', model: 'deepseek-v4-flash', thinking: 'xhigh', connection: null };
 const catalog: ModelCatalogSnapshot = {
   routes: [
-    { endpoint: 'anthropic', backend: 'claude', provider: null, modes: ['plan', 'api'],
+    { endpoint: 'anthropic', backend: 'claude', provider: null, connections: ['subscription', 'api'],
       models: [current.model, sonnet.model], source: 'builtin', modelThinking: {} },
-    { endpoint: 'deepseek', backend: 'pi', provider: 'deepseek', modes: ['deepseek'],
+    { endpoint: 'deepseek', backend: 'pi', provider: 'deepseek', connections: [],
       models: [pi.model, 'unstarred-model'], source: 'pi', modelThinking: {} },
   ],
   thinkingLevels: { claude: ['low', 'high'], pi: ['off', 'high', 'xhigh'] }, piPending: false,
@@ -126,8 +126,8 @@ beforeEach(() => {
     default: current,
     favorites: [current, sonnet, pi].map(({ backend, provider, model }) => ({ backend, provider, model })),
     memory: {
-      [modelKey(sonnet)]: { thinking: 'low', mode: 'api' },
-      [modelKey(pi)]: { thinking: 'xhigh', mode: 'deepseek' },
+      [modelKey(sonnet)]: { thinking: 'low', connection: 'api' },
+      [modelKey(pi)]: { thinking: 'xhigh', connection: null },
     },
   };
   vi.stubGlobal('window', new EventTarget());
@@ -198,7 +198,7 @@ describe('concrete engine picks', () => {
 
   it('sends a route change as a complete selection', async () => {
     await pick(mount(), 'mode:api');
-    assertEngineWrite({ ...current, mode: 'api' });
+    assertEngineWrite({ ...current, connection: 'api' });
   });
 });
 
@@ -212,8 +212,8 @@ describe('catalog resolution before applying favorites', () => {
     await pick(renderer, `favorite:${modelKey(sonnet)}`);
     expect(harness.fetchQuery).toHaveBeenCalledWith({ __kind: 'models.catalog' });
     expect(harness.setSelection).not.toHaveBeenCalled();
-    await act(async () => resolve({ ...catalog, routes: [{ ...catalog.routes[0], modes: ['api', 'plan'] }] }));
-    assertEngineWrite({ ...sonnet, thinking: null, mode: 'api' });
+    await act(async () => resolve({ ...catalog, routes: [{ ...catalog.routes[0], connections: ['api', 'subscription'] }] }));
+    assertEngineWrite({ ...sonnet, thinking: null, connection: 'api' });
   });
 
   it('does not submit an incomplete selection if the model route remains unavailable', async () => {

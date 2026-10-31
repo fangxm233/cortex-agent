@@ -73,8 +73,9 @@ export function buildThinkingOptions(catalog: ModelCatalogSnapshot | null | unde
 }
 
 export function buildModeOptions(catalog: ModelCatalogSnapshot | null | undefined, current: EngineSelection): ModeOption[] {
-  const modes = routeOf(catalog, current)?.modes ?? [];
-  return modes.length < 2 ? [] : modes.map((mode) => ({ mode, active: mode === current.mode }));
+  const connections = routeOf(catalog, current)?.connections ?? [];
+  const active = current.connection ?? connections[0];
+  return connections.length < 2 ? [] : connections.map((mode) => ({ mode, active: mode === active }));
 }
 
 export function hasAgentChoice(agents: readonly unknown[]): boolean { return agents.length > 1; }
@@ -104,7 +105,7 @@ export function thinkingChange(current: EngineSelection, level: string | null): 
   return current.thinking === level ? null : { selection: { ...current, thinking: level } };
 }
 export function modeChange(current: EngineSelection, mode: string): SelectionChange | null {
-  return current.mode === mode ? null : { selection: { ...current, mode } };
+  return current.connection === mode ? null : { selection: { ...current, connection: mode } };
 }
 export interface SelectionRootRow { key: 'model' | 'thinking' | 'mode'; label: string; value: string }
 export type SelectionPane = 'root' | SelectionRootRow['key'];
@@ -115,6 +116,6 @@ export function selectionRootRows(
   return [
     { key: 'model', label: copy.model, value: current.model || '—' },
     ...(opts.hasThinking ? [{ key: 'thinking' as const, label: copy.thinking, value: current.thinking ?? copy.default ?? '—' }] : []),
-    ...(opts.hasModes ? [{ key: 'mode' as const, label: copy.mode, value: current.mode || '—' }] : []),
+    ...(opts.hasModes ? [{ key: 'mode' as const, label: copy.mode, value: current.connection ?? '—' }] : []),
   ];
 }

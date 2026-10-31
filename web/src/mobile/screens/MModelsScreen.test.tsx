@@ -10,7 +10,7 @@ import { MModelsView } from './MModelsScreen';
 import { buildMSettingsVm } from './m-settings-vm';
 
 const ref = { backend: 'pi' as const, provider: 'deepseek', model: 'flash' };
-const snapshot = { models: { default: { ...ref, thinking: 'xhigh', mode: 'deepseek' }, favorites: [ref], memory: {} } } as ConfigSnapshot;
+const snapshot = { models: { default: { ...ref, thinking: 'xhigh', connection: null }, favorites: [ref], memory: {} } } as ConfigSnapshot;
 function controller(): ModelsController {
   return { snapshot, facts: [{ ref, key: modelKey(ref), thinking: 'xhigh', current: true }], options: [ref],
     loading: false, error: null, catalogOpen: true, catalogModels: [{ ...ref, model: 'pro' }],

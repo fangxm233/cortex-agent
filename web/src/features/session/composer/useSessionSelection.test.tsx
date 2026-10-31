@@ -28,13 +28,13 @@ vi.mock('@/lib/trpc', () => ({ useTRPC: () => {
 
 import { useSessionSelection, type SessionSelection, type SessionSelectionInput } from './useSessionSelection';
 
-const current: EngineSelection = { backend: 'claude', provider: null, model: 'claude-opus', thinking: 'high', mode: 'plan' };
+const current: EngineSelection = { backend: 'claude', provider: null, model: 'claude-opus', thinking: 'high', connection: 'subscription' };
 const other = { backend: 'pi' as const, provider: 'remote', model: 'remote-model' };
 const catalog: ModelCatalogSnapshot = {
   piPending: false, thinkingLevels: { claude: ['low', 'high'], pi: ['high'] },
   routes: [
-    { endpoint: 'anthropic', backend: 'claude', provider: null, modes: ['api', 'plan'], models: ['claude-opus', 'claude-sonnet'], source: 'gateway' },
-    { endpoint: 'remote', backend: 'pi', provider: 'remote', modes: ['custom-route'], models: ['remote-model'], source: 'gateway' },
+    { endpoint: 'anthropic', backend: 'claude', provider: null, connections: ['api', 'subscription'], models: ['claude-opus', 'claude-sonnet'], source: 'connection' },
+    { endpoint: 'remote', backend: 'pi', provider: 'remote', connections: [], models: ['remote-model'], source: 'connection' },
   ],
 };
 let value: SessionSelection;
@@ -59,20 +59,22 @@ beforeEach(() => {
 describe('shared selection controller', () => {
   it('resolves an uncached favorite through the actual first endpoint route before sending a full selection', async () => {
     harness.catalog = null;
+    const sonnet = { backend: 'claude' as const, provider: null, model: 'claude-sonnet' };
+    (harness.config as ConfigSnapshot).models.favorites = [current, sonnet];
     const tree = mount();
     expect(value.favoriteOptions).toHaveLength(2);
     await act(async () => value.pickFavorite(value.favoriteOptions[1]!));
     expect(harness.fetch).toHaveBeenCalledOnce();
-    expect(harness.writes).toHaveBeenCalledWith('selection', { sessionId: 's1', selection: { ...other, thinking: null, mode: 'custom-route' } });
+    expect(harness.writes).toHaveBeenCalledWith('selection', { sessionId: 's1', selection: { ...sonnet, thinking: null, connection: 'api' } });
     act(() => tree.unmount());
   });
   it('uses remembered thinking and mode without requiring the catalog', async () => {
     harness.catalog = null;
-    (harness.config as ConfigSnapshot).models.memory[modelKey(other)] = { thinking: 'high', mode: 'remembered-route' };
+    (harness.config as ConfigSnapshot).models.memory[modelKey(other)] = { thinking: 'high', connection: null };
     const tree = mount();
     await act(async () => value.pickFavorite(value.favoriteOptions[1]!));
     expect(harness.fetch).not.toHaveBeenCalled();
-    expect(harness.writes).toHaveBeenCalledWith('selection', { sessionId: 's1', selection: { ...other, thinking: 'high', mode: 'remembered-route' } });
+    expect(harness.writes).toHaveBeenCalledWith('selection', { sessionId: 's1', selection: { ...other, thinking: 'high', connection: null } });
     act(() => tree.unmount());
   });
   it('keeps all engine fields when choosing default thinking and blocks a live backend change', async () => {
@@ -97,7 +99,7 @@ describe('shared selection controller', () => {
     const setDraftSelection = vi.fn();
     const tree = mount({ isDraft: true, draftSelection: { selection: current }, setDraftSelection });
     await act(async () => value.pickModel(value.modelGroups[1]!.options[0]!));
-    expect(setDraftSelection).toHaveBeenCalledWith({ selection: { ...other, thinking: null, mode: 'custom-route' } });
+    expect(setDraftSelection).toHaveBeenCalledWith({ selection: { ...other, thinking: null, connection: null } });
     act(() => value.pickAgent('main'));
     expect(setDraftSelection).toHaveBeenLastCalledWith({ agentName: 'main' });
     expect(harness.writes).not.toHaveBeenCalled();

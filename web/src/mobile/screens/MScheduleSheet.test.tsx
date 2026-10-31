@@ -20,7 +20,7 @@ vi.mock('@/mobile/ui/kit', async () => ({
 
 import { MScheduleSheetView } from './MScheduleSheet';
 
-const selection = { backend: 'pi' as const, provider: 'deepseek', model: 'flash', thinking: 'xhigh', mode: 'deepseek' };
+const selection = { backend: 'pi' as const, provider: 'deepseek', model: 'flash', thinking: 'xhigh', connection: null };
 
 function schedule(p: Partial<ScheduleInfo> = {}): ScheduleInfo {
   return {

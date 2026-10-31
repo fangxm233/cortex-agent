@@ -1,5 +1,5 @@
 import type { AuthAccountStatus, AuthStatusSnapshot, ConfigModels, EngineSelection, ModelCatalogSnapshot } from '@cortex-agent/ui-contract';
-import { modelKey, selectionForModel } from '@/lib/model-selection';
+import { hasRoute, modelKey, selectionForModel } from '@/lib/model-selection';
 import type { Vocab } from '@/i18n';
 import { nativeErrorText } from '@/lib/native-error';
 
@@ -61,7 +61,7 @@ function matchesAccount(selection: EngineSelection, account: AuthAccountStatus):
   const { backend } = selection;
   const provider = backend === 'claude' ? 'anthropic' : selection.provider;
   if (account.backend !== backend || account.provider !== provider) return false;
-  const type = selection.mode === 'api' ? 'api_key' : 'oauth';
+  const type = selection.connection === 'api' ? 'api_key' : 'oauth';
   if (backend === 'pi') return usable(account.state);
   return (account.authType === type && usable(account.state))
     || account.credentials.some(c => c.authType === type && usable(c.state));
@@ -69,7 +69,7 @@ function matchesAccount(selection: EngineSelection, account: AuthAccountStatus):
 export function readyModels(selections: EngineSelection[], accounts: AuthAccountStatus[], pi: boolean, cc: boolean | null): EngineSelection[] {
   return selections.filter(selection => {
     const available = selection.backend === 'pi' ? pi : cc === true;
-    return available && !!selection.model && !!selection.mode && accounts.some(a => matchesAccount(selection, a));
+    return available && !!selection.model && hasRoute(selection) && accounts.some(a => matchesAccount(selection, a));
   });
 }
 
