@@ -205,7 +205,7 @@ function runRemove(flags: ParsedFlags, stores: CustomProviderStores): CliResult 
 
 /**
  * `cortex auth provider <list|add|remove>`. `add` is an upsert, so retrying it is safe; `remove`
- * takes `--dry-run` because it deletes a gateway route the running gateway is serving.
+ * takes `--dry-run` because it deletes a connection running sessions may be using.
  */
 export function runProviderCli(
   args: string[],

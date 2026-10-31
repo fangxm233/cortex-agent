@@ -22,7 +22,7 @@ export interface CustomProviderFormState {
   name: string;
   api: CustomProviderApi;
   upstreamUrl: string;
-  /** Upstream key. Empty keeps whatever the gateway route already stores. */
+  /** Upstream key. Empty keeps whatever the provider's connection already stores. */
   apiKey: string;
   /** Model ids, one per line — the editor's plain-text shape for `models[]`. */
   models: string;

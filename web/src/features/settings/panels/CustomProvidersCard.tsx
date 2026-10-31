@@ -208,7 +208,7 @@ function ProviderList({ controller }: { controller: Controller }) {
 }
 
 /**
- * Custom providers are defined, not logged into: their credential lives in the gateway route, so the
+ * Custom providers are defined, not logged into: their credential lives in their connection, so the
  * account list above has nothing to offer them. Provider names stay fixed because saved model selections bind to them.
  */
 export function CustomProvidersCard() {

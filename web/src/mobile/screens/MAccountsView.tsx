@@ -25,7 +25,7 @@ function CustomProviderStatus({ provider }: { provider: CustomProviderView }) {
 }
 
 /**
- * Custom providers carry no login: the credential sits in the gateway route, so the row offers an
+ * Custom providers carry no login: the credential sits in their connection, so the row offers an
  * editor and a two-tap delete instead of the login/logout pair above.
  */
 function CustomProviderRow({ provider, editDisabled, deleteDisabled, confirming, onEdit, onDelete }: {
