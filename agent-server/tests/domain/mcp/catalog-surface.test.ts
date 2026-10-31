@@ -84,6 +84,8 @@ function piHarness() {
   const handlers = new Map<string, Array<(event: object, ctx: any) => unknown>>();
   const pi = {
     registerTool: (tool: ToolDefinition) => tools.set(tool.name, tool),
+    // No active bash: the described-bash extension then leaves the surface alone.
+    getActiveTools: () => [],
     on: (name: string, handler: (event: object, ctx: any) => unknown) => {
       handlers.set(name, [...(handlers.get(name) ?? []), handler]);
     },
