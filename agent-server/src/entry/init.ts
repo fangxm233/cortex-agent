@@ -90,7 +90,6 @@ export interface FeishuInitConfig {
   authMode?: 'bot' | 'user';
 }
 
-export type GatewayUsageConfig = UsageSharingUpdate;
 
 export interface InitAnswers {
   /** UI language for system-generated messages. Persisted to config/preferences.json. */
@@ -102,8 +101,8 @@ export interface InitAnswers {
   platforms: PlatformChoice[];
   slackConfig?: SlackInitConfig;
   feishuConfig?: FeishuInitConfig;
-  /** Omitted when a scripted caller did not make an upload choice. */
-  gatewayUsage?: GatewayUsageConfig;
+  /** Leaderboard sharing; omitted when a scripted caller did not make a choice. */
+  usageSharing?: UsageSharingUpdate;
   /** Anonymous product telemetry choice; omitted keeps the default (on) and creates a fresh id. */
   telemetry?: InitTelemetryAnswer;
   installService: boolean;
@@ -139,14 +138,22 @@ function parseLocalUi(value: unknown): InitAnswers['localUi'] {
   return { enabled: true, port: parsedPort };
 }
 
+function parseUsageSharing(value: unknown): UsageSharingUpdate | undefined {
+  const usage = (value ?? {}) as Record<string, unknown>;
+  const field = (name: string) => (typeof usage[name] === 'string' ? usage[name] as string : '');
+  if (usage.enabled === true) return { enabled: true, name: field('name'), org: field('org'), email: field('email') };
+  return usage.enabled === false ? { enabled: false } : undefined;
+}
+
 /**
  * Parse the answers document used by `cortex init --answers <file>`.
  *
  * This is the interface the desktop setup wizard drives init through. It exists because the legacy
  * piped-stdin protocol (`collectAnswersNonInteractive`) is positional — a fixed line order with
  * platform-dependent offsets — which a GUI cannot extend without breaking scripted installs.
- * Every field is optional. Setup fields use safe defaults; omitted gateway usage preserves the
- * existing shared aistatus choice. A minimal `{}` still yields a working single-machine install.
+ * Every field is optional. Setup fields use safe defaults; omitted `usageSharing` (or its earlier
+ * name `gatewayUsage`) preserves the existing sharing choice. A minimal `{}` still yields a working
+ * single-machine install.
  */
 export function parseInitAnswersJson(raw: string): InitAnswers {
   let parsed: unknown;
@@ -168,16 +175,6 @@ export function parseInitAnswersJson(raw: string): InitAnswers {
     if ((p === 'slack' || p === 'feishu') && !platforms.includes(p)) platforms.push(p);
   }
 
-  const usage = (input.gatewayUsage ?? {}) as Record<string, unknown>;
-  const gatewayUsage: GatewayUsageConfig | undefined = usage.enabled === true
-    ? {
-      enabled: true,
-      name: typeof usage.name === 'string' ? usage.name : '',
-      org: typeof usage.org === 'string' ? usage.org : '',
-      email: typeof usage.email === 'string' ? usage.email : '',
-    }
-    : usage.enabled === false ? { enabled: false } : undefined;
-
   return {
     lang: typeof input.lang === 'string' ? normalizeLocale(input.lang) : detectSystemLocale(),
     backends: backends.length > 0 ? backends : (input.backends === undefined ? ['pi'] : ['claude']),
@@ -188,7 +185,7 @@ export function parseInitAnswersJson(raw: string): InitAnswers {
     platforms,
     slackConfig: input.slackConfig as SlackInitConfig | undefined,
     feishuConfig: input.feishuConfig as FeishuInitConfig | undefined,
-    gatewayUsage,
+    usageSharing: parseUsageSharing(input.usageSharing ?? input.gatewayUsage),
     telemetry: parseInitTelemetryAnswer(input.telemetry),
     installService: input.installService === true,
     defaultChoice: parseChoiceValue(input.defaultChoice),
@@ -936,35 +933,8 @@ async function collectAnswersInteractive(paths: InitPaths): Promise<InitAnswers>
     clack.log.info(t('init.machine.gpuNone'));
   }
 
-  // Step 4: Gateway usage
-  clack.note(
-    t('init.gateway.note'),
-    t('init.gateway.noteTitle'),
-  );
-
-  const enableGateway = await clack.confirm({
-    message: t('init.gateway.enablePrompt'),
-    initialValue: true,
-  });
-  handleCancel(enableGateway);
-
-  let gatewayUsage: GatewayUsageConfig = { enabled: false };
-  if (enableGateway) {
-    const name = await clack.text({ message: t('init.gateway.namePrompt'), placeholder: t('init.gateway.namePlaceholder') });
-    handleCancel(name);
-
-    const org = await clack.text({ message: t('init.gateway.orgPrompt'), placeholder: t('init.gateway.orgPlaceholder') });
-    handleCancel(org);
-
-    const email = await clack.text({
-      message: t('init.gateway.emailPrompt'),
-      placeholder: t('init.gateway.emailPlaceholder'),
-    });
-    handleCancel(email);
-
-    gatewayUsage = { enabled: true, name: name as string, org: org as string, email: email as string };
-  }
-
+  // Step 4: Usage leaderboard
+  const usageSharing = await askUsageSharing();
   const telemetry = await askTelemetry();
 
   // Step 5: Service registration
@@ -982,10 +952,28 @@ async function collectAnswersInteractive(paths: InitPaths): Promise<InitAnswers>
     platforms,
     slackConfig,
     feishuConfig,
-    gatewayUsage,
+    usageSharing,
     telemetry,
     installService: wantService as boolean,
   };
+}
+
+async function askSharingText(field: 'name' | 'org' | 'email'): Promise<string> {
+  const value = await clack.text({
+    message: t(`init.usageSharing.${field}Prompt`), placeholder: t(`init.usageSharing.${field}Placeholder`),
+  });
+  handleCancel(value);
+  return value as string;
+}
+
+async function askUsageSharing(): Promise<UsageSharingUpdate> {
+  clack.note(t('init.usageSharing.note'), t('init.usageSharing.noteTitle'));
+  const enabled = await clack.confirm({ message: t('init.usageSharing.enablePrompt'), initialValue: true });
+  handleCancel(enabled);
+  if (!enabled) return { enabled: false };
+  const name = await askSharingText('name');
+  const org = await askSharingText('org');
+  return { enabled: true, name, org, email: await askSharingText('email') };
 }
 
 async function askTelemetry(): Promise<InitTelemetryAnswer> {
@@ -1031,19 +1019,19 @@ function stdinPlatformTokens(lines: string[], platforms: PlatformChoice[]) {
 
 /** Seven setup lines, platform token blocks, then defaultChoice and comma-separated favorites. */
 export function parseInitAnswersLines(lines: string[]): InitAnswers {
-  const [backendsRaw, platformRaw, gatewayEnabledRaw, name, org, email, installServiceRaw] = lines;
+  const [backendsRaw, platformRaw, sharingRaw, name, org, email, installServiceRaw] = lines;
   const backends = (backendsRaw || 'pi').split(',').map(s => s.trim())
     .filter((s): s is InitBackend => s === 'claude' || s === 'pi');
   const platforms = stdinPlatforms(platformRaw);
   const { slackConfig, feishuConfig, cursor } = stdinPlatformTokens(lines, platforms);
-  const gatewayChoice = gatewayEnabledRaw?.trim().toLowerCase();
+  const sharingChoice = sharingRaw?.trim().toLowerCase();
   return {
     lang: process.env.CORTEX_LANG ? normalizeLocale(process.env.CORTEX_LANG) : detectSystemLocale(),
     backends: backends.length > 0 ? backends : ['claude'],
     machineName: os.hostname(), gpuCount: detectGpuCount(), platforms, slackConfig, feishuConfig,
-    gatewayUsage: gatewayChoice === 'y'
+    usageSharing: sharingChoice === 'y'
       ? { enabled: true, name: name || '', org: org || '', email: email || '' }
-      : gatewayChoice === 'n' ? { enabled: false } : undefined,
+      : sharingChoice === 'n' ? { enabled: false } : undefined,
     installService: installServiceRaw?.toLowerCase() === 'y',
     defaultChoice: parseChoiceLine(lines[cursor]),
     favorites: parseFavoritesLine(lines[cursor + 1]),
@@ -1269,8 +1257,6 @@ function createJsonEmitter(): JsonEmitter {
 export interface InitOptions {
   homeDir?: string;
   force?: boolean;
-  /** Override gateway.yaml output directory (defaults to ~/.aistatus/ when unset). */
-  gatewayConfigDir?: string;
   /**
    * Pre-collected answers (from `--answers <file>`). When present, every prompt is skipped even on
    * a TTY — the caller has already asked the questions in its own UI.
@@ -1291,14 +1277,14 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
   }
 }
 
-function applySharingChoices(paths: InitPaths, answers: InitAnswers, options: InitOptions): void {
-  if (answers.gatewayUsage) writeUsageSharing(answers.gatewayUsage, options.gatewayConfigDir);
+function applySharingChoices(paths: InitPaths, answers: InitAnswers): void {
+  if (answers.usageSharing) writeUsageSharing(answers.usageSharing);
   if (answers.telemetry) {
     applyInitTelemetry(answers.telemetry, { configDir: paths.CONFIG_DIR, storeDir: paths.STORE_DIR });
   }
 }
 
-async function detectAuthAndGateway(
+async function detectAuthAndModels(
   paths: InitPaths, answers: InitAnswers, options: InitOptions, interactive: boolean, emitter: JsonEmitter | null,
 ): Promise<void> {
   const emit = (event: Record<string, unknown>): void => emitter?.emit(event);
@@ -1306,7 +1292,7 @@ async function detectAuthAndGateway(
     emit(event);
     if (!emitter && !interactive) process.stdout.write(`${JSON.stringify(event)}\n`);
   });
-  // The progress step keeps its `gateway` name: the desktop wizard's event stream reads it.
+  // The progress step keeps its `gateway` name: `--json` callers may key on it.
   if (interactive) {
     const configured = authBackends.length > 0
       && await runModelSetup({ backends: authBackends, configDir: paths.CONFIG_DIR, answers, interactive: true });
@@ -1372,7 +1358,7 @@ async function runInitSteps(
   emit({ step: 'config', state: 'ok' });
 
   // 5. Gateway usage and telemetry — omitted scripted answers preserve the existing choices.
-  applySharingChoices(paths, answers, options);
+  applySharingChoices(paths, answers);
 
   // 5b. The main port: a configured one is kept, otherwise the first free port from 26789 up is
   //     written, so a second install on this machine starts without a manual choice.
@@ -1394,7 +1380,7 @@ async function runInitSteps(
   }
 
   // 7. Detect credentials automatically. Login/install is only offered here.
-  await detectAuthAndGateway(paths, answers, options, !!interactive, emitter);
+  await detectAuthAndModels(paths, answers, options, !!interactive, emitter);
 
   // 8. Done
   clack.outro(t('init.outro', { dataDir: paths.DATA_DIR }));

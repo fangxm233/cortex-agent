@@ -77,11 +77,10 @@ export async function initialize() {
   const manifest = JSON.parse(fs.readFileSync(`${SERVER}/dist/client-bundle/manifest.json`, 'utf8'));
   assert.equal(bundleHash(`${SERVER}/dist/client-bundle`), manifest.hash);
   const answers = { lang: 'en', backends: ['pi'], gpuCount: 0, platforms: [], installService: false,
-    gatewayUsage: { enabled: false }, localUi: { enabled: true, port: 3004 },
+    usageSharing: { enabled: false }, localUi: { enabled: true, port: 3004 },
     localClient: { enabled: true }, machineName: 'test-local' };
   fs.writeFileSync(`${EVIDENCE}/answers.json`, JSON.stringify(answers));
-  const stdout = await cli(['init', '--answers', `${EVIDENCE}/answers.json`, '--json',
-    '--gateway-config-dir', `${HOME}/gateway`]);
+  const stdout = await cli(['init', '--answers', `${EVIDENCE}/answers.json`, '--json']);
   const events = stdout.trim().split('\n').map(line => JSON.parse(line));
   const endpoint = events.at(-1);
   const tokens = privateTokens();

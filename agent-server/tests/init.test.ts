@@ -32,7 +32,7 @@ function baseAnswers(lang: 'en' | 'zh'): InitAnswers {
     machineName: 'testbox',
     gpuCount: 0,
     platforms: [],
-    gatewayUsage: { enabled: false },
+    usageSharing: { enabled: false },
     installService: false,
   };
 }
@@ -170,7 +170,7 @@ const MINIMAL_ANSWERS: InitAnswers = {
   machineName: 'test-host',
   gpuCount: 0,
   platforms: [],
-  gatewayUsage: { enabled: false },
+  usageSharing: { enabled: false },
   installService: false,
 };
 
@@ -185,7 +185,7 @@ const SLACK_ANSWERS: InitAnswers = {
     signingSecret: 'test-signing-secret',
     appToken: 'xapp-test-app-token',
   },
-  gatewayUsage: { enabled: false },
+  usageSharing: { enabled: false },
   installService: false,
 };
 
@@ -200,7 +200,7 @@ const FEISHU_ANSWERS: InitAnswers = {
     appSecret: 'test-app-secret',
     domain: 'feishu',
   },
-  gatewayUsage: { enabled: false },
+  usageSharing: { enabled: false },
   installService: false,
 };
 
@@ -219,7 +219,7 @@ const MULTI_ANSWERS: InitAnswers = {
     appId: 'test-app-id',
     appSecret: 'test-app-secret',
   },
-  gatewayUsage: { enabled: false },
+  usageSharing: { enabled: false },
   installService: false,
 };
 
@@ -488,14 +488,21 @@ test('parseInitAnswersJson preserves shared usage config for an empty document',
   assert.deepEqual(answers.backends, ['pi']);
   assert.deepEqual(answers.platforms, []);
   assert.equal(answers.installService, false);
-  assert.equal(answers.gatewayUsage, undefined);
+  assert.equal(answers.usageSharing, undefined);
   assert.equal(answers.localUi, undefined);
   assert.equal(answers.machineName, os.hostname());
 });
 
-test('parseInitAnswersJson preserves an explicit gateway usage opt-out', () => {
-  const answers = parseInitAnswersJson('{"gatewayUsage":{"enabled":false}}');
-  assert.deepEqual(answers.gatewayUsage, { enabled: false });
+test('parseInitAnswersJson preserves an explicit usage-sharing opt-out', () => {
+  const answers = parseInitAnswersJson('{"usageSharing":{"enabled":false}}');
+  assert.deepEqual(answers.usageSharing, { enabled: false });
+});
+
+test('parseInitAnswersJson reads the earlier gatewayUsage key when usageSharing is absent', () => {
+  assert.deepEqual(parseInitAnswersJson('{"gatewayUsage":{"enabled":true,"name":"n","email":"e"}}').usageSharing,
+    { enabled: true, name: 'n', org: '', email: 'e' });
+  assert.deepEqual(parseInitAnswersJson('{"gatewayUsage":{"enabled":true},"usageSharing":{"enabled":false}}').usageSharing,
+    { enabled: false });
 });
 
 test('init answers do not accept retired model choice keys', () => {
@@ -534,7 +541,7 @@ test('parseInitAnswersJson reads the full desktop-wizard document', () => {
     gpuCount: 2,
     platforms: ['slack', 'slack', 'feishu', 'bogus'],
     installService: true,
-    gatewayUsage: { enabled: true, name: 'n', org: 'o', email: 'e' },
+    usageSharing: { enabled: true, name: 'n', org: 'o', email: 'e' },
     defaultChoice: { backend: 'claude', provider: null, model: 'opus' },
     favorites: [{ backend: 'pi', provider: 'deepseek', model: 'flash' }, { mode: 'plan', model: 'haiku' }, { mode: 'cc' }],
     localUi: { enabled: true, port: 4321 },
@@ -546,7 +553,7 @@ test('parseInitAnswersJson reads the full desktop-wizard document', () => {
   assert.equal(answers.gpuCount, 2);
   assert.deepEqual(answers.platforms, ['slack', 'feishu'], 'duplicates and unknown platforms dropped');
   assert.equal(answers.installService, true);
-  assert.deepEqual(answers.gatewayUsage, { enabled: true, name: 'n', org: 'o', email: 'e' });
+  assert.deepEqual(answers.usageSharing, { enabled: true, name: 'n', org: 'o', email: 'e' });
   assert.deepEqual(answers.defaultChoice, { route: 'claude', model: 'opus' });
   assert.deepEqual(answers.favorites, [
     { route: 'deepseek', model: 'flash' }, { route: 'plan', model: 'haiku' },

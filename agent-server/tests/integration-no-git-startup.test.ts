@@ -52,8 +52,7 @@ async function initialize(home: string, env: NodeJS.ProcessEnv, port: number) {
   const answers = join(home, 'answers.json');
   writeFileSync(answers, JSON.stringify({ lang: 'en', backends: ['pi'], platforms: [],
     machineName: 'no-git', installService: false, localUi: { enabled: true, port } }));
-  const run = launch('cli.ts', ['init', '--home', home, '--gateway-config-dir', join(home, '.aistatus'),
-    '--answers', answers, '--json'], env);
+  const run = launch('cli.ts', ['init', '--home', home, '--answers', answers, '--json'], env);
   const [code] = await once(run.child, 'close');
   expect(code, run.errors()).toBe(0);
   expect(existsSync(join(home, '.git'))).toBe(false);

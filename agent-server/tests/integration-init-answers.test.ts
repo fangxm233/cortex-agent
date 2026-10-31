@@ -26,8 +26,10 @@ function runCli(args: string[], timeoutMs = 120_000): Promise<{
   stdout: string; stderr: string; exitCode: number | null;
 }> {
   return new Promise((resolve, reject) => {
+    // Init writes the usage-sharing answer under the aistatus home: keep it inside the test home.
+    const home = args[args.indexOf('--home') + 1];
     const child = spawn(NODE, ['--import', 'tsx', CLI_TS, ...args], {
-      env: { ...process.env },
+      env: { ...process.env, CORTEX_AISTATUS_HOME: home },
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: true,
     });
@@ -81,7 +83,6 @@ test('init --answers --json emits an NDJSON event stream and enables the local U
   const result = await runCli([
     'init',
     '--home', home,
-    '--gateway-config-dir', path.join(home, 'aistatus'),
     '--answers', answersFile,
     '--json',
   ]);
@@ -115,34 +116,30 @@ test('init --answers --json emits an NDJSON event stream and enables the local U
   );
 });
 
-test('non-interactive init preserves gateway usage when no answer is supplied', async () => {
+test('non-interactive init preserves usage sharing when no answer is supplied', async () => {
   const home = makeHome();
-  const gatewayDir = path.join(home, 'aistatus');
-  const configPath = path.join(gatewayDir, 'config.yaml');
+  const aistatusDir = path.join(home, '.aistatus');
+  const configPath = path.join(aistatusDir, 'config.yaml');
   const original = 'name: test-user\nuploadEnabled: true\n';
-  mkdirSync(gatewayDir, { recursive: true });
+  mkdirSync(aistatusDir, { recursive: true });
   writeFileSync(configPath, original);
 
-  const result = await runCli([
-    'init', '--home', home, '--gateway-config-dir', gatewayDir, '--json',
-  ]);
+  const result = await runCli(['init', '--home', home, '--json']);
 
   assert.equal(result.exitCode, 0, `init failed\nstderr: ${result.stderr}`);
   assert.equal(readFileSync(configPath, 'utf-8'), original);
 });
 
-test('init --answers applies an explicit gateway usage opt-out', async () => {
+test('init --answers applies an explicit usage-sharing opt-out', async () => {
   const home = makeHome();
-  const gatewayDir = path.join(home, 'aistatus');
-  const configPath = path.join(gatewayDir, 'config.yaml');
+  const aistatusDir = path.join(home, '.aistatus');
+  const configPath = path.join(aistatusDir, 'config.yaml');
   const answersFile = path.join(home, 'answers.json');
-  mkdirSync(gatewayDir, { recursive: true });
+  mkdirSync(aistatusDir, { recursive: true });
   writeFileSync(configPath, 'name: test-user\nuploadEnabled: true\n');
-  writeFileSync(answersFile, JSON.stringify({ gatewayUsage: { enabled: false } }));
+  writeFileSync(answersFile, JSON.stringify({ usageSharing: { enabled: false } }));
 
-  const result = await runCli([
-    'init', '--home', home, '--gateway-config-dir', gatewayDir, '--answers', answersFile, '--json',
-  ]);
+  const result = await runCli(['init', '--home', home, '--answers', answersFile, '--json']);
 
   assert.equal(result.exitCode, 0, `init failed\nstderr: ${result.stderr}`);
   assert.match(readFileSync(configPath, 'utf-8'), /uploadEnabled: false/);

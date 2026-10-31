@@ -450,7 +450,7 @@ test('initialization writes the empty MCP composition file', () => {
   const paths = getResolvedPaths(root);
   const answers: InitAnswers = {
     lang: 'en', backends: ['claude'], machineName: 'fixture', gpuCount: 0,
-    platforms: [], gatewayUsage: { enabled: false }, installService: false,
+    platforms: [], usageSharing: { enabled: false }, installService: false,
   };
   mkdirSync(paths.CONFIG_DIR, { recursive: true });
   mkdirSync(paths.STORE_DIR, { recursive: true });

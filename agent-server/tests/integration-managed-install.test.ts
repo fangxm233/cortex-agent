@@ -98,7 +98,7 @@ async function initialize(f: Fixture) {
   const answers = join(f.home, 'answers.json');
   writeFileSync(answers, JSON.stringify({ lang: 'en', backends: ['pi'], platforms: [], machineName: 'managed-install-test',
     installService: false, localUi: { enabled: true, port: Number(f.env.CORTEX_UI_PORT) } }));
-  const result = await command(f, [f.cli, 'init', '--answers', answers, '--json', '--gateway-config-dir', join(f.home, '.aistatus')]);
+  const result = await command(f, [f.cli, 'init', '--answers', answers, '--json']);
   expect(result.code, result.stderr).toBe(0);
   const events = result.stdout.trim().split('\n').map(line => JSON.parse(line));
   const endpoint = events.at(-1) as { uiUrl: string; clientToken: string };

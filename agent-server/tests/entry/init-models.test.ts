@@ -32,6 +32,15 @@ test.each([
 test('a choice the host cannot run is refused', () => {
   expect(() => choiceSelection(SNAPSHOT, { route: 'deepseek', model: 'opus' })).toThrow(/not among the models/);
   expect(() => choiceSelection(SNAPSHOT, { route: 'gone', model: 'opus' })).toThrow(/not among the models/);
+  expect(() => choiceSelection(SNAPSHOT, { route: 'claude', model: 'opus', connection: 'gone' })).toThrow(/not among the models/);
+});
+
+test('a Claude choice pins one of the host\'s connections by `connection`', () => {
+  const choice = parseChoiceValue({ backend: 'claude', connection: 'relay', model: 'opus' })!;
+  expect(choice).toEqual({ route: 'claude', model: 'opus', connection: 'relay' });
+  expect(choiceSelection(SNAPSHOT, choice)).toEqual({ backend: 'claude', provider: null, model: 'opus', thinking: null, connection: 'relay' });
+  expect(parseChoiceValue({ backend: 'pi', provider: 'deepseek', connection: 'relay', model: 'flash' }))
+    .toEqual({ route: 'deepseek', model: 'flash' });
 });
 
 test('answers name a model by backend and provider; older answers by mode', () => {

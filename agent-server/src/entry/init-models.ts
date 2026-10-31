@@ -15,8 +15,9 @@ import {
 /**
  * A model the answers name. `route` is `claude` (or a Claude connection id), a PI provider, or a
  * route name older answers used: `plan`/`api` for Claude, `pi-anthropic` for PI's anthropic.
+ * `connection` pins a Claude choice to one of the host's Claude connections.
  */
-export interface InitModelChoice { route: string; model: string }
+export interface InitModelChoice { route: string; model: string; connection?: string }
 
 const CLAUDE_ROUTES = new Set(['claude', 'plan', 'api', 'subscription']);
 const LEGACY_PI_ROUTES: Record<string, string> = { 'pi-anthropic': 'anthropic' };
@@ -31,13 +32,18 @@ function routeOf(input: Record<string, unknown>): string | undefined {
   return trimmed(input.mode);
 }
 
-/** `{backend, provider, model}`, or an older `{mode, model}`; undefined when half is missing. */
+/**
+ * `{backend, provider, model}` with an optional Claude `connection`, or an older `{mode, model}`;
+ * undefined when half is missing.
+ */
 export function parseChoiceValue(value: unknown): InitModelChoice | undefined {
   if (!value || typeof value !== 'object') return undefined;
   const input = value as Record<string, unknown>;
   const route = routeOf(input);
   const model = trimmed(input.model);
-  return route && model ? { route, model } : undefined;
+  if (!route || !model) return undefined;
+  const connection = input.backend === 'claude' ? trimmed(input.connection) : undefined;
+  return connection ? { route, model, connection } : { route, model };
 }
 
 /** `route:model` from the piped-stdin protocol; undefined for empty or invalid input. */
@@ -58,16 +64,17 @@ export function parseFavoritesLine(raw: string | undefined): InitModelChoice[] |
 
 // ── Resolving a choice against the catalog ───────────────────────────────────────────────────
 
-function claudeConnection(snapshot: CatalogSnapshot, route: string): string | null | undefined {
-  if (CLAUDE_ROUTES.has(route)) return null;
+function claudeConnection(snapshot: CatalogSnapshot, choice: InitModelChoice): string | null | undefined {
   const connections = routeFor(snapshot, { backend: 'claude', provider: null })?.connections ?? [];
-  return connections.includes(route) ? route : undefined;
+  if (choice.connection !== undefined) return connections.includes(choice.connection) ? choice.connection : undefined;
+  if (CLAUDE_ROUTES.has(choice.route)) return null;
+  return connections.includes(choice.route) ? choice.route : undefined;
 }
 
 /** The selection a choice names; throws when the host cannot run it. */
 export function choiceSelection(snapshot: CatalogSnapshot, choice: InitModelChoice): EngineSelection {
   const refs = findModelRefs(snapshot, choice.model);
-  const connection = claudeConnection(snapshot, choice.route);
+  const connection = claudeConnection(snapshot, choice);
   const provider = LEGACY_PI_ROUTES[choice.route] ?? choice.route;
   const ref = connection !== undefined
     ? refs.find((entry) => entry.backend === 'claude')

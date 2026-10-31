@@ -35,9 +35,9 @@ export CORTEX_TEST_SEED_HOME="$CORTEX_HOME"
 
 echo "[run-tests] cortex init → $CORTEX_HOME"
 
-printf 'claude\nnone\nn\n\n\n\nn\n\n\n' | node --import tsx src/entry/cli.ts init \
+# Init records the usage-sharing answer under the aistatus home: keep it inside the test home.
+printf 'claude\nnone\nn\n\n\n\nn\n\n\n' | CORTEX_AISTATUS_HOME="$CORTEX_HOME" node --import tsx src/entry/cli.ts init \
   --home "$CORTEX_HOME" \
-  --gateway-config-dir "$CORTEX_HOME/gateway" \
   2>/dev/null
 
 # ── Seed test configs ────────────────────────────────────────────

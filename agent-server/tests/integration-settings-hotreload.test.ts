@@ -239,7 +239,6 @@ async function cortexInit(home: string): Promise<void> {
     CLI_TS,
     'init',
     '--home', home,
-    '--gateway-config-dir', path.join(home, 'aistatus'),
   ], 'claude\nnone\nn\nn\nn\nn\nn\nn\n', isolatedBaseEnv(home));
   assert.equal(result.code, 0, `cortex init failed:\n${result.stderr}`);
 }

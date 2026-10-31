@@ -66,10 +66,12 @@ for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) {
 function spawnWait(executable: string, args: string[], opts: {
   stdin?: string;
   timeoutMs?: number;
+  env?: NodeJS.ProcessEnv;
 }): Promise<{ stdout: string; stderr: string; exitCode: number | null }> {
   return new Promise((resolve, reject) => {
     const child = trackedSpawn(executable, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
+      ...(opts.env ? { env: opts.env } : {}),
     });
 
     let stdout = '';
@@ -103,21 +105,19 @@ function spawnWait(executable: string, args: string[], opts: {
 /**
  * Init a cortex data directory via `node --import tsx cli.ts init --home <dir>`.
  *
- * `--gateway-config-dir` is also pinned to a tempDir sub-path so the test never touches
- * the production `~/.aistatus/gateway.yaml` (cortex init writes & backs up that file
- * by default — see writeMergedGatewayYaml in src/core/gateway-generator.ts).
+ * The aistatus home is pinned to the temp dir too, so the usage-sharing answer init records never
+ * reaches the production `~/.aistatus/config.yaml`.
  */
 async function cortexInit(homeDir: string, stdinAnswers: string): Promise<void> {
-  const gatewayDir = path.join(homeDir, 'aistatus');
   const initResult = await spawnWait(NODE, [
     ...TSX_FLAGS,
     CLI_TS,
     'init',
     '--home', homeDir,
-    '--gateway-config-dir', gatewayDir,
   ], {
     stdin: stdinAnswers,
     timeoutMs: 120_000,
+    env: { ...process.env, CORTEX_AISTATUS_HOME: homeDir },
   });
 
   // Non-interactive init should succeed
@@ -157,36 +157,35 @@ async function waitForPayload(filePath: string, timeoutMs = 3_000): Promise<Reco
 // ─── Tests ────────────────────────────────────────────────────────
 
 /**
- * Snapshot mtime of `~/.aistatus/gateway.yaml` (if it exists) before each test, and
+ * Snapshot mtime of `~/.aistatus/config.yaml` (if it exists) before each test, and
  * confirm it is unchanged after — regression for "cortex init test accidentally
- * overwrites production gateway.yaml" when --gateway-config-dir is not passed.
+ * overwrites the production usage-sharing settings".
  */
-function snapshotProdGatewayMtime(): number | null {
-  const prodGateway = path.join(os.homedir(), '.aistatus', 'gateway.yaml');
-  if (!existsSync(prodGateway)) return null;
-  return statSync(prodGateway).mtimeMs;
+const PROD_SHARING = path.join(os.homedir(), '.aistatus', 'config.yaml');
+
+function snapshotProdSharingMtime(): number | null {
+  if (!existsSync(PROD_SHARING)) return null;
+  return statSync(PROD_SHARING).mtimeMs;
 }
 
-function assertProdGatewayUntouched(snapshot: number | null): void {
-  const prodGateway = path.join(os.homedir(), '.aistatus', 'gateway.yaml');
+function assertProdSharingUntouched(snapshot: number | null): void {
   if (snapshot === null) {
-    assert.ok(!existsSync(prodGateway),
-      `cortex init must not create ~/.aistatus/gateway.yaml when --gateway-config-dir is passed`);
+    assert.ok(!existsSync(PROD_SHARING), 'cortex init must not create ~/.aistatus/config.yaml');
     return;
   }
-  assert.ok(existsSync(prodGateway), '~/.aistatus/gateway.yaml went missing during test');
-  const after = statSync(prodGateway).mtimeMs;
+  assert.ok(existsSync(PROD_SHARING), '~/.aistatus/config.yaml went missing during test');
+  const after = statSync(PROD_SHARING).mtimeMs;
   assert.equal(after, snapshot,
-    `cortex init must not modify production ~/.aistatus/gateway.yaml (mtime drifted from ${snapshot} to ${after})`);
+    `cortex init must not modify production ~/.aistatus/config.yaml (mtime drifted from ${snapshot} to ${after})`);
 }
 
 test('Test 1: cortex init creates valid directory structure (non-interactive)', async () => {
   const tempDir = mkdtempSync(path.join(os.tmpdir(), 'cortex-int-'));
-  const prodGatewaySnap = snapshotProdGatewayMtime();
+  const prodSharingSnap = snapshotProdSharingMtime();
   try {
-    // Run init with piped stdin: backend=claude, platform=none, gateway=n, installService=n
+    // Run init with piped stdin: backend=claude, platform=none, sharing=n, installService=n
     await cortexInit(tempDir, 'claude\nnone\nn\nn\nn\nn\n');
-    assertProdGatewayUntouched(prodGatewaySnap);
+    assertProdSharingUntouched(prodSharingSnap);
 
     // Assert core directory structure
     const dirs = [
@@ -270,9 +269,9 @@ test('Test 2: Server starts and shuts down cleanly in initialized environment', 
 
     // Fork app.ts directly with test platform
     const mainPort = String(randomPort());
-    // The server resolves ~/.aistatus via os.homedir(): its gateway child reads gateway.yaml and
-    // records usage under ~/.aistatus/usage. Point HOME into tempDir so none of that reaches the
-    // real home directory.
+    // The server resolves ~/.aistatus and ~/.pi via os.homedir(): the usage-sharing settings, the
+    // gateway.yaml its connections migration reads, and PI's catalog. Point HOME into tempDir so
+    // none of that reaches the real home directory.
     const isolatedHome = path.join(tempDir, 'home');
     mkdirSync(isolatedHome, { recursive: true });
 
@@ -399,7 +398,7 @@ test('Test 3: Initialized environment has correct config content', async () => {
 test('Test 4: cortex init with Slack platform writes Slack tokens to .env', async () => {
   const tempDir = mkdtempSync(path.join(os.tmpdir(), 'cortex-int-'));
   try {
-    // stdin: backends, platform, gateway, name, org, email, installService, signing_secret, app_token, bot_token
+    // stdin: backends, platform, sharing, name, org, email, installService, signing_secret, app_token, bot_token
     await cortexInit(tempDir, 'claude\nslack\nn\nn\nn\nn\nn\nsec123\nxapp-test-app\nxoxb-test-bot\n');
 
     const envContent = readFileSync(path.join(tempDir, 'config', '.env'), 'utf-8');

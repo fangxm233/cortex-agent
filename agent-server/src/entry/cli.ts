@@ -350,7 +350,6 @@ async function runInitCli(args: string[]): Promise<CliResult> {
     return { exitCode: 0, stdout: getInitHelp(), stderr: '' };
   }
   const homeDir = optionValue(args, '--home');
-  const gatewayConfigDir = optionValue(args, '--gateway-config-dir');
   const answersFile = optionValue(args, '--answers');
   try {
     // --answers replaces every prompt with a JSON document, which is how the desktop setup wizard
@@ -361,7 +360,6 @@ async function runInitCli(args: string[]): Promise<CliResult> {
       : undefined;
     await runInit({
       homeDir,
-      gatewayConfigDir,
       force: args.includes('--force'),
       answers,
       jsonEvents: args.includes('--json'),
