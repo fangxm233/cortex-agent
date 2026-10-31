@@ -9,6 +9,7 @@ import {
 } from './mcp-bridge.js';
 import { installHookBridge } from './hook-bridge.js';
 import { installToolShims } from './tool-shims.js';
+import { installDescribedBash } from './bash-description.js';
 import { createQuotaProbe } from './quota-probe.js';
 import { installImageFirst } from './image-first.js';
 import type { SubagentModelEnvGetter } from '@core/agents/subagent/catalog.js';
@@ -44,10 +45,11 @@ function sessionModelEnv(env: NodeJS.ProcessEnv, getSnapshot?: SubagentModelEnvG
 /**
  * The Cortex extensions a session runs with, each closed over the session's request rather
  * than `process.env`: the MCP bridge (Cortex bundles in-process, plugin servers as independent
- * connections), the tool shims, image-first requests, the optional hook bridge, and the quota
- * probe for runs that have somewhere to report to. The same quota reporter reaches
- * nested child sessions through the shims: a child's provider calls are the parent's spend, and
- * codex publishes quota only on real responses, so dropping the child's would starve the reading.
+ * connections), the tool shims, bash with a description, image-first requests, the optional hook
+ * bridge, and the quota probe for runs that have somewhere to report to. The same quota reporter
+ * reaches nested child sessions through the shims: a child's provider calls are the parent's spend,
+ * and codex publishes quota only on real responses, so dropping the child's would starve the
+ * reading.
  */
 export function createCortexExtensions(
   request: PiSessionRequest,
@@ -77,6 +79,7 @@ export function createCortexExtensions(
         openBundledMcpServer: hooks.openBundledMcpServer,
       }),
     },
+    { name: 'cortex-described-bash', factory: (pi) => installDescribedBash(pi) },
   ];
   if (!request.disableHooks) {
     extensions.push({ name: 'cortex-hook-bridge', factory: (pi) => installHookBridge(pi, request.env) });

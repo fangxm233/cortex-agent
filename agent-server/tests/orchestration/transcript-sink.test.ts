@@ -114,6 +114,18 @@ test('tool_use appends a history row and publishes the tool message', () => {
   assert.deepEqual(h.debug, []);
 });
 
+test('tool_use carries the call\'s description on the row and the live event', () => {
+  const h = harness();
+  h.sink.onEvent({
+    type: 'tool_use', toolUseId: 'tu-d', name: 'Bash',
+    input: { command: 'ls -la', description: '  List\n files ' }, phase: 'foreground',
+  });
+
+  assert.equal(h.history[0].opts.toolInput, 'ls -la');
+  assert.equal(h.history[0].opts.toolDescription, 'List files');
+  assert.equal(h.published[0].toolDescription, 'List files');
+});
+
 test('tool_use carries DEBUG toolUseId/fullInput and refreshes the transcript when debug is on', async () => {
   const input = { command: 'ls', nested: { a: 1 } };
   const h = harness({ debug: true });

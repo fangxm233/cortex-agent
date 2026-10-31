@@ -9,18 +9,18 @@ import { DebugDetailsModal, DebugInspectButton, type DebugDetail } from './Debug
 import { ToolCallImages } from './ToolCallImages';
 import { ThinkingRow } from './HintRow';
 import { EventIcon, eventRowStyle, type EventIconName } from './EventRow';
-import { bareToolName, leadingCategory, toolCategory, toolRunNow, toolRunText, type ToolCategory } from './tool-summary';
+import { bareToolName, callCategory, runLead, toolCategory, toolStepText, type StepCategory } from './tool-summary';
 
 const mono = "'IBM Plex Mono',monospace";
 
-// A run of consecutive tool calls: one quiet line saying what the run did ("Ran 6 commands · Edited
-// parser.ts"), which opens to the calls themselves — one line each, the command or path in mono.
-// The line is the same in both states: opening it turns its caret and hangs the list under it.
-// While the run is what the agent is doing right now, the line ends with the step under way
-// ("Running pnpm test", "Thinking") — a thought being written joins the run as its latest entry —
-// and its words roll to the next step rather than jump.
+// A run of consecutive tool calls: one quiet line saying what its latest step is — the agent's own
+// description of the call, or the call made readable ("Edited parser.ts") — which opens to the calls
+// themselves, one line each, the command or path in mono. The line is the same in both states:
+// opening it turns its caret and hangs the list under it. While the run is what the agent is doing
+// right now, the line is the step under way ("Running pnpm test", "Thinking") — a thought being
+// written joins the run as its latest entry — and its words roll to the next step rather than jump.
 
-const CATEGORY_ICON: Record<ToolCategory | 'thought', EventIconName> = {
+const CATEGORY_ICON: Record<StepCategory, EventIconName> = {
   command: 'terminal', read: 'file', edit: 'pencil', search: 'search', web: 'globe', todo: 'list', skill: 'circle', other: 'circle', thought: 'spark',
 };
 
@@ -35,7 +35,7 @@ const kindStyle: CSSProperties = {
 const iconBoxStyle: CSSProperties = {
   width: 16, height: 16, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--proto-faint)',
 };
-// The line cuts from its end: what the run did keeps its words, and the step under way gives way.
+// The line cuts from its end when the step is longer than the row.
 const nowStyle: CSSProperties = {
   color: 'var(--proto-ink-3)', fontWeight: 550, flex: '0 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
 };
@@ -103,26 +103,20 @@ function imageCount(calls: ToolCall[]): number {
     : 0;
 }
 
-/** What the calls did, in the past tense: "Ran 6 commands · Edited parser.ts". */
-function doneText(calls: ToolCall[], L: Vocab): string {
-  const images = imageCount(calls);
-  return images > 0 ? fmt(images === 1 ? L.chatToolImagesOne : L.chatToolImagesMany, { n: images }) : toolRunText(calls, L);
-}
-
 interface RunLine {
   icon: EventIconName;
-  /** The step under way, while the run is what the agent is doing right now. */
-  now: string | null;
-  done: string;
+  text: string;
+  /** The run is what the agent is doing right now. */
+  live: boolean;
 }
 
-/** The run's line: what it did, and — while it is the live step — what it is doing now, last, where
- *  the eye lands at the end of the line. */
+/** The run's line: an image run counts its images once it is over; any other run is its lead step. */
 function runLine(calls: ToolCall[], live: boolean, L: Vocab): RunLine {
-  const icon = imageCount(calls) > 0 ? 'file' : CATEGORY_ICON[leadingCategory(calls)];
-  if (!live) return { icon, now: null, done: doneText(calls, L) };
-  const latest = calls[calls.length - 1];
-  return { icon, now: toolRunNow(latest, L), done: doneText(calls.slice(0, -1), L) };
+  const images = imageCount(calls);
+  const lead = runLead(calls, live);
+  const icon = images > 0 ? 'file' : CATEGORY_ICON[lead ? callCategory(lead) : 'other'];
+  if (images > 0 && !live) return { icon, live, text: fmt(images === 1 ? L.chatToolImagesOne : L.chatToolImagesMany, { n: images }) };
+  return { icon, live, text: lead ? toolStepText(lead, live, L) : '' };
 }
 
 function useCallInspect(sessionId: string | undefined): { selected: DebugDetail | null; clear: () => void; inspect: Inspect } {
@@ -146,9 +140,8 @@ function useCallInspect(sessionId: string | undefined): { selected: DebugDetail 
 
 function RunLineText({ line }: { line: RunLine }): JSX.Element {
   return (
-    <SwapText swapKey={`${line.now ?? ''}\n${line.done}`} style={{ flex: 1 }}>
-      {line.done ? <span style={doneStyle}>{line.done}</span> : null}
-      {line.now ? <span data-tool-now="" style={nowStyle}>{line.now}</span> : null}
+    <SwapText swapKey={line.text} style={{ flex: 1 }}>
+      <span style={line.live ? nowStyle : doneStyle}>{line.text}</span>
     </SwapText>
   );
 }
@@ -158,7 +151,7 @@ export function ToolCallsRow({ calls, sessionId, touch = false, live = false }: 
   sessionId?: string;
   /** Mobile transcript: finger-sized row, no hover state, debug inspection always reachable. */
   touch?: boolean;
-  /** The run is what the agent is doing right now: its line ends with the step under way. */
+  /** The run is what the agent is doing right now: its line is the step under way. */
   live?: boolean;
 }): JSX.Element {
   const L = useVocab();

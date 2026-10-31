@@ -29,6 +29,7 @@ import type { ServerUpdateCoordinator } from '@domain/system/server-update-coord
 import { createUiService, type UiService, type UiServiceDeps } from '@domain/ui-service/index.js';
 import { cancelWaitpoint } from '@domain/waitpoints/service.js';
 import { answerQuestion } from '@orch/interactions/answer-question.js';
+import { answerRestoredAsk } from '@orch/interactions/restored-ask.js';
 import { interactionRecords } from '@orch/interactions/interaction-records.js';
 import { planApprovals } from '@orch/interactions/plan-approvals.js';
 import { respondToPlan } from '@orch/interactions/plan-response.js';
@@ -158,10 +159,12 @@ type InteractionDeps = Pick<UiServiceDeps,
 function interactionDeps(): InteractionDeps {
   return {
     getPendingAskUser: (channel) => {
-      const entry = interactionRecords.getPendingByChannel(channel).find((e) => e.kind === 'ask-user');
-      if (!entry) return null;
       // `blocking` distinguishes a session stalled on the answer from one that asked and kept
-      // going (cortex_ask_user blocking:false) — only the former is "awaiting user action".
+      // going (cortex_ask_user blocking:false) — only the former is "awaiting user action". A
+      // non-blocking ask never expires, so a blocking one is preferred when both are pending.
+      const asks = interactionRecords.getPendingByChannel(channel).filter((e) => e.kind === 'ask-user');
+      const entry = asks.find((e) => e.payload.blocking !== false) ?? asks[0];
+      if (!entry) return null;
       return { requestId: entry.id, questions: entry.payload.questions ?? [], blocking: entry.payload.blocking !== false };
     },
     getPendingPlan: (channel) => {
@@ -173,7 +176,12 @@ function interactionDeps(): InteractionDeps {
     isInteractionPending: (id) => interactionRecords.isPending(id),
     // Resolving persists the entity, broadcasts session.interaction to every client and unblocks
     // the waiting MCP tool. First writer wins.
-    answerQuestion: (requestId, answers) => answerQuestion(requestId, answers, 'web'),
+    // A miss with a sessionId may be a non-blocking ask from before a restart.
+    answerQuestion: async (requestId, answers, sessionId) => {
+      const outcome = answerQuestion(requestId, answers, 'web');
+      if (outcome !== 'not-found' || !sessionId) return outcome;
+      return answerRestoredAsk(sessionId, requestId, answers, 'web');
+    },
     respondPlan: (requestId, approved, feedback) => respondToPlan(
       { planApprovals, interactionRecords },
       requestId,

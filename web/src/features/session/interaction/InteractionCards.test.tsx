@@ -10,7 +10,7 @@ vi.mock('@/design/ChatMarkdown', () => ({ ChatMarkdown: ({ text }: { text: strin
 
 const copy = en;
 const ask: AskCardModel = {
-  requestId: 'ask-1', shortId: 'ask-1', status: 'pending', level: null, ts: null, timeLabel: null,
+  requestId: 'ask-1', shortId: 'ask-1', status: 'pending', level: null, blocking: true, ts: null, timeLabel: null,
   questions: [{ question: 'Choose storage', multiSelect: false, answer: null,
     options: [{ label: 'SQLite', description: 'Local database' }] }],
 };
@@ -43,6 +43,15 @@ describe('interaction presentation', () => {
     expect(submit.props.disabled).toBe(true);
     act(() => option.props.onClick());
     expect(onState.mock.calls[0][0].picks).toEqual({ 0: ['SQLite'] });
+  });
+
+  it('shows the TTL countdown only on a blocking question', () => {
+    const text = (model: AskCardModel) => JSON.stringify(mount(<DeskAskCard model={model} state={emptyDeskAsk}
+      copy={copy} onState={vi.fn()} onSubmit={vi.fn()} busy={false} />).toJSON());
+    expect(text(ask)).toContain(copy.ixTtlPrefix);
+    const nonBlocking = text({ ...ask, blocking: false, timeLabel: '07:38' });
+    expect(nonBlocking).not.toContain(copy.ixTtlPrefix);
+    expect(nonBlocking).toContain('07:38');
   });
 
   it('keeps resolved questions readable without fading the card', () => {

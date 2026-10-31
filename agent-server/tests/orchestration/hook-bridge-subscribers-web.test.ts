@@ -151,6 +151,9 @@ test('a non-blocking ask records blocking:false and delivers the answer as a use
 
   assert.equal(fake.created[0].args.payload.blocking, false);
   assert.equal(sent.length, 0, 'nothing is sent until the human answers');
+  const group = askUserQuestion.getGroupByHookRequestId('req-ask-nonblocking');
+  group.createdAt = 0;
+  assert.equal(askUserQuestion.isExpired(group), false, 'an old non-blocking card stays answerable');
 
   assert.equal(answerGroup('req-ask-nonblocking', { 'Which DB?': 'sqlite' }), true);
   assert.equal(sent.length, 1);
@@ -172,6 +175,8 @@ test('a blocking ask leaves the payload flag absent and never sends a user messa
   await flush();
 
   assert.equal('blocking' in fake.created[0].args.payload, false);
+  const group = askUserQuestion.getGroupByHookRequestId('req-ask-blocking');
+  assert.equal(askUserQuestion.isExpired({ ...group, createdAt: 0 }), true, 'a blocking card keeps its TTL');
   assert.equal(answerGroup('req-ask-blocking', { 'Which DB?': 'sqlite' }), true);
   assert.equal(sent.length, 0, 'the blocked tool_result carries the answer, not a new user turn');
 });

@@ -42,10 +42,10 @@ const imageCalls: ToolCall[] = [
 beforeEach(() => { harness.query.mockReset(); harness.openMedia.mockReset(); });
 
 describe('ToolCallsRow', () => {
-  it('says what the run did in one line, and keeps the same toggle across expansion and collapse', () => {
+  it('says the run\'s latest step in one line, and keeps the same toggle across expansion and collapse', () => {
     const renderer = mount();
     const toggle = renderer.root.findByType('button');
-    expect(text(toggle)).toBe('Read file.ts · Ran 1 command');
+    expect(text(toggle)).toBe('Ran pwd');
     expect(toggle.props['aria-expanded']).toBe(false);
     expect(toggle.props.className).toContain('focus-visible:outline');
     act(() => toggle.props.onClick());
@@ -155,7 +155,7 @@ describe('ToolCallsRow', () => {
 
   it('a mixed run still renders as an ordinary tool row', () => {
     const renderer = mount([imageCalls[0], calls[1]]);
-    expect(text(renderer.root.findByType('button'))).toBe('Read a.png · Ran 1 command');
+    expect(text(renderer.root.findByType('button'))).toBe('Ran pwd');
     act(() => renderer.unmount());
   });
 });
@@ -169,14 +169,24 @@ describe('ToolCallsRow as the live step', () => {
   const line = (renderer: ReactTestRenderer): string[] => renderer.root.findByType('button')
     .findAll((n) => n.type === 'span' && typeof n.children[0] === 'string').map((n) => n.children[0] as string);
 
-  it('ends with the step under way, after what the run did before it', () => {
+  it('is the step under way, and the last call once the run is over', () => {
     let renderer!: ReactTestRenderer;
     act(() => { renderer = create(<LangProvider><ToolCallsRow calls={live} sessionId="s1" live /></LangProvider>); });
-    expect(line(renderer)).toEqual(['Ran 1 command · Read parser.ts', 'Thinking']);
+    expect(line(renderer)).toEqual(['Thinking']);
     act(() => renderer.update(<LangProvider><ToolCallsRow calls={live.slice(0, 2)} sessionId="s1" live /></LangProvider>));
-    expect(line(renderer)).toEqual(['Ran 1 command', 'Reading parser.ts']);
-    act(() => renderer.update(<LangProvider><ToolCallsRow calls={live.slice(0, 2)} sessionId="s1" /></LangProvider>));
-    expect(line(renderer)).toEqual(['Ran 1 command · Read parser.ts']);
+    expect(line(renderer)).toEqual(['Reading parser.ts']);
+    act(() => renderer.update(<LangProvider><ToolCallsRow calls={live} sessionId="s1" /></LangProvider>));
+    expect(line(renderer)).toEqual(['Read parser.ts']);
+    act(() => renderer.unmount());
+  });
+
+  it('shows the call\'s own description in place of the readable call', () => {
+    const described: ToolCall[] = [...live.slice(0, 2), { kind: 'Bash', input: 'pnpm vitest run', description: 'Run the parser tests' }];
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = create(<LangProvider><ToolCallsRow calls={described} sessionId="s1" live /></LangProvider>); });
+    expect(line(renderer)).toEqual(['Run the parser tests']);
+    act(() => renderer.update(<LangProvider><ToolCallsRow calls={described} sessionId="s1" /></LangProvider>));
+    expect(line(renderer)).toEqual(['Run the parser tests']);
     act(() => renderer.unmount());
   });
 });

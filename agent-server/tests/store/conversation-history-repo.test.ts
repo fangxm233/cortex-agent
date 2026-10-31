@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { STORE_DIR } from '../../src/core/paths.js';
 import { readHistoryAccumulator } from '../../src/store/conversation-history-reader.js';
-import { ConversationHistoryRepo, summarizeToolInputForHistory, toolDeviceForHistory } from '../../src/store/conversation-history-repo.js';
+import { ConversationHistoryRepo, summarizeToolInputForHistory, toolDescriptionForHistory, toolDeviceForHistory } from '../../src/store/conversation-history-repo.js';
 
 const CUSTOM_HISTORY_DIR = path.join(STORE_DIR, 'history-retention-tests');
 
@@ -1010,6 +1010,21 @@ test('a row larger than the read buffer is joined once, not re-joined on every c
   // Re-joining the pending tail onto every chunk copies the row once per chunk — quadratic in the
   // row, and 3.6 minutes for that 43MB one. Joining when the newline lands copies it once.
   assert.ok(copied <= 2 * HUGE, `Buffer.concat copied ${copied} bytes to fold a ${HUGE}-byte row`);
+});
+
+test('a tool call\'s description is kept as one line and round-trips', async () => {
+  assert.equal(toolDescriptionForHistory({ command: 'ls', description: ' List\n  files ' }), 'List files');
+  assert.equal(toolDescriptionForHistory({ description: 'x'.repeat(200) })?.length, 118);
+  assert.equal(toolDescriptionForHistory({ description: '   ' }), undefined);
+  assert.equal(toolDescriptionForHistory({ description: 3 }), undefined);
+  assert.equal(toolDescriptionForHistory(null), undefined);
+
+  const repo = new ConversationHistoryRepo();
+  await repo.appendTool('sess-tool-description', { toolName: 'Bash', toolInput: 'ls', toolDescription: 'List files' });
+  await repo.appendTool('sess-tool-description', { toolName: 'Read', toolInput: '/a.ts' });
+  const history = await repo.getHistory('sess-tool-description');
+  assert.equal(history?.events[0].toolDescription, 'List files');
+  assert.equal('toolDescription' in history!.events[1], false);
 });
 
 test('summarizeToolInputForHistory names the files of a multi-file send_file', () => {

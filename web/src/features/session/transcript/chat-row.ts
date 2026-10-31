@@ -25,6 +25,8 @@ export interface DebugToolDetail {
 export interface ToolCallEntry {
   kind: string;
   input: string;
+  /** The call's own `description` argument: what the agent says the call is doing. */
+  description?: string;
   /** A thought in an ordered tool run; input carries its markdown, not a tool argument. */
   thinking?: true;
   /** The thought still being written (the streaming preview), always the run's last entry. */

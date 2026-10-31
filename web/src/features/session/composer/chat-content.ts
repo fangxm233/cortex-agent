@@ -9,6 +9,8 @@ export interface ToolCallImage {
 export interface ToolCall {
   kind: string;
   input: string;
+  /** The call's own `description` argument: what the agent says the call is doing. */
+  description?: string;
   /** A thinking entry interleaved with tools; input holds its markdown. */
   thinking?: true;
   /** The thought still being written: the run's latest entry, its text still arriving. */

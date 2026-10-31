@@ -306,7 +306,7 @@ export async function handleAnswerQuestion(
   if (!args.requestId) {
     return { ok: false, code: 'invalid-args', message: 'requestId required' };
   }
-  const outcome = deps.answerQuestion(args.requestId, args.answers ?? {});
+  const outcome = await deps.answerQuestion(args.requestId, args.answers ?? {}, args.sessionId);
   if (outcome === 'not-found') {
     return { ok: false, code: 'not-found', message: t('ui.session.noPendingQuestion', { id: args.requestId }) };
   }

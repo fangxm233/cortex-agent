@@ -416,6 +416,7 @@ function toolEntry(m: TranscriptMessage): ToolCallEntry {
   return {
     kind: toolCallLabel(m.toolName ?? '', m.toolDevice),
     input: m.toolInput ?? '',
+    ...(m.toolDescription ? { description: m.toolDescription } : {}),
     ...(images ? { images } : {}),
     ...(debug ? { debug } : {}),
   };

@@ -236,6 +236,7 @@ function pushTool(state: ParseState, ev: RawEvent, chars: number): void {
     toolName: ev.toolName ?? '',
     toolInput: ev.toolInput ?? '',
     ...(ev.toolDevice ? { toolDevice: ev.toolDevice } : {}),
+    ...(ev.toolDescription ? { toolDescription: ev.toolDescription } : {}),
     ...(ev.teamAction ? { teamAction: ev.teamAction } : {}),
     ...(ev.boardAction ? { boardAction: ev.boardAction } : {}),
     ts: ev.ts,

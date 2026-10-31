@@ -15,6 +15,12 @@ const log = createLogger('interaction-records');
 /** Shared pending TTL — matches hook-bridge / ask-user TTLs (30 minutes). */
 export const INTERACTION_TTL_MS = 30 * 60 * 1000;
 
+/** A pending entry still counts until the TTL — except a non-blocking ask, which never expires. */
+function isLivePending(entry: InteractionIndexEntry, now: number): boolean {
+  if (entry.status !== 'pending') return false;
+  return entry.payload.blocking === false || now - entry.createdAt <= INTERACTION_TTL_MS;
+}
+
 /** Terminal index entries are pruned after this age (bounded memory). */
 const TERMINAL_RETENTION_MS = 60 * 60 * 1000;
 
@@ -92,6 +98,13 @@ export class InteractionRecords {
     this.publish(entry);
   }
 
+  /** Re-index a pending interaction known only from history (the server restarted since it was
+   *  created). Nothing is persisted or published; a no-op when the id is already indexed. */
+  restore(entry: Omit<InteractionIndexEntry, 'status'>): void {
+    if (this.index.has(entry.id)) return;
+    this.index.set(entry.id, { ...entry, status: 'pending' });
+  }
+
   /** Move a pending interaction to a terminal status. First-writer-wins. */
   async resolve(args: { id: string; status: Exclude<InteractionStatus, 'pending'>; result?: InteractionResult; resolvedVia: InteractionResolvedVia }): Promise<'resolved' | 'already-resolved' | 'unknown'> {
     const entry = this.index.get(args.id);
@@ -139,14 +152,14 @@ export class InteractionRecords {
   /** Liveness signal for read-time derivation: true only for a live, un-expired pending entry. */
   isPending(id: string): boolean {
     const entry = this.index.get(id);
-    return !!entry && entry.status === 'pending' && Date.now() - entry.createdAt <= INTERACTION_TTL_MS;
+    return !!entry && isLivePending(entry, Date.now());
   }
 
-  /** All live pending interactions for a channel (payload included, TTL-filtered). */
+  /** All live pending interactions for a channel (payload included, TTL-filtered except non-blocking asks). */
   getPendingByChannel(channel: string): InteractionIndexEntry[] {
     const out: InteractionIndexEntry[] = [];
     for (const entry of this.index.values()) {
-      if (entry.channel === channel && entry.status === 'pending' && Date.now() - entry.createdAt <= INTERACTION_TTL_MS) {
+      if (entry.channel === channel && isLivePending(entry, Date.now())) {
         out.push(entry);
       }
     }
@@ -156,7 +169,7 @@ export class InteractionRecords {
   pendingSessionIds(): string[] {
     const out = new Set<string>();
     for (const entry of this.index.values()) {
-      if (entry.status === 'pending' && Date.now() - entry.createdAt <= INTERACTION_TTL_MS) {
+      if (isLivePending(entry, Date.now())) {
         out.add(entry.sessionId);
       }
     }

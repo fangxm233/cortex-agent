@@ -16,7 +16,7 @@ export type InteractionSummaryVocab = Pick<Vocab,
 // ── TTL / time ────────────────────────────────────────────────────────────────
 
 /** Mirrors the server's INTERACTION_TTL_MS (domain/ui-service/query/sessions.ts): pending rows
- *  older than 30min derive to expired at read time. The client countdown uses the SAME constant
+ *  older than 30min derive to expired at read time (a non-blocking ask never does). The client countdown uses the SAME constant
  *  from the row's real ts — it is a derivation, not a server-sent deadline. */
 export const INTERACTION_TTL_MS = 30 * 60 * 1000;
 
@@ -68,6 +68,8 @@ export interface AskCardModel {
   status: TranscriptInteractionDetail['status'];
   /** Card severity from payload.level — null = neutral legacy look. */
   level: 'info' | 'warning' | 'error' | null;
+  /** False for a non-blocking ask: the agent kept running and the card never expires. */
+  blocking: boolean;
   questions: AskQuestionVM[];
   ts: string | null;
   timeLabel: string | null;
@@ -87,12 +89,13 @@ export function askCardModel(detail: TranscriptInteractionDetail, ts?: string | 
   const questions = detail.payload.questions ?? [];
   if (!questions.length) return null;
   const answers = detail.result?.answers ?? {};
-  const payload = detail.payload as { level?: 'info' | 'warning' | 'error' };
+  const payload = detail.payload as { level?: 'info' | 'warning' | 'error'; blocking?: boolean };
   return {
     requestId: detail.id,
     shortId: detail.id.slice(0, 8),
     status: detail.status,
     level: payload.level ?? null,
+    blocking: payload.blocking !== false,
     questions: questions.map((q) => ({
       question: q.question,
       options: askOptions(q),

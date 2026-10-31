@@ -289,8 +289,9 @@ in its own `tool_result`, so the agent cannot proceed without them. With
 `blocking: false` the call returns as soon as the card is posted and the agent
 keeps working; when the human answers, the answer is delivered to the session as
 an ordinary user message — folded into the running turn if one is still live,
-otherwise opening a fresh turn. An unanswered non-blocking card expires on the
-same TTL and simply never produces a message. In the workbench, only a blocking
+otherwise opening a fresh turn. A non-blocking card has no TTL and stays
+answerable until the human answers it, on the Web UI even across a server
+restart. In the workbench, only a blocking
 question marks a session as awaiting user action; a session that asked without
 blocking keeps rendering as running.
 

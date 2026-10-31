@@ -450,6 +450,8 @@ export interface TranscriptMessage {
   toolInput: string | null;
   /** Remote execution target (remote tool events only). */
   toolDevice?: string;
+  /** The call's own `description` argument: what the agent says it is doing (tool events only). */
+  toolDescription?: string;
   /** What a lead's worker tool call did (worker_spawn/send/answer/stop tool rows only). */
   teamAction?: TeamActionRef;
   /** What a successful `board_open` call did (its tool row only; absent on failed calls and on
@@ -2024,9 +2026,10 @@ export interface UiServiceDeps {
    * looks up the hook group, collects answers, updates the interaction entity, and calls
    * tryResolveHook/resolveHookRequest so the blocked MCP tool receives its response.
    * Three-way outcome: 'resolved' | 'already-resolved' (another client won the race) |
-   * 'not-found' (no such interaction).
+   * 'not-found' (no such interaction). With `sessionId`, a non-blocking ask the server lost on a
+   * restart is recovered from that session's history.
    */
-  answerQuestion: (requestId: string, answers: Record<string, string>) => 'resolved' | 'already-resolved' | 'not-found';
+  answerQuestion: (requestId: string, answers: Record<string, string>, sessionId?: string) => Promise<'resolved' | 'already-resolved' | 'not-found'>;
   /**
    * Resolve a pending plan-approval interaction (web UI path). Same three-way outcome as
    * answerQuestion; the impl calls planApprovals.resolve/reject + entity resolve +

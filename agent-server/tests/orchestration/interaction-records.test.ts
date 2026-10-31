@@ -1,4 +1,4 @@
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { InteractionRecords } from '../../src/orchestration/interactions/interaction-records.js';
 import { EventBus } from '../../src/events/event-bus.js';
@@ -143,4 +143,21 @@ test('create without init does not throw (fail-soft) and get returns null', asyn
   const recs = new InteractionRecords();
   await recs.create(PLAN_ARGS);
   assert.equal(recs.get('req-p1'), null);
+});
+
+test('a pending blocking interaction expires after the TTL; a non-blocking ask never does', async (t) => {
+  vi.useFakeTimers({ now: 0 });
+  t.onTestFinished(() => { vi.useRealTimers(); });
+  const recs = new InteractionRecords();
+  recs.init({ history: makeFakeHistory().history as any, bus: new EventBus() });
+  const question = { question: 'A or B?', header: 'Q', options: [], multiSelect: false };
+  await recs.create({ id: 'req-block', sessionId: 'sess-1', channel: 'web:sess-1', kind: 'ask-user', payload: { questions: [question] } });
+  await recs.create({ id: 'req-async', sessionId: 'sess-1', channel: 'web:sess-1', kind: 'ask-user', payload: { questions: [question], blocking: false } });
+
+  vi.setSystemTime(7 * 24 * 60 * 60 * 1000);
+
+  assert.equal(recs.isPending('req-block'), false);
+  assert.equal(recs.isPending('req-async'), true);
+  assert.deepEqual(recs.getPendingByChannel('web:sess-1').map((e) => e.id), ['req-async']);
+  assert.deepEqual(recs.pendingSessionIds(), ['sess-1']);
 });

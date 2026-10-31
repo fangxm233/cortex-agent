@@ -6,7 +6,7 @@ import { makeUiDeps, type UiDepsOverrides } from './ui-deps-fixture.js';
 
 function makeDeps(outcome: 'resolved' | 'already-resolved' | 'not-found'): UiServiceDeps {
   return makeUiDeps({
-    answerQuestion: (_id: string, _answers: Record<string, string>) => outcome,
+    answerQuestion: async (_id: string, _answers: Record<string, string>) => outcome,
     respondPlan: (_id: string, _approved: boolean, _feedback?: string) => outcome,
   } as UiDepsOverrides);
 }
@@ -33,3 +33,12 @@ test('missing requestId → invalid-args', async () => {
   if (!res.ok) assert.equal(res.code, 'invalid-args');
 });
 
+
+test('answerQuestion passes the card session through for restart recovery', async () => {
+  const calls: unknown[][] = [];
+  const deps = makeUiDeps({
+    answerQuestion: async (...args: unknown[]) => { calls.push(args); return 'resolved'; },
+  } as UiDepsOverrides);
+  await handleAnswerQuestion(deps, { requestId: 'r1', answers: { q: 'a' }, sessionId: 's1' });
+  assert.deepEqual(calls, [['r1', { q: 'a' }, 's1']]);
+});

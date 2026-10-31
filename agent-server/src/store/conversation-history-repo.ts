@@ -120,6 +120,8 @@ export interface HistoryEvent {
   toolInput?: string;
   /** Remote execution target (remote tool events only). */
   toolDevice?: string;
+  /** The call's own `description` argument: what the agent says the call is doing. */
+  toolDescription?: string;
   /** What a lead's worker tool call did (worker_spawn/send/answer/stop tool events only). */
   teamAction?: TeamActionRef;
   /** What a successful board_open call did (its tool event only). */
@@ -192,6 +194,7 @@ export interface RawEvent {
   toolName?: string;
   toolInput?: string;
   toolDevice?: string;
+  toolDescription?: string;
   teamAction?: TeamActionRef;
   boardAction?: BoardActionRef;
   /** `worker-progress` lines only. */
@@ -348,8 +351,18 @@ export function summarizeToolInputForHistory(input: any): string {
   if (!s) {
     try { s = JSON.stringify(input); } catch { s = ''; }
   }
-  s = s.replace(/\s+/g, ' ').trim();
+  return historyLine(s);
+}
+
+function historyLine(text: string): string {
+  const s = text.replace(/\s+/g, ' ').trim();
   return s.length > 120 ? s.slice(0, 117) + '…' : s;
+}
+
+/** The call's `description` argument (Bash, remote_bash, agent…), as one line; undefined when absent. */
+export function toolDescriptionForHistory(input: any): string | undefined {
+  const raw = input != null && typeof input === 'object' ? input.description : undefined;
+  return typeof raw === 'string' ? historyLine(raw) || undefined : undefined;
 }
 
 /** UUID sessionIds are filename-safe; sanitize defensively all the same. */
@@ -634,12 +647,13 @@ export class ConversationHistoryRepo {
 
   /** Append a tool call.
    *  An optional `ts` override lets the caller share a single timestamp with the EventBus event. */
-  appendTool(sessionId: string, opts: { toolName: string; toolInput?: string; toolDevice?: string; teamAction?: TeamActionRef; boardAction?: BoardActionRef; ts?: string; toolUseId?: string; fullInput?: unknown; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }): Promise<void> {
+  appendTool(sessionId: string, opts: { toolName: string; toolInput?: string; toolDevice?: string; toolDescription?: string; teamAction?: TeamActionRef; boardAction?: BoardActionRef; ts?: string; toolUseId?: string; fullInput?: unknown; subagent?: SubagentRowRef; subagentSpawns?: SubagentSpawnRef[] }): Promise<void> {
     return this.append(sessionId, {
       type: 'tool',
       toolName: opts.toolName,
       toolInput: opts.toolInput ?? '',
       toolDevice: opts.toolDevice,
+      ...(opts.toolDescription ? { toolDescription: opts.toolDescription } : {}),
       ...(opts.teamAction ? { teamAction: opts.teamAction } : {}),
       ...(opts.boardAction ? { boardAction: opts.boardAction } : {}),
       ts: opts.ts ?? nowIso(),
