@@ -1,6 +1,7 @@
 import { costRepo, type BudgetConfig } from '@store/cost-repo.js';
 import { t } from '@core/i18n.js';
 import { leaderboardUpload, type LeaderboardUpload } from './leaderboard-upload.js';
+import { credentialInventory, type CredentialInventory, type SelectionRef } from '../connections/index.js';
 export type { CostsData, BudgetConfig, ProjectBudget } from '@store/cost-repo.js';
 
 export interface CostEntry {
@@ -43,7 +44,7 @@ interface RecordCostInput extends Partial<CostAttribution> {
   num_turns?: number | null;
   duration_s?: number | null;
   backend?: string;
-  /** `routeName` of the selection that spent it; also decides the billing bucket. */
+  /** `routeName` of the selection that spent it. */
   connection?: string;
   source?: string;
   input_tokens?: number | null;
@@ -152,8 +153,19 @@ export function pickBudget(config: BudgetConfig, projectId?: string | null): Res
 
 const COST_CATEGORIES = ['total', 'api', 'plan'];
 
-/** Ledger buckets: 'plan' is spend Claude's subscription covers, everything else is 'api'. */
-function normalizeCostMode(mode: string | undefined): string {
+type BillingOf = CredentialInventory['billingOf'];
+
+/** Ledger buckets: 'plan' is spend a subscription covers, everything else is 'api'. Which one is
+ *  the inventory's call (billingOf), never a guess from the connection's name. */
+function costMode(input: RecordCostInput, billingOf: BillingOf): 'plan' | 'api' {
+  const ref: SelectionRef = input.backend === 'pi'
+    ? { backend: 'pi', provider: input.provider ?? input.connection ?? null, connection: null }
+    : { backend: 'claude', provider: null, connection: input.connection ?? null };
+  return billingOf(ref) === 'subscription' ? 'plan' : 'api';
+}
+
+/** A stored row's bucket; rows written before the bucket was named carry the connection instead. */
+function storedBucket(mode: string | undefined): 'plan' | 'api' {
   return mode === 'plan' || mode === 'subscription' ? 'plan' : 'api';
 }
 
@@ -175,7 +187,11 @@ function addCostByMode(target: ModeBuckets, mode: string, cost: number): void {
  * is the backend's own figure; an estimate without a cost or any token count carries nothing and is
  * dropped.
  */
-async function recordCost(input: RecordCostInput, upload: LeaderboardUpload = leaderboardUpload): Promise<void> {
+async function recordCost(
+  input: RecordCostInput,
+  upload: LeaderboardUpload = leaderboardUpload,
+  billingOf: BillingOf = credentialInventory.billingOf,
+): Promise<void> {
   const effectiveSource = input.source || 'estimate';
   const observed = [
     input.input_tokens, input.output_tokens, input.cache_read_tokens,
@@ -187,7 +203,7 @@ async function recordCost(input: RecordCostInput, upload: LeaderboardUpload = le
     timestamp: new Date().toISOString(), project: input.project || 'general',
     trigger: input.trigger || 'unknown', cost_usd: input.cost_usd ?? null,
     num_turns: input.num_turns ?? null, duration_s: input.duration_s ?? null,
-    backend: input.backend || 'claude', mode: normalizeCostMode(input.connection),
+    backend: input.backend || 'claude', mode: costMode(input, billingOf),
     ...(input.connection ? { connection: input.connection } : {}),
     source: effectiveSource,
     input_tokens: input.input_tokens ?? null, output_tokens: input.output_tokens ?? null,
@@ -265,7 +281,7 @@ async function getCostSummary(project?: string | null, opts?: { now?: number }):
   let unpricedCount = 0;
 
   for (const rawEntry of data.entries) {
-    const mode = normalizeCostMode(rawEntry.mode);
+    const mode = storedBucket(rawEntry.mode);
     const cost = rawEntry.cost_usd || 0;
     const entrySource = rawEntry.source || 'estimate';
     const entryBackend = rawEntry.backend || 'claude';

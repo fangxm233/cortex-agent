@@ -122,3 +122,23 @@ test('recordCost files the row with its connection, then offers that row for upl
   assert.equal(stored?.mode, 'api', 'a key connection bills to the api bucket');
   assert.deepEqual(shared, [stored]);
 });
+
+test('recordCost takes the plan/api bucket from the inventory\'s billing, not the connection name', async () => {
+  const noShare = { share: () => {} };
+  const refs: unknown[] = [];
+  const billingOf = (ref: { backend: string; provider: string | null; connection: string | null }) => {
+    refs.push(ref);
+    return ref.provider === 'openai' || ref.connection === 'team-plan' ? 'subscription' as const : 'metered' as const;
+  };
+  const record = async (input: Parameters<typeof recordCost>[0]) => {
+    await recordCost({ project: 'nimbus', trigger: 'user', cost_usd: 0.1, ...input }, noShare, billingOf);
+    return (await costRepo.readCosts()).entries.at(-1)?.mode;
+  };
+  assert.equal(await record({ backend: 'pi', provider: 'openai', connection: 'openai' }), 'plan',
+    'a PI sign-in is a subscription even though its name says nothing about billing');
+  assert.equal(await record({ backend: 'pi', provider: 'deepseek', connection: 'deepseek' }), 'api');
+  assert.equal(await record({ backend: 'claude', provider: 'anthropic', connection: 'team-plan' }), 'plan');
+  assert.equal(await record({ backend: 'claude', provider: 'anthropic', connection: 'relay' }), 'api');
+  assert.deepEqual(refs[0], { backend: 'pi', provider: 'openai', connection: null });
+  assert.deepEqual(refs[2], { backend: 'claude', provider: null, connection: 'team-plan' });
+});
