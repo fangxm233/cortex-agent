@@ -36,8 +36,8 @@ export function useInteractionActions(sessionId: string): InteractionActions {
 
   const answerQuestion = useCallback((requestId: string, answers: Record<string, string>) => {
     if (answerMut.isPending) return;
-    answerMut.mutate({ requestId, answers }, { onSettled: refresh });
-  }, [answerMut, refresh]);
+    answerMut.mutate({ requestId, answers, sessionId }, { onSettled: refresh });
+  }, [answerMut, refresh, sessionId]);
 
   const approvePlan = useCallback((requestId: string) => {
     if (respondMut.isPending) return;

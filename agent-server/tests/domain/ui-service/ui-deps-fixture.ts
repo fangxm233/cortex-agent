@@ -55,7 +55,7 @@ export function makeUiDeps(overrides: UiDepsOverrides = {}): UiServiceDeps {
     adapter: { getProjectConduits: async () => ({}) } as any,
     getPendingAskUser: () => null,
     getPendingPlan: () => null,
-    answerQuestion: () => 'not-found',
+    answerQuestion: async () => 'not-found',
     respondPlan: () => 'not-found',
     isInteractionPending: () => false,
   };

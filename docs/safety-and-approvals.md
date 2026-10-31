@@ -191,8 +191,8 @@ A blocking question (the default) holds the tool call until you answer and
 returns the answers in its own result. With `blocking: false` the call returns
 as soon as the card is posted and the agent keeps working; your answer arrives
 in the session later as an ordinary user message, folded into the running turn
-if one is still live. An unanswered non-blocking card expires on the same TTL
-and never produces a message.
+if one is still live. A non-blocking card has no TTL: it stays answerable until
+you answer it, including on the Web UI after a server restart.
 
 ### Where the cards appear
 
@@ -220,10 +220,11 @@ shown as waiting on its lead rather than on you.
 
 ### Timeouts
 
-A pending plan or question expires after 30 minutes (the bridge sweeps every 5
-minutes, so expiry lands between 30 and 35 minutes). A blocking call then
+A pending plan or blocking question expires after 30 minutes (the bridge sweeps
+every 5 minutes, so expiry lands between 30 and 35 minutes). The call then
 returns a timeout to the agent; for a plan, the agent is told to revise and
-submit again. On the Web UI the card is marked expired.
+submit again. On the Web UI the card is marked expired. A non-blocking question
+never expires.
 
 ### PI extension dialogs
 

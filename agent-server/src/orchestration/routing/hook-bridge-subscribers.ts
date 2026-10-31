@@ -3,6 +3,7 @@ import type { Destination, PlatformAdapter, OutputStream } from '@platform/index
 import { createLogger } from '@core/log.js';
 import { buildPlanApprovalContent, askLevelIcon } from '@platform/index.js';
 import * as askUserQuestion from '@orch/interactions/ask-user-question.js';
+import { askAnswerMessageText } from '@orch/interactions/ask-answer-message.js';
 import { sendPlanToSlack } from '@orch/interactions/plan-handler.js';
 import type { PlanApprovals } from '@orch/interactions/plan-approvals.js';
 import { interactionRecords as defaultInteractionRecords, type InteractionRecords } from '@orch/interactions/interaction-records.js';
@@ -26,22 +27,6 @@ export type UserMessageSender = (opts: { channel: string; text: string; adapter:
 const deliverAskUserAnswer: UserMessageSender = ({ channel, text, adapter }) => {
   deliverToSessionDetached({ channel, text, origin: 'ask-user-answer', adapter });
 };
-
-/**
- * Non-blocking ask (`cortex_ask_user blocking:false`): the tool call already returned, so the
- * answer cannot come back as a tool_result. It is delivered as a genuine user turn on the
- * session's channel instead — the same seam a typed message uses, so it folds into a live turn
- * when one is running and opens a fresh turn when the session is idle. Null ⇒ nothing to say.
- */
-function askAnswerMessageText(answers: Record<string, unknown>): string | null {
-  const parts = Object.entries(answers ?? {})
-    .map(([question, value]) => {
-      const answer = Array.isArray(value) ? value.join(', ') : String(value ?? '');
-      return `Q: ${question}\nA: ${answer.trim() ? answer : '(no answer)'}`;
-    });
-  if (parts.length === 0) return null;
-  return `[Answer to the question you asked earlier via cortex_ask_user]\n\n${parts.join('\n\n')}`;
-}
 
 export function registerHookBridgeSubscribers(
   bus: EventBus,

@@ -264,6 +264,8 @@ export const sessionsSetSelectionInput = z.object({
 export const sessionsAnswerQuestionInput = z.object({
   requestId: z.string().min(1),
   answers: z.record(z.string(), z.string()),
+  /** The session the card belongs to; lets a non-blocking ask be answered after a restart. */
+  sessionId: z.string().min(1).optional(),
 });
 
 export const sessionsRespondPlanInput = z.object({

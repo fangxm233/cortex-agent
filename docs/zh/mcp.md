@@ -147,7 +147,7 @@ Web 工作台专属的 MCP 服务器。仅当会话源自 Web UI（其频道带 
 | `cortex_plan_exit` | `plan_file_path`, `summary?` | 读取计划文件，提交人工审批，并阻塞到审批结束 |
 | `cortex_ask_user` | `questions[]` (each `question`, `header?`, `options?[]` of `{label, description?}`, `multiSelect?`), `level?` (`info`, `warning`, `error`; `warn` is an alias), `blocking?` | 通过会话所属平台提出一个或多个自由文本或选择题，可以等待回答，也可以不等直接继续 |
 
-两种模式下 `cortex_ask_user` 张贴问题卡片的方式完全相同；`blocking` 参数决定答案如何回来。默认是阻塞的：工具调用最多等待 30 分钟的交互 TTL，并在自己的 `tool_result` 中返回答案，智能体拿不到答案就无法继续。传入 `blocking: false` 时，卡片一贴出调用就返回，智能体继续工作；人类回答后，答案以一条普通用户消息送达该会话——如果当前轮仍在运行就并入该轮，否则开启新的一轮。无人回答的非阻塞卡片按同样的 TTL 过期，只是不会产生任何消息。在工作台中，只有阻塞提问会把会话标记为等待用户操作；以非阻塞方式提问的会话仍显示为运行中。
+两种模式下 `cortex_ask_user` 张贴问题卡片的方式完全相同；`blocking` 参数决定答案如何回来。默认是阻塞的：工具调用最多等待 30 分钟的交互 TTL，并在自己的 `tool_result` 中返回答案，智能体拿不到答案就无法继续。传入 `blocking: false` 时，卡片一贴出调用就返回，智能体继续工作；人类回答后，答案以一条普通用户消息送达该会话——如果当前轮仍在运行就并入该轮，否则开启新的一轮。非阻塞卡片没有 TTL，在人类作答之前一直可以回答；在 Web UI 上，服务器重启后也依然可答。在工作台中，只有阻塞提问会把会话标记为等待用户操作；以非阻塞方式提问的会话仍显示为运行中。
 
 卡片在各平台上的样子，以及团队模式下计划审批和提问如何路由，见 [safety-and-approvals.md](./safety-and-approvals.md#plan-approval-and-questions)。计划与提问的处理器位于 `agent-server/src/domain/mcp/tools/interaction-plan.ts` 和 `agent-server/src/domain/mcp/tools/interaction-ask.ts`。
 

@@ -225,7 +225,8 @@ export async function handleSessionsList(
 // stream into turns. An absent/empty history is not an error — it maps to zero turns.
 
 /** Pending interactions older than this derive to expired at read time (matches the
- *  hook-bridge / ask-user 30-minute TTLs). A non-blocking ask has no TTL. */
+ *  hook-bridge / ask-user 30-minute TTLs). A non-blocking ask never expires: nobody waits on it,
+ *  so it stays answerable even after a restart dropped its live entry. */
 const INTERACTION_TTL_MS = 30 * 60 * 1000;
 
 function transcriptDebugDetails(ev: HistoryEvent): TranscriptMessage['debug'] {
@@ -279,8 +280,8 @@ function interactionParts(deps: UiServiceDeps, event: EventWithElapsed) {
   const currentMs = Date.parse(event.ts);
   const live = deps.isInteractionPending(event.id);
   const age = Number.isFinite(currentMs) ? Date.now() - currentMs : Infinity;
-  const timedOut = event.payload?.blocking !== false && age > INTERACTION_TTL_MS;
-  const status = event.status === 'pending' && (!live || timedOut)
+  const expires = event.payload?.blocking !== false;
+  const status = event.status === 'pending' && expires && (!live || age > INTERACTION_TTL_MS)
     ? 'expired'
     : (event.status ?? 'pending');
   return {

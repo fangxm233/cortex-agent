@@ -29,6 +29,7 @@ import type { ServerUpdateCoordinator } from '@domain/system/server-update-coord
 import { createUiService, type UiService, type UiServiceDeps } from '@domain/ui-service/index.js';
 import { cancelWaitpoint } from '@domain/waitpoints/service.js';
 import { answerQuestion } from '@orch/interactions/answer-question.js';
+import { answerRestoredAsk } from '@orch/interactions/restored-ask.js';
 import { interactionRecords } from '@orch/interactions/interaction-records.js';
 import { planApprovals } from '@orch/interactions/plan-approvals.js';
 import { respondToPlan } from '@orch/interactions/plan-response.js';
@@ -175,7 +176,12 @@ function interactionDeps(): InteractionDeps {
     isInteractionPending: (id) => interactionRecords.isPending(id),
     // Resolving persists the entity, broadcasts session.interaction to every client and unblocks
     // the waiting MCP tool. First writer wins.
-    answerQuestion: (requestId, answers) => answerQuestion(requestId, answers, 'web'),
+    // A miss with a sessionId may be a non-blocking ask from before a restart.
+    answerQuestion: async (requestId, answers, sessionId) => {
+      const outcome = answerQuestion(requestId, answers, 'web');
+      if (outcome !== 'not-found' || !sessionId) return outcome;
+      return answerRestoredAsk(sessionId, requestId, answers, 'web');
+    },
     respondPlan: (requestId, approved, feedback) => respondToPlan(
       { planApprovals, interactionRecords },
       requestId,

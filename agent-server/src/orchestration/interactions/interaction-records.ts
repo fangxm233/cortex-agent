@@ -98,6 +98,13 @@ export class InteractionRecords {
     this.publish(entry);
   }
 
+  /** Re-index a pending interaction known only from history (the server restarted since it was
+   *  created). Nothing is persisted or published; a no-op when the id is already indexed. */
+  restore(entry: Omit<InteractionIndexEntry, 'status'>): void {
+    if (this.index.has(entry.id)) return;
+    this.index.set(entry.id, { ...entry, status: 'pending' });
+  }
+
   /** Move a pending interaction to a terminal status. First-writer-wins. */
   async resolve(args: { id: string; status: Exclude<InteractionStatus, 'pending'>; result?: InteractionResult; resolvedVia: InteractionResolvedVia }): Promise<'resolved' | 'already-resolved' | 'unknown'> {
     const entry = this.index.get(args.id);
