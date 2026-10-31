@@ -18,6 +18,7 @@ import { createCortexExtensions } from './extensions.js';
 import type { PiSubagentBridge } from './subagent-bridge.js';
 import type { OpenBundledMcpServer } from './mcp-bridge.js';
 import { applyRuntimeKeys } from './providers-config.js';
+import { piAuthPath } from './defaults.js';
 
 const log = createLogger('pi-runtime');
 
@@ -128,7 +129,7 @@ async function createRuntimeServices(
   ensureCompactionReserve(getSettings().piCompactReserveTokens, { agentDir });
   const settingsManager = createRuntimeSettings(sdk, cwd, agentDir);
   const modelRuntime = await sdk.ModelRuntime.create({
-    authPath: path.join(agentDir, 'auth.json'),
+    authPath: piAuthPath(agentDir),
     modelsPath: path.join(agentDir, 'models.json'),
     allowModelNetwork: false,
   });

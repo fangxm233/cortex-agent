@@ -50,7 +50,7 @@ Cortex 启动的每个 `claude` 进程都以 `CLAUDE_CONFIG_DIR=$CORTEX_HOME/dat
 
 PI 在 Cortex 服务器进程内运行。引擎（`@earendil-works/pi-coding-agent`）打包在发布的服务器包中，因此既不需要单独安装 `pi` 命令行，也没有 PI 进程需要看管。`agent-server/src/core/pi-sdk.ts` 每个守护进程只导入一次 SDK——在第一次 PI 会话或 provider 扫描时导入，因为入口会拉起全部 provider 客户端——之后所有 PI 会话都由这一个句柄创建。
 
-**会话。** 每个 Cortex 会话跑在一个 PI SDK `AgentSession` 上。`session-options.ts` 把 spawn 配置解析成 session request，`runtime.ts` 据此构建会话：为工作目录创建 `SettingsManager`，创建从 Cortex 私有 PI agent 目录读取 `auth.json` 与 `models.json` 的 `ModelRuntime`，再依次调用 `createAgentSessionServices` 与 `createAgentSessionFromServices`。会话按 session key 池化并跨回合复用。spawn identity 改变时池中会话会被退休——模型、工具面或 MCP 集合的变化无法应用到活着的会话上——空闲或被显式 teardown 关闭时同样退休。`pi-session.ts` 负责回合循环、经 SDK steer 路径的回合中插话、compaction，以及把活会话重新指向另一份 transcript。恢复时给出 session id 或 transcript 路径；`session-files.ts` 把 id 映射到对应文件。Transcript 写在 `$CORTEX_HOME/logs/sessions-pi/` 下。
+**会话。** 每个 Cortex 会话跑在一个 PI SDK `AgentSession` 上。`session-options.ts` 把 spawn 配置解析成 session request，`runtime.ts` 据此构建会话：为工作目录创建 `SettingsManager`，创建读取 PI 自己的 `auth.json` 与 Cortex 私有 PI agent 目录中 `models.json` 的 `ModelRuntime`，再依次调用 `createAgentSessionServices` 与 `createAgentSessionFromServices`。会话按 session key 池化并跨回合复用。spawn identity 改变时池中会话会被退休——模型、工具面或 MCP 集合的变化无法应用到活着的会话上——空闲或被显式 teardown 关闭时同样退休。`pi-session.ts` 负责回合循环、经 SDK steer 路径的回合中插话、compaction，以及把活会话重新指向另一份 transcript。恢复时给出 session id 或 transcript 路径；`session-files.ts` 把 id 映射到对应文件。Transcript 写在 `$CORTEX_HOME/logs/sessions-pi/` 下。
 
 **回合内压缩。** 一个 Cortex 回合就是一整个 PI agent loop，所以工具驱动的长回合必须能在 loop 内部压缩。PI 自己就会做：工具结果落定之后、下一次 assistant 回复之前，如果上下文已越过 `contextWindow - reserveTokens` 就压缩，然后继续同一次运行，因此回合不会被中止，仍是同一个 Cortex 回合。Cortex 只负责设定阈值——`piCompactReserveTokens`（默认 16384，即 PI 自己的默认值）会在会话创建时写进私有 agent 目录的 `settings.json`，余量越大 PI 压缩得越早，留下的工作空间也越多。Claude 不需要这些：CLI 自己就会在回合内压缩。
 
@@ -70,7 +70,7 @@ PI 在 Cortex 服务器进程内运行。引擎（`@earendil-works/pi-coding-age
 
 **缓存预热。** Cortex 在主会话和子智能体会话中都关闭 PI 的自动 prompt-cache 预热。provider 的普通提示缓存仍可使用；Cortex 不会额外发起用量不在其费用统计之内的预热请求。这是运行时覆盖，不会改动终端 PI 的设置。
 
-**凭据。** PI 的 provider 凭据由 Cortex 管理——聊天里的 `!login pi`，或网页端的**设置 → 账号**——并保存在 PI 自己的认证文件 `~/.pi/agent/auth.json` 中。Cortex 让该文件在其私有 PI agent 目录内可见（Linux 与 macOS 用符号链接，Windows 用复制）供 SDK 读取，并从 `~/.pi/agent/models.json` 读取用户自定义的 provider。因此同时装有终端 `pi` CLI 的安装与 Cortex 共用同一份凭据和同一份 provider catalog。Cortex 自己的[连接](./configuration.md#configconnectionsjson)叠加在其上：agent 目录的 `models.json` 还会写入被连接覆盖了 base URL 的内置 provider 和自定义 provider，并带上各自的密钥，对这些 provider 而言它们优先于 PI 自己的凭据。其余内置 provider 用 PI 自己的凭据直接连接各自的厂商。
+**凭据。** PI 的 provider 凭据由 Cortex 管理——聊天里的 `!login pi`，或网页端的**设置 → 账号**——并保存在 PI 自己的认证文件 `~/.pi/agent/auth.json` 中。Cortex 的会话直接用这份文件认证，PI 在会话中刷新的 token 因此写回所有读取方都能看到的地方；Cortex 还从 `~/.pi/agent/models.json` 读取用户自定义的 provider。因此同时装有终端 `pi` CLI 的安装与 Cortex 共用同一份凭据和同一份 provider catalog。Cortex 自己的[连接](./configuration.md#configconnectionsjson)叠加在其上：agent 目录的 `models.json` 还会写入被连接覆盖了 base URL 的内置 provider 和自定义 provider，并带上各自的密钥，对这些 provider 而言它们优先于 PI 自己的凭据。其余内置 provider 用 PI 自己的凭据直接连接各自的厂商。
 
 PI transcript 的保留基于文件系统。活跃的 PI 后端 session id 在保留扫描中受保护，而 `$CORTEX_HOME/logs/sessions-pi/` 下的孤立 transcript bundle 只有在超过保留截止线后仍无引用、且经过第二轮确认扫描后才会删除。
 

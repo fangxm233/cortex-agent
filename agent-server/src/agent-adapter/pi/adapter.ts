@@ -1,6 +1,5 @@
 import type { SubagentModelEnvGetter } from '@core/agents/subagent/catalog.js';
 import { existsSync, mkdirSync } from 'fs';
-import * as path from 'path';
 import { resolveSpawnCwd } from '@core/paths.js';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
@@ -26,7 +25,7 @@ import {
   buildSessionRequest, sessionIdentity, type PiSessionRequest,
 } from './session-options.js';
 import type { SwitchResult } from './session-support.js';
-import { PI_AGENT_DIR, PI_SESSIONS_DIR } from './defaults.js';
+import { PI_AGENT_DIR, PI_SESSIONS_DIR, piAuthPath } from './defaults.js';
 
 /** The pool SessionEngines registers on the adapter so `switchSession` can reach the live
  *  engine without the adapter importing domain. */
@@ -57,14 +56,11 @@ function staleCodexUsage(record: ProviderUsage): ProviderUsage {
   };
 }
 
-/** Collaborators the daemon owns and a trial replaces. Both are injected rather than defaulted so
- *  the host PI home and its auth mirroring are not reachable from this module. */
+/** Collaborators the daemon owns and a trial replaces, injected rather than defaulted so the host
+ *  PI home is not reachable from this module. */
 export interface PIAdapterHooks {
   /** PI agent dir (auth.json, models.json) for every session this instance creates. */
   agentDir?: string;
-  /** Run before a session is created with the resolved agent dir: the daemon mirrors the host
-   *  credential here, a trial writes its dummy token. Never a module default. */
-  prepareAgentDir?: (agentDir: string) => void;
   /** The provider catalog sessions run with: base-URL overrides and user-defined providers, with
    *  their keys. Injected, never defaulted: the host's connections and PI home are exactly the
    *  ambient reach a trial must not have. Left unset, the agent dir's catalog is not touched. */
@@ -93,7 +89,6 @@ export class PIAdapter implements EngineAdapter {
   private readonly sessionPathRegistry = new Map<string, string>();
   /** Injected PI home, or undefined when the caller left it to the daemon default. */
   private readonly configuredAgentDir: string | undefined;
-  private readonly prepareAgentDir: ((agentDir: string) => void) | undefined;
   /** Injected catalog source, or undefined when this instance writes no catalog. */
   private readonly catalog: (() => PiProviderCatalog) | undefined;
   private readonly usageStore: Pick<UsageStore, 'get' | 'update'> | undefined;
@@ -112,7 +107,6 @@ export class PIAdapter implements EngineAdapter {
     this.runtimeFactory = runtimeFactory;
     this.sessionDir = sessionDir;
     this.configuredAgentDir = hooks.agentDir;
-    this.prepareAgentDir = hooks.prepareAgentDir;
     this.catalog = hooks.catalog;
     this.usageStore = hooks.usageStore;
     this.submitRateLimit = hooks.submitRateLimit;
@@ -136,28 +130,19 @@ export class PIAdapter implements EngineAdapter {
     return sessionPath;
   }
 
-  private prepareAgentDirSafely(agentDir: string): void {
-    try {
-      this.prepareAgentDir?.(agentDir);
-    } catch (error) {
-      log.warn(`Failed to prepare the PI agent dir: ${(error as Error).message}`);
-    }
-  }
-
   private writeCatalog(agentDir: string): void {
     if (!this.catalog) return;
     try {
       writeProviderCatalog(this.catalog(), {
-        agentDir, oauthProviders: readOAuthProviders(path.join(agentDir, 'auth.json')),
+        agentDir, oauthProviders: readOAuthProviders(piAuthPath(agentDir)),
       });
     } catch (error) {
       log.warn(`Failed to write PI models.json: ${(error as Error).message}`);
     }
   }
 
-  /** Mirror the host credential into the agent dir, then write the catalog sessions run with. */
+  /** Write the catalog sessions over this agent dir run with. */
   private syncAgentDir(agentDir: string): void {
-    this.prepareAgentDirSafely(agentDir);
     this.writeCatalog(agentDir);
   }
 

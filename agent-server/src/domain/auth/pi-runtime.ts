@@ -1,5 +1,6 @@
 import * as path from 'node:path';
-import { loadPiSdk, piUserAuthPath } from '@core/pi-sdk.js';
+import { loadPiSdk } from '@core/pi-sdk.js';
+import { piAuthPath } from '../../agent-adapter/pi/defaults.js';
 import type { AuthInteraction } from './login-flow.js';
 
 export type PiCredential =
@@ -103,7 +104,7 @@ export async function loadPiRuntime(options: LoadPiRuntimeOptions = {}): Promise
   try {
     // models.json lives beside auth.json; pass it explicitly so the SDK never consults
     // PI_CODING_AGENT_DIR from this process's environment.
-    const authPath = options.authPath ?? piUserAuthPath();
+    const authPath = options.authPath ?? piAuthPath();
     const modelsPath = path.join(path.dirname(authPath), 'models.json');
     const runtime = await imported.ModelRuntime.create({ authPath, modelsPath, allowModelNetwork: false });
     return {

@@ -1,99 +1,15 @@
-import {
-  mkdirSync,
-  existsSync,
-  readFileSync,
-  writeFileSync,
-  lstatSync,
-  readlinkSync,
-  unlinkSync,
-  symlinkSync,
-  copyFileSync,
-
-} from 'fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import * as path from 'path';
 import { createLogger } from '@core/log.js';
 import { adoptLegacyAgentRoles } from '@core/agents/roles.js';
-import { piUserAuthPath, piUserModelsPath } from '@core/pi-sdk.js';
+import { piUserModelsPath } from '@core/pi-sdk.js';
 import { PI_AGENT_DIR, PI_SESSIONS_DIR } from './defaults.js';
 
 const log = createLogger('pi-agent-dir');
 
-/** Default location of the user's PI OAuth/API-key credentials. */
-const USER_PI_AUTH_PATH = piUserAuthPath();
-
 /** The user's own PI provider catalog: where user-defined providers are declared, shared with the
  *  terminal `pi` CLI. Daemon-only — a trial never reads the host PI home (design §13 A1). */
 export const USER_PI_MODELS_PATH = piUserModelsPath();
-
-// ─── auth.json visibility (symlink / copy from user PI dir) ──────
-
-export interface EnsureAuthVisibleOpts {
-  /** Source: where the user's PI auth.json lives. Defaults to ~/.pi/agent/auth.json. */
-  userAuthPath?: string;
-  /** Target dir (PI_CODING_AGENT_DIR). Defaults to PI_AGENT_DIR. */
-  agentDir?: string;
-}
-
-/**
- * Make the user's PI OAuth/API-key credentials visible to the PI subprocess running under
- * cortex's PI_CODING_AGENT_DIR. Uses symlink on Linux/macOS so PI's automatic OAuth refresh
- * writes back to the user's canonical location. Falls back to file copy on Windows.
- *
- * Idempotent: a correctly-pointed symlink is preserved; a stale file/symlink is replaced.
- * Silently no-ops when the user has not logged into PI (no source auth.json).
- */
-export function ensureAuthVisible(opts?: EnsureAuthVisibleOpts): void {
-  const userAuth = opts?.userAuthPath ?? USER_PI_AUTH_PATH;
-  const agentDir = opts?.agentDir ?? PI_AGENT_DIR;
-  const cortexAuth = path.join(agentDir, 'auth.json');
-
-  if (!existsSync(userAuth)) {
-    // User hasn't logged into PI; nothing to mirror.
-    return;
-  }
-
-  mkdirSync(agentDir, { recursive: true });
-
-  // Inspect the destination — preserve correct symlink, replace anything else.
-  if (existsSync(cortexAuth) || isBrokenSymlink(cortexAuth)) {
-    try {
-      const stat = lstatSync(cortexAuth);
-      if (stat.isSymbolicLink()) {
-        const target = readlinkSync(cortexAuth);
-        if (target === userAuth && process.platform !== 'win32') {
-          // Already a correctly-pointing symlink, nothing to do.
-          return;
-        }
-      }
-      unlinkSync(cortexAuth);
-    } catch (err) {
-      log.warn(`Failed to inspect/remove existing ${cortexAuth}: ${(err as Error).message}`);
-      return;
-    }
-  }
-
-  if (process.platform === 'win32') {
-    // Windows: symlink requires elevated permissions on many systems; copy instead.
-    // KNOWN LIMITATION: PI's OAuth refresh writes to the cortex-private copy, not the user's
-    // original file. Re-running ensureAuthVisible would overwrite the refreshed token; proper
-    // Windows credential mirroring remains future work.
-    copyFileSync(userAuth, cortexAuth);
-  } else {
-    symlinkSync(userAuth, cortexAuth);
-  }
-}
-
-/** Returns true if `p` is a dangling symlink (exists in lstat sense but not in stat sense). */
-function isBrokenSymlink(p: string): boolean {
-  try {
-    const lst = lstatSync(p);
-    if (!lst.isSymbolicLink()) return false;
-    // existsSync follows links; if it returned false we already know the link is broken.
-    return !existsSync(p);
-  } catch {
-    return false;
-  }
-}
 
 // ─── Built-in subagent roles ─────────────────────────────────────
 

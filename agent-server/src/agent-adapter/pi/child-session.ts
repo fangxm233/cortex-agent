@@ -4,6 +4,7 @@ import { createLogger } from '@core/log.js';
 import { loadPiSdk, type PiSdkModule } from '@core/pi-sdk.js';
 import { createRuntimeSettings } from './runtime-settings.js';
 import { applyRuntimeKeys } from './providers-config.js';
+import { piAuthPath } from './defaults.js';
 
 const log = createLogger('pi-subagent');
 
@@ -61,7 +62,7 @@ function resolveModel(
 async function createChildServices(sdk: PiSdkModule, request: ChildSessionRequest) {
   const settingsManager = createRuntimeSettings(sdk, request.cwd, request.agentDir);
   const modelRuntime = await sdk.ModelRuntime.create({
-    authPath: path.join(request.agentDir, 'auth.json'),
+    authPath: piAuthPath(request.agentDir),
     modelsPath: path.join(request.agentDir, 'models.json'),
     allowModelNetwork: false,
   });

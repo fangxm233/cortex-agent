@@ -237,9 +237,9 @@ def _write_dynamic_inputs(
     dummy_token_ref: str,
 ) -> None:
     payload = _json_bytes(_pi_auth(bundle, dummy_token_ref))
-    # Both locations, because the daemon mirrors PI auth from the container HOME into the private
-    # agent dir on every spawn: seeding only the private copy authenticates the arm's first agent
-    # and leaves every later one with the empty auth.json the first PI process wrote.
+    # Both locations: the daemon authenticates PI from the container HOME's store, while a sealed
+    # bundle built before that mirrored the HOME file into the private agent dir on every spawn,
+    # so seeding only the private copy would leave its later agents an empty auth.json.
     _write_bytes(cortex_home / "data/pi/auth.json", payload)
     _write_bytes(cortex_home / f"{CONTAINER_HOME_DIR}/.pi/agent/auth.json", payload)
     _write_bytes(

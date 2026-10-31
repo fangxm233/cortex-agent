@@ -1,6 +1,7 @@
 import * as path from 'node:path';
-import { loadPiSdk, piUserAuthPath, piUserModelsPath } from '@core/pi-sdk.js';
+import { loadPiSdk, piUserModelsPath } from '@core/pi-sdk.js';
 import { applyRuntimeKeys } from './providers-config.js';
+import { piAuthPath } from './defaults.js';
 
 export interface PiDiscoveredModel {
   provider: string;
@@ -76,13 +77,13 @@ export async function scanPiModels(paths: PiModelScanPaths): Promise<PiDiscovere
 
 /** PI's own catalog in PI's own home — what a process that runs no PI session of its own sees. */
 export function scanUserPiModels(): Promise<PiDiscoveredModel[]> {
-  return scanPiModels({ authPath: piUserAuthPath(), modelsPath: piUserModelsPath() });
+  return scanPiModels({ authPath: piAuthPath(), modelsPath: piUserModelsPath() });
 }
 
 /** The catalog a PI session over `agentDir` runs with: its auth, its models.json, its runtime keys. */
 export function scanAgentDirModels(agentDir: string): Promise<PiDiscoveredModel[]> {
   return scanPiModels({
-    authPath: path.join(agentDir, 'auth.json'),
+    authPath: piAuthPath(agentDir),
     modelsPath: path.join(agentDir, 'models.json'),
     agentDir,
   });

@@ -122,8 +122,8 @@ provider client — and every PI session is created from that one handle.
 **Sessions.** Each Cortex session runs on one PI SDK `AgentSession`.
 `session-options.ts` resolves the spawn configuration into a session request,
 and `runtime.ts` builds the session from it: a `SettingsManager` for the working
-directory, a `ModelRuntime` reading `auth.json` and `models.json` from Cortex's
-private PI agent directory, then `createAgentSessionServices` and
+directory, a `ModelRuntime` reading PI's own `auth.json` and the `models.json` in
+Cortex's private PI agent directory, then `createAgentSessionServices` and
 `createAgentSessionFromServices`. Sessions are pooled by session key and reused
 across turns. A pooled session is retired when its spawn identity changes — a
 different model, tool surface, or MCP set cannot be applied to a live session —
@@ -189,9 +189,9 @@ accounting. This is a runtime override and leaves the terminal PI settings intac
 
 **Credentials.** PI provider credentials are managed by Cortex — `!login pi` in
 chat or **Settings → Accounts** on the web — and stored in PI's own auth file at
-`~/.pi/agent/auth.json`. Cortex makes that file visible inside its private PI
-agent directory (a symlink on Linux and macOS, a copy on Windows) so the SDK
-reads it, and it reads user-defined providers from `~/.pi/agent/models.json`. An
+`~/.pi/agent/auth.json`. Cortex's sessions authenticate from that file directly,
+so a token PI refreshes during a session lands where every other reader finds
+it, and Cortex reads user-defined providers from `~/.pi/agent/models.json`. An
 installation that also has the terminal `pi` CLI therefore shares one set of
 credentials and one provider catalog with Cortex. Cortex's own
 [connections](./configuration.md#configconnectionsjson) are added on top: the

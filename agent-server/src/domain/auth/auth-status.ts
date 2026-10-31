@@ -3,8 +3,8 @@
 // the `api` connection. Every other Claude connection is a connection, not an Anthropic slot.
 
 import { readClaudeStore, type ClaudeSubscriptionSource } from '@core/claude-credentials.js';
-import { piUserAuthPath } from '@core/pi-sdk.js';
 import type { Backend } from '../../agent-adapter/types.js';
+import { piAuthPath } from '../../agent-adapter/pi/defaults.js';
 import { resolveConfiguredDefaultRun } from '../runs/config-resolver.js';
 import { modelsRepo } from '@store/models-repo.js';
 import { API_KEY_CONNECTION } from './anthropic-env.js';
@@ -431,15 +431,15 @@ function claudeSlots(options: GetAuthStatusOptions): ClaudeSlots {
 
 export async function getAuthStatus(options: GetAuthStatusOptions = {}): Promise<AuthStatusSnapshot> {
   const now = (options.now ?? (() => new Date()))();
-  const piAuthPath = options.piAuthPath ?? piUserAuthPath();
+  const authPath = options.piAuthPath ?? piAuthPath();
   const usage = collectInUse(options);
   const loader = options.loadPiRuntime ?? loadInstalledPiRuntime;
-  const pi = await loader({ authPath: piAuthPath });
+  const pi = await loader({ authPath });
   const claude = buildClaudeAccount(
     claudeSlots(options), (options.getDefaultClaudeConnection ?? defaultClaudeConnection)(),
     now.getTime(), usage.claude,
   );
   const accounts = [claude];
-  if (pi.available) appendPiAccounts(accounts, pi, piAuthPath, now.getTime(), usage.pi);
+  if (pi.available) appendPiAccounts(accounts, pi, authPath, now.getTime(), usage.pi);
   return { generatedAt: now.toISOString(), accounts, piRuntime: piRuntimeSnapshot(pi) };
 }

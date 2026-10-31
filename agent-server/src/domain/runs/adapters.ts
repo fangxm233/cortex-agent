@@ -2,7 +2,6 @@ import { setSubagentModelSource, subagentModelEnv } from '../../agent-adapter/cl
 import { modelCatalog, routeFor } from '../models/catalog.js';
 import { ClaudeAdapter } from '../../agent-adapter/claude/adapter.js';
 import { PIAdapter } from '../../agent-adapter/pi/adapter.js';
-import { ensureAuthVisible } from '../../agent-adapter/pi/agent-dir.js';
 import { buildPiCatalog } from '../connections/pi-catalog.js';
 import { PI_AGENT_DIR, PI_SESSIONS_DIR } from '../../agent-adapter/pi/defaults.js';
 import { setPiModelScan } from '../../agent-adapter/pi/discovery.js';
@@ -16,8 +15,8 @@ import type {
 
 // `agent-adapter` is a driver: it knows how to talk to a CLI and nothing about what a throttle or
 // a usage row means (D10). Every collaborator that carries daemon state is therefore injected from
-// here rather than defaulted inside the adapter — the host PI home, its cached provider scan, its
-// auth mirroring, the push usage cache, and the rate-limit throttle. A trial builds its own
+// here rather than defaulted inside the adapter — the host PI home, its cached provider scan, the
+// push usage cache, and the rate-limit throttle. A trial builds its own
 // adapters with its own (or no) collaborators, and reaches none of these.
 //
 // Unset hooks are not silent no-ops by accident: PIAdapter reports no quota at all without both a
@@ -26,7 +25,6 @@ import type {
 
 const PI_ADAPTER = new PIAdapter(undefined, PI_SESSIONS_DIR, {
   agentDir: PI_AGENT_DIR,
-  prepareAgentDir: (agentDir) => ensureAuthVisible({ agentDir }),
   catalog: () => buildPiCatalog(),
   usageStore,
   submitRateLimit: handleRateLimitEvent,

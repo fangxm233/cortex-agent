@@ -5,7 +5,6 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 
 import {
-  ensureAuthVisible,
   ensurePIAgentRoles,
   ensureQuotaVisibleTransport,
   ensureCompactionReserve,
@@ -16,6 +15,7 @@ import {
   writeProviderCatalog,
   type PiProviderCatalog,
 } from '../../src/agent-adapter/pi/providers-config.js';
+import { PI_AGENT_DIR, piAuthPath } from '../../src/agent-adapter/pi/defaults.js';
 
 // ─── writeProviderCatalog: the per-agent-dir catalog and runtime keys ──────────────
 
@@ -113,84 +113,18 @@ test('applyRuntimeKeys: installs every written key on the runtime', withAgentDir
   assert.deepEqual(installed.sort(), [['deepseek', 'sk-fake-1'], ['my-vllm', 'sk-fake-2']]);
 }));
 
-// ─── ensureAuthVisible: symlink user's PI auth.json into cortex-private dir ───
+// ─── piAuthPath: which auth.json an agent dir authenticates with ───
 
-test('ensureAuthVisible: no-op when user auth.json does not exist', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-auth-'));
-  try {
-    const userAuth = path.join(tmpDir, 'user-pi', 'auth.json');
-    const agentDir = path.join(tmpDir, 'cortex-pi');
-    fs.mkdirSync(agentDir, { recursive: true });
-    ensureAuthVisible({ userAuthPath: userAuth, agentDir });
-    assert.ok(!fs.existsSync(path.join(agentDir, 'auth.json')),
-      'should not create cortex auth.json when source missing');
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
+test('the daemon agent dir authenticates with PI\'s own store, never a copy beside it', () => {
+  const userStore = path.join(os.homedir(), '.pi', 'agent', 'auth.json');
+  assert.equal(piAuthPath(), userStore);
+  assert.equal(piAuthPath(PI_AGENT_DIR), userStore);
+  assert.equal(piAuthPath(`${PI_AGENT_DIR}${path.sep}`), userStore);
 });
 
-test('ensureAuthVisible: creates symlink on Linux/macOS when user auth.json exists', { skip: process.platform === 'win32' }, () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-auth-'));
-  try {
-    const userAuth = path.join(tmpDir, 'user-pi', 'auth.json');
-    fs.mkdirSync(path.dirname(userAuth), { recursive: true });
-    fs.writeFileSync(userAuth, '{"deepseek": {"type":"api_key","key":"sk-test"}}');
-
-    const agentDir = path.join(tmpDir, 'cortex-pi');
-    ensureAuthVisible({ userAuthPath: userAuth, agentDir });
-
-    const cortexAuth = path.join(agentDir, 'auth.json');
-    assert.ok(fs.existsSync(cortexAuth));
-    const stat = fs.lstatSync(cortexAuth);
-    assert.ok(stat.isSymbolicLink(), 'should be symlink');
-    assert.equal(fs.readlinkSync(cortexAuth), userAuth);
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
-});
-
-test('ensureAuthVisible: idempotent — re-run preserves existing correct symlink', { skip: process.platform === 'win32' }, () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-auth-'));
-  try {
-    const userAuth = path.join(tmpDir, 'user-pi', 'auth.json');
-    fs.mkdirSync(path.dirname(userAuth), { recursive: true });
-    fs.writeFileSync(userAuth, '{}');
-    const agentDir = path.join(tmpDir, 'cortex-pi');
-
-    ensureAuthVisible({ userAuthPath: userAuth, agentDir });
-    const firstInode = fs.lstatSync(path.join(agentDir, 'auth.json')).ino;
-
-    ensureAuthVisible({ userAuthPath: userAuth, agentDir });
-    const secondInode = fs.lstatSync(path.join(agentDir, 'auth.json')).ino;
-
-    assert.equal(firstInode, secondInode, 'symlink should not be recreated when already correct');
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
-});
-
-test('ensureAuthVisible: replaces stale regular file with symlink', { skip: process.platform === 'win32' }, () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-auth-'));
-  try {
-    const userAuth = path.join(tmpDir, 'user-pi', 'auth.json');
-    fs.mkdirSync(path.dirname(userAuth), { recursive: true });
-    fs.writeFileSync(userAuth, '{"deepseek":{"type":"api_key","key":"new"}}');
-
-    const agentDir = path.join(tmpDir, 'cortex-pi');
-    fs.mkdirSync(agentDir, { recursive: true });
-    // Pre-existing regular file (e.g. stale auth from a previous Windows-mode copy)
-    fs.writeFileSync(path.join(agentDir, 'auth.json'), '{"old":"data"}');
-
-    ensureAuthVisible({ userAuthPath: userAuth, agentDir });
-
-    const stat = fs.lstatSync(path.join(agentDir, 'auth.json'));
-    assert.ok(stat.isSymbolicLink(), 'pre-existing regular file should be replaced with symlink');
-    // Reading the file should now return the user-side content
-    const content = fs.readFileSync(path.join(agentDir, 'auth.json'), 'utf-8');
-    assert.match(content, /new/);
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
+test('any other agent dir — a trial\'s — carries its own auth.json', () => {
+  const trialDir = path.join(os.tmpdir(), 'cortex-trial-agent');
+  assert.equal(piAuthPath(trialDir), path.join(trialDir, 'auth.json'));
 });
 
 // ─── built-in subagent roles ─────────────────────────────────────

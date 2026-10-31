@@ -2,7 +2,6 @@
 // authenticate, and whether its spend is a subscription or metered. Every view it returns is
 // secret-free; the routing modules beside it are the only readers of the keys themselves.
 
-import * as path from 'node:path';
 import {
   claudeSubscriptionLogin, type ClaudeCredentialDeps, type ClaudeSubscriptionSource,
 } from '@core/claude-credentials.js';
@@ -13,7 +12,7 @@ import {
 } from '@core/connections-file.js';
 import type { Backend } from '@core/types/agent-types.js';
 import { readOAuthProviders } from '../../agent-adapter/pi/chatgpt-signin.js';
-import { PI_AGENT_DIR } from '../../agent-adapter/pi/defaults.js';
+import { piAuthPath } from '../../agent-adapter/pi/defaults.js';
 
 export type ConnectionKind = 'subscription' | 'key' | 'override' | 'custom';
 
@@ -109,7 +108,7 @@ export function createCredentialInventory(deps: InventoryDeps = {}): CredentialI
   const piConnections = (): ConnectionView[] => stored().filter((entry) => entry.backend === 'pi').map(viewOf);
   const findClaude = (id: string): ConnectionView | null => claudeConnections().find((view) => view.id === id) ?? null;
   const findPi = (provider: string): ConnectionView | null => piConnections().find((view) => view.provider === provider) ?? null;
-  const piOAuth = (): Set<string> => readOAuthProviders(deps.piAuthPath ?? path.join(PI_AGENT_DIR, 'auth.json'));
+  const piOAuth = (): Set<string> => readOAuthProviders(deps.piAuthPath ?? piAuthPath());
   return {
     list: () => [...claudeConnections(), ...piConnections()],
     claudeConnections,

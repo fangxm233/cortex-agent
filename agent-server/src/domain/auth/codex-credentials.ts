@@ -1,7 +1,6 @@
-import * as path from 'node:path';
 import { CODEX_PROVIDER } from '@core/codex-quota.js';
 import { decodeJwtPayload, findChatgptAccountId } from '@core/codex-token.js';
-import { PI_AGENT_DIR } from '../../agent-adapter/pi/defaults.js';
+import { piAuthPath } from '../../agent-adapter/pi/defaults.js';
 import type { CodexCredentials } from '@domain/costs/codex-account.js';
 import { loadPiRuntime, type LoadPiRuntimeOptions, type PiRuntimeLoadResult } from './pi-runtime.js';
 
@@ -18,7 +17,7 @@ export interface CodexCredentialDeps {
  */
 export async function loadCodexCredentials(deps: CodexCredentialDeps = {}): Promise<CodexCredentials | null> {
   const loaded = await (deps.loadRuntime ?? loadPiRuntime)({
-    authPath: deps.authPath ?? path.join(PI_AGENT_DIR, 'auth.json'),
+    authPath: deps.authPath ?? piAuthPath(),
   });
   if (!loaded.available) throw new Error(loaded.error);
   const { runtime } = loaded;

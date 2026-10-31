@@ -1,6 +1,6 @@
 import { t } from '@core/i18n.js';
 import { createLogger } from '@core/log.js';
-import { piUserAuthPath } from '@core/pi-sdk.js';
+import { piAuthPath as defaultPiAuthPath } from '../../agent-adapter/pi/defaults.js';
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
 import { claudeSubscriptionLogin } from '@core/claude-credentials.js';
 import {
@@ -97,7 +97,7 @@ function succeeded(input: LogoutAccountInput): AuthLogoutSuccess {
 }
 
 function piAuthPath(dependencies: LogoutAccountDependencies): string {
-  return dependencies.piAuthPath ?? piUserAuthPath();
+  return dependencies.piAuthPath ?? defaultPiAuthPath();
 }
 
 function readStatus(dependencies: LogoutAccountDependencies): Promise<AuthStatusSnapshot> {
