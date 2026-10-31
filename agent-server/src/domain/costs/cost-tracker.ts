@@ -10,7 +10,11 @@ export interface CostEntry {
   num_turns: number | null;
   duration_s: number | null;
   backend: string;
+  /** Billing bucket: 'plan' for spend Claude's subscription covers, 'api' for everything else. */
   mode: string;
+  /** The connection the spend ran on (`routeName`): a Claude connection id, or a PI provider.
+   *  Absent on rows written before connections existed. */
+  connection?: string;
   source: string;
   input_tokens?: number | null;
   output_tokens?: number | null;
@@ -38,7 +42,8 @@ interface RecordCostInput extends Partial<CostAttribution> {
   num_turns?: number | null;
   duration_s?: number | null;
   backend?: string;
-  mode?: string;
+  /** `routeName` of the selection that spent it; also decides the billing bucket. */
+  connection?: string;
   source?: string;
   input_tokens?: number | null;
   output_tokens?: number | null;
@@ -165,9 +170,8 @@ function addCostByMode(target: ModeBuckets, mode: string, cost: number): void {
 }
 
 /**
- * Record a cost entry after a Claude invocation.
- * source: 'estimate' (default, from Claude CLI) or 'gateway' (from aistatus gateway usage data)
- * Gateway entries may have cost_usd=0 (e.g. plan mode) but still track tokens.
+ * Record one backend cost event. source: 'estimate' (the default) is the backend's own figure; an
+ * estimate without a cost or any token count carries nothing and is dropped.
  */
 async function recordCost(input: RecordCostInput): Promise<void> {
   const effectiveSource = input.source || 'estimate';
@@ -181,7 +185,8 @@ async function recordCost(input: RecordCostInput): Promise<void> {
     timestamp: new Date().toISOString(), project: input.project || 'general',
     trigger: input.trigger || 'unknown', cost_usd: input.cost_usd ?? null,
     num_turns: input.num_turns ?? null, duration_s: input.duration_s ?? null,
-    backend: input.backend || 'claude', mode: normalizeCostMode(input.mode),
+    backend: input.backend || 'claude', mode: normalizeCostMode(input.connection),
+    ...(input.connection ? { connection: input.connection } : {}),
     source: effectiveSource,
     input_tokens: input.input_tokens ?? null, output_tokens: input.output_tokens ?? null,
     cache_read_tokens: input.cache_read_tokens ?? null,

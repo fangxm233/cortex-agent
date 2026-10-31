@@ -82,7 +82,7 @@ describe('sweepCacheKeepWarm', () => {
     assert.deepEqual(log.queued, ['web:track-1']);
     assert.deepEqual(log.noted, [['backend-1', NOW]]);
     assert.deepEqual(log.costs, [{
-      project: 'nimbus', trigger: 'cache-refresh', cost_usd: 0.041, backend: 'claude', mode: 'subscription',
+      project: 'nimbus', trigger: 'cache-refresh', cost_usd: 0.041, backend: 'claude', connection: 'subscription',
       source: 'estimate', input_tokens: 2, output_tokens: 4, prompt_tokens: 166_199,
       cache_read_tokens: 165_180, cache_creation_tokens: 1_017, provider: 'anthropic', model: 'claude-x',
       session_id: 'track-1',

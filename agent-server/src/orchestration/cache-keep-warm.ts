@@ -58,7 +58,7 @@ export interface KeepWarmCostEntry {
   trigger: 'cache-refresh';
   cost_usd: number;
   backend: 'claude';
-  mode: string;
+  connection: string;
   source: 'estimate';
   input_tokens: number;
   output_tokens: number;
@@ -136,7 +136,7 @@ function costEntry(target: KeepWarmTarget, result: CacheRefreshResult): KeepWarm
     trigger: 'cache-refresh',
     cost_usd: result.costUsd,
     backend: 'claude',
-    mode: routeName(target.selection),
+    connection: routeName(target.selection),
     source: 'estimate',
     input_tokens: usage.inputTokens,
     output_tokens: usage.outputTokens,

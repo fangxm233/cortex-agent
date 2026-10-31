@@ -19,7 +19,7 @@ interface CompactCostEntry {
   trigger: string;
   cost_usd: number | null;
   backend: string;
-  mode: string;
+  connection: string;
   source: string;
   input_tokens: number;
   output_tokens: number;
@@ -54,7 +54,7 @@ function compactCostEntry(
     trigger: context.trigger,
     cost_usd: result.usage.costUsd,
     backend: target.backend,
-    mode: routeName(selection),
+    connection: routeName(selection),
     source: 'estimate',
     input_tokens: result.usage.inputTokens,
     output_tokens: result.usage.outputTokens,

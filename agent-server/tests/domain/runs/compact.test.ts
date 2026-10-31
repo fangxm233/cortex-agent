@@ -111,7 +111,7 @@ test('compactAgentContext resumes the channel’s pooled session, compacts witho
       calls.filter((entry) => entry[0] === 'cost').map((entry) => entry[1]),
       [{
         project: 'nimbus', trigger: 'manual-compact', cost_usd: 0.25,
-        backend: 'pi', mode: 'anthropic', source: 'estimate',
+        backend: 'pi', connection: 'anthropic', source: 'estimate',
         input_tokens: 100, output_tokens: 10, provider: 'anthropic', model: 'deepseek-chat',
       }],
     );
@@ -171,7 +171,7 @@ test('compaction reuses the selected engine in place', async () => {
     assert.equal((await fake.runtime()).calls.filter((call) => call.kind === 'compact').length, 1);
     // The cost is the attempt's that did the work.
     assert.deepEqual(costs, [{
-      project: 'nimbus', trigger: 'manual-compact', cost_usd: 0.1, backend: 'pi', mode: 'anthropic',
+      project: 'nimbus', trigger: 'manual-compact', cost_usd: 0.1, backend: 'pi', connection: 'anthropic',
       source: 'estimate', input_tokens: 100, output_tokens: 10, provider: 'anthropic', model: 'deepseek-reasoner',
     }]);
   } finally {

@@ -142,6 +142,7 @@ test('pi-cost-record: agent_end records cost before the foreground result settle
   assert.equal(entry.project, 'pi-cost-test', 'project should match the request context');
   assert.equal(entry.trigger, 'test', 'trigger should match the request context');
   assert.equal(entry.mode, 'api', 'a PI provider connection is metered: the api bucket');
+  assert.equal(entry.connection, 'anthropic', 'a PI row is filed under its provider, its connection');
   assert.equal(entry.source, 'estimate', 'the attempt records an estimated cost source');
 });
 
