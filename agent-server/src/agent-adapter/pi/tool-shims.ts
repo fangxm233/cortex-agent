@@ -23,6 +23,7 @@ import {
 import { webFetchTool } from './web-fetch.js';
 import { webSearchTool } from './web-search.js';
 import { allowedToolLabels, hasNativeAgent } from './native-tool-policy.js';
+import { installDescribedBash } from './bash-description.js';
 
 export interface ToolShimHooks {
   /** Receives each event a subagent forwards for the parent's transcript. */
@@ -115,6 +116,7 @@ export function childExtensions(
       name: 'cortex-tool-shims',
       factory: (pi) => installToolShims(pi, env, { openBundledMcpServer }),
     },
+    { name: 'cortex-described-bash', factory: (pi) => installDescribedBash(pi) },
   ];
 }
 

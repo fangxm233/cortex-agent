@@ -164,6 +164,11 @@ assembled per session in `extensions.ts`:
   allowlist under its Claude name (`WebFetch`, `WebSearch`, `TodoWrite`), and
   the `agent` and `agent_stop` delegation tools where the session may delegate
   (see [Subagents](#subagents)).
+- **Described bash** (`bash-description.ts`) — replaces PI's `bash` with one
+  that also takes an optional `description`, as Claude Code's `Bash` does, so
+  the chat can say what a command is for. PI builds and runs the command as
+  before, with the session's shell settings; a session without `bash` active
+  gets none.
 - **Hook bridge** (`hook-bridge.ts`) — mounts the hook-registry entries that
   target the `pi` backend as native PI event handlers, so Cortex hook scripts
   see PI tool events. See [hooks.md](./hooks.md).
