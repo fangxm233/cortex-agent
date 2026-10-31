@@ -3,6 +3,7 @@ import type { AgentSession, InlineExtension } from '@earendil-works/pi-coding-ag
 import { createLogger } from '@core/log.js';
 import { loadPiSdk, type PiSdkModule } from '@core/pi-sdk.js';
 import { createRuntimeSettings } from './runtime-settings.js';
+import { applyRuntimeKeys } from './providers-config.js';
 
 const log = createLogger('pi-subagent');
 
@@ -64,6 +65,7 @@ async function createChildServices(sdk: PiSdkModule, request: ChildSessionReques
     modelsPath: path.join(request.agentDir, 'models.json'),
     allowModelNetwork: false,
   });
+  await applyRuntimeKeys(modelRuntime, request.agentDir);
   return sdk.createAgentSessionServices({
     cwd: request.cwd,
     agentDir: request.agentDir,

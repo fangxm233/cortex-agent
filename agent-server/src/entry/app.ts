@@ -50,7 +50,7 @@ import { initializeProductionAttemptIdentity } from '@domain/benchmark/productio
 import { DEFAULT_ENVIRONMENTS_DIR, ENVIRONMENTS_DIR, getEnvironmentRevision, loadEnvironments, mergeDefaultEnvironments, startEnvironmentWatcher } from '@domain/agents/environments/index.js';
 import { startMemoryWatcher } from '@domain/memory/watcher.js';
 import { defaultClaudeModel } from '@domain/agents/index.js';
-import { applyAuthEnv } from '@domain/auth/anthropic-env.js';
+import { dropRoutingEnv } from '@domain/auth/anthropic-env.js';
 import { createEditHandler } from '@orch/routing/edit-handler.js';
 import { setLocale, normalizeLocale } from '@core/i18n.js';
 import { loadLang } from '@domain/system/preferences.js';
@@ -140,11 +140,6 @@ if (!shouldSyncManagedStartupAssets()) {
   captureAuthTokensForRuntime({ scrubEnv: true });
 }
 
-// Project the saved credentials onto this process's env now that .env is loaded — the gateway
-// child inherits them. Explicit here rather than at import, so CLI processes (cortex init /
-// setup-gateway) importing the module don't get their env mutated. Mode routing is resolved per
-// spawn, never here.
-applyAuthEnv();
 // The "daemon's Claude model" PI's subagent catalog and the MCP tool context read.
 process.env.CORTEX_CLAUDE_MODEL = defaultClaudeModel();
 
@@ -263,6 +258,10 @@ markBootPhase('migrations');
 // A migration may add settings to .env (the port an older install was reached on); pick up the
 // keys it added before anything reads them.
 loadRuntimeDotenv(path.join(CONFIG_DIR, '.env'));
+// Routing credentials live in connections, resolved per spawn: none stay in this process's env.
+// After migrations, which may have moved a key found here into a connection, and after .env, which
+// may still name one when that migration could not run.
+dropRoutingEnv();
 // The one HTTP server: Web UI, webhook routes, cortex-client and TUI sockets. Each part is mounted
 // as it starts; the port is bound with the UI below.
 const main = createMainServer();

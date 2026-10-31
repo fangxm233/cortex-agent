@@ -12,7 +12,7 @@ import { createHash } from 'crypto';
 import { readFileSync } from 'fs';
 import * as path from 'path';
 import { parse as parseDotenv } from 'dotenv';
-import { GATEWAY_MANAGED_KEY_PLACEHOLDER } from './utils.js';
+import { CONNECTIONS_FILE, readConnections, type ClaudeKeyConnection } from './connections-file.js';
 import { CLAUDE_CONFIG_HOME, CONFIG_DIR } from './paths.js';
 
 /** OAuth tokens go on `Authorization: Bearer` and need this beta opt-in; API keys use `x-api-key`. */
@@ -24,7 +24,7 @@ const KEYCHAIN_PROBE_TIMEOUT_MS = 2_000;
 const KEYCHAIN_READ_TIMEOUT_MS = 5_000;
 
 export type ClaudeCredentialSource =
-  | 'env-api-key' | 'dotenv-api-key' | 'env-oauth-token' | 'dotenv-oauth-token' | 'claude-credentials'
+  | 'connection-api-key' | 'env-oauth-token' | 'dotenv-oauth-token' | 'claude-credentials'
   | 'claude-keychain';
 
 export interface ClaudeCredential {
@@ -45,6 +45,8 @@ export interface ClaudeCredentialDeps {
   probeKeychain?: (service: string) => boolean;
   /** Reads the keychain item's secret; null when it is absent or unreadable. */
   readKeychain?: (service: string) => Promise<string | null>;
+  /** Cortex's connections file; defaults to CONFIG_DIR's. */
+  connectionsFile?: string;
 }
 
 function readFileOrNull(read: (p: string) => string, filePath: string): string | null {
@@ -65,12 +67,6 @@ export function credentialValue(value: unknown): string | undefined {
   const trimmed = value.trim();
   if (!trimmed || trimmed === 'undefined' || trimmed === 'null') return undefined;
   return trimmed;
-}
-
-/** A real Anthropic API key — the gateway-managed placeholder is not one. */
-export function apiKeyValue(value: unknown): string | undefined {
-  const key = credentialValue(value);
-  return key === GATEWAY_MANAGED_KEY_PLACEHOLDER ? undefined : key;
 }
 
 /** The Anthropic credentials saved in CONFIG_DIR/.env. */
@@ -98,7 +94,7 @@ export function readDotenvCredentials(deps: ClaudeCredentialDeps = {}): DotenvCr
   const parsed = parseDotenvFile(fileReader(deps));
   const oauthToken = credentialValue(parsed.CLAUDE_CODE_OAUTH_TOKEN);
   return {
-    ANTHROPIC_API_KEY: apiKeyValue(parsed.ANTHROPIC_API_KEY),
+    ANTHROPIC_API_KEY: credentialValue(parsed.ANTHROPIC_API_KEY),
     ANTHROPIC_BASE_URL: credentialValue(parsed.ANTHROPIC_BASE_URL),
     CLAUDE_CODE_OAUTH_TOKEN: oauthToken,
     CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: oauthToken
@@ -108,13 +104,18 @@ export function readDotenvCredentials(deps: ClaudeCredentialDeps = {}): DotenvCr
 }
 
 /**
- * The real Anthropic API key: process.env first (ignoring the gateway-managed placeholder), then
- * CONFIG_DIR/.env — the canonical key location (docs/configuration.md). CLI processes (cortex init /
- * setup-gateway) never run dotenv.config, so the file is read directly.
+ * The Claude connection that calls the official Anthropic API on an API key — the one connection
+ * whose key the daemon may use for its own Anthropic calls. A relay's key belongs to the relay.
  */
+export function officialApiKeyConnection(deps: ClaudeCredentialDeps = {}): ClaudeKeyConnection | null {
+  const found = readConnections(deps.connectionsFile ?? CONNECTIONS_FILE).find((entry) =>
+    entry.backend === 'claude' && !entry.baseUrl && entry.authStyle === 'x-api-key');
+  return found?.backend === 'claude' ? found : null;
+}
+
+/** The official Anthropic API key, when a connection holds one. */
 export function resolveAnthropicApiKey(deps: ClaudeCredentialDeps = {}): string | null {
-  const env = deps.env ?? process.env;
-  return apiKeyValue(env.ANTHROPIC_API_KEY) ?? readDotenvCredentials(deps).ANTHROPIC_API_KEY ?? null;
+  return officialApiKeyConnection(deps)?.key ?? null;
 }
 
 function apiKeyHeaders(key: string): Record<string, string> {
@@ -217,34 +218,27 @@ export function readClaudeOrganizationUuid(deps: ClaudeCredentialDeps = {}): str
 }
 
 /**
- * The credential the daemon may authenticate an Anthropic call with: an API key (env, then .env),
- * then Claude's own store, then an OAuth token from the env or .env. Claude's store outranks the
- * static token for the same reason `applyAuthEnv` lets it win — it is the credential `claude login`
- * writes and refreshes, while the .env copy is a token nobody rotates. null means "this host cannot
- * make a server-side Anthropic call" — never an error: every caller has a static fallback, and a
- * host with no key is a supported configuration.
+ * The credential the daemon may authenticate an Anthropic call with: the official-API key
+ * connection, then Claude's own store, then a legacy OAuth token from the env or .env. Claude's
+ * store outranks the static token — it is the credential `claude login` writes and refreshes, while
+ * the .env copy is a token nobody rotates. null means "this host cannot make a server-side
+ * Anthropic call" — never an error: every caller has a static fallback, and a host with no key is a
+ * supported configuration.
  */
 export function resolveClaudeCredential(deps: ClaudeCredentialDeps = {}): ClaudeCredential | null {
-  const env = deps.env ?? process.env;
-
-  const envKey = apiKeyValue(env.ANTHROPIC_API_KEY);
-  if (envKey) return { headers: apiKeyHeaders(envKey), source: 'env-api-key' };
-
-  const saved = readDotenvCredentials(deps);
-  if (saved.ANTHROPIC_API_KEY) {
-    return { headers: apiKeyHeaders(saved.ANTHROPIC_API_KEY), source: 'dotenv-api-key' };
-  }
+  const connection = officialApiKeyConnection(deps);
+  if (connection) return { headers: apiKeyHeaders(connection.key), source: 'connection-api-key' };
 
   const storeToken = claudeStoreToken(deps);
   if (storeToken) return { headers: oauthHeaders(storeToken), source: 'claude-credentials' };
+  return legacyTokenCredential(deps);
+}
 
-  const envToken = credentialValue(env.CLAUDE_CODE_OAUTH_TOKEN);
+function legacyTokenCredential(deps: ClaudeCredentialDeps): ClaudeCredential | null {
+  const envToken = credentialValue((deps.env ?? process.env).CLAUDE_CODE_OAUTH_TOKEN);
   if (envToken) return { headers: oauthHeaders(envToken), source: 'env-oauth-token' };
-
-  if (saved.CLAUDE_CODE_OAUTH_TOKEN) {
-    return { headers: oauthHeaders(saved.CLAUDE_CODE_OAUTH_TOKEN), source: 'dotenv-oauth-token' };
-  }
-  return null;
+  const saved = readDotenvCredentials(deps).CLAUDE_CODE_OAUTH_TOKEN;
+  return saved ? { headers: oauthHeaders(saved), source: 'dotenv-oauth-token' } : null;
 }
 
 /**
@@ -316,15 +310,4 @@ export function claudeOwnsOAuthCredential(deps: ClaudeCredentialDeps = {}): bool
   if (platform !== 'darwin') return false;
   const probe = deps.probeKeychain ?? probeKeychainItem;
   return probe(claudeKeychainService(deps));
-}
-
-/**
- * Can a Claude spawn on this host authenticate at all? Any store counts, unlike
- * resolveClaudeCredential: an expired login still refreshes inside Claude Code, a macOS keychain
- * login is only probed here, never read, and ANTHROPIC_AUTH_TOKEN reaches a child only through the env.
- */
-export function hasClaudeCredential(deps: ClaudeCredentialDeps = {}): boolean {
-  const env = deps.env ?? process.env;
-  if (credentialValue(env.ANTHROPIC_AUTH_TOKEN)) return true;
-  return resolveClaudeCredential(deps) !== null || claudeOwnsOAuthCredential(deps);
 }

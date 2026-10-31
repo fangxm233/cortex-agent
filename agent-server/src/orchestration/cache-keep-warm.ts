@@ -19,7 +19,8 @@ import { effectiveBackendSessionId, sessionStore, type Session } from '@store/se
 import { hasRunningBackgroundRuns } from '@domain/agents/subagent/registry.js';
 import type { EngineSelection } from '@domain/agents/engine-selection.js';
 import { recordCost } from '@domain/costs/cost-tracker.js';
-import { requestRoute, resolveRunSelection } from '@domain/runs/config-resolver.js';
+import { resolveRunRoute, resolveRunSelection } from '@domain/runs/config-resolver.js';
+import { credentialInventory, routeName } from '@domain/connections/index.js';
 import { buildEngineSpec } from '@domain/runs/engine-spec.js';
 import { isTeamLead } from '@domain/sessions/team.js';
 import {
@@ -43,7 +44,8 @@ export const KEEP_WARM_MAX_AGE_MS = 58 * 60_000;
 export const KEEP_WARM_MIN_CONTEXT_TOKENS = 100_000;
 const HOUR_MS = 60 * 60_000;
 
-export type KeepWarmSettings = { hours: number; subscriptionModes: readonly string[] };
+/** `subscriptionConnections`: the Claude connections a subscription bills, whose cache lives an hour. */
+export type KeepWarmSettings = { hours: number; subscriptionConnections: readonly string[] };
 
 export interface KeepWarmTarget {
   session: Session;
@@ -94,13 +96,13 @@ function largeClaudeSession(session: Session): string | null {
   return effectiveBackendSessionId(session);
 }
 
-/** Only a subscription mode caches for an hour; elsewhere the cache is gone long before a refresh. */
+/** Only a subscription connection caches for an hour; elsewhere the cache is gone long before a refresh. */
 function subscriptionSelection(
-  session: Session, deps: KeepWarmDeps, modes: readonly string[],
+  session: Session, deps: KeepWarmDeps, connections: readonly string[],
 ): EngineSelection | null {
   let selection: EngineSelection;
   try { selection = deps.selection(session); } catch { return null; }
-  return selection.backend === 'claude' && modes.includes(selection.mode) ? selection : null;
+  return selection.backend === 'claude' && connections.includes(routeName(selection)) ? selection : null;
 }
 
 /** Due when the cache nears the hour but has not yet passed it, while the last model activity is
@@ -121,7 +123,7 @@ export async function dueTarget(
 ): Promise<KeepWarmTarget | null> {
   const backendSessionId = largeClaudeSession(session);
   if (!backendSessionId || !(await deps.hasWakeSource(session))) return null;
-  const selection = subscriptionSelection(session, deps, settings.subscriptionModes);
+  const selection = subscriptionSelection(session, deps, settings.subscriptionConnections);
   if (!selection) return null;
   const target = { session, backendSessionId, selection };
   return refreshDue(target, deps, settings.hours) && !deps.busy(session.channel) ? target : null;
@@ -134,7 +136,7 @@ function costEntry(target: KeepWarmTarget, result: CacheRefreshResult): KeepWarm
     trigger: 'cache-refresh',
     cost_usd: result.costUsd,
     backend: 'claude',
-    mode: target.selection.mode,
+    mode: routeName(target.selection),
     source: 'estimate',
     input_tokens: usage.inputTokens,
     output_tokens: usage.outputTokens,
@@ -225,7 +227,7 @@ export function keepWarmLaunch(target: KeepWarmTarget): CacheRefreshLaunch {
     channel: session.channel, session, trigger: 'cache-refresh',
   });
   const spec = buildEngineSpec(request, request.selection, {
-    route: requestRoute(request, request.selection),
+    route: resolveRunRoute(request.selection),
     executionId: `cache-refresh-${randomUUID()}`,
   });
   return cacheRefreshLaunch(spec);
@@ -235,7 +237,9 @@ export const productionKeepWarmDeps: KeepWarmDeps = {
   listSessions: () => sessionStore.listRecentSessions(Number.MAX_SAFE_INTEGER),
   settings: () => {
     const settings = getSettings();
-    return { hours: settings.cacheKeepWarmHours, subscriptionModes: settings.anthropicSubscriptionModes };
+    const subscriptionConnections = credentialInventory.claudeConnections()
+      .filter((view) => view.billing === 'subscription').map((view) => view.id);
+    return { hours: settings.cacheKeepWarmHours, subscriptionConnections };
   },
   selection: (session) => resolveRunSelection({ channel: session.channel, session }),
   // A conversation turn spawns in its session's cwd, which is where its transcript lives.

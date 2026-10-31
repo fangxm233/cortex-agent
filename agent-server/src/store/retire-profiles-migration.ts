@@ -2,12 +2,17 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { atomicWrite } from '@core/atomic-write.js';
 import { createLogger } from '@core/log.js';
-import type { EngineSelection, ModelRef, ModelsFile } from '@domain/agents/engine-selection.js';
-import { SessionRegistryRepo } from './session-registry-repo.js';
+import type { ModelRef } from '@domain/agents/engine-selection.js';
+import { SessionRegistryRepo, type Session } from './session-registry-repo.js';
 
 const log = createLogger('retire-profiles-migration');
 type JsonObject = Record<string, unknown>;
+/** The selection shape of this step's era, named by gateway mode; a later step converts it. */
+type EngineSelection = Pick<ModelRef, 'backend' | 'provider' | 'model'> & { thinking: string | null; mode: string };
+type ModelsFile = { default: EngineSelection; favorites: ModelRef[] };
 type Memory = Record<string, Pick<EngineSelection, 'thinking' | 'mode'>>;
+/** Written in this era's shape; the connections step after this one rewrites it. */
+type RegistrySelection = NonNullable<Session['selection']>;
 
 export interface RetireProfilesReport {
   skipped?: 'immutable' | 'no-profiles';
@@ -243,7 +248,7 @@ async function migrateSessions(
     const base = resolveCompatibleName(snapshot, name, `session:${id}`, session.backend);
     if (!base && !session.selection) continue;
     const selection = base ? mergeOverride(base, overrides[session.channel]) : null;
-    await repo.updateSession(id, { selection });
+    await repo.updateSession(id, { selection: selection as unknown as RegistrySelection });
     snapshot.report.sessions += 1;
   }
 }
@@ -258,7 +263,7 @@ async function migrateConversations(
     const base = resolveCompatibleName(snapshot, name, `conversation:${channel}`, backend);
     if (!base && !header.selection) continue;
     const selection = base ? mergeOverride(base, overrides[channel]) : null;
-    await repo.setConversation(channel, { selection });
+    await repo.setConversation(channel, { selection: selection as unknown as RegistrySelection });
     snapshot.report.conversations += 1;
   }
 }

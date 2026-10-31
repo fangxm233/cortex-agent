@@ -1,8 +1,5 @@
 import { t } from '@core/i18n.js';
-import {
-  applyAuthEnv,
-  saveAnthropicApiKey,
-} from './anthropic-env.js';
+import { saveAnthropicApiKey } from './anthropic-env.js';
 import { publishAuthRecovered } from './auth-events.js';
 import {
   LoginFlowError,
@@ -30,7 +27,6 @@ export async function loginClaudeApiKey(
     const message = failureWithDetail(t('ux.auth.apiKeySaveFailed'), error);
     throw new LoginFlowError('claude_api_key_save_failed', message, error);
   }
-  applyAuthEnv();
   publishAuthRecovered({ backend: 'claude', provider: 'anthropic' });
   return { provider: 'anthropic', authType: 'api_key', expiresAt: null };
 }

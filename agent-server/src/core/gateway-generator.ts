@@ -304,8 +304,6 @@ function anthropicEndpoint(
  */
 async function discoverClaudeEndpoints(options: DiscoverEndpointsOptions): Promise<DiscoveredEndpoint[]> {
   const subscription = (options.claudeSubscription ?? (() => claudeOwnsOAuthCredential()))();
-  // The gateway-managed placeholder exists solely to satisfy Claude Code's startup credential
-  // check; it is not a key, and resolveAnthropicApiKey ignores it.
   const apiKey = resolveAnthropicApiKey() !== null;
   if (!subscription && !apiKey) return [];
   // The status checker reads this list to decide which models to probe for degradation; routing

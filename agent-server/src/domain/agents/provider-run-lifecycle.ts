@@ -1,11 +1,12 @@
 import type { Backend } from '../../agent-adapter/types.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import { isProviderModeRateLimited } from '../costs/rate-limit-throttle.js';
+import { routeName } from '../connections/index.js';
 
 interface ProviderConfig {
   backend: Backend;
   provider?: string | null;
-  mode: string | null;
+  connection: string | null;
 }
 
 const DEFAULT_PROVIDER_BY_BACKEND: Partial<Record<Backend, string>> = {
@@ -19,13 +20,14 @@ export function resolveRateLimitProvider(
 }
 
 export function configIsRateLimited(config: ProviderConfig): boolean {
-  return isProviderModeRateLimited(resolveRateLimitProvider(config), config.mode || 'api');
+  const route = routeName({ backend: config.backend, provider: config.provider ?? null, connection: config.connection });
+  return isProviderModeRateLimited(resolveRateLimitProvider(config), route);
 }
 
-export function rateLimitedResult(mode: string, provider: string): AgentResult {
+export function rateLimitedResult(route: string, provider: string): AgentResult {
   return {
     sessionId: null, total_cost_usd: null, num_turns: null,
-    rateLimited: true, rateLimitMessage: `Mode ${mode} is rate-limited`, rateLimitProvider: provider,
+    rateLimited: true, rateLimitMessage: `Connection ${route} is rate-limited`, rateLimitProvider: provider,
     planFilePath: null, enteredPlanMode: false, exitedPlanMode: false, finalOutput: null,
   };
 }

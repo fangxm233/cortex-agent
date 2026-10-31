@@ -4,11 +4,10 @@ import type {
   EngineSpec, CortexContextEnv, McpComposition,
 } from '../../agent-adapter/types.js';
 import { resolveMcpComposition } from '../../agent-adapter/types.js';
-import { gatewayUrl } from '@core/gateway-endpoint.js';
 import { composeSystemPrompt, globalRuleBodies } from './prompt.js';
 import { workspacePrompt } from '@core/workspace.js';
 import { resolvePluginRuntime } from '../plugins/runtime.js';
-import type { ModeEnv } from './mode-env.js';
+import type { ClaudeRoute } from '../connections/claude-route.js';
 import type { EngineSelection } from '../agents/engine-selection.js';
 import type { RunRequest } from './request.js';
 
@@ -45,20 +44,6 @@ export function filterScopedPlugins(
     const webFeishu = base === 'cortex-feishu' && scope.feishuSkillsInWeb === true && scope.channel?.startsWith('web:');
     return !!webFeishu || !!scope.channel?.startsWith(rule.channelPrefix);
   });
-}
-
-// --- PI gateway routing ---
-
-/**
- * Build the gateway sub-path for a PI provider's models.json override, following the gateway's URL
- * convention `/m/<mode>/<endpoint>`. The `mode` selects the gateway route (gateway.yaml owns the
- * upstream + keys); the `provider` is both the PI `--provider` and the gateway endpoint segment.
- *
- * The selection carries a logical mode, not a gateway URL. An absent mode uses direct routing.
- */
-export function buildPiGatewaySubPath(mode: string | null, provider: string): string | undefined {
-  if (!mode) return undefined;
-  return `/m/${mode}/${provider}`;
 }
 
 // --- Spec helpers ---
@@ -136,33 +121,17 @@ function pluginFields(
   };
 }
 
-/** The credentials a mode route decides. ANTHROPIC_BASE_URL is deliberately absent: it travels on
- *  the dedicated `anthropicBaseUrl` spawn field, and writing it into `env` as well would give
- *  production-attempt-identity two sources for the attested route host — a drift source. */
-const ROUTE_CREDENTIAL_KEYS = ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN'] as const;
-
-function routeEnvSets(route: ModeEnv): Record<string, string> {
-  const sets: Record<string, string> = {};
-  for (const key of ROUTE_CREDENTIAL_KEYS) {
-    const value = route[key];
-    if (typeof value === 'string') sets[key] = value;
-  }
-  return sets;
-}
-
-/** An absent route base URL must not inherit a previous daemon route. */
-function routeEnvDeletes(route: ModeEnv): string[] {
-  const deletes: string[] = ROUTE_CREDENTIAL_KEYS.filter(key => route[key] === null);
-  if (!route.ANTHROPIC_BASE_URL) deletes.push('ANTHROPIC_BASE_URL');
-  return deletes;
-}
-
-/** Environment comes only from the resolved route, not user configuration. */
+/** Environment comes only from the resolved route, not user configuration. ANTHROPIC_BASE_URL is
+ *  set through the dedicated `anthropicBaseUrl` spawn field rather than `sets`, so
+ *  production-attempt-identity has one source for the attested route host; a route without a base
+ *  URL deletes the variable so a child never inherits one. */
 export function routeEnvFields(
-  route: ModeEnv | undefined,
+  route: ClaudeRoute | undefined,
 ): { sets?: Record<string, string>; unsets?: string[] } {
-  const sets = route ? routeEnvSets(route) : {};
-  const unsets = route ? routeEnvDeletes(route) : [];
+  if (!route) return {};
+  const sets = { ...route.sets } as Record<string, string>;
+  const unsets: string[] = [...route.unsets];
+  if (!route.baseUrl) unsets.push('ANTHROPIC_BASE_URL');
   return {
     sets: Object.keys(sets).length > 0 ? sets : undefined,
     unsets: unsets.length > 0 ? unsets : undefined,
@@ -192,7 +161,7 @@ function backendField(
 export function buildEngineSpec(
   request: RunRequest,
   attempt: EngineSelection,
-  opts: { route?: ModeEnv; executionId?: string | null } = {},
+  opts: { route?: ClaudeRoute; executionId?: string | null } = {},
 ): EngineSpec {
   const { route, executionId = null } = opts;
   const mcpComposition = resolveMcpComposition(request.policy.mcpComposition);
@@ -245,9 +214,8 @@ export function buildEngineSpec(
       context,
     },
     route: {
-      anthropicBaseUrl: route?.ANTHROPIC_BASE_URL,
-      gatewayBaseUrl: attempt.backend === 'pi' ? gatewayUrl() : undefined,
-      gatewayPath: provider ? buildPiGatewaySubPath(attempt.mode, provider) : undefined,
+      anthropicBaseUrl: route?.baseUrl,
+      connection: route?.connection,
     },
     flags: policy.flags,
     context: {

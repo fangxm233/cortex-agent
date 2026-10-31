@@ -4,6 +4,7 @@ import * as executionRegistry from '../executions/registry.js';
 import { AgentRunImpl, type AgentRun, type RunTerminalInfo } from './run.js';
 import type { RunObserver, RunRequest } from './request.js';
 import { createRunTelemetry } from '../telemetry/turns.js';
+import { routeName } from '../connections/index.js';
 
 /**
  * Start one agent run: open its execution record, register it for cancellation, and return the
@@ -27,7 +28,7 @@ function openExecution(request: RunRequest): { id: string } {
     project: request.context.project,
     trigger: request.context.trigger,
     backend: request.selection.backend,
-    billingMode: request.selection.mode || 'api',
+    billingMode: routeName(request.selection),
     sessionId: request.session.sessionId,
     ownerSessionId: request.context.ownerSessionId ?? null,
     label: request.prompt.text.substring(0, 60),

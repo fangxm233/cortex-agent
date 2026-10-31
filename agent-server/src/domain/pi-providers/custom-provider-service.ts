@@ -1,10 +1,10 @@
 import { createLogger } from '@core/log.js';
-import { gatewayUrl } from '@core/gateway-endpoint.js';
+import {
+  CONNECTIONS_FILE, isPiCustomConnection, readConnections, removeConnection, upsertConnection,
+  type PiCustomConnection, type PiModelDefinition,
+} from '@core/connections-file.js';
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
 import {
-  buildModelsJsonEntry,
-  gatewayAuthStyle,
-  gatewayEndpoint,
   normalizeCustomProvider,
   readEntryModels,
   validateCustomProvider,
@@ -13,42 +13,24 @@ import {
   type CustomProviderIssue,
   type CustomProviderModelSpec,
 } from './custom-provider-model.js';
-import {
-  USER_PI_MODELS_PATH,
-  readCustomProviderEntries,
-  removeModelsJsonProvider,
-  upsertModelsJsonProvider,
-} from './models-json-store.js';
-import {
-  GATEWAY_CONFIG_PATH,
-  readGatewayRoute,
-  removeGatewayRoute,
-  upsertGatewayRoute,
-} from './gateway-route-store.js';
 
 const log = createLogger('pi-custom-providers');
 
 export interface CustomProviderStores {
-  /** PI's user catalog (`~/.pi/agent/models.json`). */
-  modelsPath: string;
-  /** The gateway config the running gateway watches (`~/.aistatus/gateway.yaml`). */
-  gatewayPath: string;
-  /** Gateway base URL every custom provider is routed through. */
-  gatewayUrl: string;
+  /** Cortex's connections file, where a custom provider is defined with its key. */
+  connectionsPath: string;
   /** Called after a successful change so provider discovery and account status can refresh. */
   onChanged?: () => void;
 }
 
 /**
- * The host files a custom provider lives in: PI's own catalog and the gateway config it routes to.
- * A change invalidates the provider discovery cache the same way a login does, so a provider defined
- * from any surface reaches the next spawn without waiting out the cache TTL.
+ * A custom provider is a PI connection carrying a complete definition. A change invalidates the
+ * provider discovery cache the same way a login does, so a provider defined from any surface reaches
+ * the next spawn without waiting out the cache TTL.
  */
 export function defaultCustomProviderStores(): CustomProviderStores {
   return {
-    modelsPath: USER_PI_MODELS_PATH,
-    gatewayPath: GATEWAY_CONFIG_PATH,
-    gatewayUrl: gatewayUrl(),
+    connectionsPath: CONNECTIONS_FILE,
     onChanged: () => piProviderDiscovery.refresh(),
   };
 }
@@ -58,10 +40,9 @@ export interface CustomProviderView {
   name: string;
   api: CustomProviderApi;
   models: CustomProviderModelSpec[];
-  /** Upstream from the gateway route, or null when the route is missing. */
   upstreamUrl: string | null;
   hasApiKey: boolean;
-  /** Whether a gateway route backs this definition. False means calls will 404 at the gateway. */
+  /** Always true: a custom provider is called at its own URL. Kept for clients that render it. */
   routed: boolean;
   headers?: Record<string, string>;
   compat?: Record<string, unknown>;
@@ -77,67 +58,65 @@ export type CustomProviderRemoval =
   | { ok: true }
   | { ok: false; errors: CustomProviderFailure[] };
 
-function routeKeys(route: Record<string, unknown> | null): string[] {
-  const keys = route?.keys;
-  if (!Array.isArray(keys)) return [];
-  return keys.filter((key): key is string => typeof key === 'string' && key.length > 0);
-}
-
-function viewOf(
-  name: string,
-  entry: Record<string, unknown>,
-  route: Record<string, unknown> | null,
-): CustomProviderView {
+function viewOf(connection: PiCustomConnection): CustomProviderView {
   const view: CustomProviderView = {
-    name,
-    api: entry.api as CustomProviderApi,
-    models: readEntryModels(entry),
-    upstreamUrl: typeof route?.base_url === 'string' ? route.base_url : null,
-    hasApiKey: routeKeys(route).length > 0,
-    routed: route !== null,
+    name: connection.provider,
+    api: connection.api as CustomProviderApi,
+    models: readEntryModels({ models: connection.models }),
+    upstreamUrl: connection.baseUrl,
+    hasApiKey: !!connection.key,
+    routed: true,
   };
-  if (entry.headers && typeof entry.headers === 'object') {
-    view.headers = entry.headers as Record<string, string>;
-  }
-  if (entry.compat && typeof entry.compat === 'object') {
-    view.compat = entry.compat as Record<string, unknown>;
-  }
+  if (connection.headers) view.headers = connection.headers;
+  if (connection.compat) view.compat = connection.compat;
   return view;
 }
 
-/** The route an entry's protocol places it on: mode is always the name, endpoint follows the api. */
-function routeOf(
-  stores: CustomProviderStores,
-  name: string,
-  entry: Record<string, unknown>,
-): Record<string, unknown> | null {
-  const endpoint = gatewayEndpoint(entry.api as CustomProviderApi, name);
-  return readGatewayRoute(stores.gatewayPath, endpoint, name);
+function customConnections(stores: CustomProviderStores): PiCustomConnection[] {
+  return readConnections(stores.connectionsPath)
+    .filter((entry): entry is PiCustomConnection => entry.backend === 'pi' && isPiCustomConnection(entry));
+}
+
+function findCustom(stores: CustomProviderStores, name: string): PiCustomConnection | null {
+  return customConnections(stores).find((entry) => entry.provider === name) ?? null;
 }
 
 export function listCustomProviders(stores: CustomProviderStores): CustomProviderView[] {
-  const entries = readCustomProviderEntries(stores.modelsPath);
-  return Object.entries(entries).map(([name, entry]) => (
-    viewOf(name, entry, routeOf(stores, name, entry))
-  ));
+  return customConnections(stores).map(viewOf);
 }
 
 export function getCustomProvider(
   stores: CustomProviderStores,
   name: string,
 ): CustomProviderView | null {
-  const entry = readCustomProviderEntries(stores.modelsPath)[name];
-  if (!entry) return null;
-  return viewOf(name, entry, routeOf(stores, name, entry));
+  const connection = findCustom(stores, name);
+  return connection ? viewOf(connection) : null;
+}
+
+/** Edited models keep the fields an earlier definition carried for the same id. */
+function mergedModels(previous: PiCustomConnection | null, models: CustomProviderModelSpec[]): PiModelDefinition[] {
+  const byId = new Map((previous?.models ?? []).map((model) => [model.id, model]));
+  return models.map((spec) => ({ ...byId.get(spec.id), ...spec }));
+}
+
+function connectionOf(provider: CustomProviderInput, previous: PiCustomConnection | null, key: string | undefined): PiCustomConnection {
+  const connection: PiCustomConnection = {
+    id: provider.name, backend: 'pi', provider: provider.name, api: provider.api,
+    baseUrl: provider.upstreamUrl, models: mergedModels(previous, provider.models),
+  };
+  if (key) connection.key = key;
+  const headers = provider.headers !== undefined ? provider.headers : previous?.headers;
+  const compat = provider.compat !== undefined ? provider.compat : previous?.compat;
+  if (headers && Object.keys(headers).length > 0) connection.headers = headers;
+  if (compat && Object.keys(compat).length > 0) connection.compat = compat;
+  return connection;
 }
 
 /**
- * Create or update a custom provider. The gateway route is written first — an unreferenced route is
- * inert — and the PI catalog second, because that write is what makes the provider visible to PI.
- * A failed catalog write therefore rolls the route back to its previous state.
+ * Create or update a custom provider.
  *
- * `apiKey` semantics: `undefined` keeps the stored upstream key (so an edit need not retype it),
- * `''` clears it and lets the gateway pass the caller's own key through.
+ * `apiKey` semantics: `undefined` keeps the stored key (so an edit need not retype it), `''` clears
+ * it.
  */
 export function upsertCustomProvider(
   stores: CustomProviderStores,
@@ -147,97 +126,31 @@ export function upsertCustomProvider(
   const issues = validateCustomProvider(provider);
   if (issues.length > 0) return { ok: false, errors: issues };
 
-  const { name } = provider;
-  const endpoint = gatewayEndpoint(provider.api, name);
-  const previousRoute = readGatewayRoute(stores.gatewayPath, endpoint, name);
-  const keys = input.apiKey === undefined ? routeKeys(previousRoute) : [input.apiKey].filter(Boolean);
-
+  const previous = findCustom(stores, provider.name);
+  const key = input.apiKey === undefined ? previous?.key : input.apiKey || undefined;
+  const connection = connectionOf(provider, previous, key);
   try {
-    upsertGatewayRoute(stores.gatewayPath, {
-      endpoint,
-      mode: name,
-      base_url: provider.upstreamUrl,
-      auth_style: gatewayAuthStyle(provider.api),
-      keys,
-      passthrough: keys.length === 0,
-    });
+    upsertConnection(connection, stores.connectionsPath);
   } catch (err) {
-    log.warn(`Failed to write the gateway route for '${name}': ${(err as Error).message}`);
+    log.warn(`Failed to save custom provider '${provider.name}': ${(err as Error).message}`);
     return { ok: false, errors: ['write-failed'] };
   }
-
-  const entry = mergedModelsEntry(stores, provider);
-  try {
-    upsertModelsJsonProvider(stores.modelsPath, name, entry);
-  } catch (err) {
-    log.warn(`Failed to write the PI catalog entry for '${name}': ${(err as Error).message}`);
-    restoreRoute(stores, endpoint, name, previousRoute);
-    return { ok: false, errors: ['write-failed'] };
-  }
-
   stores.onChanged?.();
-  return {
-    ok: true,
-    provider: viewOf(name, entry, readGatewayRoute(stores.gatewayPath, endpoint, name)),
-  };
+  return { ok: true, provider: viewOf(connection) };
 }
 
-function restoreRoute(
-  stores: CustomProviderStores,
-  endpoint: string,
-  name: string,
-  previousRoute: Record<string, unknown> | null,
-): void {
-  try {
-    if (!previousRoute) {
-      removeGatewayRoute(stores.gatewayPath, endpoint, name);
-      return;
-    }
-    upsertGatewayRoute(stores.gatewayPath, {
-      endpoint,
-      mode: name,
-      base_url: String(previousRoute.base_url ?? ''),
-      auth_style: String(previousRoute.auth_style ?? 'bearer'),
-      keys: routeKeys(previousRoute),
-      passthrough: previousRoute.passthrough === true,
-    });
-  } catch (err) {
-    log.warn(`Failed to roll the gateway route for '${name}' back: ${(err as Error).message}`);
-  }
-}
-
-/** Remove a custom provider from both files. Built-in overrides are not custom and are refused. */
+/** Remove a custom provider. A base-URL override of a built-in provider is not custom and is refused. */
 export function removeCustomProvider(
   stores: CustomProviderStores,
   name: string,
 ): CustomProviderRemoval {
-  const entry = readCustomProviderEntries(stores.modelsPath)[name];
-  if (!entry) return { ok: false, errors: ['not-found'] };
-
+  if (!findCustom(stores, name)) return { ok: false, errors: ['not-found'] };
   try {
-    removeModelsJsonProvider(stores.modelsPath, name);
-    removeGatewayRoute(stores.gatewayPath, gatewayEndpoint(entry.api as CustomProviderApi, name), name);
+    removeConnection({ backend: 'pi', id: name }, stores.connectionsPath);
   } catch (err) {
     log.warn(`Failed to remove custom provider '${name}': ${(err as Error).message}`);
     return { ok: false, errors: ['write-failed'] };
   }
-
   stores.onChanged?.();
   return { ok: true };
-}
-
-function mergedModelsEntry(
-  stores: CustomProviderStores,
-  provider: CustomProviderInput,
-): Record<string, unknown> {
-  const previous = readCustomProviderEntries(stores.modelsPath)[provider.name] ?? {};
-  const entry = { ...previous, ...buildModelsJsonEntry(provider, stores.gatewayUrl) };
-  const models = Array.isArray(previous.models) ? previous.models : [];
-  const byId = new Map(models.map(model => [model.id, model]));
-  entry.models = (entry.models as Record<string, unknown>[]).map(spec => ({
-    ...byId.get(spec.id), ...spec,
-  }));
-  if (provider.headers !== undefined) entry.headers = provider.headers;
-  if (provider.compat !== undefined) entry.compat = provider.compat;
-  return entry;
 }

@@ -2,13 +2,11 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { CONFIG_DIR } from '@core/paths.js';
 import { atomicWrite } from '@core/atomic-write.js';
-import { readGatewayYaml } from '@core/gateway-generator.js';
-import { gatewayEndpointFor, gatewayRouteModes } from '@core/gateway-routes.js';
 import {
   modelKey, validateModelRef, validateEngineSelection,
   type EngineSelection, type ModelRef, type ModelsFile,
 } from '@domain/agents/engine-selection.js';
-import { GATEWAY_CONFIG_PATH } from '@domain/pi-providers/gateway-route-store.js';
+import { credentialInventory, type CredentialInventory } from '@domain/connections/inventory.js';
 import { modelsRepo, modelsWriteLock } from '@store/models-repo.js';
 import { selectionForModel } from '@domain/agents/models.js';
 import { getModelMemory, rememberModelSelection } from '@domain/agents/config.js';
@@ -16,7 +14,6 @@ import { modelsFavoriteInput, modelsSetDefaultInput, modelsSetThinkingInput } fr
 import type { UiServiceDeps, Result, ModelsMutationReturn, MutateArgs } from '../types.js';
 
 type RawModelsFile = ModelsFile & Record<string, unknown>;
-type GatewayReader = () => ReturnType<typeof readGatewayYaml>;
 
 function invalid(message: string): Error {
   return Object.assign(new Error(message), { code: 'invalid-args' });
@@ -77,22 +74,21 @@ export async function removeFavorite(configDir: string, args: MutateArgs<'models
   });
 }
 
-function validateDefault(selection: EngineSelection, readGateway: GatewayReader): void {
+/** A default naming a Claude connection must name one that exists. */
+function validateDefault(selection: EngineSelection, inventory: CredentialInventory): void {
   validateEngineSelection(selection);
-  const gateway = readGateway();
-  const modes = gatewayRouteModes(gateway?.endpoints, selection);
-  if (gateway && !modes.includes(selection.mode)) {
-    throw invalid(`Unknown mode '${selection.mode}' for ${gatewayEndpointFor(selection)}`);
+  if (selection.connection !== null && !inventory.findClaude(selection.connection)) {
+    throw invalid(`Unknown connection '${selection.connection}'`);
   }
 }
 
 export async function setDefaultModel(
   configDir: string,
   args: MutateArgs<'models.setDefault'>,
-  readGateway: GatewayReader = () => readGatewayYaml(GATEWAY_CONFIG_PATH),
+  inventory: CredentialInventory = credentialInventory,
 ): Promise<boolean> {
   const { selection } = validate(() => modelsSetDefaultInput.parse(args));
-  validate(() => validateDefault(selection, readGateway));
+  validate(() => validateDefault(selection, inventory));
   return modelsWriteLock.run(async () => {
     const file = path.join(configDir, 'models.json');
     const exists = await fs.stat(file).then(() => true, (error) => {
@@ -101,7 +97,7 @@ export async function setDefaultModel(
     });
     const raw = await readModelsFile(configDir, selection);
     if (exists && raw.default && modelKey(raw.default) === modelKey(selection)
-      && raw.default.thinking === selection.thinking && raw.default.mode === selection.mode) return false;
+      && raw.default.thinking === selection.thinking && raw.default.connection === selection.connection) return false;
     await writeModelsFile(configDir, { ...raw, default: selection });
     rememberModelSelection(selection);
     return true;

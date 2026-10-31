@@ -30,6 +30,8 @@ export interface ClaudeSessionOptions {
   tools?: string | null;
   pluginDirs?: string[] | null;
   anthropicBaseUrl?: string;
+  /** The connection the route was resolved for; rate-limit readings are filed under it. */
+  connection?: string;
   routeEnv?: Record<string, string>;
   /** Keys deleted from the child env after route environment is applied (EngineSpec.env.unsets). */
   unsetEnv?: string[];
@@ -192,6 +194,7 @@ function sessionRuntimeOptions(
   const supplemental = supplementalMcpConfig(spec, composition);
   return {
     anthropicBaseUrl: spec.route.anthropicBaseUrl,
+    connection: spec.route.connection,
     routeEnv: spec.env.sets,
     unsetEnv: spec.env.unsets,
     cwd: resolveSpawnCwd(spec.cwd),

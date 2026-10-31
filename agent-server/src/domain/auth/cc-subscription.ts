@@ -1,6 +1,6 @@
 import { t } from '@core/i18n.js';
 import {
-  applyAuthEnv,
+  dropRoutingEnv,
   removeClaudeCodeOAuthToken,
 } from './anthropic-env.js';
 import {
@@ -63,7 +63,7 @@ async function clearLegacyToken(
 ): Promise<void> {
   try {
     await (dependencies.removeLegacyToken ?? removeClaudeCodeOAuthToken)();
-    (dependencies.reloadAuth ?? applyAuthEnv)();
+    (dependencies.reloadAuth ?? dropRoutingEnv)();
   } catch (error) {
     throw new LoginFlowError(
       'claude_subscription_cleanup_failed',

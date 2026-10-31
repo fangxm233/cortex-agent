@@ -17,6 +17,7 @@ import { createRuntimeSettings } from './runtime-settings.js';
 import { createCortexExtensions } from './extensions.js';
 import type { PiSubagentBridge } from './subagent-bridge.js';
 import type { OpenBundledMcpServer } from './mcp-bridge.js';
+import { applyRuntimeKeys } from './providers-config.js';
 
 const log = createLogger('pi-runtime');
 
@@ -131,6 +132,7 @@ async function createRuntimeServices(
     modelsPath: path.join(agentDir, 'models.json'),
     allowModelNetwork: false,
   });
+  await applyRuntimeKeys(modelRuntime, agentDir);
   return sdk.createAgentSessionServices({
     cwd, agentDir, settingsManager, modelRuntime,
     resourceLoaderOptions: {

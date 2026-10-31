@@ -16,8 +16,7 @@ export interface PIEnvOptions {
   callbackSource?: string | null;
   scheduleTaskId?: string | null;
   routeEnv?: Record<string, string> | null;
-  /** Keys deleted after the route environment merge (EngineSpec.env.unsets). PI routes purely through
-   *  env, so this is how a mode expresses "this spawn must not carry ANTHROPIC_API_KEY". */
+  /** Keys deleted after the route environment merge (EngineSpec.env.unsets). */
   unsetEnv?: string[] | null;
   context?: CortexContextEnv;
   piAgentDir: string;
@@ -40,8 +39,8 @@ export interface PIEnvOptions {
 
 const RESET_CONTEXT_KEYS = [
   'SLACK_CHANNEL', 'FEISHU_CHANNEL',
-  'CORTEX_SESSION_ID', 'CORTEX_PROFILE', // Strip the retired context key from inherited env.
-  'CORTEX_BACKEND', 'CORTEX_MODEL', 'CORTEX_PROVIDER', 'CORTEX_THINKING', 'CORTEX_MODE',
+  'CORTEX_SESSION_ID', 'CORTEX_PROFILE', 'CORTEX_MODE', // Strip retired context keys from inherited env.
+  'CORTEX_BACKEND', 'CORTEX_MODEL', 'CORTEX_PROVIDER', 'CORTEX_THINKING', 'CORTEX_CONNECTION',
   'CORTEX_PROJECT', 'CORTEX_SESSION_NAME', 'CORTEX_EXECUTION_ID',
   'CORTEX_CALLBACK_SOURCE', 'CORTEX_SCHEDULE_TASK_ID',
   'CORTEX_CONFIG_IMMUTABLE', 'CORTEX_PRODUCTION_AUTH_FILE',
@@ -60,7 +59,7 @@ function applyContext(env: NodeJS.ProcessEnv, options: PIEnvOptions): void {
   setOptional(env, 'CORTEX_MODEL', context?.selection?.model);
   setOptional(env, 'CORTEX_PROVIDER', context?.selection?.provider);
   setOptional(env, 'CORTEX_THINKING', context?.selection?.thinking);
-  setOptional(env, 'CORTEX_MODE', context?.selection?.mode);
+  setOptional(env, 'CORTEX_CONNECTION', context?.selection?.connection);
   setOptional(env, 'CORTEX_SESSION_ID', context?.trackSessionId ?? options.sessionId);
   setOptional(env, 'CORTEX_CALLBACK_SOURCE', options.callbackSource);
   setOptional(env, 'CORTEX_SCHEDULE_TASK_ID', options.scheduleTaskId);
@@ -225,7 +224,7 @@ export function buildSessionRequest(
       : [...(spec.plugins.skillDirs ?? []), ...(spec.plugins.dirs ?? [])],
     disableHooks: spec.flags.disableHooks === true,
     ...(spec.flags.clean ? { noContextFiles: true } : {}),
-    reportsProviderQuota: !!spec.route.gatewayBaseUrl,
+    reportsProviderQuota: true,
     pluginMcpServers: pluginMcpServers(spec, composition),
     env,
     streamDeltas: inputs.streamDeltas,

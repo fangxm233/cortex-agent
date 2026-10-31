@@ -734,23 +734,23 @@ export interface ConfigBudget {
 export interface ConfigModels {
   default: EngineSelection | null;
   favorites: ModelRef[];
-  memory: Record<string, { thinking: string | null; mode: string }>;
+  memory: Record<string, { thinking: string | null; connection: string | null }>;
 }
 
 export interface ModelCatalogRoute {
-  /** Gateway endpoint group: 'anthropic' for claude, the PI provider name otherwise. */
+  /** 'anthropic' for claude, the PI provider name otherwise. */
   endpoint: string;
   backend: Backend;
   /** PI `--provider`; null for claude. */
   provider: string | null;
-  /** Mode names gateway.yaml actually declares for this endpoint, in file order. Never empty: an
-   *  endpoint with no gateway section falls back to the name `discoverEndpoints` would generate. */
-  modes: string[];
+  /** Claude: the connections a selection may name, the default first. PI: always empty — the
+   *  provider is the connection. */
+  connections: string[];
   /** Selectable model ids. Empty means "known route, unknown models" — free text, not an error. */
   models: string[];
   /** Where the route was first seen: the built-in Anthropic table, PI's scan of logged-in
-   *  providers, a user-defined provider, or gateway.yaml alone (⇒ likely not logged in). */
-  source: 'builtin' | 'pi' | 'custom' | 'gateway';
+   *  providers, a user-defined provider, or a base-URL override connection alone. */
+  source: 'builtin' | 'pi' | 'custom' | 'connection';
   /** Thinking levels keyed by model id, for the models whose source could tell — PI reports each
    *  model's own ladder. A model absent from this map accepts `thinkingLevels` below: the catalog
    *  never narrows what it cannot vouch for. Optional while clients and servers roll

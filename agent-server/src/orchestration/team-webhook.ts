@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { createLogger } from '@core/log.js';
-import { piGatewayMode } from '@core/gateway-routes.js';
 import type { Backend } from '@core/types/agent-types.js';
 import type { Session } from '@store/session-registry-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
@@ -164,7 +163,7 @@ function resolveWorkerSelection(lead: Session, data: Record<string, any>, deps: 
   return {
     ...base, backend, provider, model: ref.model,
     thinking: spec.thinking ?? base.thinking,
-    mode: backend === 'pi' && provider && provider !== base.provider ? piGatewayMode(provider) : base.mode,
+    connection: backend === 'pi' ? null : base.connection,
   };
 }
 
@@ -194,7 +193,7 @@ async function spawn(lead: Session, data: Record<string, any>, deps: TeamWebhook
   const created = await deps.createSession({
     projectId: lead.projectId,
     sessionId,
-    selection: { backend: applied.backend, provider: applied.provider, model: applied.model, thinking: applied.thinking, mode: applied.mode },
+    selection: { backend: applied.backend, provider: applied.provider, model: applied.model, thinking: applied.thinking, connection: applied.connection },
     seedDefault: false,
     teamLeadId: lead.sessionId,
     workerName: name,

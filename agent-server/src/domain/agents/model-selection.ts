@@ -1,8 +1,6 @@
 import { AsyncMutex } from '@core/async-mutex.js';
-import { readGatewayYaml } from '@core/gateway-generator.js';
-import { gatewayRouteModes } from '@core/gateway-routes.js';
 import { effectiveBackendSessionId, sessionStore, type Session } from '@store/session-registry-repo.js';
-import { GATEWAY_CONFIG_PATH } from '../pi-providers/gateway-route-store.js';
+import { credentialInventory, type CredentialInventory } from '../connections/inventory.js';
 import {
   getChannelSelection, getModelMemory, rememberModelSelection, setChannelSelection, setSelectionDefault,
 } from './config.js';
@@ -10,16 +8,17 @@ import {
   isValidThinkingLevel, modelKey, THINKING_LEVELS_BY_BACKEND,
   type EngineSelection, type ModelRef,
 } from './engine-selection.js';
-import { firstModelRoute, getDefaultSelection, getDefaultSelectionForBackend } from './models.js';
+import { defaultConnectionFor, getDefaultSelection, getDefaultSelectionForBackend } from './models.js';
 
 export interface ApplySelectionRequest extends Partial<EngineSelection> {
   channel: string;
   seedDefault?: boolean;
-  readGateway?: () => ReturnType<typeof readGatewayYaml>;
+  /** The connections a pick is checked against; the daemon's own by default. */
+  inventory?: CredentialInventory;
 }
 
 export type SelectionFailure = 'cross-backend-live-session' | 'invalid-thinking'
-  | 'provider-not-supported' | 'invalid-mode' | 'invalid-model' | 'no-model-for-backend';
+  | 'provider-not-supported' | 'invalid-connection' | 'invalid-model' | 'no-model-for-backend';
 
 export interface ApplySelectionResult extends EngineSelection {
   ok: boolean;
@@ -64,11 +63,14 @@ function targetRef(request: ApplySelectionRequest, current: EngineSelection): Mo
 function mergeSelection(request: ApplySelectionRequest, current: EngineSelection, ref: ModelRef): EngineSelection {
   const changed = modelKey(ref) !== modelKey(current);
   const memory = getModelMemory()[modelKey(ref)];
-  const settings = changed ? (memory ?? { thinking: null, mode: firstModelRoute(ref, request.readGateway) }) : current;
+  const settings = changed
+    ? (memory ?? { thinking: null, connection: defaultConnectionFor(ref, request.inventory) })
+    : current;
+  const connection = request.connection !== undefined ? request.connection : settings.connection;
   return {
     ...ref,
     thinking: request.thinking !== undefined ? request.thinking : settings.thinking,
-    mode: request.mode !== undefined ? request.mode : settings.mode,
+    connection: ref.backend === 'pi' ? null : connection ?? null,
   };
 }
 
@@ -102,14 +104,15 @@ function validateTarget(
   return validateRoute(request, current, target);
 }
 
+/** A Claude pick names an existing connection or none (the default); a PI pick never names one. */
 function validateRoute(
   request: ApplySelectionRequest, current: EngineSelection, target: EngineSelection,
 ): ApplySelectionResult | null {
-  const gateway = (request.readGateway ?? (() => readGatewayYaml(GATEWAY_CONFIG_PATH)))();
-  const modes = gatewayRouteModes(gateway?.endpoints, target);
-  const validName = typeof target.mode === 'string' && SAFE_NAME.test(target.mode);
-  if (!validName || (gateway && !modes.includes(target.mode))) return refuse(current, 'invalid-mode', modes);
-  return null;
+  if (target.connection === null) return null;
+  const connections = (request.inventory ?? credentialInventory).claudeConnections().map((view) => view.id);
+  const valid = target.backend === 'claude' && SAFE_NAME.test(target.connection)
+    && connections.includes(target.connection);
+  return valid ? null : refuse(current, 'invalid-connection', connections);
 }
 
 /** Serialize read/validate/write so simultaneous patches cannot overwrite a newer selection. */

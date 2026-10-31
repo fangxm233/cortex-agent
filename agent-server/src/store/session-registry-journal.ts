@@ -5,6 +5,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { STORE_DIR } from '@core/paths.js';
 import { toTurnAnchor, type TurnAnchor } from '@core/types/transcript-anchor.js';
+import { connectionForLegacyMode } from '@core/connections-file.js';
 
 const REGISTRY_VERSION = 1;
 const DEFAULT_YIELD_EVERY = 256;
@@ -594,8 +595,14 @@ function toSelection(value: unknown): EngineSelection | null {
     provider: toTurnNullableString(row.provider),
     model: toStringValue(row.model),
     thinking: toTurnNullableString(row.thinking),
-    mode: toStringValue(row.mode),
+    connection: selectionConnection(row),
   };
+}
+
+/** A row written before connections replaced gateway modes still names its route as `mode`. */
+function selectionConnection(row: Record<string, unknown>): string | null {
+  if (row.backend !== 'claude') return null;
+  return 'connection' in row ? toTurnNullableString(row.connection) : connectionForLegacyMode('claude', row.mode);
 }
 
 function toOptionalBoolean(value: unknown): boolean | undefined {

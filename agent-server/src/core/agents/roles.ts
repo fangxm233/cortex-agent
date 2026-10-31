@@ -32,8 +32,6 @@ export interface AgentRole {
   model?: string;
   /** Default backend. Absent means "inherit the delegating parent's". */
   backend?: Backend;
-  /** Explicit gateway route for the child; absent falls back to the provider name (plan §3.2). */
-  mode?: string;
   systemPrompt: string;
 }
 
@@ -66,7 +64,6 @@ export function parseRole(content: string): AgentRole | null {
     tools: parseTools(frontmatter.tools),
     model: optionalString(frontmatter.model),
     backend: parseBackend(frontmatter.backend),
-    mode: optionalString(frontmatter.mode),
     systemPrompt: match[2].trim(),
   };
 }

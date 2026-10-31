@@ -3,16 +3,10 @@ import {
   anthropicModelDiscovery, anthropicModelIds, anthropicModelThinking,
   type DiscoveredAnthropicModel,
 } from '@core/anthropic-model-discovery.js';
-import { hasClaudeCredential } from '@core/claude-credentials.js';
-import { readGatewayYaml } from '@core/gateway-generator.js';
-import {
-  ANTHROPIC_ENDPOINT, gatewayEndpointFor, piGatewayMode, PI_ANTHROPIC_MODE, routeModes,
-  type GatewayRouteRef,
-} from '@core/gateway-routes.js';
+import { credentialInventory, type ConnectionView } from '@domain/connections/inventory.js';
 import {
   defaultCustomProviderStores,
   listCustomProviders,
-  GATEWAY_CONFIG_PATH,
   type CustomProviderView,
 } from '@domain/pi-providers/index.js';
 import { piProviderDiscovery } from '../../../agent-adapter/pi/discovery.js';
@@ -22,36 +16,26 @@ import type { ModelCatalogRoute, ModelCatalogSnapshot, UiServiceDeps, QueryParam
 /**
  * The catalog is a UNION, never an intersection: a model must stay selectable for an endpoint the
  * host cannot currently enumerate (PI reports only providers with usable auth, and a scan can fail
- * outright). Every source therefore only ADDS — an endpoint known solely from gateway.yaml still
- * appears, with an empty model list, and the editor falls back to free text for it. The one gate is
- * the Claude backend itself: a host holding no Claude credential gets no Claude route at all.
+ * outright). Every source therefore only ADDS — a provider known solely from a base-URL override
+ * connection still appears, with an empty model list, and the editor falls back to free text for
+ * it. The one gate is the Claude backend itself: a host with no Claude connection gets no Claude
+ * route at all.
  *
  * Deliberately its own query rather than a field of the high-frequency `config.get`: reading PI's
  * models loads the bundled SDK (~100 MB, see core/pi-sdk.ts), a cost only a caller that actually
  * wants the catalog should pay.
  */
 
+interface RouteRef {
+  backend: 'claude' | 'pi';
+  provider: string | null;
+}
+
 /** The Claude route is a constant of the backend — only its model list is discovered. */
-const CLAUDE_ROUTE: GatewayRouteRef = { backend: 'claude', provider: null };
+const CLAUDE_ROUTE: RouteRef = { backend: 'claude', provider: null };
 
-function piRoute(provider: string): GatewayRouteRef {
+function piRoute(provider: string): RouteRef {
   return { backend: 'pi', provider };
-}
-
-/** Mirrors gateway-generator for a route gateway.yaml declares no mode for: the mode it would write. */
-function defaultModes(ref: GatewayRouteRef): string[] {
-  return ref.backend === 'claude' ? ['plan'] : [piGatewayMode(ref.provider!)];
-}
-
-type GatewayReader = () => Record<string, string[]>;
-
-/** endpoint → declared mode names, in gateway.yaml order. Unreadable file ⇒ no modes known. */
-function readGatewayModes(): Record<string, string[]> {
-  const parsed = readGatewayYaml(GATEWAY_CONFIG_PATH);
-  if (!parsed) return {};
-  return Object.fromEntries(
-    Object.entries(parsed.endpoints).map(([endpoint, modes]) => [endpoint, Object.keys(modes)]),
-  );
 }
 
 /** A later source only contributes model ids it is the first to know about; the route's own
@@ -66,17 +50,14 @@ function mergeRouteModels(
   }
 }
 
-/**
- * Routes are keyed by engine identity, not by gateway section: Claude Code and PI's `anthropic`
- * provider share the `anthropic` section yet are separate routes, each offered only its own modes.
- */
+/** Routes are keyed by engine identity: Claude Code and PI's `anthropic` provider are separate. */
 class RouteBuilder {
   private readonly routes = new Map<string, ModelCatalogRoute>();
 
-  constructor(private readonly gatewayModes: Record<string, string[]>) {}
+  constructor(private readonly claudeConnections: string[]) {}
 
   add(
-    ref: GatewayRouteRef,
+    ref: RouteRef,
     source: ModelCatalogRoute['source'],
     models: readonly string[],
     modelThinking: Record<string, string[]> = {},
@@ -84,13 +65,11 @@ class RouteBuilder {
     const key = JSON.stringify([ref.backend, ref.provider]);
     const existing = this.routes.get(key);
     if (existing) return mergeRouteModels(existing, models, modelThinking);
-    const endpoint = gatewayEndpointFor(ref)!;
-    const declared = routeModes(ref, this.gatewayModes[endpoint] ?? []);
     this.routes.set(key, {
-      endpoint,
+      endpoint: ref.backend === 'claude' ? 'anthropic' : ref.provider!,
       backend: ref.backend,
       provider: ref.provider,
-      modes: declared.length > 0 ? declared : defaultModes(ref),
+      connections: ref.backend === 'claude' ? [...this.claudeConnections] : [],
       models: [...models],
       source,
       modelThinking: { ...modelThinking },
@@ -103,9 +82,9 @@ class RouteBuilder {
 }
 
 export interface ModelsCatalogReaders {
-  /** Whether this host holds any Claude credential. Defaults to the host's stores; injected in
-   *  tests so the catalog never depends on this machine's login. */
-  claudeAvailable?: () => boolean;
+  /** The host's connections. Defaults to the inventory; injected in tests so the catalog never
+   *  depends on this machine's login. */
+  connections?: () => ConnectionView[];
   /** The Anthropic models this account can reach, waiting out a cold fetch. Defaults to the host
    *  discovery singleton; injected in tests so the catalog never depends on a live credential. */
   claudeModels?: () => Promise<DiscoveredAnthropicModel[]>;
@@ -114,7 +93,6 @@ export interface ModelsCatalogReaders {
   /** The cached PI pairs with NO refresh kicked — used only to report `piPending`. */
   piPeek?: () => Array<{ provider: string; model: string }>;
   customProviders?: () => CustomProviderView[];
-  gatewayModes?: GatewayReader;
 }
 
 export async function handleModelsCatalog(
@@ -122,10 +100,10 @@ export async function handleModelsCatalog(
   _params: QueryParams<'models.catalog'>,
   readers: ModelsCatalogReaders = {},
 ): Promise<ModelCatalogSnapshot> {
-  const gatewayModes = (readers.gatewayModes ?? readGatewayModes)();
-  const claudeAvailable = (readers.claudeAvailable ?? (() => hasClaudeCredential()))();
-  const builder = new RouteBuilder(gatewayModes);
-  if (claudeAvailable) await addClaudeRoute(builder, readers);
+  const connections = (readers.connections ?? (() => credentialInventory.list()))();
+  const claude = connections.filter((view) => view.backend === 'claude');
+  const builder = new RouteBuilder(claude.map((view) => view.id));
+  if (claude.length > 0) await addClaudeRoute(builder, readers, claude);
   await addPiRoutes(builder, readers);
   const customProviders =
     readers.customProviders
@@ -133,7 +111,9 @@ export async function handleModelsCatalog(
   for (const provider of customProviders()) {
     builder.add(piRoute(provider.name), 'custom', provider.models.map((model) => model.id));
   }
-  addGatewayRoutes(builder, gatewayModes, claudeAvailable);
+  for (const view of connections) {
+    if (view.backend === 'pi' && view.kind === 'override') builder.add(piRoute(view.provider!), 'connection', []);
+  }
   const piPeek = readers.piPeek ?? (() => piProviderDiscovery.peekModels());
   return {
     routes: builder.build(),
@@ -143,35 +123,22 @@ export async function handleModelsCatalog(
 }
 
 /**
- * Only a host holding a Claude credential gets the route, the way PI lists only providers with
- * usable auth. Discovered ids are UNIONED with the shipped table, never replacing it: a logged-in
- * host with no network keeps the list it always had. `source` stays 'builtin' because the route's
- * identity did not change — only how completely its models are known.
+ * Only a host with a Claude connection gets the route, the way PI lists only providers with usable
+ * auth. Discovered ids are UNIONED with the shipped table, never replacing it: a logged-in host
+ * with no network keeps the list it always had. A connection that serves its own models (a local
+ * model behind an Anthropic-protocol endpoint) adds them. `source` stays 'builtin' because the
+ * route's identity did not change — only how completely its models are known.
  */
-async function addClaudeRoute(builder: RouteBuilder, readers: ModelsCatalogReaders): Promise<void> {
+async function addClaudeRoute(
+  builder: RouteBuilder, readers: ModelsCatalogReaders, connections: ConnectionView[],
+): Promise<void> {
   const claudeModels = readers.claudeModels ?? (() => anthropicModelDiscovery.ensure());
   const claude = await claudeModels();
   builder.add(
     CLAUDE_ROUTE, 'builtin',
     anthropicModelIds(claude, ANTHROPIC_MODELS), anthropicModelThinking(claude),
   );
-}
-
-/**
- * Routes known only from gateway.yaml. The shared `anthropic` section stands for Claude Code's
- * route (behind its credential gate) and, once PI's own mode is declared there, PI's provider.
- */
-function addGatewayRoutes(
-  builder: RouteBuilder, gatewayModes: Record<string, string[]>, claudeAvailable: boolean,
-): void {
-  for (const [endpoint, modes] of Object.entries(gatewayModes)) {
-    if (endpoint !== ANTHROPIC_ENDPOINT) {
-      builder.add(piRoute(endpoint), 'gateway', []);
-      continue;
-    }
-    if (claudeAvailable) builder.add(CLAUDE_ROUTE, 'gateway', []);
-    if (modes.includes(PI_ANTHROPIC_MODE)) builder.add(piRoute(endpoint), 'gateway', []);
-  }
+  for (const view of connections) if (view.models) builder.add(CLAUDE_ROUTE, 'builtin', view.models);
 }
 
 /**

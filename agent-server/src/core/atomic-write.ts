@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import { writeFileSync, renameSync, mkdirSync } from 'node:fs';
+import { writeFileSync, renameSync, mkdirSync, chmodSync } from 'node:fs';
 import path from 'node:path';
 import * as os from 'node:os';
 import { withFileLock } from './file-lock.js';
@@ -106,11 +106,12 @@ export async function atomicWrite(
 
 /** Synchronous variant for sync call sites (e.g. CLI write handlers). Same guard, same
  *  tmp+rename atomicity. */
-export function atomicWriteSync(filePath: string, data: string): void {
+export function atomicWriteSync(filePath: string, data: string, options: { mode?: number } = {}): void {
   assertNotRealHomeInTest(filePath);
   mkdirSync(path.dirname(filePath), { recursive: true });
   const rnd = Math.random().toString(36).slice(2, 8);
   const tmp = `${filePath}.tmp.${process.pid}.${Date.now()}.${rnd}`;
-  writeFileSync(tmp, data, 'utf8');
+  writeFileSync(tmp, data, { encoding: 'utf8', mode: options.mode });
+  if (options.mode !== undefined) chmodSync(tmp, options.mode);
   renameSync(tmp, filePath);
 }

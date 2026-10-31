@@ -12,7 +12,7 @@ import { runRegistry } from '@core/run-registry.js';
 import { getSettings } from '@core/settings.js';
 import { usageService } from '@domain/costs/usage-service.js';
 import { usageStore, type ProviderUsage } from '@domain/costs/usage-store.js';
-import { resolveRunRoute } from '@domain/runs/config-resolver.js';
+import { credentialInventory, resolveClaudeRoute, SUBSCRIPTION_CONNECTION } from '@domain/connections/index.js';
 import { routeEnvFields } from '@domain/runs/engine-spec.js';
 import { buildClaudeEnv } from '../agent-adapter/claude/spawn-args.js';
 import { runWindowWarmup, type WindowWarmupLaunch } from '../agent-adapter/claude/window-warmup.js';
@@ -42,11 +42,11 @@ export interface WarmupState {
 
 export interface WarmupDeps {
   enabled(): boolean;
-  /** The Claude subscription mode a warm-up runs under; null when there is none. */
-  mode(): string | null;
+  /** The Claude subscription connection a warm-up runs on; null when there is none. */
+  connection(): string | null;
   windowEnd(): Promise<WindowEnd>;
   claudeRunning(): boolean;
-  warm(mode: string): Promise<void>;
+  warm(connection: string): Promise<void>;
   collectUsage(): Promise<unknown>;
   now(): number;
 }
@@ -84,10 +84,10 @@ function observe(state: WarmupState, end: WindowEnd, running: boolean, now: numb
     && (state.lastAttempt === null || now - state.lastAttempt >= WARMUP_RETRY_MS);
 }
 
-async function warmUp(state: WarmupState, deps: WarmupDeps, mode: string): Promise<boolean> {
+async function warmUp(state: WarmupState, deps: WarmupDeps, connection: string): Promise<boolean> {
   state.lastAttempt = deps.now();
   try {
-    await deps.warm(mode);
+    await deps.warm(connection);
   } catch (error) {
     log.warn(`warm-up failed: ${(error as Error).message}`);
     return false;
@@ -106,30 +106,30 @@ export async function tickWindowWarmup(state: WarmupState, deps: WarmupDeps = pr
   }
   const now = deps.now();
   state.watchingSince ??= now;
-  const mode = deps.mode();
-  if (!mode || !observe(state, await deps.windowEnd(), deps.claudeRunning(), now)) return false;
-  return warmUp(state, deps, mode);
+  const connection = deps.connection();
+  if (!connection || !observe(state, await deps.windowEnd(), deps.claudeRunning(), now)) return false;
+  return warmUp(state, deps, connection);
 }
 
 // --- Production wiring ---
 
-/** The launch a subscription-mode turn would get: same config dir, route and credentials. It runs
+/** The launch a subscription turn would get: same config dir, route and credentials. It runs
  *  in a scratch directory so no project instructions ride along. */
-export function warmupLaunch(mode: string): WindowWarmupLaunch {
-  const route = resolveRunRoute({ mode }, { trigger: WARMUP_CHANNEL });
+export function warmupLaunch(connection: string): WindowWarmupLaunch {
+  const route = resolveClaudeRoute(connection);
   const { sets, unsets } = routeEnvFields(route);
   const env = buildClaudeEnv(
-    WARMUP_CHANNEL, randomUUID(), null, null, route.ANTHROPIC_BASE_URL, sets, undefined, undefined, unsets,
+    WARMUP_CHANNEL, randomUUID(), null, null, route.baseUrl, sets, undefined, undefined, unsets,
   );
   return { command: 'claude', env, cwd: tmpdir() };
 }
 
 export const productionWarmupDeps: WarmupDeps = {
   enabled: () => getSettings().claudeWindowWarmupEnabled,
-  mode: () => getSettings().anthropicSubscriptionModes.map((mode) => mode.trim()).find(Boolean) ?? null,
+  connection: () => (credentialInventory.findClaude(SUBSCRIPTION_CONNECTION) ? SUBSCRIPTION_CONNECTION : null),
   windowEnd: async () => fiveHourEnd(await usageStore.get('anthropic', 'subscription')),
   claudeRunning: () => runRegistry.getAll().some((run) => run.backend === 'claude'),
-  warm: (mode) => runWindowWarmup(warmupLaunch(mode)),
+  warm: (connection) => runWindowWarmup(warmupLaunch(connection)),
   collectUsage: () => usageService.collect(),
   now: () => Date.now(),
 };

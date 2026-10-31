@@ -6,7 +6,11 @@ export interface EngineSelection {
   provider: string | null;
   model: string;
   thinking: string | null;
-  mode: string;
+  /**
+   * Claude: the connection the run uses — `subscription` or a stored connection's id; null runs on
+   * the default connection. PI: always null, because the provider is the connection.
+   */
+  connection: string | null;
 }
 
 export type ModelRef = Pick<EngineSelection, 'backend' | 'provider' | 'model'>;
@@ -46,11 +50,19 @@ export function validateEngineSelection(value: unknown): asserts value is Engine
   if (selection.thinking !== null && !isValidThinkingLevel(selection.backend, selection.thinking)) {
     throw new Error(`Invalid thinking for backend '${selection.backend}'`);
   }
-  if (typeof selection.mode !== 'string' || !SAFE_NAME.test(selection.mode)) throw new Error('Invalid mode');
+  validateConnection(selection);
+}
+
+function validateConnection(selection: EngineSelection): void {
+  const { backend, connection } = selection;
+  if (connection === null) return;
+  if (backend === 'pi') throw new Error('Invalid connection: a PI selection names no connection');
+  if (typeof connection !== 'string' || !SAFE_NAME.test(connection)) throw new Error('Invalid connection');
 }
 
 /** Copy only the public selection fields, never retired or foreign configuration. */
 export function copySelection(selection: EngineSelection): EngineSelection {
-  const { backend, provider, model, thinking, mode } = selection;
-  return { backend, provider, model, thinking, mode };
+  const { backend, provider, model, thinking } = selection;
+  const connection = backend === 'claude' ? selection.connection ?? null : null;
+  return { backend, provider, model, thinking, connection };
 }

@@ -22,6 +22,7 @@ import {
   type PiProviderAuthStatus,
   type PiRuntimeLoadResult,
 } from './pi-runtime.js';
+import { routeName, SUBSCRIPTION_CONNECTION } from '../connections/index.js';
 
 export type AuthType = 'oauth' | 'api_key';
 export type AuthAccountState = 'logged-in' | 'expiring' | 'expired' | 'logged-out' | 'unknown';
@@ -372,8 +373,10 @@ function defaultRunBackend(): Backend | null {
   return configuredDefault()?.backend ?? null;
 }
 
+/** The connection the default Claude selection runs on. */
 function defaultClaudeMode(): string {
-  return configuredDefault()?.mode ?? 'plan';
+  const selection = configuredDefault();
+  return selection ? routeName(selection) : SUBSCRIPTION_CONNECTION;
 }
 
 function collectInUse(options: GetAuthStatusOptions): InUseAccounts {

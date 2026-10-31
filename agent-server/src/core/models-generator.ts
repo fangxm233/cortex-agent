@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { atomicWriteSync } from './atomic-write.js';
+import { connectionForLegacyMode } from './connections-file.js';
 import { CONFIG_DIR } from './paths.js';
 import type { DiscoveredEndpoint } from './gateway-generator.js';
 import type { EngineSelection, ModelRef, ModelsFile } from '../domain/agents/engine-selection.js';
@@ -43,7 +44,7 @@ function selectionForChoice(models: ModelEntry[], choice: ModelChoice): EngineSe
   if (!entry) throw new Error(`(mode="${choice.mode}", model="${choice.model}") not found among discovered models`);
   return {
     backend: entry.backend, provider: entry.backend === 'pi' ? entry.endpoint : null,
-    model: entry.model, thinking: null, mode: entry.mode,
+    model: entry.model, thinking: null, connection: connectionForLegacyMode(entry.backend, entry.mode),
   };
 }
 

@@ -8,14 +8,8 @@ import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
 import type {
   EngineAdapter, EngineSpec, AgentUsageScope, Backend,
 } from '../types.js';
-import {
-  writeProvidersConfig,
-  buildProviderOverrides,
-  withCustomEntries,
-  type ProviderOverride,
-} from './providers-config.js';
-import { readCustomProviderEntries } from './custom-catalog.js';
-import { readOAuthProviders, withChatgptSignInCompat } from './chatgpt-signin.js';
+import { writeProviderCatalog, type PiProviderCatalog } from './providers-config.js';
+import { readOAuthProviders } from './chatgpt-signin.js';
 import { findPISessionFilePath } from './session-files.js';
 import { reportCodexQuota, resolveQuotaSource, type CodexQuotaSinkDeps } from './quota-sink.js';
 import type { PiSubagentBridge } from './subagent-bridge.js';
@@ -32,7 +26,7 @@ import {
   buildSessionRequest, sessionIdentity, type PiSessionRequest,
 } from './session-options.js';
 import type { SwitchResult } from './session-support.js';
-import { PI_AGENT_DIR, PI_SESSIONS_DIR, piModelsPath } from './defaults.js';
+import { PI_AGENT_DIR, PI_SESSIONS_DIR } from './defaults.js';
 
 /** The pool SessionEngines registers on the adapter so `switchSession` can reach the live
  *  engine without the adapter importing domain. */
@@ -72,26 +66,6 @@ function staleCodexUsage(record: ProviderUsage): ProviderUsage {
   };
 }
 
-/** A fully-populated EngineSpec with every optional field absent. Only the fields a caller sets
- *  before handing it to a reader are consumed; the rest exist to satisfy the required shape. */
-function minimalEngineSpec(): EngineSpec {
-  return {
-    engineKey: 'default',
-    resume: { backendSessionId: null, resume: false },
-    model: {},
-    prompt: {},
-    tools: {},
-    plugins: {},
-    mcp: {},
-    env: {},
-    route: {},
-    flags: { isUserInitiated: false },
-    context: {},
-    backend: { kind: 'pi' },
-    process: {},
-  };
-}
-
 /** Collaborators the daemon owns and a trial replaces. Both are injected rather than defaulted so
  *  the host PI home and its auth mirroring are not reachable from this module. */
 export interface PIAdapterHooks {
@@ -100,10 +74,10 @@ export interface PIAdapterHooks {
   /** Run before a session is created with the resolved agent dir: the daemon mirrors the host
    *  credential here, a trial writes its dummy token. Never a module default. */
   prepareAgentDir?: (agentDir: string) => void;
-  /** The user's PI catalog (`~/.pi/agent/models.json`), source of user-defined provider
-   *  definitions. Injected, never defaulted: reading the host PI home is exactly the ambient reach
-   *  a trial must not have. Left unset, no custom provider is mirrored. */
-  userModelsPath?: string;
+  /** The provider catalog sessions run with: base-URL overrides and user-defined providers, with
+   *  their keys. Injected, never defaulted: the host's connections and PI home are exactly the
+   *  ambient reach a trial must not have. Left unset, the agent dir's catalog is not touched. */
+  catalog?: () => PiProviderCatalog;
   /** Daemon-owned push usage cache. Trials omit it and observe only a cold state. */
   usageStore?: Pick<UsageStore, 'get' | 'update'>;
   /** Host throttle entry point for Codex quota windows read off provider responses. Injected
@@ -126,13 +100,12 @@ export class PIAdapter implements EngineAdapter {
   private poolLookup: PIEnginePoolLookup | null = null;
   private readonly runtimeFactory: PiRuntimeFactory;
   private readonly providerDiscovery: PIProviderDiscovery;
-  private readonly configuredProviderOverrides = new Map<string, ProviderOverride>();
   private readonly sessionPathRegistry = new Map<string, string>();
   /** Injected PI home, or undefined when the caller left it to the daemon default. */
   private readonly configuredAgentDir: string | undefined;
   private readonly prepareAgentDir: ((agentDir: string) => void) | undefined;
-  /** Injected user catalog path, or undefined when this instance mirrors no custom provider. */
-  private readonly userModelsPath: string | undefined;
+  /** Injected catalog source, or undefined when this instance writes no catalog. */
+  private readonly catalog: (() => PiProviderCatalog) | undefined;
   private readonly usageStore: Pick<UsageStore, 'get' | 'update'> | undefined;
   private readonly submitRateLimit: SubmitRateLimit | undefined;
   private readonly subagent: PiSubagentBridge | undefined;
@@ -152,7 +125,7 @@ export class PIAdapter implements EngineAdapter {
     this.providerDiscovery = providerDiscovery;
     this.configuredAgentDir = hooks.agentDir;
     this.prepareAgentDir = hooks.prepareAgentDir;
-    this.userModelsPath = hooks.userModelsPath;
+    this.catalog = hooks.catalog;
     this.usageStore = hooks.usageStore;
     this.submitRateLimit = hooks.submitRateLimit;
     this.subagent = hooks.subagent;
@@ -166,21 +139,6 @@ export class PIAdapter implements EngineAdapter {
     return [cached ? staleCodexUsage(cached) : neverCodexUsage(scope.mode)];
   }
 
-  private gatewayOverrides(
-    discovered: string[], currentProvider: string | null,
-    gatewayPath: string | null,
-  ): ProviderOverride[] {
-    if (currentProvider) {
-      const [current] = buildProviderOverrides([], currentProvider, gatewayPath);
-      this.configuredProviderOverrides.set(currentProvider, current);
-    }
-    const byName = new Map(
-      buildProviderOverrides(discovered, null, null).map((override) => [override.name, override]),
-    );
-    for (const override of this.configuredProviderOverrides.values()) byName.set(override.name, override);
-    return Array.from(byName.values());
-  }
-
   private resolveSpawnSessionPath(spec: EngineSpec, sessionDir: string): string | null {
     if (!spec.resume.resume || !spec.resume.backendSessionId) return null;
     const sessionPath = this.resolveSessionPath(spec.resume.backendSessionId);
@@ -190,7 +148,7 @@ export class PIAdapter implements EngineAdapter {
     return sessionPath;
   }
 
-  private prepareGatewayAgentDir(agentDir: string): void {
+  private prepareAgentDirSafely(agentDir: string): void {
     try {
       this.prepareAgentDir?.(agentDir);
     } catch (error) {
@@ -198,46 +156,21 @@ export class PIAdapter implements EngineAdapter {
     }
   }
 
-  private writeGatewayProviders(
-    spec: EngineSpec,
-    agentDir: string,
-    gatewayBaseUrl: string,
-  ): void {
+  private writeCatalog(agentDir: string): void {
+    if (!this.catalog) return;
     try {
-      this.writeGatewayProvidersUnchecked(spec, agentDir, gatewayBaseUrl);
+      writeProviderCatalog(this.catalog(), {
+        agentDir, oauthProviders: readOAuthProviders(path.join(agentDir, 'auth.json')),
+      });
     } catch (error) {
       log.warn(`Failed to write PI models.json: ${(error as Error).message}`);
     }
   }
 
-  private writeGatewayProvidersUnchecked(
-    spec: EngineSpec,
-    agentDir: string,
-    gatewayBaseUrl: string,
-  ): void {
-    const overrides = withChatgptSignInCompat(
-      withCustomEntries(
-        this.gatewayOverrides(
-          this.providerDiscovery.getProviders(),
-          spec.model.provider ?? null,
-          spec.route.gatewayPath ?? null,
-        ),
-        this.userModelsPath ? readCustomProviderEntries(this.userModelsPath) : {},
-      ),
-      readOAuthProviders(path.join(agentDir, 'auth.json')),
-    );
-    if (overrides.length === 0) {
-      log.warn('No PI providers to route (empty discovery and no selected provider); the PI session may fail to authenticate');
-      return;
-    }
-    writeProvidersConfig(overrides, gatewayBaseUrl, { modelsPath: piModelsPath(agentDir) });
-  }
-
-  private syncGatewayConfig(spec: EngineSpec, agentDir: string): void {
-    const gatewayBaseUrl = spec.route.gatewayBaseUrl;
-    if (!gatewayBaseUrl) return;
-    this.prepareGatewayAgentDir(agentDir);
-    this.writeGatewayProviders(spec, agentDir, gatewayBaseUrl);
+  /** Mirror the host credential into the agent dir, then write the catalog sessions run with. */
+  private syncAgentDir(agentDir: string): void {
+    this.prepareAgentDirSafely(agentDir);
+    this.writeCatalog(agentDir);
   }
 
   /** The PI agent dir this adapter routes and authenticates through. */
@@ -246,26 +179,14 @@ export class PIAdapter implements EngineAdapter {
   }
 
   /**
-   * Write a routed `models.json` for one provider without spawning a PI session.
+   * Bring the agent dir's catalog up to date without spawning a PI session.
    *
    * A nested subagent session reads the catalog off disk, but the catalog is normally written as a
    * side effect of {@link prepareRequest} — so a `pi` child delegated from a `claude` parent would
-   * find nothing routed for its provider in this daemon's lifetime (plan §3.2). The per-provider
-   * routes this remembers are the same map a later PI spawn merges into, so calling it never
-   * narrows the catalog a live session is already using.
+   * find no catalog in this daemon's lifetime.
    */
-  ensureProviderRouting(opts: {
-    provider: string;
-    gatewayPath?: string | null;
-    gatewayBaseUrl: string;
-    model?: string;
-  }): void {
-    const spec = minimalEngineSpec();
-    spec.model.provider = opts.provider;
-    spec.model.id = opts.model;
-    spec.route.gatewayPath = opts.gatewayPath ?? undefined;
-    spec.route.gatewayBaseUrl = opts.gatewayBaseUrl;
-    this.syncGatewayConfig(spec, this.agentDir);
+  ensureCatalog(): void {
+    this.syncAgentDir(this.agentDir);
   }
 
   /** The one construction of a `PiSessionRequest`; `specIdentity` and `prepareRequest` both come
@@ -291,22 +212,21 @@ export class PIAdapter implements EngineAdapter {
     const agentDir = this.agentDir;
     mkdirSync(this.sessionDir, { recursive: true });
     const sessionPath = this.resolveSpawnSessionPath(spec, this.sessionDir);
-    this.syncGatewayConfig(spec, agentDir);
+    this.syncAgentDir(agentDir);
     return this.buildRequest(spec, sessionPath);
   }
 
-  /** Undefined unless this instance was given somewhere to put a reading: no gateway route means
-   *  no plan-backed quota to read, and no injected store/throttle means nothing may be written
-   *  (D10 — the sink used to fall back to the daemon's singletons, so an unhooked instance wrote
-   *  the real throttle). `extensions.ts` skips the probe entirely when this returns undefined. */
+  /** Undefined unless this instance was given somewhere to put a reading: no injected
+   *  store/throttle means nothing may be written (D10 — the sink used to fall back to the daemon's
+   *  singletons, so an unhooked instance wrote the real throttle). `extensions.ts` skips the probe
+   *  entirely when this returns undefined. */
   private quotaReporter(spec: EngineSpec): ((reading: CodexQuotaReading) => void) | undefined {
-    if (!spec.route.gatewayBaseUrl) return undefined;
     const usageStore = this.usageStore;
     const submit = this.submitRateLimit;
     if (!usageStore || !submit) return undefined;
     return (reading) => {
       void reportCodexQuota(reading, resolveQuotaSource({
-        provider: spec.model.provider, gatewayPath: spec.route.gatewayPath,
+        provider: spec.model.provider, connection: spec.route.connection,
       }), { usageStore, submit })
         .catch((error) => log.error('reportCodexQuota error:', error));
     };

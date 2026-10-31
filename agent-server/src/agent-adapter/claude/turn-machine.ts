@@ -189,7 +189,8 @@ export interface TurnHost {
   readonly sessionId: string;
   readonly channel: string;
   readonly captureTranscriptLogs: boolean;
-  readonly anthropicBaseUrl: string | undefined;
+  /** The connection this session was routed on; rate limits are filed under it. */
+  readonly connection: string | undefined;
   /** Hand a provider rate-limit window to whoever owns throttle policy. Deliberately NOT a turn
    *  event: the CLI emits `rate_limit_event` with no turn in flight (between turns, and during a
    *  spontaneous continuation turn), which is exactly when the notice matters most, so routing it
@@ -653,9 +654,8 @@ export class ClaudeTurnMachine {
       if (data.type === 'system' && data.subtype === 'compact_boundary') this.emitContextUsage(data);
       reportSystemLine(this.currentTurn, data);
       if (data.type === 'rate_limit_event' && data.rate_limit_info) {
-        const mode = this.host.anthropicBaseUrl?.match(/\/m\/([^/]+)\//)?.[1] || undefined;
         this.host.reportRateLimit(data.rate_limit_info, {
-          provider: 'anthropic', displayName: 'Anthropic', mode,
+          provider: 'anthropic', displayName: 'Anthropic', mode: this.host.connection,
         }).catch(e => log.error('handleRateLimitEvent error:', e));
       }
       // `--replay-user-messages` echo: the CLI's delivery ack for an injected message.

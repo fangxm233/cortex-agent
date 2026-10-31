@@ -8,6 +8,7 @@ import { applyChannelSelection, type ApplySelectionResult } from '@domain/agents
 import { getDefaultSelection, getDefaultSelectionForBackend, listFavorites, resolveModelRef, selectionForModel } from '@domain/agents/models.js';
 import { isValidThinkingLevel, type EngineSelection, type ModelRef } from '@domain/agents/engine-selection.js';
 import { resolveRunSelection } from '@domain/runs/config-resolver.js';
+import { routeName } from '@domain/connections/index.js';
 import type { Backend } from '@core/types/agent-types.js';
 import { listSkillGroups } from '@domain/plugins/catalog.js';
 import { conversationPluginDirs } from '@domain/plugins/conversation-skills.js';
@@ -20,14 +21,15 @@ function destination(channel: string): Destination {
 }
 
 function selectionText(selection: EngineSelection): string {
-  return `${selection.backend} · ${selection.provider ? `${selection.provider}/` : ''}${selection.model} · ${selection.thinking ?? t('cmd.thinking.none')} · ${selection.mode}`;
+  const route = selection.connection ? ` · ${selection.connection}` : '';
+  return `${selection.backend} · ${selection.provider ? `${selection.provider}/` : ''}${selection.model} · ${selection.thinking ?? t('cmd.thinking.none')}${route}`;
 }
 
 function selectionFailure(result: ApplySelectionResult, requested: Partial<EngineSelection>): string {
   if (result.reason === 'cross-backend-live-session') {
     return t('cmd.selection.crossBackendBlocked', { name: requested.model ?? result.model, target: result.targetBackend ?? '', current: result.currentBackend ?? '' });
   }
-  if (result.reason === 'invalid-mode') return t('cmd.mode.invalid', { mode: requested.mode ?? '', routes: (result.allowed ?? []).join(', ') });
+  if (result.reason === 'invalid-connection') return t('cmd.mode.invalid', { mode: requested.connection ?? '', routes: (result.allowed ?? []).join(', ') });
   return t('cmd.error', { error: result.reason ?? '' });
 }
 
@@ -39,10 +41,10 @@ async function selectReply(channel: string, selection: Partial<EngineSelection>)
 }
 
 export async function handleModeCmd(channel: string, adapter: PlatformAdapter, message = '!mode'): Promise<void> {
-  const mode = message.split(/\s+/).slice(1).join(' ').trim();
-  const text = mode
-    ? await selectReply(channel, { mode })
-    : t('cmd.mode.current', { mode: resolveRunSelection({ channel }).mode });
+  const connection = message.split(/\s+/).slice(1).join(' ').trim();
+  const text = connection
+    ? await selectReply(channel, { connection })
+    : t('cmd.mode.current', { mode: routeName(resolveRunSelection({ channel })) });
   await adapter.postMessage(destination(channel), { text });
 }
 

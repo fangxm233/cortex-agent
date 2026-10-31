@@ -3,7 +3,7 @@ import { createLogger } from '@core/log.js';
 import { piUserAuthPath } from '@core/pi-sdk.js';
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
 import {
-  applyAuthEnv,
+  dropRoutingEnv,
   getSavedApiEnv,
   removeAnthropicApiKey,
   removeClaudeCodeOAuthToken,
@@ -130,7 +130,7 @@ function selectedCredential(
 }
 
 function reloadClaude(dependencies: LogoutAccountDependencies): void {
-  const reload = dependencies.configureClaudeEnv ?? applyAuthEnv;
+  const reload = dependencies.configureClaudeEnv ?? dropRoutingEnv;
   reload();
 }
 

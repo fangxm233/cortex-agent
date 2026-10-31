@@ -2,10 +2,11 @@
 import type { Backend, EngineSession, EngineSpec, AgentCompactResult } from '../../agent-adapter/types.js';
 import type { EngineSelection } from '../agents/engine-selection.js';
 import { recordCost } from '../costs/cost-tracker.js';
-import type { ModeEnv } from './mode-env.js';
+import type { ClaudeRoute } from '../connections/claude-route.js';
+import { routeName } from '../connections/index.js';
 import { engines } from './engines.js';
 import { buildEngineSpec } from './engine-spec.js';
-import { requestRoute } from './config-resolver.js';
+import { resolveRunRoute } from './config-resolver.js';
 import type { RunRequest } from './request.js';
 
 export interface CompactAgentTarget {
@@ -28,13 +29,13 @@ interface CompactCostEntry {
 
 export interface CompactAgentDeps {
   acquireEngine: (spec: EngineSpec) => EngineSession;
-  route: (request: RunRequest, selection: EngineSelection) => ModeEnv;
+  route: (selection: EngineSelection) => ClaudeRoute | undefined;
   recordCost: (entry: CompactCostEntry) => Promise<void>;
 }
 
 const compactAgentDeps: CompactAgentDeps = {
   acquireEngine: (spec) => engines.acquire(spec),
-  route: requestRoute,
+  route: resolveRunRoute,
   recordCost,
 };
 
@@ -53,7 +54,7 @@ function compactCostEntry(
     trigger: context.trigger,
     cost_usd: result.usage.costUsd,
     backend: target.backend,
-    mode: selection.mode,
+    mode: routeName(selection),
     source: 'estimate',
     input_tokens: result.usage.inputTokens,
     output_tokens: result.usage.outputTokens,
@@ -71,7 +72,7 @@ export async function compactAgentContext(
     throw new Error(`${backend} selection does not support manual context compaction`);
   }
   const spec = buildEngineSpec(request, request.selection, {
-    route: deps.route(request, request.selection),
+    route: deps.route(request.selection),
   });
   const result = await deps.acquireEngine(spec).compact();
   const cost = compactCostEntry(target, result);

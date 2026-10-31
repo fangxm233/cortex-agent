@@ -19,7 +19,8 @@ import type { AwaitBackground } from '../../agent-adapter/continuation-phase.js'
 import type { RunEvent } from '../../agent-adapter/run-events.js';
 import type { EventObserver, NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
 import { recordCost, type CostAttribution } from '../costs/cost-tracker.js';
-import type { ModeEnv } from './mode-env.js';
+import type { ClaudeRoute } from '../connections/claude-route.js';
+import { routeName } from '../connections/index.js';
 import type { EngineSelection } from '../agents/engine-selection.js';
 import { engines } from './engines.js';
 import { buildEngineSpec } from './engine-spec.js';
@@ -37,8 +38,8 @@ export interface StartAttemptInput {
   attempt: EngineSelection;
   /** The execution record the attempt is billed and attested under. */
   executionId: string | null;
-  /** The resolved mode route (base URL + credentials) for this attempt. */
-  route?: ModeEnv;
+  /** The resolved Claude route (base URL + credentials) for this attempt; PI has none. */
+  route?: ClaudeRoute;
   /** Every RunEvent the engine produces, in order. The run fans them out; nothing else listens. */
   onEvent(event: RunEvent): void;
   /** Wire-level observers that need the untranslated record (benchmark evidence only). */
@@ -99,7 +100,7 @@ function recordAttemptCost(
     project: input.request.context.project || 'general',
     trigger: costTrigger(input.request.context.trigger, continuation),
     cost_usd: event.cost_usd, backend: input.attempt.backend,
-    mode: input.attempt.mode || 'api', source: 'estimate',
+    mode: routeName(input.attempt), source: 'estimate',
     input_tokens: event.input_tokens, output_tokens: event.output_tokens,
     prompt_tokens: event.prompt_tokens === undefined ? event.tokens_in : event.prompt_tokens,
     cache_read_tokens: event.cache_read_tokens,

@@ -215,8 +215,8 @@ class ClaudeSession implements TurnHost {
     return this.options.captureTranscriptLogs !== false;
   }
 
-  get anthropicBaseUrl(): string | undefined {
-    return this.options.anthropicBaseUrl;
+  get connection(): string | undefined {
+    return this.options.connection;
   }
 
   private handleProcessClose(code: number | null): void {

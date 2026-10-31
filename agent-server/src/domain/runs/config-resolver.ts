@@ -3,8 +3,7 @@ import type { Session } from '@store/session-registry-repo.js';
 import { getChannelSelection } from '../agents/config.js';
 import { getDefaultSelection } from '../agents/models.js';
 import type { EngineSelection } from '../agents/engine-selection.js';
-import { resolveModeEnv, type ModeEnv } from './mode-env.js';
-import type { RunRequest } from './request.js';
+import { resolveClaudeRoute, type ClaudeRoute } from '../connections/claude-route.js';
 
 export interface RunSelectionQuery {
   channel?: string | null;
@@ -31,23 +30,10 @@ export function resolveConfiguredDefaultRun(): EngineSelection | null {
   return getDefaultSelection();
 }
 
-/** Resolve the route per run, never by changing the daemon's environment. */
-export function resolveRunRoute(
-  selection: { mode?: EngineSelection['mode'] },
-  context: { project?: string | null; trigger?: string | null } = {},
-): ModeEnv {
-  const metadata: Record<string, string> = {};
-  if (context.project) metadata.project = context.project;
-  if (context.trigger) metadata.trigger = context.trigger;
-  return resolveModeEnv(selection.mode || 'api', Object.keys(metadata).length ? metadata : undefined);
-}
-
-export function requestRoute(
-  request: { context: Pick<RunRequest['context'], 'project' | 'trigger' | 'routeTrigger'> },
-  selection: { mode?: EngineSelection['mode'] },
-): ModeEnv {
-  const { project, trigger, routeTrigger } = request.context;
-  return resolveRunRoute(selection, { project, trigger: routeTrigger ?? trigger });
+/** Resolve the route per run, never by changing the daemon's environment. A PI selection has no
+ *  Claude route; its provider catalog is the PI adapter's. */
+export function resolveRunRoute(selection: Pick<EngineSelection, 'backend' | 'connection'>): ClaudeRoute | undefined {
+  return selection.backend === 'claude' ? resolveClaudeRoute(selection.connection) : undefined;
 }
 
 export function resolveRunBackend(query: RunSelectionQuery = {}): EngineSelection['backend'] {

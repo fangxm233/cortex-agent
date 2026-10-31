@@ -237,8 +237,8 @@ function selectionError(result: SelectionResult, args: MutateArgs<'sessions.setS
     'invalid-thinking': () => t('ui.session.invalidThinking', {
       level: String(args.selection.thinking), expected: expectedOneOf(result.allowed),
     }),
-    'invalid-mode': () => t('ui.session.invalidMode', {
-      mode: args.selection.mode, expected: expectedOneOf(result.allowed),
+    'invalid-connection': () => t('ui.session.invalidMode', {
+      mode: String(args.selection.connection), expected: expectedOneOf(result.allowed),
     }),
     'provider-not-supported': () => t('ui.session.noProvider', { provider: String(args.selection.provider) }),
   };
@@ -256,8 +256,8 @@ export async function handleSetSelection(
   }
   const result = await deps.applySessionSelection({ channel: session.channel, ...args.selection });
   if (!result.ok) return selectionError(result, args);
-  const { backend, provider, model, thinking, mode, backendChanged } = result;
-  return { ok: true, data: { backend, provider, model, thinking, mode, backendChanged } };
+  const { backend, provider, model, thinking, connection, backendChanged } = result;
+  return { ok: true, data: { backend, provider, model, thinking, connection, backendChanged } };
 }
 
 // Message edit + rewind (desktop design 23 / mobile 7): resolve session→channel and delegate to

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { parse as parseDotenvLib } from 'dotenv';
 
 import { isGitAvailable } from '@core/git-availability.js';
-import { GATEWAY_MANAGED_KEY_PLACEHOLDER } from '@core/utils.js';
+import { credentialInventory, routeName, SUBSCRIPTION_CONNECTION } from '../connections/index.js';
 import { AISTATUS_DIR, GATEWAY_CONFIG, DATA_DIR, CONFIG_DIR, STORE_DIR, DAEMON_PID_FILE } from '@core/paths.js';
 import { gatewayUrl } from '@core/gateway-endpoint.js';
 import { ensureAuthTokens, CLIENT_TOKEN_ENV, WEBHOOK_TOKEN_ENV } from '@core/auth.js';
@@ -83,13 +83,16 @@ export interface DoctorDeps {
   resolvePiSdk(): PiSdkInfo | null;
   loadPiRuntime(): Promise<PiRuntimeLoadResult>;
   getAuthStatus(): Promise<AuthStatusSnapshot>;
-  /** Backend and route used by an unconfigured channel; null when unreadable. */
+  /** Backend and connection used by an unconfigured channel; null when unreadable. */
   defaultSelection(): DefaultSelectionInfo | null;
+  /** Ids of the stored Claude key connections. */
+  claudeKeyConnections(): string[];
 }
 
 export interface DefaultSelectionInfo {
   backend: Backend;
-  mode: string | null;
+  /** The connection the selection runs on, resolved (never null for Claude). */
+  connection: string | null;
 }
 
 /** Write actuators used only by `applySafeFixes` (idempotent, non-destructive). */
@@ -208,36 +211,28 @@ function pushEnvAndTokenChecks(
     : { id: 'auth-tokens', label: 'Auth tokens', status: 'fail', detail: `missing: ${missing.join(', ')}`, hint: 'run `cortex doctor --fix` to generate', fixable: true });
 }
 
-/** Whether the default selection runs Claude on a key-billed route. Mirrors the run path: a selection
- *  without a mode routes as `api` (resolveRunRoute), and every route but `plan` carries a key. */
-function usesClaudeApiMode(deps: DoctorDeps): boolean {
+/** The stored connection the default Claude selection runs on; null for the subscription, PI, or
+ *  an unreadable default. */
+function defaultClaudeKeyConnection(deps: DoctorDeps): string | null {
   const selection = deps.defaultSelection();
-  return selection?.backend === 'claude' && (selection.mode || 'api') !== 'plan';
+  if (selection?.backend !== 'claude' || !selection.connection) return null;
+  return selection.connection === SUBSCRIPTION_CONNECTION ? null : selection.connection;
 }
 
-function gatewayBacksClaudeApi(
-  deps: DoctorDeps,
-  getEnv: (name: string) => string | undefined,
-  gatewayHealthy: boolean,
-): boolean {
-  const apiKey = getEnv('ANTHROPIC_API_KEY');
-  const localKeyMissing = !apiKey || apiKey === GATEWAY_MANAGED_KEY_PLACEHOLDER;
-  return gatewayHealthy && localKeyMissing && usesClaudeApiMode(deps);
+/** A default on an existing key connection needs no Claude login. */
+function keyConnectionBacked(deps: DoctorDeps): boolean {
+  const id = defaultClaudeKeyConnection(deps);
+  return id !== null && deps.claudeKeyConnections().includes(id);
 }
 
-function pushAnthropicKeyCheck(
-  checks: CheckResult[],
-  getEnv: (name: string) => string | undefined,
-  gatewayBacked: boolean,
-): void {
-  const apiKey = getEnv('ANTHROPIC_API_KEY');
-  if (gatewayBacked) {
-    checks.push({ id: 'anthropic-key', label: 'Anthropic API key', status: 'pass', detail: 'managed by healthy gateway' });
-  } else if (apiKey) {
-    const detail = apiKey === GATEWAY_MANAGED_KEY_PLACEHOLDER ? 'managed by gateway' : 'set';
-    checks.push({ id: 'anthropic-key', label: 'Anthropic API key', status: 'pass', detail });
+function pushClaudeConnectionCheck(checks: CheckResult[], deps: DoctorDeps): void {
+  const id = defaultClaudeKeyConnection(deps);
+  if (id === null) {
+    checks.push({ id: 'claude-connection', label: 'Claude connection', status: 'skip', detail: 'default does not use a key connection' });
+  } else if (deps.claudeKeyConnections().includes(id)) {
+    checks.push({ id: 'claude-connection', label: 'Claude connection', status: 'pass', detail: `${id} configured` });
   } else {
-    checks.push({ id: 'anthropic-key', label: 'Anthropic API key', status: 'warn', detail: 'not set — required for API mode (plan/subscription mode can ignore)', hint: 'set ANTHROPIC_API_KEY in .env or run `cortex init`' });
+    checks.push({ id: 'claude-connection', label: 'Claude connection', status: 'warn', detail: `${id} is not configured`, hint: 'add the connection in Settings or pick another model' });
   }
 }
 
@@ -293,8 +288,8 @@ async function checkPiRuntime(deps: DoctorDeps): Promise<CheckResult> {
   };
 }
 
-function gatewayCovered(account: AuthAccountStatus, gatewayBacked: boolean): boolean {
-  return gatewayBacked
+function keyConnectionCovered(account: AuthAccountStatus, connectionBacked: boolean): boolean {
+  return connectionBacked
     && account.backend === 'claude'
     && account.provider === 'anthropic'
     && account.state === 'logged-out';
@@ -302,12 +297,12 @@ function gatewayCovered(account: AuthAccountStatus, gatewayBacked: boolean): boo
 
 function backendAuthSummary(
   snapshot: AuthStatusSnapshot,
-  gatewayBacked: boolean,
+  connectionBacked: boolean,
 ): CheckResult {
   const inUse = snapshot.accounts.filter(account => account.inUse);
-  const covered = inUse.filter(account => gatewayCovered(account, gatewayBacked));
+  const covered = inUse.filter(account => keyConnectionCovered(account, connectionBacked));
   const unhealthy = inUse.filter(account => (
-    UNHEALTHY_AUTH_STATES.has(account.state) && !gatewayCovered(account, gatewayBacked)
+    UNHEALTHY_AUTH_STATES.has(account.state) && !keyConnectionCovered(account, connectionBacked)
   ));
   const providers = [...new Set(unhealthy.map(account => account.provider))].sort();
   if (unhealthy.length > 0) {
@@ -317,19 +312,19 @@ function backendAuthSummary(
       hint: BACKEND_DOC_HINT,
     };
   }
-  const gateway = covered.length > 0 ? '; gateway-backed: anthropic' : '';
+  const keyed = covered.length > 0 ? '; on a key connection: anthropic' : '';
   return {
     id: 'backend-auth', label: 'Backend authentication', status: 'pass',
-    detail: `${inUse.length} in use; 0 expired or logged out${gateway}`,
+    detail: `${inUse.length} in use; 0 expired or logged out${keyed}`,
   };
 }
 
 async function checkBackendAuth(
   deps: DoctorDeps,
-  gatewayBacked: boolean,
+  connectionBacked: boolean,
 ): Promise<CheckResult> {
   try {
-    return backendAuthSummary(await deps.getAuthStatus(), gatewayBacked);
+    return backendAuthSummary(await deps.getAuthStatus(), connectionBacked);
   } catch {
     return {
       id: 'backend-auth', label: 'Backend authentication', status: 'warn',
@@ -341,16 +336,14 @@ async function checkBackendAuth(
 async function sectionBackend(
   deps: DoctorDeps,
   getEnv: (name: string) => string | undefined,
-  gatewayHealthy: boolean,
 ): Promise<DoctorSection> {
   const checks: CheckResult[] = [];
-  const gatewayBacked = gatewayBacksClaudeApi(deps, getEnv, gatewayHealthy);
   pushDirectoryCheck(checks, deps);
   pushEnvAndTokenChecks(checks, deps, getEnv);
-  pushAnthropicKeyCheck(checks, getEnv, gatewayBacked);
+  pushClaudeConnectionCheck(checks, deps);
   pushConfigChecks(checks, deps);
   checks.push(...await Promise.all([
-    checkPiRuntime(deps), checkBackendAuth(deps, gatewayBacked),
+    checkPiRuntime(deps), checkBackendAuth(deps, keyConnectionBacked(deps)),
   ]));
   return { title: 'Backend Install / Login', checks };
 }
@@ -441,7 +434,7 @@ function sectionGateway(
     ? { id: 'gateway-config', label: 'Gateway config', status: 'pass', detail: gwYaml }
     : { id: 'gateway-config', label: 'Gateway config', status: 'skip', detail: `not configured (no ${missingConfig})`, hint: 'run `cortex setup-gateway` if you use the gateway' });
 
-  const gatewayInUse = getEnv('ANTHROPIC_API_KEY') === GATEWAY_MANAGED_KEY_PLACEHOLDER || gwConfigured;
+  const gatewayInUse = gwConfigured;
   if (healthy) {
     checks.push({ id: 'gateway-health', label: 'Gateway health', status: 'pass', detail: `responding at ${gatewayAddress}` });
   } else if (gatewayInUse) {
@@ -460,7 +453,7 @@ export async function runDiagnostics(deps: DoctorDeps): Promise<DoctorReport> {
   const gatewayHealthy = await deps.probeGateway();
   const sections: DoctorSection[] = [
     sectionRuntime(deps),
-    await sectionBackend(deps, getEnv, gatewayHealthy),
+    await sectionBackend(deps, getEnv),
     sectionPlatform(deps, getEnv),
     sectionGateway(deps, getEnv, gatewayHealthy),
   ];
@@ -572,12 +565,16 @@ export function createDefaultDoctorDeps(): DoctorDeps {
     loadPiRuntime: () => loadInstalledPiRuntime(),
     getAuthStatus: () => readAuthStatus(),
     defaultSelection: readDefaultSelection,
+    claudeKeyConnections: () => credentialInventory.claudeConnections()
+      .filter((view) => view.kind === 'key').map((view) => view.id),
   };
 }
 
 function readDefaultSelection(): DefaultSelectionInfo | null {
   try {
-    return resolveConfiguredDefaultRun();
+    const selection = resolveConfiguredDefaultRun();
+    if (!selection) return null;
+    return { backend: selection.backend, connection: selection.backend === 'claude' ? routeName(selection) : null };
   } catch {
     return null;
   }

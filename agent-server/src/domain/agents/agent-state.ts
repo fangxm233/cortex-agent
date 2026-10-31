@@ -5,7 +5,7 @@ import { copySelection, validateEngineSelection, type EngineSelection } from './
 
 const STATE_FILE = path.join(STORE_DIR, 'agent-state.json');
 export type SelectionDefault = EngineSelection & { agentName?: string };
-export type ModelMemory = Record<string, { thinking: string | null; mode: string }>;
+export type ModelMemory = Record<string, { thinking: string | null; connection: string | null }>;
 
 export interface AgentState {
   channelSelections: Record<string, EngineSelection>;
@@ -35,8 +35,9 @@ function parseMap<T>(value: unknown, parse: (entry: unknown) => T | null): Recor
 function parseMemory(value: unknown): ModelMemory[string] | null {
   const raw = record(value);
   const validThinking = raw.thinking === null || (typeof raw.thinking === 'string' && !!raw.thinking);
-  if (!validThinking || typeof raw.mode !== 'string' || !raw.mode) return null;
-  return { thinking: raw.thinking as string | null, mode: raw.mode };
+  const validConnection = raw.connection === null || (typeof raw.connection === 'string' && !!raw.connection);
+  if (!validThinking || !validConnection) return null;
+  return { thinking: raw.thinking as string | null, connection: raw.connection as string | null };
 }
 
 function parseString(value: unknown): string | null {

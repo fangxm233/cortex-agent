@@ -251,7 +251,7 @@ const engineSelectionShape = z.object({
   provider: z.string().min(1).nullable(),
   model: z.string().min(1),
   thinking: z.string().min(1).nullable(),
-  mode: z.string().min(1),
+  connection: z.string().min(1).nullable(),
 }).strict();
 // Preserve required nullable fields in declarations even with strictNullChecks disabled.
 export const engineSelectionInput = engineSelectionShape as z.ZodType<EngineSelection, EngineSelection>;

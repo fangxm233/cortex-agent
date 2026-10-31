@@ -1,9 +1,7 @@
 import type { Backend } from '@core/types/agent-types.js';
-import { readGatewayYaml } from '@core/gateway-generator.js';
-import { gatewayRouteModes, piGatewayMode } from '@core/gateway-routes.js';
 import { modelsRepo } from '@store/models-repo.js';
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
-import { GATEWAY_CONFIG_PATH } from '../pi-providers/gateway-route-store.js';
+import { credentialInventory, type CredentialInventory } from '../connections/inventory.js';
 import { getModelMemory } from './config.js';
 import {
   copySelection, modelKey, validateEngineSelection, validateModelRef,
@@ -53,16 +51,18 @@ export function getDefaultSelectionForBackend(backend: Backend): EngineSelection
 export function selectionForModel(ref: ModelRef): EngineSelection {
   validateModelRef(ref);
   const memory = getModelMemory()[modelKey(ref)];
-  return { ...copyRef(ref), ...(memory ?? { thinking: null, mode: firstModelRoute(ref) }) };
+  const remembered = memory ?? { thinking: null, connection: defaultConnectionFor(ref) };
+  return { ...copyRef(ref), thinking: remembered.thinking,
+    connection: ref.backend === 'pi' ? null : remembered.connection ?? null };
 }
 
-/** PI uses its provider's generated route. Claude uses gateway declaration order. */
-export function firstModelRoute(
+/** The connection a model runs on when nothing names one: PI's provider is its connection, and
+ *  Claude takes the inventory's default (null when this host has no Claude connection yet). */
+export function defaultConnectionFor(
   ref: ModelRef,
-  readGateway = () => readGatewayYaml(GATEWAY_CONFIG_PATH),
-): string {
-  if (ref.backend === 'pi') return piGatewayMode(ref.provider!);
-  return gatewayRouteModes(readGateway()?.endpoints, ref)[0] ?? 'plan';
+  inventory: CredentialInventory = credentialInventory,
+): string | null {
+  return ref.backend === 'pi' ? null : inventory.defaultClaudeConnection();
 }
 
 function explicitRef(ref: string): ModelRef | null {

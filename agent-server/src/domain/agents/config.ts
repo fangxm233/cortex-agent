@@ -41,7 +41,7 @@ export function getModelMemory(): ModelMemory {
 }
 
 export function rememberModelSelection(selection: EngineSelection): void {
-  const memory = { thinking: selection.thinking, mode: selection.mode };
+  const memory = { thinking: selection.thinking, connection: selection.connection };
   commit({ ...agentState, modelMemory: withEntry(agentState.modelMemory, modelKey(selection), memory) });
 }
 

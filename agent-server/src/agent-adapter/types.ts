@@ -25,7 +25,7 @@ export interface RateLimitObservation {
   surpassedThreshold?: number;
 }
 
-/** Who the observation is attributed to — the gateway route the session actually used. */
+/** Who the observation is attributed to — the provider and the connection the session used. */
 export interface RateLimitOrigin {
   provider: string;
   displayName: string;
@@ -72,7 +72,9 @@ export interface EngineSpec {
          configPaths?: string[] };
   env: { sets?: Record<string, string>; unsets?: string[]; pinned?: NodeJS.ProcessEnv;
          context?: CortexContextEnv };
-  route: { anthropicBaseUrl?: string; gatewayBaseUrl?: string; gatewayPath?: string };
+  /** Where the engine sends its requests. `connection` names the Claude connection the route was
+   *  resolved for (rate limits are filed under it); PI routes by provider and leaves it unset. */
+  route: { anthropicBaseUrl?: string; connection?: string };
   /** `disableSkills` covers the whole skill layer, including the user-level plugins and skills
    *  Cortex never passed in (`--plugin-dir` only ever added its own); `settingSources` narrows
    *  which setting files the backend may read at all. */

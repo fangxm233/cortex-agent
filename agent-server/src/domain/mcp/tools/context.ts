@@ -54,7 +54,7 @@ function selectionFromEnv(env: NodeJS.ProcessEnv): EngineSelection | null {
     backend, model,
     provider: backend === 'pi' ? optional(env.CORTEX_PROVIDER) : null,
     thinking: optional(env.CORTEX_THINKING),
-    mode: env.CORTEX_MODE ?? '',
+    connection: backend === 'claude' ? optional(env.CORTEX_CONNECTION) : null,
   };
 }
 
@@ -105,7 +105,7 @@ export interface CortexContextInternal {
   sessionId: string | null;
   model: string | null;
   thinking: string | null;
-  mode: string | null;
+  connection: string | null;
   project: string | null;
   backend: string | null;
   scheduleTaskId: string | null;
@@ -138,7 +138,7 @@ export async function resolveCortexContext(
     sessionId: ctx.sessionId,
     model: ctx.selection?.model ?? null,
     thinking: ctx.selection?.thinking ?? null,
-    mode: ctx.selection?.mode ?? null,
+    connection: ctx.selection?.connection ?? null,
     project: ctx.project,
     backend: ctx.backend,
     scheduleTaskId: ctx.scheduleTaskId,
@@ -158,7 +158,7 @@ export async function resolveCortexContext(
 export function registerContextTools(server: McpServer, ctx: CortexToolContext): void {
   server.tool(
     'cortex_context',
-    'Get current session identity, backend, model, thinking, mode, project, bound board and trigger context.',
+    'Get current session identity, backend, model, thinking, connection, project, bound board and trigger context.',
     {},
     { readOnlyHint: true },
     async () => {

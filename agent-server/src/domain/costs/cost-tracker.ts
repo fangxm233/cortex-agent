@@ -146,8 +146,9 @@ export function pickBudget(config: BudgetConfig, projectId?: string | null): Res
 
 const COST_CATEGORIES = ['total', 'api', 'plan'];
 
+/** Ledger buckets: 'plan' is spend Claude's subscription covers, everything else is 'api'. */
 function normalizeCostMode(mode: string | undefined): string {
-  return mode === 'plan' ? 'plan' : 'api';
+  return mode === 'plan' || mode === 'subscription' ? 'plan' : 'api';
 }
 
 function createBucket(): PeriodBucket {

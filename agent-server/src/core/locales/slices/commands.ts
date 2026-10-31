@@ -18,9 +18,9 @@ export const commandsEn = {
   'cmd.compact.noSession': 'No active session to compact.',
 
   // --- mode / backend / model / skills / agent ---
-  'cmd.mode.current': 'Gateway route for this channel: *${mode}*. Use `!mode <route>` to change it.',
-  'cmd.mode.set': 'Gateway route set to *${mode}*.',
-  'cmd.mode.invalid': 'Unknown route *${mode}*. Available: ${routes}.',
+  'cmd.mode.current': 'Connection for this channel: *${mode}*. Use `!mode <connection>` to change it.',
+  'cmd.mode.set': 'Connection set to *${mode}*.',
+  'cmd.mode.invalid': 'Unknown connection *${mode}*. Available: ${routes}.',
   'cmd.mode.apiLabel': 'API',
   'cmd.mode.planLabel': 'Plan',
   'cmd.backend.claudeLabel': 'Claude Code',
@@ -352,9 +352,9 @@ export const commandsZh: Record<keyof typeof commandsEn, string> = {
   'cmd.compact.noSession': '当前没有可压缩的活动会话。',
 
   // --- mode / backend / model / skills / agent ---
-  'cmd.mode.current': '本频道网关路由：*${mode}*。用 `!mode <route>` 修改。',
-  'cmd.mode.set': '网关路由已设为 *${mode}*。',
-  'cmd.mode.invalid': '未知路由 *${mode}*。可用：${routes}。',
+  'cmd.mode.current': '本频道连接：*${mode}*。用 `!mode <连接>` 修改。',
+  'cmd.mode.set': '连接已设为 *${mode}*。',
+  'cmd.mode.invalid': '未知连接 *${mode}*。可用：${routes}。',
   'cmd.mode.apiLabel': 'API',
   'cmd.mode.planLabel': 'Plan',
   'cmd.backend.claudeLabel': 'Claude Code',

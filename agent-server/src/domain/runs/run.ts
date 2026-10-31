@@ -7,7 +7,8 @@ import type { EngineSpec, UserMessage } from '../../agent-adapter/types.js';
 import type { RunEvent, RunPhase } from '../../agent-adapter/run-events.js';
 import { getSettings } from '@core/settings.js';
 import { t } from '../../core/i18n.js';
-import type { ModeEnv } from './mode-env.js';
+import type { ClaudeRoute } from '../connections/claude-route.js';
+import { routeName } from '../connections/index.js';
 import { isRetryableError } from './retryable-errors.js';
 import { NO_SPEND, countSpend, spendOfResult, type RunSpend } from './spend.js';
 import type { EngineSelection } from '../agents/engine-selection.js';
@@ -15,7 +16,7 @@ import { publishAuthRecovered, publishAuthRequired, classifyAuthError } from '..
 import {
   attemptAuthType, attemptProvider, attemptProviderOrNull, rateLimitedResult, shouldSkipAttempt,
 } from './fallback.js';
-import { requestRoute } from './config-resolver.js';
+import { resolveRunRoute } from './config-resolver.js';
 import { AttemptNoticeTracker, assistantNoticeLevel } from './notices.js';
 import { startAttempt, type RunAttempt } from './attempt.js';
 import type { RunObserver, RunRequest, RunResult } from './request.js';
@@ -221,7 +222,7 @@ export class AgentRunImpl implements AgentRun {
   private async runOnce(): Promise<void> {
     const attempt = this.request.selection;
     if (shouldSkipAttempt(attempt, this.request.context)) {
-      const blocked = rateLimitedResult(attempt.mode, attemptProvider(attempt));
+      const blocked = rateLimitedResult(routeName(attempt), attemptProvider(attempt));
       this.notices.emitTerminalRateLimit(blocked);
       this.settleBlocked(blocked);
       return;
@@ -258,8 +259,8 @@ export class AgentRunImpl implements AgentRun {
   }
 
   /** The route (base URL + credentials) this run uses. */
-  private routeFor(attempt: EngineSelection): ModeEnv {
-    return requestRoute(this.request, attempt);
+  private routeFor(attempt: EngineSelection): ClaudeRoute | undefined {
+    return resolveRunRoute(attempt);
   }
 
   /** Every attempt that reached a backend settles here: provider attribution and the auth

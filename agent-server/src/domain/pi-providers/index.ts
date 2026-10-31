@@ -4,8 +4,6 @@ export {
   type CustomProviderModelSpec,
 } from './custom-provider-model.js';
 
-export { GATEWAY_CONFIG_PATH } from './gateway-route-store.js';
-
 export {
   defaultCustomProviderStores,
   getCustomProvider,

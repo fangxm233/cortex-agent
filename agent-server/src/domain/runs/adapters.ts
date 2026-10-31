@@ -1,7 +1,8 @@
 import { subagentModelEnv } from '../../agent-adapter/claude/spawn-args.js';
 import { ClaudeAdapter } from '../../agent-adapter/claude/adapter.js';
 import { PIAdapter } from '../../agent-adapter/pi/adapter.js';
-import { ensureAuthVisible, USER_PI_MODELS_PATH } from '../../agent-adapter/pi/agent-dir.js';
+import { ensureAuthVisible } from '../../agent-adapter/pi/agent-dir.js';
+import { buildPiCatalog } from '../connections/pi-catalog.js';
 import { PI_AGENT_DIR, PI_SESSIONS_DIR } from '../../agent-adapter/pi/defaults.js';
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
 import { handleRateLimitEvent } from '../costs/rate-limit-throttle.js';
@@ -25,7 +26,7 @@ import type {
 const PI_ADAPTER = new PIAdapter(undefined, PI_SESSIONS_DIR, piProviderDiscovery, {
   agentDir: PI_AGENT_DIR,
   prepareAgentDir: (agentDir) => ensureAuthVisible({ agentDir }),
-  userModelsPath: USER_PI_MODELS_PATH,
+  catalog: () => buildPiCatalog(),
   usageStore,
   submitRateLimit: handleRateLimitEvent,
   openBundledMcpServer,

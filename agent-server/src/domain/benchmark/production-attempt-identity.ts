@@ -13,6 +13,7 @@ import { roleSurfaceFromSpec } from './role-surface.js';
 import {
   initializeProductionAttemptJournals, resetProductionAttemptJournals,
 } from './production-attempt-journal.js';
+import { credentialInventory, routeName } from '../connections/index.js';
 
 const RECORD_SCHEMA = 'cortex-production-attempt-identity/5';
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
@@ -313,9 +314,10 @@ function requiredOption(value: unknown, label: string): string {
   return value;
 }
 
+/** PI reaches a provider at its connection's base URL when one overrides it, else at PI's own. */
 function configuredRouteHost(spec: EngineSpec, backend: Backend): string | null {
   const route = backend === 'pi'
-    ? spec.route.gatewayBaseUrl
+    ? (spec.model.provider ? credentialInventory.findPi(spec.model.provider)?.baseUrl : null)
     : (spec.env.sets?.ANTHROPIC_BASE_URL ?? spec.route.anthropicBaseUrl);
   if (!route) return null;
   try { return new URL(route).host; } catch {
@@ -421,7 +423,8 @@ function attemptModel(
   const roleSurface = roleSurfaceFromSpec(input.spec, directive);
   return {
     thinking: selection.thinking,
-    mode: selection.mode,
+    // The evidence schema keeps its `mode` field: the route the attempt's traffic was filed under.
+    mode: routeName(selection),
     backend: selection.backend,
     provider: selection.provider,
     requested_model: selection.model,

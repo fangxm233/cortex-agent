@@ -1,6 +1,7 @@
 // Provider and credential attribution for the run's single engine selection.
 import type { EngineSelection } from '../agents/engine-selection.js';
 import { configIsRateLimited, resolveRateLimitProvider } from '../agents/provider-run-lifecycle.js';
+import { routeName, SUBSCRIPTION_CONNECTION } from '../connections/index.js';
 
 export { configIsRateLimited, rateLimitedResult, resolveRateLimitProvider } from '../agents/provider-run-lifecycle.js';
 export { isRetryableError, isRetryableResult } from './retryable-errors.js';
@@ -18,10 +19,10 @@ export function attemptProvider(selection: Parameters<typeof resolveRateLimitPro
 }
 
 export function attemptAuthType(
-  selection: Pick<EngineSelection, 'backend' | 'mode'>,
+  selection: Pick<EngineSelection, 'backend' | 'provider' | 'connection'>,
 ): 'oauth' | 'api_key' | null {
   if (selection.backend !== 'claude') return null;
-  return selection.mode === 'api' ? 'api_key' : 'oauth';
+  return routeName(selection) === SUBSCRIPTION_CONNECTION ? 'oauth' : 'api_key';
 }
 
 export function attemptProviderOrNull(selection: EngineSelection): string | null {

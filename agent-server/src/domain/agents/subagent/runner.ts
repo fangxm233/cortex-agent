@@ -8,9 +8,7 @@ import type { SubagentNotice } from '@core/agents/subagent/types.js';
 import { parseModelSpec, selectChildModel, type ModelSpec } from '@core/agents/subagent/model-spec.js';
 import { noticesFor } from '../../../agent-adapter/pi/child-events.js';
 import { getPiEngineAdapter } from '../../runs/adapters.js';
-import { gatewayUrl } from '@core/gateway-endpoint.js';
 import { type AgentRole } from '@core/agents/roles.js';
-import { buildPiGatewaySubPath } from '../../runs/engine-spec.js';
 import { getDefaultSelectionForBackend } from '../models.js';
 import type { EngineSelection } from '../engine-selection.js';
 import { startRun } from '../../runs/service.js';
@@ -33,8 +31,8 @@ const CHILD_MCP_BUNDLES = ['cortex-core', 'cortex-ext'];
 /** The delegating turn's materialized engine context. */
 export interface SubagentParentContext {
   backend: Backend;
-  /** The parent run's resolved gateway route. A same-backend Claude child reuses it verbatim. */
-  mode?: string | null;
+  /** The parent run's connection. A same-backend Claude child reuses it verbatim. */
+  connection?: string | null;
   provider?: string | null;
   model?: string | null;
   channel?: string;
@@ -86,18 +84,6 @@ export async function runSubagent(request: SubagentRunRequest): Promise<Subagent
 
 // ─── pi child ─────────────────────────────────────────────────────
 
-/**
- * Route resolution for a `pi` child, in order: the role's own `mode:`, then the parent's route when
- * the parent is a PI run on this same provider, and finally the provider's own name — which is the
- * PI convention (`provider: deepseek` pairs with `mode: deepseek`).
- */
-function resolvePiMode(request: SubagentRunRequest, provider: string): string {
-  if (request.role.mode) return request.role.mode;
-  const parent = request.parent;
-  if (parent.backend === 'pi' && parent.provider === provider && parent.mode) return parent.mode;
-  return provider;
-}
-
 async function runPiSubagent(request: SubagentRunRequest): Promise<SubagentResult> {
   // Dynamically imported: the PI SDK must not load into a daemon whose parent turn is Claude-only.
   const [{ runPiChild }, { childExtensions }] = await Promise.all([
@@ -105,24 +91,15 @@ async function runPiSubagent(request: SubagentRunRequest): Promise<SubagentResul
     import('../../../agent-adapter/pi/tool-shims.js'),
   ]);
   // The parent's own model is a fallback only from a PI parent: a Claude model id means nothing to
-  // PI. What is selected here is what the child resolves — the route below is for that provider.
+  // PI. What is selected here is what the child resolves.
   const model = selectChildModel(
     request.task, request.role, request.parent.backend === 'pi' ? request.parent : null,
   );
   const adapter = getPiEngineAdapter();
-  const provider = model.provider;
-  if (provider) {
-    const mode = resolvePiMode(request, provider);
-    try {
-      adapter.ensureProviderRouting({
-        provider,
-        gatewayPath: buildPiGatewaySubPath(mode, provider) ?? null,
-        gatewayBaseUrl: gatewayUrl(),
-        model: model.model,
-      });
-    } catch (error) {
-      log.warn(`Could not route provider ${provider} for a pi subagent: ${(error as Error).message}`);
-    }
+  try {
+    adapter.ensureCatalog();
+  } catch (error) {
+    log.warn(`Could not write the PI catalog for a pi subagent: ${(error as Error).message}`);
   }
   return runPiChild({
     task: request.task,
@@ -169,21 +146,19 @@ function claudeDefaultSelection(): EngineSelection {
 
 /**
  * The child model comes from the task or role, then the parent's own model when that parent is
- * Claude, and finally the configured Claude-backend default. The route follows the Claude parent
- * when there is one; a cross-backend child uses that Claude default instead of the PI channel's
- * mode. The child remains a one-shot run.
+ * Claude, and finally the configured Claude-backend default. The connection follows the Claude
+ * parent when there is one; a cross-backend child uses that Claude default's. The child remains a
+ * one-shot run.
  */
 function claudeChildConfig(request: SubagentRunRequest, spec: ModelSpec): EngineSelection {
   const sameBackend = request.parent.backend === 'claude';
   let fallback: EngineSelection | null = null;
   const claudeDefault = (): EngineSelection => fallback ??= claudeDefaultSelection();
-  const inheritedMode = sameBackend && request.parent.mode != null
-    ? request.parent.mode
-    : claudeDefault().mode;
+  const connection = sameBackend ? request.parent.connection : claudeDefault().connection;
   return {
     model: spec.model ?? (sameBackend ? request.parent.model : null) ?? claudeDefault().model,
     backend: 'claude',
-    mode: inheritedMode,
+    connection: connection ?? null,
     provider: null,
     thinking: spec.thinking ?? null,
   };
