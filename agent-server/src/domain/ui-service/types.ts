@@ -756,6 +756,10 @@ export interface ModelCatalogRoute {
    *  never narrows what it cannot vouch for. Optional while clients and servers roll
    *  independently; an older server omits it and every model gets the backend's whole ladder. */
   modelThinking?: Record<string, string[]>;
+  /** Claude: the connections that serve a model, for each listed model not served by every
+   *  connection — a model a connection lists itself runs there. A model absent here may run on any
+   *  of `connections`. Optional for the same roll-skew reason as `modelThinking`. */
+  modelConnections?: Record<string, string[]>;
 }
 
 export interface ModelCatalogSnapshot {
