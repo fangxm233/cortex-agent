@@ -19,9 +19,9 @@ from .deepseek_paid_smoke import (
     BUNDLE,
     CAPABILITY_ID,
     MODEL,
-    load_deepseek_relay_credential,
     run_deepseek_paid_smoke,
 )
+from .deepseek_upstream import load_deepseek_upstream
 
 SMOKE_ARM_NAME = "ds-smoke"
 SMOKE_TASK_ID = "constraints-scheduling"
@@ -124,19 +124,23 @@ def remove_smoke_network(network_id: str) -> None:
         raise SmokeLaunchError(f"could not remove scoped Docker network: {completed.stderr.strip()}")
 
 
-async def launch_smoke(*, config_path: Path, gateway_path: Path) -> dict[str, object]:
+async def launch_smoke(
+    *, config_path: Path, cortex_home: Path | None = None, gateway_path: Path | None = None,
+) -> dict[str, object]:
+    """Run the smoke once against the DeepSeek upstream in the Cortex home's connections.json,
+    or in `gateway_path` when one is given."""
     config, plan = load_smoke_config(config_path)
     preflight = preflight_image(plan.task.image_ref)
-    credential = load_deepseek_relay_credential(gateway_path)
-    scan_values = _scan_environment(config, credential)
+    upstream = load_deepseek_upstream(cortex_home=cortex_home, gateway_path=gateway_path)
+    config = config.with_upstream(upstream.base_url)
+    scan_values = _scan_environment(config, upstream.credential)
     scan_policy = parse_host_scan_policy(config.host_scan_policy, scan_values)
     network_id = create_smoke_network(config, plan)
     trial_error: str | None = None
     try:
         with _temporary_environment(scan_values):
             await run_deepseek_paid_smoke(
-                gateway_path=gateway_path,
-                trial_kwargs=_trial_kwargs(config, plan),
+                upstream=upstream, trial_kwargs=_trial_kwargs(config, plan),
             )
     except Exception as error:
         trial_error = type(error).__name__
@@ -336,16 +340,27 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "Examples:\n"
             "  cortex-bench-deepseek-smoke --config smoke.yaml --preflight\n"
+            "  cortex-bench-deepseek-smoke --config smoke.yaml --run\n"
             "  cortex-bench-deepseek-smoke --config smoke.yaml --gateway gateway.yaml --run"
         ), formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--config", required=True, help="Committed smoke campaign YAML")
-    parser.add_argument("--gateway", help="Gateway YAML; required only with --run")
+    parser.add_argument(
+        "--cortex-home",
+        help="Cortex home whose config/connections.json holds the deepseek connection "
+             "(default: $CORTEX_HOME, else ~/.cortex)")
+    parser.add_argument(
+        "--gateway",
+        help="Read the DeepSeek upstream from this gateway.yaml instead (legacy source)")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--preflight", dest="run", action="store_false", help="Probe only (default)")
     mode.add_argument("--run", dest="run", action="store_true", help="Run once after preflight")
     parser.set_defaults(run=False)
     return parser
+
+
+def _optional_path(value: str | None) -> Path | None:
+    return None if value is None else Path(value).expanduser()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -354,11 +369,10 @@ def main(argv: list[str] | None = None) -> int:
         config, plan = load_smoke_config(Path(arguments.config))
         if not arguments.run:
             result = {"ok": True, "preflight": preflight_image(plan.task.image_ref)}
-        elif not arguments.gateway:
-            raise SmokeLaunchError("--gateway is required with --run")
         else:
             result = asyncio.run(launch_smoke(
-                config_path=Path(arguments.config), gateway_path=Path(arguments.gateway)))
+                config_path=Path(arguments.config), cortex_home=_optional_path(arguments.cortex_home),
+                gateway_path=_optional_path(arguments.gateway)))
     except (OSError, ValueError, SmokeLaunchError) as error:
         print(json.dumps({"ok": False, "error": str(error)}, sort_keys=True))
         return 1

@@ -409,7 +409,8 @@ def _only_for(stale: list[str]) -> str:
 def _passthrough(arguments: argparse.Namespace) -> list[str]:
     passthrough: list[str] = []
     for flag, value in (
-        ("--gateway", arguments.gateway), ("--codex-auth", arguments.codex_auth),
+        ("--cortex-home", arguments.cortex_home), ("--gateway", arguments.gateway),
+        ("--codex-auth", arguments.codex_auth),
         ("--checkout", arguments.checkout),
     ):
         if value:
@@ -466,6 +467,8 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument(
         "--skip-build", action="store_true",
         help="Never rebuild. Stale artifacts are then refused by the launcher, as always")
+    parser.add_argument(
+        "--cortex-home", default=None, help="Passed through to launch-paid-campaign.py")
     parser.add_argument("--gateway", default=None, help="Passed through to launch-paid-campaign.py")
     parser.add_argument(
         "--codex-auth", default=None, help="Passed through to launch-paid-campaign.py")

@@ -20,7 +20,7 @@ import hashlib
 import ipaddress
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from types import MappingProxyType
@@ -92,9 +92,12 @@ MANIFEST_FIELDS = frozenset({
     "wheel_path", "lockfile_path", "lockfile_manifest_path", "npm_artifact_path",
 })
 MANIFEST_PATH_FIELDS = ("wheel_path", "lockfile_path", "npm_artifact_path")
-CREDENTIAL_FIELDS = frozenset({
-    "upstream_base_url", "route_identity_host", "proxy_host_suffix", "dummy_token_ref",
-})
+CREDENTIAL_FIELDS = frozenset({"route_identity_host", "proxy_host_suffix", "dummy_token_ref"})
+# Where the proxy forwards: a fixed `upstream_base_url`, or `upstream_env`, the variable the paid
+# launcher sets from the same host source as the credential (a relay token is good only at the
+# relay it was issued for, and a relay's address does not belong in a committed file).
+CREDENTIAL_UPSTREAM_FIELDS = frozenset({"upstream_base_url", "upstream_env"})
+UPSTREAM_SCHEMES = frozenset({"http", "https"})
 # The campaign declares the route's SUFFIX, never a whole URL: admission requires each trial's
 # proxy hostname to begin with that trial's own id (`trial_admission._validate_proxy_destination`),
 # so one campaign-wide URL could satisfy at most one trial. The port is absent on purpose — the
@@ -257,6 +260,31 @@ class CampaignConfig:
     # The run-level whitelist of staged runtime roots an arm may have mounted into its container.
     # Empty is the historical campaign: every runtime an arm needs is baked into its task image.
     runtimes: Mapping[str, str] = MappingProxyType({})
+    # The variable the upstream comes from, until `with_upstream` fills `credential` from it.
+    upstream_env: str | None = None
+
+    def with_upstream(self, base_url: str) -> "CampaignConfig":
+        """This campaign with its proxy upstream set from the host's credential source."""
+        if self.upstream_env is None:
+            raise CampaignConfigError(
+                "campaign credential declares a fixed upstream_base_url; it takes no other")
+        resolved = replace(
+            self, credential={**self.credential, "upstream_base_url": _upstream_url(base_url)},
+            upstream_env=None)
+        _validate_trial_routes(resolved)
+        return resolved
+
+    def upstream_from(self, environ: Mapping[str, str]) -> "CampaignConfig":
+        """This campaign with its upstream read from `upstream_env`, when it names one."""
+        if self.upstream_env is None:
+            return self
+        value = environ.get(self.upstream_env)
+        if not value:
+            raise CampaignConfigError(
+                f"campaign upstream comes from {self.upstream_env}, which is unset: launch the "
+                "campaign with scripts/launch-paid-campaign.py, which sets it from the same "
+                "source as the credential")
+        return self.with_upstream(value)
 
     def arm_runtime_mounts(self, arm: Mapping[str, object]) -> dict[str, str]:
         """This arm's extra bind mounts, target-keyed, or empty when it needs none."""
@@ -298,6 +326,9 @@ class CampaignConfig:
         return f"{PROXY_ROUTE_SCHEME}://{plan.trial_id}.{self.proxy_host_suffix}"
 
     def trial_credential(self, plan: TrialPlan) -> dict[str, object]:
+        if self.upstream_env is not None:
+            raise CampaignConfigError(
+                f"campaign upstream from {self.upstream_env} is not resolved yet")
         return {**dict(self.credential), "proxy_base_url": self.trial_route(plan)}
 
     def trial_seed(self, plan: TrialPlan) -> dict[str, object]:
@@ -343,7 +374,7 @@ def parse_campaign_config(
         raise CampaignConfigError(
             f"campaign schema_version must be {CAMPAIGN_SCHEMA_VERSION!r}; got {version!r}")
     arms = _arms(document["arms"])
-    declared = _exact_text_mapping(document["credential"], CREDENTIAL_FIELDS, "credential")
+    declared, upstream_env = _credential(document["credential"])
     pool = _docker_network(document["docker_network"])
     config = CampaignConfig(
         source=source,
@@ -352,7 +383,7 @@ def parse_campaign_config(
         trials_dir=_path(document, "trials_dir", base_dir),
         cli_version=_text(document, "cli_version"),
         manifest=_manifest(document["manifest"], base_dir),
-        credential={field: declared[field] for field in CREDENTIAL_SEED_FIELDS},
+        credential={field: declared[field] for field in CREDENTIAL_SEED_FIELDS if field in declared},
         proxy_host_suffix=_host_suffix(declared["proxy_host_suffix"]),
         host_scan_policy=_host_scan_policy(document["host_scan_policy"]),
         docker_network=pool,
@@ -364,6 +395,7 @@ def parse_campaign_config(
         tasks=_declared_tasks(document, base_dir),
         comparisons=_comparisons(document.get("comparisons", []), arms),
         runtimes=_runtimes(document.get("runtimes"), base_dir),
+        upstream_env=upstream_env,
     )
     _validate_trial_routes(config)
     _validate_arm_runtimes(config)
@@ -465,7 +497,7 @@ def _validate_trial_routes(config: CampaignConfig) -> None:
     on trial one into a refusal before any trial is armed.
     """
     forbidden = {str(config.credential["route_identity_host"]).lower(), *METADATA_HOSTS}
-    upstream = urlsplit(str(config.credential["upstream_base_url"])).hostname
+    upstream = urlsplit(str(config.credential.get("upstream_base_url", ""))).hostname
     if upstream:
         forbidden.add(upstream.lower())
     for plan in config.trials():
@@ -640,12 +672,27 @@ def _manifest(source: object, base_dir: Path) -> dict[str, object]:
     return manifest
 
 
-def _exact_text_mapping(
-    source: object, fields: frozenset[str], label: str,
-) -> dict[str, object]:
-    document = _mapping(source, f"campaign {label}")
-    _require_fields(document, fields, frozenset(), f"campaign {label}")
-    return {field: _text(document, field, f"campaign {label}") for field in sorted(fields)}
+def _credential(source: object) -> tuple[dict[str, object], str | None]:
+    """The credential block, and the variable its upstream comes from when it is not fixed."""
+    document = _mapping(source, "campaign credential")
+    _require_fields(document, CREDENTIAL_FIELDS, CREDENTIAL_UPSTREAM_FIELDS, "campaign credential")
+    upstream = sorted(CREDENTIAL_UPSTREAM_FIELDS & set(document))
+    if len(upstream) != 1:
+        raise CampaignConfigError(
+            "campaign credential declares exactly one of upstream_base_url or upstream_env")
+    declared = {field: _text(document, field, "campaign credential")
+                for field in sorted(CREDENTIAL_FIELDS | set(upstream))}
+    if "upstream_base_url" in declared:
+        _upstream_url(str(declared["upstream_base_url"]))
+        return declared, None
+    return declared, str(declared.pop("upstream_env"))
+
+
+def _upstream_url(value: str) -> str:
+    parsed = urlsplit(value)
+    if parsed.scheme not in UPSTREAM_SCHEMES or not parsed.hostname:
+        raise CampaignConfigError("campaign upstream must be an absolute http or https URL")
+    return value
 
 
 def _host_scan_policy(source: object) -> dict[str, object]:

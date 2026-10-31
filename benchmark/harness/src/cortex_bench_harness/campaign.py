@@ -33,6 +33,7 @@ import asyncio
 import contextlib
 import hashlib
 import json
+import os
 import sys
 import time
 from collections.abc import Iterator, Mapping, Sequence
@@ -292,7 +293,9 @@ def read_campaign_config(source: str) -> CampaignConfig:
 
 
 def run(arguments: argparse.Namespace) -> dict[str, object]:
-    config = read_campaign_config(arguments.config)
+    # A paid campaign's upstream may come from the launcher's environment, set from the same host
+    # source as the credential.
+    config = read_campaign_config(arguments.config).upstream_from(os.environ)
     resumes = _resume(config, config.trials())
     preflight = _preflight(config, [resume.plan for resume in resumes if resume.arms])
     if arguments.dry_run:

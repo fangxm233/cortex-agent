@@ -10,11 +10,16 @@
 # parse that refused r2 now succeeds, and only then runs the campaign in this same process.
 #
 # Credential hygiene, which is why the credential is not simply exported by the operator:
-#   * it is read at execution time from the configured host source: DeepSeek campaigns still use
-#     the strict gateway loader (`launcher.deepseek_paid_smoke.load_deepseek_relay_credential`),
-#     while all-Codex campaigns read only `tokens.access_token` from the named Codex auth JSON and
-#     validate it locally as a JWT; a pre-set credential variable is always a refusal, because
-#     a launcher that persists its environment would write the value into run metadata;
+#   * it is read at execution time from the configured host source: DeepSeek campaigns read the
+#     `deepseek` connection (base URL and key) from the Cortex home's config/connections.json, or
+#     with `--gateway` the `deepseek` route of a gateway.yaml an earlier Cortex wrote
+#     (`launcher.deepseek_upstream.load_deepseek_upstream`), while all-Codex campaigns read only
+#     `tokens.access_token` from the named Codex auth JSON and validate it locally as a JWT; a
+#     pre-set credential variable is always a refusal, because a launcher that persists its
+#     environment would write the value into run metadata;
+#   * a DeepSeek campaign's proxy upstream comes from that same source, because a relay token is
+#     good only at the relay it was issued for: the campaign names a variable in
+#     `credential.upstream_env` instead of a URL, and the launcher sets it beside the credential;
 #   * it lives only in this process's environment, is never written to argv, stdout or any file,
 #     and is removed from the environment as soon as the campaign returns.
 #
@@ -76,8 +81,10 @@ from cortex_bench_harness.campaign_config import (  # noqa: E402
     load_campaign_config,
 )
 from cortex_bench_harness.host_finalization import parse_host_scan_policy  # noqa: E402
-from cortex_bench_harness.launcher.deepseek_paid_smoke import (  # noqa: E402
-    load_deepseek_relay_credential,
+from cortex_bench_harness.launcher.deepseek_upstream import (  # noqa: E402
+    DeepSeekUpstreamError,
+    default_cortex_home,
+    load_deepseek_upstream,
 )
 from cortex_bench_harness.proxy.adapters.openai_codex_responses import (  # noqa: E402
     extract_access_expiry_ms,
@@ -85,11 +92,13 @@ from cortex_bench_harness.proxy.adapters.openai_codex_responses import (  # noqa
 )
 
 LAUNCH_SCHEMA_VERSION = "cortex-bench-paid-launch/1"
-GATEWAY_PATH = Path("~/.aistatus/gateway.yaml")
 CODEX_AUTH_PATH = Path("~/.codex/auth.json")
 CREDENTIAL_RULE = "provider_credential"
 CODEX_AUTH_ORIGIN = "codex-auth"
+CONNECTIONS_ORIGIN = "cortex-connections"
 GATEWAY_ORIGIN = "gateway"
+# The report key naming the file a provider source was read from.
+SOURCE_PATH_KEYS = {CONNECTIONS_ORIGIN: "connections_path", GATEWAY_ORIGIN: "gateway_path"}
 CODEX_CREDENTIAL_CAPABILITIES = frozenset({
     "pi-openai-codex-oauth", "codex-subscription",
 })
@@ -191,21 +200,28 @@ def checkout_root(config: CampaignConfig) -> Path:
 
 
 def resolve_launch_environment(
-    config: CampaignConfig, *, gateway_path: Path, codex_auth_path: Path = CODEX_AUTH_PATH,
-    environ: Mapping[str, str], checkout: Path | None = None,
+    config: CampaignConfig, *, cortex_home: Path | None = None, gateway_path: Path | None = None,
+    codex_auth_path: Path = CODEX_AUTH_PATH, environ: Mapping[str, str],
+    checkout: Path | None = None,
 ) -> LaunchEnvironment:
-    """Resolve all five references without reading the credential from the environment."""
+    """Resolve all five references without reading the credential from the environment.
+
+    A DeepSeek credential comes from the Cortex home's connections.json, or from `gateway_path`
+    when one is given; its upstream comes with it.
+    """
     credential_env = credential_reference(config)
-    credential_origin = _credential_origin(config)
+    credential_origin = _credential_origin(config, gateway_path)
     if environ.get(credential_env):
         raise LaunchError(
             f"{credential_env} is already set in this environment. The credential is loaded from "
             f"the {credential_origin} source at execution time and must not be inherited: "
             "passing it through a launcher environment flag persists its value into run metadata")
-    credential = _credential(
-        credential_origin, gateway_path=gateway_path, codex_auth_path=codex_auth_path)
+    credential, upstream = _credential(
+        credential_origin, cortex_home=cortex_home, gateway_path=gateway_path,
+        codex_auth_path=codex_auth_path)
     references = _reference_values(
         config, credential_env, credential_origin, credential, environ, checkout)
+    references.extend(_upstream_reference(config, credential_origin, upstream, environ))
     references.extend(_refresh_reference(config, codex_auth_path, environ))
     _validate(references, credential_env)
     return LaunchEnvironment(
@@ -233,6 +249,36 @@ def _reference_values(
         value = inherited or _generated(field, name, derived)
         references.append(ReferenceValue(name, value, origin, False))
     return references
+
+
+def _upstream_reference(
+    config: CampaignConfig, origin: str, upstream: str | None, environ: Mapping[str, str],
+) -> list[ReferenceValue]:
+    """The proxy's upstream, loaded with the credential, for the variable the campaign names.
+
+    It is held back from the report like the credential: a relay's address does not belong in an
+    artifact an operator might publish.
+    """
+    _require_upstream_declaration(config, origin, upstream is not None)
+    if upstream is None:
+        return []
+    name = str(config.upstream_env)
+    if environ.get(name):
+        raise LaunchError(
+            f"{name} is already set in this environment. The upstream is loaded with the "
+            "credential at execution time and must not be inherited")
+    return [ReferenceValue(name, upstream, origin, True)]
+
+
+def _require_upstream_declaration(config: CampaignConfig, origin: str, loaded: bool) -> None:
+    if loaded and config.upstream_env is None:
+        raise LaunchError(
+            f"the {origin} source names the upstream its credential belongs to, but the campaign "
+            "pins credential.upstream_base_url: declare credential.upstream_env instead")
+    if not loaded and config.upstream_env is not None:
+        raise LaunchError(
+            f"the campaign takes its upstream from {config.upstream_env}, but the {origin} source "
+            "names none: declare credential.upstream_base_url")
 
 
 def _refresh_reference(
@@ -273,7 +319,7 @@ def _codex_refresh_token(auth_path: Path) -> str:
     return refresh.strip()
 
 
-def _credential_origin(config: CampaignConfig) -> str:
+def _credential_origin(config: CampaignConfig, gateway_path: Path | None = None) -> str:
     """Which host file this campaign's one credential comes from, or a refusal.
 
     A campaign carries ONE credential: `proxy.credential_env` names one variable, the host scan
@@ -286,12 +332,13 @@ def _credential_origin(config: CampaignConfig) -> str:
     """
     if not config.arms:
         raise LaunchError("campaign declares no arm to resolve a credential for")
+    provider_origin = CONNECTIONS_ORIGIN if gateway_path is None else GATEWAY_ORIGIN
     grouped: dict[str, list[str]] = {}
     for arm in config.arms:
         origin = (
             CODEX_AUTH_ORIGIN
             if str(arm["credential_capability"]) in CODEX_CREDENTIAL_CAPABILITIES
-            else GATEWAY_ORIGIN
+            else provider_origin
         )
         grouped.setdefault(origin, []).append(str(arm["name"]))
     if len(grouped) > 1:
@@ -304,18 +351,17 @@ def _credential_origin(config: CampaignConfig) -> str:
 
 
 def _credential(
-    credential_origin: str, *, gateway_path: Path, codex_auth_path: Path,
-) -> str:
+    credential_origin: str, *, cortex_home: Path | None, gateway_path: Path | None,
+    codex_auth_path: Path,
+) -> tuple[str, str | None]:
+    """The credential, and the upstream it belongs to when its source names one."""
     if credential_origin == CODEX_AUTH_ORIGIN:
-        return _codex_access_token(codex_auth_path)
+        return _codex_access_token(codex_auth_path), None
     try:
-        credential = load_deepseek_relay_credential(gateway_path)
-    except (OSError, ValueError) as error:
-        raise LaunchError(f"cannot load the provider credential from {gateway_path}: {error}"
-                          ) from error
-    if not credential.strip():
-        raise LaunchError(f"the provider credential in {gateway_path} is empty")
-    return credential
+        upstream = load_deepseek_upstream(cortex_home=cortex_home, gateway_path=gateway_path)
+    except DeepSeekUpstreamError as error:
+        raise LaunchError(f"cannot load the provider credential: {error}") from error
+    return upstream.credential, upstream.base_url
 
 
 def _codex_access_token(auth_path: Path) -> str:
@@ -416,9 +462,10 @@ def verify_artifacts(config: CampaignConfig, checkout: Path) -> dict[str, object
 
 def report(
     config: CampaignConfig, environment: LaunchEnvironment, mode: str,
-    gateway_path: Path, artifacts: Mapping[str, object],
+    source_path: Path, artifacts: Mapping[str, object],
     dry_run: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
+    """The redacted launch report. `source_path` is the file a provider source was read from."""
     document: dict[str, object] = {
         "ok": True, "schema_version": LAUNCH_SCHEMA_VERSION, "mode": mode,
         "config": config.source, "campaign": config.campaign, "paid": config.paid,
@@ -428,8 +475,9 @@ def report(
         "artifacts_verified": dict(artifacts),
         **environment.as_report(),
     }
-    if environment.credential_origin == GATEWAY_ORIGIN:
-        document["gateway_path"] = str(gateway_path)
+    source_key = SOURCE_PATH_KEYS.get(environment.credential_origin)
+    if source_key is not None:
+        document[source_key] = str(source_path)
     if dry_run is not None:
         document["dry_run"] = dict(dry_run)
     return document
@@ -437,10 +485,14 @@ def report(
 
 def launch(arguments: argparse.Namespace) -> tuple[dict[str, object], int]:
     config = load_campaign_config(arguments.config)
-    gateway_path = Path(arguments.gateway).expanduser()
+    gateway_path = Path(arguments.gateway).expanduser() if arguments.gateway else None
+    cortex_home = Path(arguments.cortex_home).expanduser() if arguments.cortex_home else None
+    source_path = gateway_path or (
+        (cortex_home or default_cortex_home()) / "config" / "connections.json")
     checkout = Path(arguments.checkout).resolve() if arguments.checkout else None
     environment = resolve_launch_environment(
         config,
+        cortex_home=cortex_home,
         gateway_path=gateway_path,
         codex_auth_path=Path(arguments.codex_auth),
         environ=os.environ,
@@ -455,14 +507,14 @@ def launch(arguments: argparse.Namespace) -> tuple[dict[str, object], int]:
         with _exported(environment):
             planned = campaign.run(
                 argparse.Namespace(config=arguments.config, dry_run=True))
-        document = report(config, environment, "preflight", gateway_path, artifacts, planned)
+        document = report(config, environment, "preflight", source_path, artifacts, planned)
         if planned.get("ok") is not True:
             document["ok"] = False
             return document, 1
         return document, 0
     with _exported(environment):
         print(json.dumps(
-            report(config, environment, "run", gateway_path, artifacts), sort_keys=True),
+            report(config, environment, "run", source_path, artifacts), sort_keys=True),
             file=sys.stderr)
         return {}, campaign.main(["run", "--config", arguments.config])
 
@@ -482,9 +534,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="launch-paid-campaign.py",
         description=(
-            "Launch a committed paid campaign from this host: load the provider credential from "
-            "the gateway or Codex auth at execution time, resolve every host_scan_policy "
-            "reference, and run the campaign in this process."),
+            "Launch a committed paid campaign from this host: load the provider credential (and "
+            "for DeepSeek its upstream) from the Cortex connections or Codex auth at execution "
+            "time, resolve every host_scan_policy reference, and run the campaign in this "
+            "process."),
         epilog=(
             "The credential value is never accepted from the environment, stdin or a flag, and "
             "never appears in argv, stdout or the emitted report."),
@@ -499,8 +552,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
-        "--gateway", default=str(GATEWAY_PATH),
-        help="aistatus gateway file the provider credential is read from")
+        "--cortex-home", default=None,
+        help="Cortex home whose config/connections.json holds the deepseek connection "
+             "(default: $CORTEX_HOME, else ~/.cortex)")
+    parser.add_argument(
+        "--gateway", default=None,
+        help="Read the DeepSeek credential and upstream from this gateway.yaml instead "
+             "(legacy source)")
     parser.add_argument(
         "--codex-auth", default=str(CODEX_AUTH_PATH),
         help="Codex auth JSON the access token is read from when every arm uses Codex OAuth")

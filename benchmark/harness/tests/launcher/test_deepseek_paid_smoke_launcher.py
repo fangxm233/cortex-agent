@@ -9,7 +9,6 @@ import pytest
 import yaml
 
 from docker_gate import docker_opt_in
-from cortex_bench_harness.launcher import deepseek_paid_smoke
 from cortex_bench_harness.launcher import deepseek_paid_smoke_launcher as launcher
 from cortex_bench_harness.scan import ScanPolicy
 
@@ -46,12 +45,12 @@ def test_missing_prerequisite_refuses_before_credential_or_network(
         raise AssertionError("credential loading, network creation, and route arming are forbidden")
 
     monkeypatch.setattr(launcher, "preflight_image", fail_preflight)
-    monkeypatch.setattr(launcher, "load_deepseek_relay_credential", forbidden)
+    monkeypatch.setattr(launcher, "load_deepseek_upstream", forbidden)
     monkeypatch.setattr(launcher, "create_smoke_network", forbidden)
     monkeypatch.setattr(launcher, "run_deepseek_paid_smoke", forbidden)
 
     with pytest.raises(launcher.SmokeLaunchError, match="npm"):
-        asyncio.run(launcher.launch_smoke(config_path=CAMPAIGN, gateway_path=Path("unused")))
+        asyncio.run(launcher.launch_smoke(config_path=CAMPAIGN))
 
     assert calls == ["preflight"]
 
@@ -122,10 +121,9 @@ def _final_sse() -> bytes:
             + "data: [DONE]\n\n").encode()
 
 
-def _synthetic_config(tmp_path: Path, upstream: str) -> Path:
+def _synthetic_config(tmp_path: Path) -> Path:
     document = yaml.safe_load(CAMPAIGN.read_text(encoding="utf-8"))
     document["trials_dir"] = str(tmp_path / "trials")
-    document["credential"]["upstream_base_url"] = upstream
     document["manifest"] = {
         "wheel_path": str(HARNESS_DIR / "dist/cortex_bench_harness-0.1.0-py3-none-any.whl"),
         "npm_artifact_path": str(HARNESS_DIR / "dist/cortex-agent-server-2026.8.6.tgz"),
@@ -145,25 +143,27 @@ def _run_synthetic_smoke(
     upstream = OneRequestUpstream()
     gateway = tmp_path / "gateway.yaml"
     secret = "synthetic-only-smoke-credential"
-    gateway.write_text(f"deepseek:\n  deepseek:\n    keys:\n      - {secret}\n", encoding="utf-8")
-    config = _synthetic_config(tmp_path, upstream.base_url)
-    real_loader = deepseek_paid_smoke.load_deepseek_relay_credential
+    # The synthetic upstream stands in for the relay the gateway route names.
+    gateway.write_text(
+        f"deepseek:\n  deepseek:\n    base_url: {upstream.base_url}\n    keys:\n      - {secret}\n",
+        encoding="utf-8")
+    config = _synthetic_config(tmp_path)
+    real_loader = launcher.load_deepseek_upstream
     loaded: list[Path] = []
 
-    def synthetic_loader(path: Path) -> str:
-        assert path == gateway
-        loaded.append(path)
-        return real_loader(path)
+    def synthetic_loader(**kwargs: object) -> object:
+        assert kwargs["gateway_path"] == gateway
+        loaded.append(gateway)
+        return real_loader(**kwargs)
 
-    monkeypatch.setattr(launcher, "load_deepseek_relay_credential", synthetic_loader)
-    monkeypatch.setattr(deepseek_paid_smoke, "load_deepseek_relay_credential", synthetic_loader)
-    monkeypatch.setattr(deepseek_paid_smoke, "UPSTREAM", upstream.base_url)
+    monkeypatch.setattr(launcher, "load_deepseek_upstream", synthetic_loader)
     monkeypatch.setattr(launcher, "_checkout_root", lambda _config: str(HARNESS_DIR.parents[1]))
     try:
-        result = asyncio.run(launcher.launch_smoke(config_path=config, gateway_path=gateway))
+        result = asyncio.run(launcher.launch_smoke(
+            config_path=config, cortex_home=tmp_path, gateway_path=gateway))
     finally:
         upstream.stop()
-    assert loaded == [gateway, gateway]
+    assert loaded == [gateway]
     return result, upstream.requests, config, secret, gateway
 
 

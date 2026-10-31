@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from cortex_bench_harness.campaign_config import parse_campaign_config
 from cortex_bench_harness.host_finalization import parse_host_scan_policy
 from paid_campaign_fixtures import SOURCE_FILES, stage_campaign
 
@@ -30,7 +31,10 @@ COMMITTED_CODEX_CONFIGS = {
 }
 # Never a real credential: the shape the strict loader accepts, with an unmistakable body.
 FAKE_CREDENTIAL = "test-not-a-real-deepseek-credential-0123456789abcdef"
+# The relay the fake credential belongs to; the launcher hands it to the campaign beside the key.
+FAKE_UPSTREAM = "https://deepseek-relay.example.com/v1"
 DEEPSEEK_CREDENTIAL_ENV = "CORTEX_BENCH_DEEPSEEK_CREDENTIAL"
+DEEPSEEK_UPSTREAM_ENV = "CORTEX_BENCH_DEEPSEEK_UPSTREAM"
 CODEX_CREDENTIAL_ENV = "CORTEX_BENCH_CODEX_CREDENTIAL"
 COMMON_REFERENCES = (
     "CORTEX_BENCH_PAID_CHECKOUT",
@@ -38,7 +42,7 @@ COMMON_REFERENCES = (
     "CORTEX_BENCH_PAID_FORBIDDEN_ARGV",
     "CORTEX_BENCH_PAID_IDENTITY",
 )
-REQUIRED_REFERENCES = (DEEPSEEK_CREDENTIAL_ENV, *COMMON_REFERENCES)
+REQUIRED_REFERENCES = (DEEPSEEK_CREDENTIAL_ENV, DEEPSEEK_UPSTREAM_ENV, *COMMON_REFERENCES)
 CODEX_REQUIRED_REFERENCES = (CODEX_CREDENTIAL_ENV, *COMMON_REFERENCES)
 
 
@@ -57,7 +61,8 @@ launcher = load_launcher()
 def gateway(tmp_path: Path) -> Path:
     path = tmp_path / "gateway.yaml"
     path.write_text(
-        f"deepseek:\n  deepseek:\n    keys:\n      - {FAKE_CREDENTIAL}\n", encoding="utf-8")
+        f"deepseek:\n  deepseek:\n    base_url: {FAKE_UPSTREAM}\n    keys:\n      - {FAKE_CREDENTIAL}\n",
+        encoding="utf-8")
     return path
 
 
@@ -189,20 +194,72 @@ def test_each_launch_generates_its_own_leak_canaries(
 # --- credential hygiene -------------------------------------------------------------------------
 
 
-def test_the_credential_comes_from_the_gateway_through_the_strict_loader(
+def connections_home(tmp_path: Path, entries: list[object]) -> Path:
+    home = tmp_path / "cortex-home"
+    (home / "config").mkdir(parents=True)
+    (home / "config" / "connections.json").write_text(
+        json.dumps({"version": 1, "connections": entries}), encoding="utf-8")
+    return home
+
+
+def test_the_credential_and_its_upstream_come_from_the_named_gateway_route(
     gateway: Path, clean_environment: dict[str, str],
 ) -> None:
     environment = resolve(gateway)
 
-    assert environment.values["CORTEX_BENCH_DEEPSEEK_CREDENTIAL"] == FAKE_CREDENTIAL
+    assert environment.values[DEEPSEEK_CREDENTIAL_ENV] == FAKE_CREDENTIAL
+    assert environment.values[DEEPSEEK_UPSTREAM_ENV] == FAKE_UPSTREAM
     assert [reference.origin for reference in environment.references
-            if reference.secret] == ["gateway"]
+            if reference.secret] == ["gateway", "gateway"]
+
+
+def test_by_default_both_come_from_the_deepseek_connection_in_the_cortex_home(
+    tmp_path: Path, clean_environment: dict[str, str],
+) -> None:
+    home = connections_home(tmp_path, [{
+        "id": "deepseek", "backend": "pi", "provider": "deepseek",
+        "baseUrl": FAKE_UPSTREAM, "key": FAKE_CREDENTIAL}])
+
+    environment = launcher.resolve_launch_environment(
+        committed_config(), cortex_home=home, environ=os.environ)
+
+    assert environment.credential_origin == "cortex-connections"
+    assert environment.values[DEEPSEEK_CREDENTIAL_ENV] == FAKE_CREDENTIAL
+    assert environment.values[DEEPSEEK_UPSTREAM_ENV] == FAKE_UPSTREAM
+    document = launcher.report(
+        committed_config(), environment, "preflight", home / "config" / "connections.json", {})
+    assert document["connections_path"].endswith("connections.json")
+    assert "gateway_path" not in document
+
+
+def test_a_deepseek_campaign_that_pins_its_upstream_is_refused(
+    tmp_path: Path, gateway: Path, clean_environment: dict[str, str],
+) -> None:
+    """A fixed upstream could not be the relay the loaded token belongs to."""
+    text = COMMITTED_PAID_CONFIG.read_text(encoding="utf-8").replace(
+        f"upstream_env: {DEEPSEEK_UPSTREAM_ENV}", "upstream_base_url: https://api.deepseek.com")
+    pinned = tmp_path / "pinned.yaml"
+    pinned.write_text(text, encoding="utf-8")
+    config = parse_campaign_config(text, base_dir=COMMITTED_PAID_CONFIG.parent, source=str(pinned))
+
+    with pytest.raises(launcher.LaunchError, match="declare credential.upstream_env"):
+        launcher.resolve_launch_environment(
+            config, gateway_path=gateway, environ=os.environ, checkout=tmp_path)
+
+
+def test_an_inherited_upstream_variable_is_refused(
+    gateway: Path, clean_environment: dict[str, str], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(DEEPSEEK_UPSTREAM_ENV, "https://elsewhere.example.com")
+
+    with pytest.raises(launcher.LaunchError, match="must not be inherited"):
+        resolve(gateway)
 
 
 @pytest.mark.parametrize("document", [
-    "deepseek:\n  deepseek:\n    keys: []\n",
-    "deepseek:\n  deepseek:\n    keys:\n      - one\n      - two\n",
-    "deepseek:\n  deepseek:\n    keys:\n      - ''\n",
+    "deepseek:\n  deepseek:\n    base_url: https://relay.example.com\n    keys: []\n",
+    "deepseek:\n  deepseek:\n    base_url: https://relay.example.com\n    keys:\n      - ''\n",
+    "deepseek:\n  deepseek:\n    keys:\n      - one\n",
     "deepseek: {}\n",
 ])
 def test_a_gateway_the_strict_loader_refuses_is_a_launch_refusal(
@@ -269,8 +326,10 @@ def test_the_emitted_report_names_every_reference_and_carries_no_credential(
     payload = json.dumps(document, sort_keys=True)
     assert FAKE_CREDENTIAL not in payload
     assert [entry["name"] for entry in document["references"]] == sorted(REQUIRED_REFERENCES)
+    assert FAKE_UPSTREAM not in payload
     assert [entry for entry in document["references"] if entry["secret"]] == [
-        {"name": "CORTEX_BENCH_DEEPSEEK_CREDENTIAL", "origin": "gateway", "secret": True}]
+        {"name": "CORTEX_BENCH_DEEPSEEK_CREDENTIAL", "origin": "gateway", "secret": True},
+        {"name": DEEPSEEK_UPSTREAM_ENV, "origin": "gateway", "secret": True}]
 
 
 def test_a_campaign_whose_proxy_and_scan_credential_disagree_is_refused(

@@ -56,6 +56,17 @@ COMMITTED_ZERO_PAID_CONFIG = CAMPAIGNS_DIR / "zero-paid-dry-run.yaml"
 COMMITTED_PAID_CONFIG = CAMPAIGNS_DIR / "terminal-bench-2.1-deepseek-paid.yaml"
 PI_STREAM_DIAGNOSIS_CONFIG = (
     CAMPAIGNS_DIR / "terminal-bench-2.1-vendor-pi-stream-diagnosis.yaml")
+# What the paid launcher would set from the host's DeepSeek source; never a real relay.
+FAKE_RELAY_UPSTREAM = "https://deepseek-relay.example.com/v1"
+
+
+def set_launcher_upstream(monkeypatch: pytest.MonkeyPatch, config_path: Path) -> None:
+    """Stand in for the paid launcher: a campaign may take its upstream from the environment."""
+    name = load_campaign_config(config_path).upstream_env
+    if name is not None:
+        monkeypatch.setenv(name, FAKE_RELAY_UPSTREAM)
+
+
 COMMITTED_VENDOR_CONFIGS = {
     "pi": CAMPAIGNS_DIR / "terminal-bench-2.1-vendor-pi.yaml",
     "claude-code": CAMPAIGNS_DIR / "terminal-bench-2.1-vendor-claude-code.yaml",
@@ -2408,6 +2419,7 @@ def test_committed_vendor_shapes_persist_all_three_delivery_artifacts(
     source["trials_dir"] = str(tmp_path / vendor_agent / "trials")
     source["campaign"] = f"delivery-{vendor_agent}"
     config_copy = write_campaign(tmp_path, source)
+    set_launcher_upstream(monkeypatch, config_copy)
     RecordingTrialPath(default_requests=1).install(monkeypatch)
     monkeypatch.setattr(campaign, "_preflight", lambda *_: campaign._Preflight())
 
@@ -2467,6 +2479,7 @@ def test_a_committed_vendor_campaign_dry_run_arms_nothing(
 ) -> None:
     recorder = RecordingTrialPath().install(monkeypatch)
     config_copy = write_committed_campaign_copy(tmp_path, config_path)
+    set_launcher_upstream(monkeypatch, config_copy)
     credential_env = load_campaign_config(config_copy).proxy.get("credential_env")
     if credential_env:
         monkeypatch.setattr(campaign, "_now_ms", lambda: CODEX_NOW_MS)
@@ -2588,13 +2601,57 @@ def test_the_pi_stream_diagnosis_campaign_admits_exactly_one_trial(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     stub_pinned_image(monkeypatch)
-    config = load_campaign_config(PI_STREAM_DIAGNOSIS_CONFIG)
+    config = load_campaign_config(PI_STREAM_DIAGNOSIS_CONFIG).with_upstream(FAKE_RELAY_UPSTREAM)
 
     admitted = admit_every_trial(config, tmp_path)
 
     assert admitted == ["tb21-pi-sse-dx-20260821-constraints-scheduling-pure-pi"]
     assert config.concurrency == 1
     assert config.paid is True
+
+
+def test_a_campaign_upstream_is_fixed_or_named_by_a_variable_never_both(tmp_path: Path) -> None:
+    document = campaign_document(tmp_path)
+    document["credential"]["upstream_env"] = "CORTEX_BENCH_TEST_UPSTREAM"
+    with pytest.raises(CampaignConfigError, match="exactly one of upstream_base_url or upstream_env"):
+        load_campaign_config(write_campaign(tmp_path, document))
+    del document["credential"]["upstream_base_url"]
+    config = load_campaign_config(write_campaign(tmp_path, document))
+    assert config.upstream_env == "CORTEX_BENCH_TEST_UPSTREAM"
+    assert "upstream_base_url" not in config.credential
+
+
+def test_a_campaign_named_upstream_is_resolved_only_from_its_variable(tmp_path: Path) -> None:
+    document = campaign_document(tmp_path)
+    del document["credential"]["upstream_base_url"]
+    document["credential"]["upstream_env"] = "CORTEX_BENCH_TEST_UPSTREAM"
+    config = load_campaign_config(write_campaign(tmp_path, document))
+    plan = config.trials()[0]
+    with pytest.raises(CampaignConfigError, match="not resolved"):
+        config.trial_seed(plan)
+    with pytest.raises(CampaignConfigError, match="launch-paid-campaign.py"):
+        config.upstream_from({})
+    with pytest.raises(CampaignConfigError, match="absolute http or https URL"):
+        config.upstream_from({"CORTEX_BENCH_TEST_UPSTREAM": "relay.example.com"})
+    resolved = config.upstream_from({"CORTEX_BENCH_TEST_UPSTREAM": FAKE_RELAY_UPSTREAM})
+    assert resolved.trial_seed(plan)["credential"]["upstream_base_url"] == FAKE_RELAY_UPSTREAM
+    assert resolved.upstream_from({}) is resolved
+
+
+def test_a_campaign_cli_run_refuses_an_upstream_nobody_set(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    recorder = RecordingTrialPath().install(monkeypatch)
+    document = campaign_document(tmp_path)
+    del document["credential"]["upstream_base_url"]
+    document["credential"]["upstream_env"] = "CORTEX_BENCH_TEST_UPSTREAM"
+    monkeypatch.delenv("CORTEX_BENCH_TEST_UPSTREAM", raising=False)
+
+    status, result, stderr = run_cli(capsys, "run", "--config", str(write_campaign(tmp_path, document)))
+
+    assert status != 0
+    assert "CORTEX_BENCH_TEST_UPSTREAM" in json.dumps(result) + stderr
+    assert recorder.events == []
 
 
 def test_a_route_suffix_that_composes_a_forbidden_destination_is_refused(

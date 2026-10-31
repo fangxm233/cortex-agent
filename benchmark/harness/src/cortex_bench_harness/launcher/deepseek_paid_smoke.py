@@ -1,46 +1,28 @@
 from collections.abc import Mapping
-from pathlib import Path
 from typing import Any
 
-import yaml
-
+from .deepseek_upstream import DeepSeekUpstream
 from .host_credential_vault import HOST_CREDENTIAL_VAULT
 from .trial_admission import create_harbor_trial
 
 BUNDLE = "direct-pi-deepseek"
 CAPABILITY_ID = "pi-deepseek-api-key"
 MODEL = "deepseek-v4-flash"
-# Where the host-side trial proxy sends the one paid request: DeepSeek itself, which is also where PI
-# sends it when nothing overrides the provider.
-UPSTREAM = "https://api.deepseek.com"
 MAX_OUTPUT_TOKENS = 256
 REQUEST_LIMIT_BYTES = 64 * 1024
 RESPONSE_LIMIT_BYTES = 1024 * 1024
 CREDENTIAL_TTL_SECONDS = 30.0
 
 
-def load_deepseek_relay_credential(path: Path) -> str:
-    document = yaml.safe_load(path.read_text(encoding="utf-8"))
-    route = _mapping(_mapping(document, "deepseek"), "deepseek")
-    keys = route.get("keys")
-    if not isinstance(keys, list) or len(keys) != 1:
-        raise ValueError("DeepSeek gateway route must carry exactly one key")
-    credential = keys[0]
-    if not isinstance(credential, str) or not credential:
-        raise ValueError("DeepSeek gateway credential must be non-empty text")
-    return credential
-
-
 async def run_deepseek_paid_smoke(
-    *, gateway_path: Path, trial_kwargs: Mapping[str, object],
+    *, upstream: DeepSeekUpstream, trial_kwargs: Mapping[str, object],
 ) -> object:
+    """The one paid request, sent by the trial proxy to `upstream` with its credential."""
     values = dict(trial_kwargs)
-    _validate_contract(values)
-    credential = load_deepseek_relay_credential(gateway_path)
+    _validate_contract(values, upstream.base_url)
     handle = HOST_CREDENTIAL_VAULT.store(
-        credential, ttl_seconds=CREDENTIAL_TTL_SECONDS,
+        upstream.credential, ttl_seconds=CREDENTIAL_TTL_SECONDS,
     )
-    credential = ""
     try:
         trial = await create_harbor_trial(**values, credential_handle=handle)
         return await trial.run()
@@ -48,7 +30,7 @@ async def run_deepseek_paid_smoke(
         HOST_CREDENTIAL_VAULT.purge(handle)
 
 
-def _validate_contract(values: Mapping[str, object]) -> None:
+def _validate_contract(values: Mapping[str, object], upstream: str) -> None:
     arm = _mapping(values, "arm")
     seed = _mapping(values, "trial_seed")
     proxy = _mapping(values, "trial_proxy")
@@ -60,7 +42,7 @@ def _validate_contract(values: Mapping[str, object]) -> None:
     if any(arm.get(key) != value for key, value in exact.items()):
         raise ValueError("DeepSeek paid smoke contract identity differs")
     _validate_execution(arm, seed, limits)
-    _validate_proxy(proxy, seed)
+    _validate_proxy(proxy, seed, upstream)
 
 
 def _validate_execution(
@@ -81,7 +63,7 @@ def _validate_execution(
 
 
 def _validate_proxy(
-    proxy: Mapping[str, object], seed: Mapping[str, object],
+    proxy: Mapping[str, object], seed: Mapping[str, object], upstream: str,
 ) -> None:
     credential = _mapping(seed, "credential")
     exact = {
@@ -90,8 +72,9 @@ def _validate_proxy(
     }
     if any(proxy.get(key) != value for key, value in exact.items()):
         raise ValueError("DeepSeek paid smoke contract proxy limits differ")
-    if credential.get("upstream_base_url") != UPSTREAM:
-        raise ValueError("DeepSeek paid smoke contract upstream differs")
+    # The proxy must forward to the upstream the credential belongs to.
+    if credential.get("upstream_base_url") != upstream:
+        raise ValueError("DeepSeek paid smoke contract upstream differs from the credential's")
 
 
 def _mapping(values: object, key: str) -> Mapping[str, Any]:
