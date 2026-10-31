@@ -31,6 +31,8 @@ export interface LiveSessionMessage {
   toolName?: string;
   toolInput?: string;
   toolDevice?: string;
+  /** Tool rows only: the call's own `description` argument. */
+  toolDescription?: string;
   /** Lead worker-tool rows only: what the call did to which worker. */
   teamAction?: TeamActionRef;
   /** Successful board_open rows only: the board the call created or attached to. */
@@ -70,6 +72,7 @@ export function liveToMessage(m: LiveSessionMessage): TranscriptMessageWithSpawn
     toolName: isTool ? (m.toolName ?? '') : null,
     toolInput: isTool ? (m.toolInput ?? '') : null,
     ...(isTool && m.toolDevice ? { toolDevice: m.toolDevice } : {}),
+    ...(isTool && m.toolDescription ? { toolDescription: m.toolDescription } : {}),
     ...(isTool && m.teamAction ? { teamAction: m.teamAction } : {}),
     ...(isTool && m.boardAction ? { boardAction: m.boardAction } : {}),
     ...(m.role === 'worker-progress' && m.worker ? { worker: m.worker } : {}),

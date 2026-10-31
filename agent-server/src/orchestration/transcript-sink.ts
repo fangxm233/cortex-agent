@@ -3,12 +3,12 @@ import { sessionTodos } from '@core/session-todos.js';
 import type {
   ChatNoticeLevel, ContextUsage, NoticeAction, SessionContextUsage, TodoSnapshot, ToolResultImage,
 } from '@core/types/agent-types.js';
-import { conversationHistory, summarizeToolInputForHistory, toolDeviceForHistory } from '@store/conversation-history-repo.js';
+import { conversationHistory, summarizeToolInputForHistory, toolDescriptionForHistory, toolDeviceForHistory } from '@store/conversation-history-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
 import { subagentSpawnFromAttribution, subagentSpawnsFromToolCall } from '@core/subagent-spawn.js';
-import { teamActionFromToolCall } from '@core/team-action.js';
+import { teamActionFromToolCall, type TeamActionRef } from '@core/team-action.js';
 import { boardActionFromToolResult, isBoardOpenTool, type BoardActionRef } from '@core/board-action.js';
 import type { ToolUseSubagent } from '../agent-adapter/normalize/event-types.js';
 import type { RunEvent, RunPhase } from '../domain/runs/events.js';
@@ -153,6 +153,35 @@ export function recordHistory(p: Promise<unknown>, onPersisted?: () => void): vo
   void p.then(() => onPersisted?.()).catch((e) => log.error('conversation-history write failed:', (e as Error).message));
 }
 
+/** What a tool row says, shared by its history line and its live event. */
+function toolRowFields(
+  name: string, input: unknown, teamAction: TeamActionRef | null, boardAction?: BoardActionRef | null,
+) {
+  const toolDevice = toolDeviceForHistory(name, input);
+  const toolDescription = toolDescriptionForHistory(input);
+  return {
+    toolName: name,
+    toolInput: summarizeToolInputForHistory(input),
+    ...(toolDevice ? { toolDevice } : {}),
+    ...(toolDescription ? { toolDescription } : {}),
+    ...(teamAction ? { teamAction } : {}),
+    ...(boardAction ? { boardAction } : {}),
+  };
+}
+
+/** The subagent a tool row belongs to, and the subagents a main-agent call spawns. */
+function toolRowOwnership(name: string, input: unknown, toolUseId: string, subagent?: ToolUseSubagent) {
+  const ref = subagent ? subagentRowRef(subagent) : undefined;
+  const attributedSpawn = subagent ? subagentSpawnFromAttribution(subagent) : null;
+  const subagentSpawns = attributedSpawn
+    ? [attributedSpawn]
+    : subagent ? [] : subagentSpawnsFromToolCall(name, input, toolUseId);
+  const legacyAnchor = !subagent && name !== 'agent' && subagentSpawns.length === 1
+    ? { id: subagentSpawns[0].id }
+    : undefined;
+  return { rowRef: ref ?? legacyAnchor, subagentSpawns };
+}
+
 /**
  * Build the transcript observer. It turns each `RunEvent` into the exact history append and
  * `publishSession*` side effects the per-surface closures used to perform, so every run surface can
@@ -170,43 +199,24 @@ export function createTranscriptSink(opts: TranscriptSinkOptions): RunObserver {
     name: string, input: unknown, toolUseId: string, subagent?: ToolUseSubagent,
     boardAction?: BoardActionRef | null,
   ): void {
-    const toolInput = summarizeToolInputForHistory(input);
-    const toolDevice = toolDeviceForHistory(name, input);
     const ts = new Date().toISOString();
-    const ref = subagent ? subagentRowRef(subagent) : undefined;
-    const attributedSpawn = subagent ? subagentSpawnFromAttribution(subagent) : null;
-    const subagentSpawns = attributedSpawn
-      ? [attributedSpawn]
-      : subagent ? [] : subagentSpawnsFromToolCall(name, input, toolUseId);
-    const legacyAnchor = !subagent && name !== 'agent' && subagentSpawns.length === 1
-      ? { id: subagentSpawns[0].id }
-      : undefined;
-    const rowRef = ref ?? legacyAnchor;
+    const { rowRef, subagentSpawns } = toolRowOwnership(name, input, toolUseId, subagent);
     // A lead's worker call carries what it did to which worker, so the chat can show it as an
     // action instead of a tool chip. Not DEBUG-gated: it is the transcript's own content.
     const teamAction = subagent ? null : teamActionFromToolCall(name, input, deps.workerForRequest);
+    const row = toolRowFields(name, input, teamAction, boardAction);
+    const spawns = subagentSpawns.length ? { subagentSpawns } : {};
     recordHistory(
       deps.appendTool(sessionId, {
-        toolName: name,
-        toolInput,
-        ...(toolDevice ? { toolDevice } : {}),
-        ...(teamAction ? { teamAction } : {}),
-        ...(boardAction ? { boardAction } : {}),
-        ts,
+        ...row, ts, ...spawns,
         ...(rowRef ? { subagent: rowRef } : {}),
-        ...(subagentSpawns.length ? { subagentSpawns } : {}),
         ...(toolUseId ? { toolUseId } : {}),
         ...(debug ? { fullInput: input } : {}),
       }),
       debug ? () => deps.publishDebugUpdated({ sessionId, channel }) : undefined,
     );
     deps.publishMessage({
-      sessionId, channel, role: 'tool', text: '', toolName: name, toolInput, ts,
-      ...(toolDevice ? { toolDevice } : {}),
-      ...(teamAction ? { teamAction } : {}),
-      ...(boardAction ? { boardAction } : {}),
-      ...(subagentSpawns.length ? { subagentSpawns } : {}),
-      ...subagentPayloadFields(rowRef),
+      sessionId, channel, role: 'tool', text: '', ...row, ts, ...spawns, ...subagentPayloadFields(rowRef),
     });
   }
 

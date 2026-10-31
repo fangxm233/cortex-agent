@@ -310,6 +310,7 @@ function messageFromEvent(
     toolName: event.type === 'tool' ? (event.toolName ?? '') : null,
     toolInput: event.type === 'tool' ? (event.toolInput ?? '') : null,
     ...(event.type === 'tool' && event.toolDevice ? { toolDevice: event.toolDevice } : {}),
+    ...(event.type === 'tool' && event.toolDescription ? { toolDescription: event.toolDescription } : {}),
     ...(event.type === 'tool' && event.teamAction ? { teamAction: event.teamAction } : {}),
     ...(event.type === 'tool' && event.boardAction ? { boardAction: event.boardAction } : {}),
     ...(event.type === 'worker-progress' && event.worker ? { worker: event.worker } : {}),

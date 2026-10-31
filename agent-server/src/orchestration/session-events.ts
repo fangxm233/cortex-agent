@@ -18,6 +18,8 @@ export interface SessionMessagePayload {
   toolName?: string;
   toolInput?: string;
   toolDevice?: string;
+  /** Tool rows only: the call's own `description` argument. */
+  toolDescription?: string;
   /** Lead worker-tool rows only: what the call did to which worker. */
   teamAction?: TeamActionRef;
   /** Successful board_open rows only: the board it opened or attached to. */
@@ -110,6 +112,7 @@ export function publishSessionMessage(p: SessionMessagePayload): void {
     ...(p.toolName !== undefined ? { toolName: p.toolName } : {}),
     ...(p.toolInput !== undefined ? { toolInput: p.toolInput } : {}),
     ...(p.toolDevice !== undefined ? { toolDevice: p.toolDevice } : {}),
+    ...(p.toolDescription !== undefined ? { toolDescription: p.toolDescription } : {}),
     ...(p.teamAction !== undefined ? { teamAction: p.teamAction } : {}),
     ...(p.boardAction !== undefined ? { boardAction: p.boardAction } : {}),
     ...(p.worker !== undefined ? { worker: p.worker } : {}),

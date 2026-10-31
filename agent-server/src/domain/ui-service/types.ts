@@ -446,6 +446,8 @@ export interface TranscriptMessage {
   toolInput: string | null;
   /** Remote execution target (remote tool events only). */
   toolDevice?: string;
+  /** The call's own `description` argument: what the agent says it is doing (tool events only). */
+  toolDescription?: string;
   /** What a lead's worker tool call did (worker_spawn/send/answer/stop tool rows only). */
   teamAction?: TeamActionRef;
   /** What a successful `board_open` call did (its tool row only; absent on failed calls and on

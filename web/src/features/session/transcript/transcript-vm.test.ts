@@ -170,6 +170,23 @@ describe('buildTranscriptRows', () => {
     });
   });
 
+  it('carries a tool call\'s description from the transcript and the live tail', () => {
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [{
+        type: 'tool', text: null, toolName: 'Bash', toolInput: 'pwd', toolDescription: 'Show the directory',
+        ts: T, elapsedMs: null,
+      }] }]),
+      [{
+        sessionId: 's1', role: 'tool', text: '', toolName: 'Grep', toolInput: 'needle',
+        toolDescription: 'Find the needle', ts: '2026-07-07T07:42:01.000Z',
+      }],
+    );
+
+    expect(rows.find((row) => row.kind === 'tools')).toMatchObject({
+      calls: [{ input: 'pwd', description: 'Show the directory' }, { input: 'needle', description: 'Find the needle' }],
+    });
+  });
+
   it('empty transcript with no live tail → no rows', () => {
     expect(buildTranscriptRows(tx([]), [])).toEqual([]);
   });

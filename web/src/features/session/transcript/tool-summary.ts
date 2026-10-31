@@ -1,9 +1,9 @@
 import { fmt, type Vocab } from '@/i18n';
 import type { ToolCall } from '@/features/session/composer/chat-content';
 
-// A tool run in words: "Ran 6 commands · Edited parser.ts" instead of one chip per call. Calls are
-// counted by what they did, in the order each kind first appears; a read or an edit that touched one
-// file names it, and a tool with no category of its own is named as it is.
+// A tool run as one step in words. The step is the agent's own `description` of its latest call
+// ("Find usages of toolRunText"); a call without one is made readable from its kind and input —
+// "Editing parser.ts" while it runs, "Edited parser.ts" once the run is over.
 
 export type ToolCategory = 'command' | 'read' | 'edit' | 'search' | 'web' | 'todo' | 'skill' | 'other';
 
@@ -31,13 +31,6 @@ export function toolCategory(kind: string): ToolCategory {
   return 'other';
 }
 
-export interface ToolRunPart {
-  category: ToolCategory | 'thought';
-  count: number;
-  /** read / edit: the one file every call touched; other: the tool's name. */
-  name?: string;
-}
-
 /** The file a path-shaped input names; null for anything else, and for a path cut short. */
 function fileName(input: string): string | null {
   const path = input.replace(/^[\w.-]+:(?=[/~])/, '').trim();
@@ -46,90 +39,51 @@ function fileName(input: string): string | null {
   return /.\.[A-Za-z0-9]+$/.test(base) ? base : null;
 }
 
-export function toolRunParts(calls: ToolCall[]): ToolRunPart[] {
-  const parts: ToolRunPart[] = [];
-  const files = new Map<ToolRunPart, Set<string | null>>();
-  for (const call of calls) {
-    if (call.thinking) {
-      const thought = parts.find((p) => p.category === 'thought');
-      if (thought) thought.count += 1;
-      else parts.push({ category: 'thought', count: 1 });
-      continue;
-    }
-    const category = toolCategory(call.kind);
-    const name = category === 'other' ? bareToolName(call.kind) : undefined;
-    let part = parts.find((p) => p.category === category && p.name === name);
-    if (!part) {
-      part = { category, count: 0, ...(name ? { name } : {}) };
-      parts.push(part);
-    }
-    part.count += 1;
-    if (category === 'read' || category === 'edit') {
-      const seen = files.get(part) ?? new Set<string | null>();
-      seen.add(fileName(call.input));
-      files.set(part, seen);
-    }
-  }
-  for (const [part, seen] of files) {
-    const [only] = [...seen];
-    if (seen.size === 1 && only) part.name = only;
-  }
-  return parts;
-}
-
-function partText(part: ToolRunPart, L: Vocab): string {
-  const n = part.count;
-  switch (part.category) {
-    case 'command': return fmt(n === 1 ? L.chatToolCommandOne : L.chatToolCommandMany, { n });
-    case 'read':
-      if (part.name) return fmt(L.chatToolReadFile, { name: part.name });
-      return n === 1 ? L.chatToolReadOne : fmt(L.chatToolReadMany, { n });
-    case 'edit':
-      if (part.name) return fmt(L.chatToolEditFile, { name: part.name });
-      return n === 1 ? L.chatToolEditOne : fmt(L.chatToolEditMany, { n });
-    case 'search': return fmt(n === 1 ? L.chatToolSearchOne : L.chatToolSearchMany, { n });
-    case 'web': return fmt(n === 1 ? L.chatToolWebOne : L.chatToolWebMany, { n });
-    case 'todo': return L.chatToolTodo;
-    case 'skill': return n === 1 ? L.chatToolSkillOne : fmt(L.chatToolSkillMany, { n });
-    case 'thought': return n === 1 ? L.chatToolThoughtOne : fmt(L.chatToolThoughtMany, { n });
-    case 'other': return fmt(n === 1 ? L.chatToolOtherOne : L.chatToolOtherMany, { name: part.name ?? '', n });
-  }
-}
-
-/** One line for a tool run: "Ran 6 commands · Edited parser.ts · Called send_decision". */
-export function toolRunText(calls: ToolCall[], L: Vocab): string {
-  return toolRunParts(calls).map((part) => partText(part, L)).join(' · ');
-}
-
-/** The category that leads a run (its first call's), which picks the run's icon. */
-export function leadingCategory(calls: ToolCall[]): ToolCategory | 'thought' {
-  return toolRunParts(calls)[0]?.category ?? 'other';
-}
-
 /** A command as one line: its first line, spaces run together. */
 function commandLine(input: string): string {
   return (input.trim().split(/\r?\n/)[0] ?? '').replace(/\s+/g, ' ');
 }
 
-type NowCategory = ToolCategory | 'thought';
-const NOW_TEXT: Record<NowCategory, (call: ToolCall, L: Vocab) => string> = {
-  thought: (_, L) => L.chatToolNowThought,
-  command: (call, L) => fmt(L.chatToolNowCommand, { input: commandLine(call.input) }),
-  read: (call, L) => fmt(L.chatToolNowRead, { name: fileName(call.input) ?? call.input.trim() }),
-  edit: (call, L) => fmt(L.chatToolNowEdit, { name: fileName(call.input) ?? call.input.trim() }),
-  search: (call, L) => fmt(L.chatToolNowSearch, { input: commandLine(call.input) }),
-  web: (_, L) => L.chatToolNowWeb,
-  todo: (_, L) => L.chatToolNowTodo,
-  skill: (call, L) => fmt(L.chatToolNowSkill, { name: call.input.trim() }),
-  other: (call, L) => fmt(L.chatToolNowOther, { name: bareToolName(call.kind) }),
+export type StepCategory = ToolCategory | 'thought';
+type StepArgs = (call: ToolCall) => Record<string, string>;
+type StepVocab = { [K in keyof Vocab]: K extends `chatToolNow${string}` | `chatToolDid${string}` ? K : never }[keyof Vocab];
+
+const noArgs: StepArgs = () => ({});
+const lineArgs: StepArgs = (call) => ({ input: commandLine(call.input) });
+const fileArgs: StepArgs = (call) => ({ name: fileName(call.input) ?? call.input.trim() });
+
+/** Each kind of step in words, under way (`now`) and over (`done`). */
+const STEPS: Record<StepCategory, { now: StepVocab; done: StepVocab; args: StepArgs }> = {
+  thought: { now: 'chatToolNowThought', done: 'chatToolDidThought', args: noArgs },
+  command: { now: 'chatToolNowCommand', done: 'chatToolDidCommand', args: lineArgs },
+  read: { now: 'chatToolNowRead', done: 'chatToolDidRead', args: fileArgs },
+  edit: { now: 'chatToolNowEdit', done: 'chatToolDidEdit', args: fileArgs },
+  search: { now: 'chatToolNowSearch', done: 'chatToolDidSearch', args: lineArgs },
+  web: { now: 'chatToolNowWeb', done: 'chatToolDidWeb', args: noArgs },
+  todo: { now: 'chatToolNowTodo', done: 'chatToolDidTodo', args: noArgs },
+  skill: { now: 'chatToolNowSkill', done: 'chatToolDidSkill', args: (call) => ({ name: call.input.trim() }) },
+  other: { now: 'chatToolNowOther', done: 'chatToolDidOther', args: (call) => ({ name: bareToolName(call.kind) }) },
 };
 
-/** What a call or thought is, as the run's latest step. */
-export function callCategory(call: ToolCall): NowCategory {
+/** What a call or thought is. */
+export function callCategory(call: ToolCall): StepCategory {
   return call.thinking ? 'thought' : toolCategory(call.kind);
 }
 
-/** The run's latest step as what is happening now: "Thinking", "Running pnpm test", "Reading parser.ts". */
-export function toolRunNow(call: ToolCall, L: Vocab): string {
-  return NOW_TEXT[callCategory(call)](call, L).trim();
+/** The entry a run's line speaks for: its latest entry while live, otherwise its latest tool call. */
+export function runLead(calls: ToolCall[], live: boolean): ToolCall | undefined {
+  if (live) return calls[calls.length - 1];
+  for (let i = calls.length - 1; i >= 0; i -= 1) {
+    if (!calls[i].thinking) return calls[i];
+  }
+  return calls[calls.length - 1];
+}
+
+/** One step in words: the call's own description, else the call made readable — "Editing
+ *  parser.ts" while it is under way, "Edited parser.ts" once it is over. */
+export function toolStepText(call: ToolCall, live: boolean, L: Vocab): string {
+  const description = call.thinking ? '' : call.description?.trim();
+  if (description) return description;
+  const step = STEPS[callCategory(call)];
+  return fmt(L[live ? step.now : step.done], step.args(call)).trim();
 }
