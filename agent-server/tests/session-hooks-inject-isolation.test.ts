@@ -1,4 +1,4 @@
-import { test } from 'vitest';
+import { beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';
 import type { OutputStream } from '../src/platform/output-stream.js';
 import type { AgentRun } from '../src/domain/runs/run.js';
@@ -9,8 +9,12 @@ import {
   type SessionHookSpec,
   type InjectDeps,
 } from '../src/domain/sessions/session-hooks.js';
+import { seedClaudeSubscription } from './_seed-connections.js';
 
 const selection = { backend: 'claude' as const, provider: null, model: 'opus', thinking: 'high', connection: 'subscription' };
+
+// The recorded selection names the subscription; a run keeps it only while that connection exists.
+beforeAll(() => seedClaudeSubscription());
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
