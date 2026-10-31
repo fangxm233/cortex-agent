@@ -6,7 +6,7 @@ import {
   PI_PROVIDER_RETRY_MS,
   createPIProviderDiscovery,
 } from '../../src/agent-adapter/pi/discovery.js';
-import type { PiDiscoveredModel } from '../../src/core/gateway-generator.js';
+import type { PiDiscoveredModel } from '../../src/agent-adapter/pi/model-scan.js';
 
 interface Deferred<T> {
   promise: Promise<T>;

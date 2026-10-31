@@ -273,7 +273,7 @@ test('a quota reading from the PI session throttles the provider it was routed u
   // `domain/runs/adapters.ts` performs for the daemon, and an adapter built without it reports
   // nothing rather than writing the real singletons.
   const persisted: unknown[] = [];
-  const adapter = new PIAdapter(fake.factory, undefined, undefined, {
+  const adapter = new PIAdapter(fake.factory, undefined, {
     usageStore: { get: async () => null, update: async (record) => { persisted.push(record); } },
     submitRateLimit: handleRateLimitEvent,
   });

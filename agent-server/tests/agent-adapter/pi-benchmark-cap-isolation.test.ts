@@ -62,7 +62,7 @@ function delayedAdapter(root: string, custom: boolean) {
     const runtime = createPiRuntime(request, callbacks);
     pending.push(runtime);
     return runtime;
-  }, join(root, 'sessions'), undefined, {
+  }, join(root, 'sessions'), {
     agentDir: join(root, 'agent'), catalog: () => testCatalog(custom),
   });
   return { adapter, pending, release };

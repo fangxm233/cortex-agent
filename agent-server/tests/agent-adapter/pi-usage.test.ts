@@ -12,7 +12,6 @@ function adapterWith(cached: ProviderUsage | null) {
       throw new Error('getUsage must not spawn PI');
     }) as never,
     undefined,
-    undefined,
     {
       usageStore: {
         get: async () => {

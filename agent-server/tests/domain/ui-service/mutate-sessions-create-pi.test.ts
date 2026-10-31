@@ -10,8 +10,8 @@ import { test } from 'vitest';
 import { PIAdapter } from '../../../src/agent-adapter/pi/adapter.js';
 import { piPool } from '../../agent-adapter/pi-pool-fixture.js';
 import { PI_AGENT_DIR, PI_SESSIONS_DIR, piModelsPath } from '../../../src/agent-adapter/pi/defaults.js';
-import { createPIProviderDiscovery } from '../../../src/agent-adapter/pi/discovery.js';
-import type { PiDiscoveredModel } from '../../../src/core/gateway-generator.js';
+import { setPiModelScan } from '../../../src/agent-adapter/pi/discovery.js';
+import type { PiDiscoveredModel } from '../../../src/agent-adapter/pi/model-scan.js';
 import type { PiRuntimeFactory } from '../../../src/agent-adapter/pi/runtime.js';
 import type { PIEngineSession } from '../../../src/agent-adapter/pi/engine.js';
 import { handleCreateAndSend } from '../../../src/domain/ui-service/mutate/sessions.js';
@@ -24,11 +24,9 @@ import { readRuntimeKeys } from '../../../src/agent-adapter/pi/providers-config.
 test('fresh PI createAndSend responds and exposes the user event without consulting slow discovery', async () => {
   let scans = 0;
   // A scan that never answers: the spawn path writes its catalog from connections, not discovery.
-  const discovery = createPIProviderDiscovery({
-    scan: () => {
-      scans += 1;
-      return new Promise<PiDiscoveredModel[]>(() => {});
-    },
+  setPiModelScan(() => {
+    scans += 1;
+    return new Promise<PiDiscoveredModel[]>(() => {});
   });
   const timeline: string[] = [];
   const fake = makeFakeRuntimeFactory();
@@ -44,7 +42,7 @@ test('fresh PI createAndSend responds and exposes the user event without consult
     id: 'anthropic', backend: 'pi', provider: 'anthropic', baseUrl: 'https://relay.example.test', key: 'fake-relay-key',
   }, connections);
   const catalog = () => buildPiCatalog({ file: connections, userModelsPath: null });
-  const adapter = new PIAdapter(factory, PI_SESSIONS_DIR, discovery, { catalog });
+  const adapter = new PIAdapter(factory, PI_SESSIONS_DIR, { catalog });
   let engine: PIEngineSession | null = null;
   let markVisible!: () => void;
   const visible = new Promise<void>((resolve) => { markVisible = resolve; });
