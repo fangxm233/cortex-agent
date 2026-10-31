@@ -4,8 +4,8 @@
 // the other as two users would (`cortex init` picks a free port while the first server runs), then
 // both daemons are restarted at once from this checkout's dist/. Checks that each comes up on its own
 // port and that hooks, signals, clients and the TUI reach only their own server; then that a main
-// port held by another process stops app.js with exit 78 and no restart loop. Uses the bundle-daemon
-// slots (gateway ports 9781/9782) and the main-port search range; never the live ports.
+// port held by another process stops app.js with exit 78 and no restart loop. Uses only the
+// main-port search range; never the live ports.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -29,7 +29,7 @@ async function check(name, fn) {
   console.log(`ok - ${name}${detail === undefined ? '' : ` ${JSON.stringify(detail)}`}`);
 }
 
-/** One isolated home on a bundle-daemon slot, with no main port and its own tokens. */
+/** One isolated home with no main port and its own tokens. */
 function makeHome(label, slot) {
   const root = `${base}-${label}`;
   claimRoot(root);
@@ -124,7 +124,6 @@ function holdPort(port) {
 
 /** Install and start each home in turn; the second install sees the first server's port bound. */
 async function installBoth(a, b) {
-  for (const home of [a, b]) await holdPort(Number(home.env.CORTEX_GATEWAY_PORT)).then(server => new Promise(r => server.close(r)));
   for (const home of [a, b]) {
     await command(home.runner, process.execPath, [path.join(dist, 'cli.js'), 'init'], 'init', 300000);
     home.daemon = await startDaemon(home);
@@ -191,18 +190,6 @@ async function checkSignals(a, b) {
   });
 }
 
-async function checkGateways(a, b) {
-  await check('each home runs its own gateway', async () => {
-    const pids = [];
-    for (const home of [a, b]) {
-      const file = path.join(home.env.CORTEX_HOME, 'data/gateway.pid');
-      pids.push(await waitFor(() => fs.existsSync(file) && fs.readFileSync(file, 'utf8').trim(), `${home.label} gateway`, 60000));
-    }
-    assert.notEqual(pids[0], pids[1]);
-    return pids;
-  });
-}
-
 async function checkPortTaken(a, daemon) {
   await a.runner.stop(daemon);
   const port = mainPort(a);
@@ -253,7 +240,6 @@ try {
   await installBoth(a, b);
   await restartTogether(a, b);
   await checkIsolation(a, b);
-  await checkGateways(a, b);
   await checkPortTaken(a, a.daemon);
   saveJson(`${base}-results.json`, { ok: true, results });
   console.log(`All ${results.length} checks passed; results in ${base}-results.json`);

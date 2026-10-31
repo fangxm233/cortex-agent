@@ -77,14 +77,14 @@ test('real Node preload blocks builtin 9880 calls before networking and records 
   assert.equal(events.filter(event => event.type === 'blocked-network').length, 3);
 });
 
-test('preload records configured gateway settings and boot timing without rewriting source', () => {
+test('preload records the isolated aistatus home and boot timing without rewriting source', () => {
   const root = fixture();
   const env = isolatedEnv(root, null);
-  const script = `if(process.env.CORTEX_GATEWAY_PORT!=='9781')throw Error('wrong port');console.log('boot 11ms (imports 7ms)');`;
+  const script = `console.log('boot 11ms (imports 7ms)');`;
   const result = spawnSync(process.execPath, ['-e', script], { env, encoding: 'utf8', timeout: 5000 });
   assert.equal(result.status, 0, result.stderr);
   const records = events(env);
-  assert.equal(records.find(event => event.type === 'process-start').gatewayPort, 9781);
+  assert.equal(records.find(event => event.type === 'process-start').gatewayHome, env.CORTEX_GATEWAY_HOME);
   assert.equal(records.find(event => event.type === 'app-ready').importsMs, 7);
 });
 
@@ -94,7 +94,7 @@ test('smoke and turn guards refuse unsafe ports and block direct live-port acces
   const script = `require('node:assert/strict').throws(()=>require('node:net').connect(9880), /9880/);`;
   assert.equal(spawnSync(process.execPath, ['-e', script], { env }).status, 0);
   for (const port of ['9880', '0', 'NaN']) {
-    assert.notEqual(spawnSync(process.execPath, ['-e', ''], { env: { ...env, CORTEX_GATEWAY_PORT: port } }).status, 0);
+    assert.notEqual(spawnSync(process.execPath, ['-e', ''], { env: { ...env, CORTEX_UI_PORT: port } }).status, 0);
   }
 });
 

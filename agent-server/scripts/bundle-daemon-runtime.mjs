@@ -47,20 +47,17 @@ export function isolatedEnv(root, worktree, slot = 0) {
     XDG_CONFIG_HOME: path.join(osHome, '.config'), XDG_CACHE_HOME: path.join(osHome, '.cache'),
     CORTEX_TELEMETRY: '0', CORTEX_UI_HTTP: '1', CORTEX_PORT_FORWARD: '0', CI: '1',
     CORTEX_UI_PORT: String(17404 + slot * 10), CORTEX_CLIENT_TOKEN: 'bundle-daemon-fixture-token',
-    CORTEX_WEBHOOK_TOKEN: 'bundle-daemon-fixture-webhook', CORTEX_GATEWAY_PORT: String(9781 + slot),
+    CORTEX_WEBHOOK_TOKEN: 'bundle-daemon-fixture-webhook',
     CORTEX_BUNDLE_TESTROOT: root, CORTEX_BUNDLE_EVENTS: path.join(root, 'events.jsonl'),
     NODE_OPTIONS: `--import=${pathToFileURL(path.join(import.meta.dirname, 'bundle-daemon-preload.mjs')).href}` };
   fs.writeFileSync(env.npm_config_globalconfig, '');
   saveJson(path.join(home, 'config/settings.json'), { serverAutoUpdate: false, telemetryEnabled: false });
-  fs.mkdirSync(path.join(osHome, '.aistatus'), { recursive: true });
-  fs.writeFileSync(path.join(osHome, '.aistatus/gateway.yaml'), `host: 127.0.0.1\nport: ${env.CORTEX_GATEWAY_PORT}\n`);
   if (worktree) env.CORTEX_REPO = path.join(worktree, 'agent-server');
   return env;
 }
 
 export async function preflight(env) {
-  const keys = ['CORTEX_UI_PORT', 'CORTEX_GATEWAY_PORT'];
-  for (const key of keys) await checkPort(Number(env[key]));
+  await checkPort(Number(env.CORTEX_UI_PORT));
 }
 
 function checkPort(port) {

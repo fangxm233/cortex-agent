@@ -1,6 +1,6 @@
 // Usage: env -i PATH="$PATH" HOME=/tmp/cortex-bundle-test/os-home \
 // CORTEX_HOME=/tmp/cortex-bundle-test/home node scripts/bundle-smoke.mjs /tmp/cortex-bundle-test/prefix
-// Requires an initialized, credential-free home. Uses only loopback ports 17304 (main) and 17380 (gateway).
+// Requires an initialized, credential-free home. Uses only loopback port 17304 (main).
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -31,8 +31,7 @@ const env = {
     TEMP: testRoot, TMP: testRoot,
   } : {}),
   CORTEX_TELEMETRY: '0', CORTEX_UI_HTTP: '1', CORTEX_PORT_FORWARD: '0',
-  CORTEX_GATEWAY_PORT: '17380', CORTEX_GATEWAY_HOME: process.env.HOME,
-  CORTEX_UI_PORT: '17304',
+  CORTEX_GATEWAY_HOME: process.env.HOME, CORTEX_UI_PORT: '17304',
   CORTEX_CLIENT_TOKEN: 'bundle-smoke-client-token', CORTEX_WEBHOOK_TOKEN: 'bundle-smoke-webhook-token',
 };
 Object.assign(process.env, env);
@@ -177,10 +176,8 @@ try {
     for (let i = 0; i < 100 && !data.includes('"id":2'); i++) await delay(100);
     assert(data.includes('"tools"'), data); await stop(child); return data;
   });
-  // Refuse to bind occupied test ports rather than reuse anyone else's service.
-  for (const port of [17304, 17380]) {
-    await new Promise((resolve, reject) => { const server = net.createServer(); server.once('error', reject); server.listen(port, '127.0.0.1', () => server.close(resolve)); });
-  }
+  // Refuse to bind an occupied test port rather than reuse anyone else's service.
+  await new Promise((resolve, reject) => { const server = net.createServer(); server.once('error', reject); server.listen(17304, '127.0.0.1', () => server.close(resolve)); });
   const preload = fileURLToPath(new URL('./bundle-smoke-preload.mjs', import.meta.url));
   const daemon = start('dist/entry/daemon.js', [], { NODE_OPTIONS: `--import=${pathToFileURL(preload).href}` });
   await check('Daemon forks app; web SPA served', async () => {
@@ -205,13 +202,6 @@ try {
     const rejected = await fetch(url); assert.equal(rejected.status, 401);
     const response = await fetch(url, { headers: { 'x-cortex-token': env.CORTEX_CLIENT_TOKEN } });
     assert.equal(response.status, 200); const body = await response.json(); assert(body.result); return body;
-  });
-  await check('Bundled aistatus child health on configured test port', async () => {
-    for (let i = 0; i < 100; i++) {
-      try { const response = await fetch('http://127.0.0.1:17380/health'); if (response.ok) return await response.text(); } catch {}
-      await delay(100);
-    }
-    throw new Error('Isolated gateway did not become ready');
   });
   await check('TUI WebSocket upgrade on the main port needs the client token', async () => {
     // The bundle inlines ws and does not install it; the harness brings its own client.
@@ -243,13 +233,11 @@ try {
   }
   await stop(daemon);
   await check('Daemon and children stopped', async () => {
-    for (const port of [17304, 17380]) {
-      await new Promise((resolve, reject) => {
-        const socket = net.connect(port, '127.0.0.1');
-        socket.once('connect', () => { socket.destroy(); reject(new Error(`Port ${port} still open`)); });
-        socket.once('error', error => error.code === 'ECONNREFUSED' ? resolve() : reject(error));
-      });
-    }
+    await new Promise((resolve, reject) => {
+      const socket = net.connect(17304, '127.0.0.1');
+      socket.once('connect', () => { socket.destroy(); reject(new Error('Port 17304 still open')); });
+      socket.once('error', error => error.code === 'ECONNREFUSED' ? resolve() : reject(error));
+    });
   });
 } finally {
   for (const child of owned) await stop(child);

@@ -36,19 +36,17 @@ function serverFixture(root) {
     main: 'dist/entry/app.js', bin: { cortex: 'dist/entry/app.js' }, dependencies: { 'agent-browser': '0.0.0' },
     optionalDependencies: { sharp: '0.0.0' } }));
   for (const file of ['entry/cli', 'entry/daemon', 'entry/production-app-bootstrap', 'tui/index',
-    'domain/mcp/bundled-server', 'agent-adapter/claude/remote-mcp-proxy', 'domain/auth/cc-auth-cli']) {
+    'domain/mcp/bundled-server', 'agent-adapter/claude/remote-mcp-proxy', 'domain/auth/cc-auth-cli',
+    'domain/mcp/feishu/client']) {
     put(root, `dist/${file}.js`, 'export { sharedFail } from ' + JSON.stringify('../'.repeat(file.split('/').length - 1) + 'core/shared.js') + ';\n');
   }
   put(root, 'dist/entry/app.js', '#!/usr/bin/env node\n'
     + 'import { sharedFail } from "../core/shared.js";\n'
-    + 'import { gatewayFail } from "../domain/costs/gateway-manager.js";\n'
     + 'import { wasmFail } from "@earendil-works/pi-coding-agent/dist/utils/image-resize.js";\n'
-    + 'const actions = { shared: sharedFail, gateway: gatewayFail, wasm: wasmFail,\n'
+    + 'const actions = { shared: sharedFail, wasm: wasmFail,\n'
     + '  entry() { throw new Error("entry fixture"); } };\n'
     + 'actions[process.argv[2]]();\n');
   put(root, 'dist/core/shared.js', 'export function sharedFail() {\n  const marker = "shared fixture";\n  throw new Error(marker);\n}\n');
-  put(root, 'dist/domain/costs/gateway-manager.js', 'import path from "node:path";\n'
-    + 'export function gatewayFail() {\n  const location = path.dirname(require.resolve(\'aistatus\')); throw new Error(location);\n}\n');
   put(root, 'dist/core/pi-sdk.js', 'const PI_SDK_PACKAGE = "unused", PI_MODEL_RESOLVER = "resolver.js";\n'
     + 'export async function resolve(entryUrl) {\n  const entry = entryUrl ?? import.meta.resolve(PI_SDK_PACKAGE);\n'
     + '  return await import(new URL(PI_MODEL_RESOLVER, entry).href);\n}\n');
@@ -90,7 +88,6 @@ export function fixture(t) {
   serverFixture(root);
   const piRoot = piFixture(root);
   const aiRoot = aiFixture(root);
-  packageFixture(root, 'aistatus', { 'dist/gateway-cli.js': 'export {};\n' });
   packageFixture(root, 'quickjs-wasi', { 'quickjs.wasm': 'fixture' });
   fs.symlinkSync(path.dirname(require.resolve('esbuild/package.json')), path.join(root, 'node_modules/esbuild'), 'dir');
   for (const name of ['bundle.mjs', 'bundle-compat.mjs', 'bundle-sourcemap.mjs', 'bundle-notices.mjs']) {

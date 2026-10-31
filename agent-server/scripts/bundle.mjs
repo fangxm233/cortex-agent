@@ -20,7 +20,6 @@ const stage = path.resolve(args.filter(arg => arg !== '--sourcemap')[0] ?? path.
 if (fs.existsSync(stage)) throw new Error(`Stage already exists; choose a fresh directory: ${stage}`);
 const piRoot = path.resolve(path.dirname(fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))), '..');
 const aiRoot = path.resolve(path.dirname(fileURLToPath(import.meta.resolve('@earendil-works/pi-ai'))), '..');
-const gatewayEntry = path.join(path.dirname(require.resolve('aistatus')), 'gateway-cli.js');
 const posix = value => value.split(path.sep).join('/');
 const write = (rel, content) => {
   const dest = path.join(stage, rel);
@@ -41,7 +40,6 @@ const runtimeEntries = [...new Set([
   'dist/core/pi-sdk.js', 'dist/domain/auth/cc-auth-cli.js', 'dist/domain/mcp/feishu/client.js',
 ])];
 const entries = Object.fromEntries(runtimeEntries.map(rel => [rel.slice(0, -3), path.join(root, rel)]));
-entries['vendor/aistatus/gateway-cli'] = gatewayEntry;
 entries['vendor/pi/dist/utils/image-resize-worker'] = path.join(piRoot, 'dist/utils/image-resize-worker.js');
 entries['vendor/pi/dist/utils/image-resize'] = path.join(piRoot, 'dist/utils/image-resize.js');
 entries['vendor/pi/dist/core/extensions/loader'] = path.join(piRoot, 'dist/core/extensions/loader.js');

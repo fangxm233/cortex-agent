@@ -12,8 +12,8 @@ export function guardedPort(args) {
   return Number(value);
 }
 
-// The default model gateway port and the fixed ports an installed server on this machine may
-// still serve (Web UI, webhook, client, TUI). Test processes never reach or bind them.
+// Fixed ports an installed server on this machine may still serve: an older release's model
+// gateway (9880) and the Web UI, webhook, client and TUI. Test processes never reach or bind them.
 const LIVE_PORTS = new Set([9880, 3001, 3002, 3003, 3004]);
 
 function checkPort(args, operation, record) {

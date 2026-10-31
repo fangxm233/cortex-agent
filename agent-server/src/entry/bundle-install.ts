@@ -13,7 +13,7 @@ const REQUIRED_FILES = [
   'dist/entry/cli.js', 'dist/entry/daemon.js', 'dist/entry/production-app-bootstrap.js',
   'dist/tui/index.js', 'dist/domain/mcp/bundled-server.js', 'dist/agent-adapter/claude/remote-mcp-proxy.js',
   'dist/core/pi-sdk.js', 'dist/domain/auth/cc-auth-cli.js', 'web/dist/index.html',
-  'vendor/aistatus/gateway-cli.js', 'vendor/pi/dist/utils/image-resize-worker.js',
+  'vendor/pi/dist/utils/image-resize-worker.js',
   'vendor/pi/dist/utils/image-resize.js', 'vendor/pi/dist/core/extensions/loader.js',
   'vendor/pi-ai/oauth-load.js', 'vendor/pi-ai/bedrock.js', 'vendor/pi/dist/extensions/codemode/execute.js',
   'vendor/pi/dist/codemode-worker.js', 'vendor/quickjs.wasm', 'vendor/pi/package.json',

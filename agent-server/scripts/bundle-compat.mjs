@@ -11,16 +11,11 @@ function modelResolver(source, file) {
     '(entryUrl ? await import(new URL(PI_MODEL_RESOLVER, entry).href) : await import("cortex:pi-model-resolver"))', file);
   return replaceOnce(source, 'entryUrl ?? import.meta.resolve(PI_SDK_PACKAGE)', 'entryUrl ?? "file:///unused-bundled-entry.js"', file);
 }
-function gatewayLocation(source, file) {
-  source = replaceOnce(source, "path.dirname(require.resolve('aistatus'))", 'fileURLToPath(new URL("vendor/aistatus/", __cortexPackageRoot))', file);
-  return source.prepend('import { fileURLToPath } from "node:url";\n');
-}
 function logicalUrl(source, relative) {
   return source.replaceAll('import.meta.url', `new URL(${JSON.stringify(posix(relative))}, __cortexPackageRoot).href`);
 }
 function serverSource(source, file, root) {
   if (file === path.join(root, 'dist/core/pi-sdk.js')) source = modelResolver(source, file);
-  if (file === path.join(root, 'dist/domain/costs/gateway-manager.js')) source = gatewayLocation(source, file);
   source = source.replaceAll("createRequire(import.meta.url)('@larksuiteoapi/node-sdk')", "require('@larksuiteoapi/node-sdk')");
   return logicalUrl(source, path.relative(root, file));
 }

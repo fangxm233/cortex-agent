@@ -72,11 +72,10 @@ function assertPack(stage) {
 
 async function checkFrames(t, context, stage) {
   const cases = [
-    ['entry', context.root, 'dist/entry/app.js', 6],
+    ['entry', context.root, 'dist/entry/app.js', 5],
     ['shared', context.root, 'dist/core/shared.js', 3],
     ['mjs', context.root, 'dist/core/upstream.mjs', 2],
     ['cjs', context.root, 'dist/core/upstream.cjs', 2],
-    ['gateway', context.root, 'dist/domain/costs/gateway-manager.js', 3],
     ['wasm', context.piRoot, 'dist/utils/image-resize.js', 3],
   ];
   for (const [mode, root, file, line] of cases) {

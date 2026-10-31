@@ -12,9 +12,8 @@ for (const key of ['HOME', 'CORTEX_GATEWAY_HOME', 'CORTEX_HOME', 'CORTEX_NPM_PRE
   assert(process.env[key]?.startsWith(root + '/'), `Preload refuses nonisolated ${key}`);
 }
 const eventFile = process.env.CORTEX_BUNDLE_EVENTS;
-const gatewayPort = Number(process.env.CORTEX_GATEWAY_PORT);
 // CORTEX_UI_PORT may be unset: the home's .env then names a port from the search range below.
-const ports = [gatewayPort, ...(process.env.CORTEX_UI_PORT ? [Number(process.env.CORTEX_UI_PORT)] : [])];
+const ports = process.env.CORTEX_UI_PORT ? [Number(process.env.CORTEX_UI_PORT)] : [];
 assert(ports.every(port => Number.isInteger(port) && port > 1023 && port !== 9880));
 
 function record(type, detail = {}) {
@@ -35,7 +34,7 @@ function observeBoot(stream) {
 const mainPortSearch = Array.from({ length: 211 }, (_, i) => 26789 + i);
 installGuards(record, [...ports, ...mainPortSearch]);
 record('process-start', { argv: process.argv, execArgv: process.execArgv, sourceMaps: process.sourceMapsEnabled,
-  gatewayPort, gatewayHome: process.env.CORTEX_GATEWAY_HOME,
+  gatewayHome: process.env.CORTEX_GATEWAY_HOME,
   cwd: process.cwd(), home: process.env.HOME, cortexHome: process.env.CORTEX_HOME, npmPrefix: process.env.npm_config_prefix,
   identity: fs.readFileSync(`/proc/${process.pid}/stat`, 'utf8').split(') ').at(-1).split(' ')[19] });
 observeBoot(process.stdout);
