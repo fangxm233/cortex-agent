@@ -81,16 +81,3 @@ test('doctor probes and reports the configured endpoint and config path', async 
   const report = await runDiagnostics(deps);
   assert(report.sections.flatMap(s => s.checks).some(c => c.id === 'gateway-health' && c.detail.includes('17380')));
 });
-
-test('UsageService reads usage from the configured gateway URL', async () => {
-  const { UsageService } = await import('../src/domain/costs/usage-service.js');
-  const urls: string[] = [];
-  const service = new UsageService({
-    store: { list: async () => [], commit: async () => {} },
-    getSettings: () => ({ anthropicSubscriptionModes: [], subscriptionBillingModes: [] }),
-    fetch: (async (address: unknown) => { urls.push(String(address)); return new Response('{"rows":[]}'); }) as typeof fetch,
-  });
-  await service.collect();
-  assert(urls.length >= 3);
-  assert(urls.every(address => address.startsWith(`${url}/`)));
-});

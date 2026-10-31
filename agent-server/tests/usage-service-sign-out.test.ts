@@ -3,7 +3,9 @@ import { describe, test } from 'vitest';
 import { UsageService } from '../src/domain/costs/usage-service.js';
 import { usageRecordKey, type ProviderUsage } from '../src/domain/costs/usage-store.js';
 import type { AccountReading } from '../src/domain/costs/reset-account.js';
-import { MemoryUsageStore, usage, fakeAdapter, gatewayFetch, spend } from './usage-service-fixtures.js';
+import {
+  MemoryUsageStore, billingTable, claudeKeyRow, fakeAdapter, hoursAgo, ledgerRow, piRow, usage,
+} from './usage-service-fixtures.js';
 
 const SIGN_OUT_MS = 1_790_000_000_000;
 const OBSERVED_BEFORE = 1_789_900_000;
@@ -12,24 +14,20 @@ const keys = (rows: ProviderUsage[]) => rows.map(usageRecordKey).sort();
 
 function signOutService(options: {
   store: MemoryUsageStore;
-  subscriptionModes?: string[];
   claude?: () => Promise<AccountReading | null>;
   codexObserved?: ProviderUsage[];
 }) {
   let nowMs = SIGN_OUT_MS;
-  const spendRows = [spend('anthropic', 'plan', 3), spend('anthropic', 'api', 1.5), spend('github', 'copilot', 2)];
+  const ledger = [
+    ledgerRow(hoursAgo(1), { cost_usd: 3 }),
+    claudeKeyRow(hoursAgo(1), 'api', 1.5),
+    piRow(hoursAgo(1), 'github-copilot', 2),
+  ].map((row) => ({ ...row, timestamp: new Date(SIGN_OUT_MS - 60 * 60 * 1000).toISOString() }));
   const service = new UsageService({
     store: options.store,
     getAdapter: () => fakeAdapter('pi', async () => options.codexObserved ?? []),
-    getSettings: () => ({
-      anthropicSubscriptionModes: ['plan'],
-      subscriptionBillingModes: options.subscriptionModes ?? ['plan', 'copilot', 'openai-codex'],
-    }),
-    fetch: gatewayFetch(spendRows, spendRows, [{
-      provider: 'anthropic', mode: 'plan', observed_at: OBSERVED_BEFORE,
-      windows: [{ type: 'five_hour', utilization: 0.5, resets_at: 1_790_010_000 }],
-    }]),
-    gatewayUrl: 'http://gateway.test',
+    readLedger: async () => ledger,
+    billingOf: billingTable(['pi:github-copilot', 'pi:openai-codex']),
     now: () => new Date(nowMs),
     claudeAccount: { readUsage: options.claude ?? (async () => null) },
   });
@@ -38,7 +36,7 @@ function signOutService(options: {
 
 describe('UsageService subscription sign-out', () => {
   const anthropicPlan = usage('anthropic', 'stale', {
-    billing: 'subscription', modes: ['plan'], observedAt: OBSERVED_BEFORE,
+    billing: 'subscription', modes: ['subscription'], observedAt: OBSERVED_BEFORE,
     windows: [{ type: 'five_hour', utilization: 0.9, resetsAt: 1_790_010_000 }],
   });
   const anthropicApi = usage('anthropic', 'unsupported', {
@@ -55,7 +53,7 @@ describe('UsageService subscription sign-out', () => {
     assert.deepEqual(keys(await store.list()), ['anthropic::api'], 'the stored row goes with the sign-out');
     const collected = await service.collect();
     assert.equal(collected.some((row) => row.provider === 'anthropic' && row.billing === 'subscription'), false,
-      'neither the gateway observation nor subscription spend brings it back');
+      'neither the stored observation nor subscription traffic brings it back');
     assert.ok(collected.some((row) => usageRecordKey(row) === 'anthropic::api'));
   });
 
@@ -76,13 +74,13 @@ describe('UsageService subscription sign-out', () => {
   test('signing in again restores a subscription row that never carries a quota reading', async () => {
     const store = new MemoryUsageStore();
     const { service } = signOutService({ store });
-    const copilot = (rows: ProviderUsage[]) => rows.some((row) => usageRecordKey(row) === 'github::subscription');
+    const copilot = (rows: ProviderUsage[]) => rows.some((row) => usageRecordKey(row) === 'github-copilot::subscription');
     assert.ok(copilot(await service.collect()));
 
-    await service.signOut('github');
+    await service.signOut('github-copilot');
     assert.equal(copilot(await service.collect()), false);
 
-    await service.signIn('github');
+    await service.signIn('github-copilot');
     assert.ok(copilot(await service.collect()));
   });
 

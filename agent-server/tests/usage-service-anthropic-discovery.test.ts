@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'vitest';
+import type { CostEntry } from '../src/domain/costs/cost-tracker.js';
 import { UsageService, type UsageServiceDependencies } from '../src/domain/costs/usage-service.js';
 import { usageRecordKey, type ProviderUsage } from '../src/domain/costs/usage-store.js';
-import { durableMemoryStore, fakeAdapter, gatewayFetch, json, spend, usage } from './usage-service-fixtures.js';
+import {
+  NOW, billingTable, claudeKeyRow, daysAgo, durableMemoryStore, fakeAdapter, hoursAgo, ledgerRow, usage,
+} from './usage-service-fixtures.js';
 
 const WINDOWS = [{ type: 'five_hour', utilization: 0, resetsAt: 1_900_000_000 }];
 const RESETS = { availableCount: 1, credits: [{ id: 'reset-1', title: 'Reset', expiresAt: null }] };
@@ -14,16 +17,14 @@ const CODEX = usage('openai-codex', 'stale', {
   displayName: 'OpenAI Codex', billing: 'subscription',
   windows: [{ type: 'codex_primary', utilization: 0.2, resetsAt: null }],
 });
-const OUTAGES = ['none', 'all', 'today', 'month', 'quota'] as const;
+/** `ledger`: the spend read fails. `account`: the Claude account read fails. */
+const OUTAGES = ['none', 'ledger', 'account'] as const;
 type Outage = typeof OUTAGES[number];
 
-function outageFetch(outage: Outage): typeof fetch {
-  return async (input) => {
-    const url = String(input);
-    const fails = outage === 'all' || url.includes(`period=${outage}`)
-      || (outage === 'quota' && url.includes('/quota?'));
-    if (fails) throw new Error('gateway offline');
-    return url.includes('/quota?') ? json({ providers: [] }) : json({ rows: [] });
+function outage(kind: Outage, ledger: CostEntry[] = []): UsageServiceDependencies {
+  return {
+    readLedger: kind === 'ledger' ? async () => { throw new Error('ledger unreadable'); } : async () => ledger,
+    claudeAccount: { readUsage: kind === 'account' ? async () => { throw new Error('account unavailable'); } : async () => null },
   };
 }
 
@@ -33,11 +34,9 @@ async function discovery(prior: ProviderUsage[] = [], dependencies: UsageService
   const service = new UsageService({
     store,
     getAdapter: () => fakeAdapter('pi', async () => []),
-    getSettings: () => ({
-      anthropicSubscriptionModes: ['plan'], subscriptionBillingModes: ['plan', 'openai-codex'],
-    }),
-    fetch: gatewayFetch([], []),
-    gatewayUrl: 'http://gateway.test',
+    readLedger: async () => [],
+    billingOf: billingTable(),
+    now: () => NOW,
     ...dependencies,
   });
   return { service, store };
@@ -48,9 +47,9 @@ function anthropicSubscription(rows: ProviderUsage[]) {
 }
 
 describe('Anthropic usage evidence', () => {
-  test.each(OUTAGES)('Codex alone never creates Anthropic (gateway outage: %s)', async (outage) => {
+  test.each(OUTAGES)('Codex alone never creates Anthropic (outage: %s)', async (kind) => {
     const { service } = await discovery([], {
-      fetch: outageFetch(outage), getAdapter: () => fakeAdapter('pi', async () => [CODEX]),
+      ...outage(kind), getAdapter: () => fakeAdapter('pi', async () => [CODEX]),
     });
 
     const rows = await service.refresh();
@@ -59,16 +58,16 @@ describe('Anthropic usage evidence', () => {
     assert.deepEqual(rows[0].windows, CODEX.windows);
   });
 
-  test.each(OUTAGES)('default plan mode alone creates no providers (gateway outage: %s)', async (outage) => {
-    const { service, store } = await discovery([], { fetch: outageFetch(outage) });
+  test.each(OUTAGES)('no traffic and no reading creates no providers (outage: %s)', async (kind) => {
+    const { service, store } = await discovery([], outage(kind));
 
     assert.deepEqual(await service.refresh(), []);
     assert.deepEqual(await store.list(), []);
   });
 
   describe.each(['subscription', undefined] as const)('old placeholder billing: %s', (billing) => {
-    test.each(OUTAGES)('refresh deletes it durably (gateway outage: %s)', async (outage) => {
-      const { service, store } = await discovery([{ ...EMPTY, billing }], { fetch: outageFetch(outage) });
+    test.each(OUTAGES)('refresh deletes it durably (outage: %s)', async (kind) => {
+      const { service, store } = await discovery([{ ...EMPTY, billing }], outage(kind));
 
       assert.deepEqual(await service.refresh(), []);
       assert.deepEqual(await store.list(), []);
@@ -76,51 +75,35 @@ describe('Anthropic usage evidence', () => {
     });
   });
 
-  test('disabled quota polling cannot restore an old placeholder during an outage', async () => {
-    const { service, store } = await discovery([EMPTY], {
-      fetch: outageFetch('all'),
-      getSettings: () => ({ anthropicSubscriptionModes: [], subscriptionBillingModes: ['plan'] }),
-    });
-
-    assert.deepEqual(await service.refresh(), []);
-    assert.deepEqual(await store.list(), []);
-  });
-
   test.each([{ prior: [] }, { prior: [EMPTY] }])('current subscription traffic without quota survives (prior: %j)', async ({ prior }) => {
-    const { service } = await discovery(prior, {
-      fetch: gatewayFetch([], [spend('anthropic', 'plan', 0)]),
-    });
+    const { service } = await discovery(prior, outage('none', [ledgerRow(hoursAgo(1), { cost_usd: 0 })]));
 
     const rows = await service.refresh();
 
     assert.deepEqual(rows.map(usageRecordKey), ['anthropic::subscription']);
     assert.equal(rows[0].freshness, 'never');
     assert.deepEqual(rows[0].windows, []);
+    assert.deepEqual(rows[0].modes, ['subscription']);
     assert.equal(rows[0].spend, undefined);
-    assert.match(rows[0].note ?? '', /no Anthropic quota observation/);
   });
 
-  test.each(['gateway', 'Claude'])('%s quota creates a row without traffic or history', async (source) => {
-    const dependencies: UsageServiceDependencies = source === 'Claude'
-      ? { claudeAccount: { readUsage: async () => ({ windows: WINDOWS, resetCredits: RESETS }) } }
-      : { fetch: gatewayFetch([], [], [{
-        provider: 'anthropic', observed_at: 1_800_000_000,
-        windows: WINDOWS.map(({ resetsAt, ...window }) => ({ ...window, resets_at: resetsAt })),
-      }]) };
-    const { service } = await discovery([], dependencies);
+  test('a Claude reading creates the row without traffic or history', async () => {
+    const { service } = await discovery([], {
+      claudeAccount: { readUsage: async () => ({ windows: WINDOWS, resetCredits: RESETS }) },
+    });
 
     const rows = await service.refresh();
 
     assert.deepEqual(rows.map(usageRecordKey), ['anthropic::subscription']);
     assert.deepEqual(rows[0].windows, WINDOWS);
-    assert.equal(rows[0].freshness, source === 'Claude' ? 'live' : 'stale');
+    assert.equal(rows[0].freshness, 'live');
   });
 
-  test.each(OUTAGES)('real history survives absent readings (gateway outage: %s)', async (outage) => {
+  test.each(OUTAGES)('real history survives absent readings (outage: %s)', async (kind) => {
     const prior = { ...EMPTY, windows: WINDOWS, observedAt: 1_800_000_000, freshness: 'live' as const,
       resetCredits: RESETS };
     const { service, store } = await discovery([prior], {
-      fetch: outageFetch(outage),
+      ...outage(kind),
       claudeAccount: { readUsage: async () => { throw new Error('account unavailable'); } },
     });
 
@@ -137,10 +120,7 @@ describe('Anthropic usage evidence', () => {
   test.each([
     { windows: WINDOWS }, { observedAt: 1_800_000_000 }, { resetCredits: RESETS },
   ])('partial quota history is not an empty placeholder: %j', async (history) => {
-    const { service } = await discovery([{ ...EMPTY, ...history }], {
-      fetch: outageFetch('all'),
-      claudeAccount: { readUsage: async () => { throw new Error('account unavailable'); } },
-    });
+    const { service } = await discovery([{ ...EMPTY, ...history }], outage('account'));
 
     const row = anthropicSubscription(await service.refresh());
 
@@ -156,9 +136,9 @@ describe('Anthropic usage evidence', () => {
     assert.deepEqual(anthropicSubscription(await service.refresh())?.windows, WINDOWS);
   });
 
-  test.each(['none', 'all'] as const)('an empty placeholder cannot mask legacy quota history (outage: %s)', async (outage) => {
+  test.each(['none', 'ledger'] as const)('an empty placeholder cannot mask legacy quota history (outage: %s)', async (kind) => {
     const legacy = { ...EMPTY, billing: undefined, windows: WINDOWS, observedAt: 1_800_000_000 };
-    const { service } = await discovery([EMPTY, legacy], { fetch: outageFetch(outage) });
+    const { service } = await discovery([EMPTY, legacy], outage(kind));
 
     const row = anthropicSubscription(await service.refresh());
 
@@ -167,34 +147,34 @@ describe('Anthropic usage evidence', () => {
     assert.equal(row?.freshness, 'stale');
   });
 
-  test.each(['none', 'all', 'today', 'month'] as const)('API spend is neither deleted nor subscription evidence (gateway outage: %s)', async (outage) => {
+  test.each(['none', 'ledger'] as const)('API spend is neither deleted nor subscription evidence (outage: %s)', async (kind) => {
     const api = usage('anthropic', 'unsupported', {
       billing: 'api', modes: ['api'], spend: { today: 2, month: 8, all: 20 },
     });
-    const fetch = outage === 'none'
-      ? gatewayFetch([spend('anthropic', 'api', 2)], [spend('anthropic', 'api', 8)], [],
-        [spend('anthropic', 'api', 20)])
-      : outageFetch(outage);
-    const { service, store } = await discovery([EMPTY, api], { fetch });
+    const ledger = [
+      claudeKeyRow(hoursAgo(1), 'api', 2), claudeKeyRow(daysAgo(10), 'api', 6), claudeKeyRow(daysAgo(40), 'api', 12),
+    ];
+    const { service, store } = await discovery([EMPTY, api], outage(kind, ledger));
 
     const rows = await service.refresh();
 
     assert.deepEqual(rows.map(usageRecordKey), ['anthropic::api']);
     assert.deepEqual(rows[0].spend, api.spend);
+    assert.deepEqual(rows[0].modes, ['api']);
     assert.equal(rows[0].freshness, 'unsupported');
     assert.deepEqual(await store.list(), rows);
   });
 
   test('an API observation timestamp does not count as subscription quota history', async () => {
     const api = { ...EMPTY, billing: 'api' as const, observedAt: 1_800_000_000 };
-    const { service } = await discovery([api], { fetch: outageFetch('all') });
+    const { service } = await discovery([api], outage('ledger'));
 
     assert.deepEqual((await service.refresh()).map(usageRecordKey), ['anthropic::api']);
   });
 
   test('legacy spend is preserved on failure without inventing a subscription row', async () => {
     const legacy = { ...EMPTY, billing: undefined, spend: { today: 0, month: 0 } };
-    const { service } = await discovery([legacy], { fetch: outageFetch('all') });
+    const { service } = await discovery([legacy], outage('ledger'));
 
     const rows = await service.refresh();
 

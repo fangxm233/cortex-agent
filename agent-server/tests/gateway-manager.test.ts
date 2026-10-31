@@ -226,21 +226,12 @@ test('before the gateway first answers, a crash with its port still free restart
 test('consumers loaded before a move read the moved URL, and a fresh process reads it from config/.env', async () => {
   const taken = await occupy();
   const { manager, portArgs } = await loadManager([`CORTEX_GATEWAY_PORT=${taken}`]);
-  const { UsageService } = await import('../src/domain/costs/usage-service.js');
-  const fetched: string[] = [];
-  const usage = new UsageService({
-    store: { list: async () => [], commit: async () => {} },
-    getSettings: () => ({ anthropicSubscriptionModes: [], subscriptionBillingModes: [] }),
-    fetch: (async (address: unknown) => { fetched.push(String(address)); return new Response('{"rows":[]}'); }) as typeof fetch,
-  });
 
   await manager.startGateway();
   const [port] = portArgs();
   const moved = `http://127.0.0.1:${port}`;
   assert.notEqual(port, taken);
 
-  await usage.collect();
-  assert(fetched.length > 0 && fetched.every(address => address.startsWith(`${moved}/`)));
   const { generateGatewayYaml } = await import('../src/core/gateway-generator.js');
   assert.equal(parseYaml(generateGatewayYaml([])).port, port);
 

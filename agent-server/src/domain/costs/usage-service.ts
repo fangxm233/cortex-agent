@@ -1,15 +1,16 @@
 import { getPiEngineAdapter } from '../runs/adapters.js';
 import { Capability } from '../../agent-adapter/capabilities.js';
 import type { AgentUsageScope } from '../../agent-adapter/types.js';
-import { getSettings as readSettings, type Settings } from '@core/settings.js';
+import { SUBSCRIPTION_CONNECTION } from '@core/connections-file.js';
 import { t } from '@core/i18n.js';
 import { createLogger } from '@core/log.js';
+import { costRepo } from '@store/cost-repo.js';
 import { providerStateRepo } from '@store/provider-state-repo.js';
-import { gatewayUrl as liveGatewayUrl } from '@core/gateway-endpoint.js';
-import { PI_ANTHROPIC_MODE } from '@core/gateway-routes.js';
+import { credentialInventory } from '../connections/index.js';
 import { claudeAccountClient } from './claude-account.js';
 import { codexAccountClient } from './codex-account.js';
-import { readDaemonOAuthProviders, subscriptionModesFor } from './subscription-modes.js';
+import type { CostEntry } from './cost-tracker.js';
+import { ledgerSpend, type BillingOf, type LedgerSpendRow, type SpendFigures } from './ledger-spend.js';
 import { releaseRecoveredQuota, type QuotaReading } from './rate-limit-throttle.js';
 import type { AccountReading, ResetAccount } from './reset-account.js';
 import {
@@ -23,21 +24,6 @@ import {
 
 const log = createLogger('usage-service');
 
-const GATEWAY_USAGE_TIMEOUT_MS = 5_000;
-/** Cap on raw records pulled per period when the gateway cannot group by billing mode. */
-const GATEWAY_RECORDS_LIMIT = 20_000;
-/**
- * Mirrors the gateway's own `period=month`, which is a rolling 30 days rather than a calendar
- * month. Keeping the two definitions identical is what lets the grouped and record-aggregated
- * routes report the same figure; drifting from it would make the month total jump when the
- * gateway gains composite grouping and collection switches routes.
- */
-const MONTH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
-
-/** Periods the raw-record route can reconstruct; the lifetime total needs the grouped route. */
-type WindowPeriod = 'today' | 'month';
-type GatewayPeriod = WindowPeriod | 'all';
-
 /** The slice of a backend adapter the usage service reads: its capability set (the Codex
  *  subscription probe is capability-gated) and its usage pull, which only some backends have. */
 type UsageAdapter = {
@@ -45,7 +31,6 @@ type UsageAdapter = {
   getUsage?(scope: AgentUsageScope): Promise<ProviderUsage[] | null>;
 };
 type AdapterResolver = () => UsageAdapter;
-type SettingsReader = () => Pick<Settings, 'anthropicSubscriptionModes' | 'subscriptionBillingModes'>;
 
 export interface UsageServiceStore {
   list(): Promise<ProviderUsage[]>;
@@ -64,26 +49,24 @@ export interface UsageServiceDependencies {
   /** Absent, sign-outs last only as long as this service. */
   signOuts?: SubscriptionSignOuts;
   getAdapter?: AdapterResolver;
-  getSettings?: SettingsReader;
-  /** PI providers signed in with OAuth; their gateway modes are subscriptions. Absent, none are. */
-  getOAuthProviders?: () => ReadonlySet<string>;
-  fetch?: typeof globalThis.fetch;
-  gatewayUrl?: string;
+  /** The cost ledger's rows; spend is summed from them. */
+  readLedger?: () => Promise<readonly CostEntry[]>;
+  /** Whether a connection's spend is billed or covered by a subscription. */
+  billingOf?: BillingOf;
   now?: () => Date;
   /** Active Codex account reader; its readings replace the header-observed Codex row. Absent, only
    *  response headers inform the Codex row. */
   codexAccount?: Pick<ResetAccount, 'readUsage'>;
   /** Lifts throttle windows a fresh reading shows have recovered. */
   releaseThrottle?: (provider: string, windows: QuotaReading[]) => Promise<unknown>;
-  /** Active Claude account reader; its readings take precedence over the gateway quota. Absent,
-   *  only the gateway informs the Anthropic row. */
+  /** Active Claude account reader, the source of the Anthropic subscription row's windows. Absent,
+   *  the row keeps only what was last stored. */
   claudeAccount?: Pick<ResetAccount, 'readUsage'>;
 }
 
-/** The Anthropic quota for one cycle: the account's own reading when there is one, else the
- *  gateway's last observation. */
+/** The Anthropic quota for one cycle: the account's reading when there is one. */
 interface AnthropicQuotaResult {
-  snapshot: GatewayQuotaSnapshot | null;
+  snapshot: QuotaSnapshot | null;
   resetCredits?: UsageResetCredits;
   /** The account read failed, so the reset credits last known still apply. */
   keepResets: boolean;
@@ -96,28 +79,9 @@ interface CodexQuotaResult {
   note?: string;
 }
 
-/**
- * One (provider, gateway billing mode) pair's cost within a period. A null cost means the
- * gateway named the pair but its figure was unusable, which must not be read as zero.
- */
-interface SpendRow {
-  provider: string;
-  billingMode: string;
-  cost: number | null;
-}
-
-interface PeriodSpend {
-  rows: SpendRow[];
-  truncated: boolean;
-  /** Records the gateway returned whose cost could not be read; their spend is missing. */
-  droppedRecords: number;
-}
-
-interface GatewayQuotaSnapshot {
+interface QuotaSnapshot {
   windows: UsageWindow[];
   observedAt: number;
-  /** A reading taken from the account just now, not one observed in passing traffic. */
-  live?: boolean;
 }
 
 function memorySignOuts(): SubscriptionSignOuts {
@@ -173,141 +137,8 @@ function displayNameFor(provider: string): string {
   return KNOWN_DISPLAY_NAMES[provider] ?? fallbackDisplayName(provider);
 }
 
-function normalizeModes(modes: string[]): string[] {
-  return [...new Set(modes.map((mode) => mode.trim()).filter(Boolean))];
-}
-
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function roundCost(value: number): number {
-  return Math.round(value * 100_000_000) / 100_000_000;
-}
-
-function finiteNumber(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-// ── Quota parsing (gateway /quota, Anthropic only) ─────────────
-
-function quotaWindow(value: unknown): UsageWindow | null {
-  if (!isRecord(value) || (value.type !== 'five_hour' && value.type !== 'seven_day')) return null;
-  const utilization = finiteNumber(value.utilization);
-  if (utilization === null || utilization < 0 || utilization > 1) {
-    throw new Error(`gateway quota utilization is invalid for ${String(value.type)}`);
-  }
-  const resetsAt = finiteNumber(value.resets_at);
-  if (resetsAt === null || resetsAt < 0) {
-    throw new Error(`gateway quota reset is invalid for ${String(value.type)}`);
-  }
-  return { type: value.type, utilization, resetsAt };
-}
-
-function parseGatewayQuota(payload: unknown): GatewayQuotaSnapshot | null {
-  if (!isRecord(payload) || !Array.isArray(payload.providers)) {
-    throw new Error('gateway quota response has no provider rows');
-  }
-  const provider = payload.providers.find((row) => isRecord(row) && row.provider === ANTHROPIC_PROVIDER);
-  // The gateway keeps one Anthropic slot; a reading from PI's own route describes PI's account.
-  if (!provider || provider.mode === PI_ANTHROPIC_MODE) return null;
-  if (!Array.isArray(provider.windows)) throw new Error('gateway quota windows are invalid');
-  const observedAt = finiteNumber(provider.observed_at);
-  if (observedAt === null || observedAt < 0) throw new Error('gateway quota observation time is invalid');
-  const windows = provider.windows.flatMap((value) => {
-    const window = quotaWindow(value);
-    return window ? [window] : [];
-  });
-  return windows.length > 0 ? { windows, observedAt } : null;
-}
-
-// ── Spend parsing ──────────────────────────────────────────────
-
-function spendRowKey(provider: string, billingMode: string): string {
-  return `${provider}\u0000${billingMode}`;
-}
-
-/** An unusable figure poisons the pair's total: a partial sum must not pass as complete. */
-function accumulateSpend(
-  totals: Map<string, SpendRow>,
-  provider: string,
-  billingMode: string,
-  cost: number | null,
-): void {
-  const key = spendRowKey(provider, billingMode);
-  const existing = totals.get(key);
-  if (!existing) {
-    totals.set(key, { provider, billingMode, cost: cost === null ? null : roundCost(cost) });
-    return;
-  }
-  if (cost === null || existing.cost === null) existing.cost = null;
-  else existing.cost = roundCost(existing.cost + cost);
-}
-
-/**
- * The grouped route labels a record that carries no billing mode `unknown`, where the record
- * route simply sees the field missing. Collapsing the placeholder keeps both routes reporting
- * the same mode labels; either way an unnamed mode is absent from the subscription list and so
- * bills as metered.
- */
-function unnamedMode(billingMode: string): string {
-  return billingMode === 'unknown' ? '' : billingMode;
-}
-
-/**
- * Route A payload: rows carrying both `provider` and `billing_mode`. Returns null when the
- * gateway answered but without billing-mode granularity, so the caller can fall back.
- */
-function parseGroupedSpend(payload: unknown): SpendRow[] | null {
-  if (!isRecord(payload)) return null;
-  const candidate = [payload.rows, payload.providers].find(Array.isArray);
-  if (!candidate) return null;
-  const totals = new Map<string, SpendRow>();
-  for (const raw of candidate) {
-    if (!isRecord(raw)) return null;
-    const provider = typeof raw.provider === 'string' ? raw.provider : null;
-    const billingMode = typeof raw.billing_mode === 'string' ? raw.billing_mode : null;
-    if (provider === null || billingMode === null) return null;
-    accumulateSpend(totals, provider, unnamedMode(billingMode), finiteNumber(raw.cost_usd));
-  }
-  return [...totals.values()];
-}
-
-/** Route B payload: raw usage records, aggregated client-side. */
-function parseRecordSpend(payload: unknown): { rows: SpendRow[]; dropped: number } {
-  if (!isRecord(payload) || !Array.isArray(payload.records)) {
-    throw new Error('gateway usage records response has no record rows');
-  }
-  const totals = new Map<string, SpendRow>();
-  let dropped = 0;
-  for (const raw of payload.records) {
-    if (!isRecord(raw) || typeof raw.provider !== 'string' || !raw.provider) {
-      dropped += 1;
-      continue;
-    }
-    const cost = finiteNumber(raw.cost);
-    if (cost === null) {
-      dropped += 1;
-      continue;
-    }
-    accumulateSpend(totals, raw.provider, typeof raw.billing_mode === 'string' ? raw.billing_mode : '', cost);
-  }
-  return { rows: [...totals.values()], dropped };
-}
-
-function recordCount(payload: unknown): number {
-  return isRecord(payload) && Array.isArray(payload.records) ? payload.records.length : 0;
-}
-
-function periodStartIso(period: WindowPeriod, now: Date): string {
-  if (period !== 'today') return new Date(now.getTime() - MONTH_WINDOW_MS).toISOString();
-  const midnight = new Date(now);
-  midnight.setHours(0, 0, 0, 0);
-  return midnight.toISOString();
 }
 
 // ── Row composition ────────────────────────────────────────────
@@ -315,12 +146,9 @@ function periodStartIso(period: WindowPeriod, now: Date): string {
 interface RowDraft {
   provider: string;
   billing: UsageBilling;
+  /** Connections the row's traffic ran on. */
   modes: Set<string>;
-  spend: Record<GatewayPeriod, number | null>;
-  /** Periods the gateway named this row in but could not price. */
-  unpriced: Set<GatewayPeriod>;
-  /** The lifetime read failed this cycle, so the last stored total stands. */
-  carryAll: boolean;
+  spend: SpendFigures | null;
   windows: UsageWindow[];
   observedAt: number | null;
   freshness: ProviderUsage['freshness'] | null;
@@ -339,79 +167,23 @@ function ensureDraft(drafts: Map<string, RowDraft>, provider: string, billing: U
   const existing = drafts.get(key);
   if (existing) return existing;
   const draft: RowDraft = {
-    provider, billing, modes: new Set(), spend: { today: null, month: null, all: null },
-    unpriced: new Set(), carryAll: false, windows: [], observedAt: null, freshness: null,
+    provider, billing, modes: new Set(), spend: null, windows: [], observedAt: null, freshness: null,
     quotaPolled: false, notes: [],
   };
   drafts.set(key, draft);
   return draft;
 }
 
-function spendRowTarget(row: SpendRow, subscriptionModes: Set<string>): { provider: string; billing: UsageBilling } {
-  const billing: UsageBilling = subscriptionModes.has(row.billingMode) ? 'subscription' : 'api';
-  const provider = row.provider === 'openai' && row.billingMode === CODEX_PROVIDER
-    ? CODEX_PROVIDER : row.provider;
-  return { provider, billing };
-}
-
-function addSpend(draft: RowDraft, period: GatewayPeriod, cost: number | null): void {
-  if (cost === null) {
-    draft.unpriced.add(period);
-    return;
-  }
-  draft.spend[period] = roundCost((draft.spend[period] ?? 0) + cost);
-}
-
-function applySpendRows(
-  drafts: Map<string, RowDraft>,
-  rows: SpendRow[],
-  subscriptionModes: Set<string>,
-  period: WindowPeriod,
-): void {
+/** Recent traffic is what makes a row: a provider idle for 30 days has none. */
+function applyLedgerRows(drafts: Map<string, RowDraft>, rows: LedgerSpendRow[]): void {
   for (const row of rows) {
-    const { provider, billing } = spendRowTarget(row, subscriptionModes);
-    const draft = ensureDraft(drafts, provider, billing);
-    if (row.billingMode) draft.modes.add(row.billingMode);
-    // Subscription cost is an imputed API-equivalent price, not a bill — never surfaced.
-    if (billing === 'subscription') continue;
-    addSpend(draft, period, row.cost);
+    const draft = ensureDraft(drafts, row.provider, row.billing);
+    row.connections.forEach((connection) => draft.modes.add(connection));
+    draft.spend = row.spend;
   }
 }
 
-/** Lifetime totals only enrich rows recent traffic produced, so a long-idle provider stays hidden. */
-function applyAllTimeRows(drafts: Map<string, RowDraft>, rows: SpendRow[], subscriptionModes: Set<string>): void {
-  for (const row of rows) {
-    const { provider, billing } = spendRowTarget(row, subscriptionModes);
-    if (billing === 'subscription') continue;
-    const draft = drafts.get(draftKey(provider, billing));
-    if (draft) addSpend(draft, 'all', row.cost);
-  }
-}
-
-/** Resolve an unpriced period to the last stored figure rather than reporting a false zero. */
-function settleSpend(draft: RowDraft, prior: ProviderUsage | undefined): void {
-  if (draft.carryAll) draft.spend.all = prior?.spend?.all ?? null;
-  for (const period of draft.unpriced) {
-    const carried = prior?.spend?.[period];
-    draft.spend[period] = carried ?? null;
-    draft.notes.push(
-      t(carried === undefined ? 'ux.usage.costUnreadable' : 'ux.usage.costUnreadableCarried', { period }),
-    );
-  }
-}
-
-function spendFigures(spend: RowDraft['spend']): NonNullable<ProviderUsage['spend']> {
-  return {
-    today: spend.today ?? 0,
-    month: spend.month ?? 0,
-    ...(spend.all !== null ? { all: spend.all } : {}),
-  };
-}
-
-function finalizeDraft(draft: RowDraft, prior: ProviderUsage | undefined): ProviderUsage {
-  settleSpend(draft, prior);
-  const hasSpend = draft.billing === 'api'
-    && (draft.spend.today !== null || draft.spend.month !== null);
+function finalizeDraft(draft: RowDraft): ProviderUsage {
   const freshness = draft.freshness
     ?? (draft.quotaPolled ? (draft.observedAt === null ? 'never' : 'stale') : 'unsupported');
   return {
@@ -419,7 +191,8 @@ function finalizeDraft(draft: RowDraft, prior: ProviderUsage | undefined): Provi
     displayName: displayNameFor(draft.provider),
     modes: [...draft.modes].sort(),
     windows: draft.windows,
-    ...(hasSpend ? { spend: spendFigures(draft.spend) } : {}),
+    // Subscription cost is an imputed API-equivalent price, not a bill — never surfaced.
+    ...(draft.billing === 'api' && draft.spend ? { spend: { ...draft.spend } } : {}),
     observedAt: draft.observedAt,
     freshness,
     billing: draft.billing,
@@ -462,12 +235,9 @@ function withoutResetCredits(record: ProviderUsage | null): ProviderUsage | null
   return rest;
 }
 
-function settledAnthropicQuota(result: PromiseSettledResult<AnthropicQuotaResult | null>): AnthropicQuotaResult {
-  if (result.status === 'fulfilled' && result.value) return result.value;
-  const notes = result.status === 'rejected'
-    ? [t('ux.usage.anthropicQuotaFailed', { error: errorMessage(result.reason) })]
-    : [];
-  return { snapshot: null, keepResets: true, notes };
+function settledAnthropicQuota(result: PromiseSettledResult<AnthropicQuotaResult>): AnthropicQuotaResult {
+  if (result.status === 'fulfilled') return result.value;
+  return { snapshot: null, keepResets: true, notes: [t('ux.usage.claudeAccountFailed', { error: errorMessage(result.reason) })] };
 }
 
 /** Without a Claude login there is nothing to spend; a failed read keeps what was last known. */
@@ -523,44 +293,58 @@ function staleCopy(record: ProviderUsage, note: string): ProviderUsage {
   return { ...retained, freshness, note };
 }
 
-/** A failed lifetime read keeps the stored totals; an unsupported one simply shows none. */
-function applyAllTime(
-  drafts: Map<string, RowDraft>,
-  result: PromiseSettledResult<PeriodSpend | null>,
-  subscriptionModes: Set<string>,
-): void {
-  if (result.status === 'fulfilled') {
-    if (result.value) applyAllTimeRows(drafts, result.value.rows, subscriptionModes);
-    return;
-  }
-  log.warn(`gateway all-time usage read failed: ${errorMessage(result.reason)}`);
-  for (const draft of drafts.values()) draft.carryAll = true;
+/** Keep the last good quota reading rather than blanking the row on a failed cycle. */
+function carryQuotaFromPrior(draft: RowDraft, prior: ProviderUsage[]): void {
+  if (draft.windows.length > 0) return;
+  const key = draftKey(draft.provider, draft.billing);
+  const match = prior.find((row) => usageRecordKey(row) === key)
+    ?? prior.find((row) => row.provider === draft.provider && row.billing === undefined);
+  if (!match) return;
+  draft.windows = match.windows.map((window) => ({ ...window }));
+  draft.observedAt = match.observedAt;
+  draft.freshness = match.observedAt === null ? 'never' : 'stale';
+  if (match.resetCredits) draft.resetCredits = match.resetCredits;
+}
+
+/**
+ * Deleting a row is only safe when the spend read actually answered. If it failed, retain history,
+ * except empty Anthropic placeholders that never held any data.
+ */
+function guardDeletions(
+  composed: ProviderUsage[],
+  prior: ProviderUsage[],
+  spend: PromiseSettledResult<LedgerSpendRow[]>,
+): ProviderUsage[] {
+  if (spend.status === 'fulfilled') return composed;
+  const note = t('ux.usage.spendFailed', { error: errorMessage(spend.reason) });
+  const seen = new Set(composed.map(usageRecordKey));
+  const retained = prior
+    .filter((row) => !seen.has(usageRecordKey(row)) && !isEmptyAnthropicPlaceholder(row))
+    .map((row) => staleCopy(row, note));
+  return [...composed.map((row) => (row.note ? row : { ...row, note })), ...retained];
+}
+
+async function readLedgerEntries(): Promise<readonly CostEntry[]> {
+  return (await costRepo.readCosts()).entries;
 }
 
 export class UsageService {
   private readonly store: UsageServiceStore;
   private readonly signOuts: SubscriptionSignOuts;
   private readonly getAdapter: AdapterResolver;
-  private readonly getSettings: SettingsReader;
-  private readonly getOAuthProviders: () => ReadonlySet<string>;
-  private readonly fetch: typeof globalThis.fetch;
-  private readonly gatewayUrl: () => string;
+  private readonly readLedger: () => Promise<readonly CostEntry[]>;
+  private readonly billingOf: BillingOf;
   private readonly now: () => Date;
   private readonly codexAccount: Pick<ResetAccount, 'readUsage'>;
   private readonly releaseThrottle: (provider: string, windows: QuotaReading[]) => Promise<unknown>;
   private readonly claudeAccount: Pick<ResetAccount, 'readUsage'>;
-  /** Sticky once the gateway proves it cannot group by billing mode, to avoid a 400 per cycle. */
-  private groupedSpendSupported = true;
 
   constructor(dependencies: UsageServiceDependencies = {}) {
     this.store = dependencies.store ?? usageStore;
     this.signOuts = dependencies.signOuts ?? memorySignOuts();
     this.getAdapter = dependencies.getAdapter ?? (() => getPiEngineAdapter());
-    this.getSettings = dependencies.getSettings ?? readSettings;
-    this.getOAuthProviders = dependencies.getOAuthProviders ?? (() => new Set());
-    this.fetch = dependencies.fetch ?? globalThis.fetch;
-    const fixedGatewayUrl = dependencies.gatewayUrl;
-    this.gatewayUrl = fixedGatewayUrl === undefined ? liveGatewayUrl : () => fixedGatewayUrl;
+    this.readLedger = dependencies.readLedger ?? readLedgerEntries;
+    this.billingOf = dependencies.billingOf ?? ((ref) => credentialInventory.billingOf(ref));
     this.now = dependencies.now ?? (() => new Date());
     this.codexAccount = dependencies.codexAccount ?? NO_ACCOUNT;
     this.claudeAccount = dependencies.claudeAccount ?? NO_ACCOUNT;
@@ -587,36 +371,19 @@ export class UsageService {
   }
 
   async collect(): Promise<ProviderUsage[]> {
-    const settings = this.getSettings();
-    const anthropicModes = normalizeModes(settings.anthropicSubscriptionModes);
-    const subscriptionModes = subscriptionModesFor(
-      normalizeModes(settings.subscriptionBillingModes),
-      this.getOAuthProviders(),
-    );
     const prior = await this.signedIn(await this.store.list());
-
-    const [today, month, all, quota, codex] = await Promise.allSettled([
-      this.readSpend('today'),
-      this.readSpend('month'),
-      this.readAllTimeSpend(),
-      anthropicModes.length > 0 ? this.readAnthropicQuota() : Promise.resolve(null),
+    const [spend, quota, codex] = await Promise.allSettled([
+      this.readSpend(),
+      this.readAnthropicQuota(),
       this.readCodexQuota(),
     ]);
-
     const drafts = new Map<string, RowDraft>();
-    this.applyPeriod(drafts, today, subscriptionModes, 'today');
-    this.applyPeriod(drafts, month, subscriptionModes, 'month');
-    applyAllTime(drafts, all, subscriptionModes);
-    this.applyAnthropicQuota(drafts, quota, anthropicModes, prior);
+    if (spend.status === 'fulfilled') applyLedgerRows(drafts, spend.value);
+    else log.warn(`ledger spend read failed: ${errorMessage(spend.reason)}`);
+    this.applyAnthropicQuota(drafts, quota, prior);
     this.applyCodexQuota(drafts, codex, prior);
-
-    const priorByKey = new Map(prior.map((record) => [usageRecordKey(record), record]));
-    const composed = [...drafts.values()].map((draft) => finalizeDraft(
-      draft,
-      priorByKey.get(draftKey(draft.provider, draft.billing))
-        ?? prior.find((row) => row.provider === draft.provider && row.billing === undefined),
-    ));
-    await this.store.commit(await this.signedIn(this.guardDeletions(composed, prior, today, month)));
+    const composed = [...drafts.values()].map(finalizeDraft);
+    await this.store.commit(await this.signedIn(guardDeletions(composed, prior, spend)));
     return this.getStatus();
   }
 
@@ -626,52 +393,25 @@ export class UsageService {
 
   // ── Composition steps ────────────────────────────────────────
 
-  private applyPeriod(
-    drafts: Map<string, RowDraft>,
-    result: PromiseSettledResult<PeriodSpend>,
-    subscriptionModes: Set<string>,
-    period: WindowPeriod,
-  ): void {
-    if (result.status !== 'fulfilled') return;
-    applySpendRows(drafts, result.value.rows, subscriptionModes, period);
-    const warnings: string[] = [];
-    if (result.value.truncated) {
-      warnings.push(t('ux.usage.truncated', { period, limit: GATEWAY_RECORDS_LIMIT }));
-    }
-    if (result.value.droppedRecords > 0) {
-      warnings.push(t('ux.usage.dropped', { period, count: result.value.droppedRecords }));
-    }
-    if (warnings.length === 0) return;
-    for (const draft of drafts.values()) {
-      if (draft.billing === 'api') draft.notes.push(...warnings);
-    }
-  }
-
   private applyAnthropicQuota(
     drafts: Map<string, RowDraft>,
-    result: PromiseSettledResult<AnthropicQuotaResult | null>,
-    anthropicModes: string[],
+    result: PromiseSettledResult<AnthropicQuotaResult>,
     prior: ProviderUsage[],
   ): void {
-    if (anthropicModes.length === 0) {
-      const existing = drafts.get(draftKey(ANTHROPIC_PROVIDER, 'subscription'));
-      existing?.notes.push(t('ux.usage.anthropicDisabled'));
-      return;
-    }
     const quota = settledAnthropicQuota(result);
     const inUse = drafts.has(draftKey(ANTHROPIC_PROVIDER, 'subscription'))
       || prior.some((row) => isAnthropicQuotaRow(row) && hasQuotaEvidence(row));
     if (!quota.snapshot && !inUse) return;
     const draft = ensureDraft(drafts, ANTHROPIC_PROVIDER, 'subscription');
     draft.quotaPolled = true;
-    anthropicModes.forEach((mode) => draft.modes.add(mode));
     draft.notes.push(...quota.notes);
     if (quota.snapshot) {
+      draft.modes.add(SUBSCRIPTION_CONNECTION);
       draft.windows = quota.snapshot.windows;
       draft.observedAt = quota.snapshot.observedAt;
-      draft.freshness = quota.snapshot.live ? 'live' : 'stale';
+      draft.freshness = 'live';
     } else {
-      this.carryQuotaFromPrior(draft, prior.filter((row) => !isEmptyAnthropicPlaceholder(row)));
+      carryQuotaFromPrior(draft, prior.filter((row) => !isEmptyAnthropicPlaceholder(row)));
     }
     draft.resetCredits = anthropicResets(quota, prior);
   }
@@ -689,43 +429,14 @@ export class UsageService {
     const draft = codexDraft(drafts);
     draft.notes.push(...codexNotes(result, reading));
     if (reading.record) applyCodexRecord(draft, reading.record);
-    else this.carryQuotaFromPrior(draft, prior);
+    else carryQuotaFromPrior(draft, prior);
   }
 
-  /** Keep the last good quota reading rather than blanking the row on a failed cycle. */
-  private carryQuotaFromPrior(draft: RowDraft, prior: ProviderUsage[]): void {
-    if (draft.windows.length > 0) return;
-    const key = draftKey(draft.provider, draft.billing);
-    const match = prior.find((row) => usageRecordKey(row) === key)
-      ?? prior.find((row) => row.provider === draft.provider && row.billing === undefined);
-    if (!match) return;
-    draft.windows = match.windows.map((window) => ({ ...window }));
-    draft.observedAt = match.observedAt;
-    draft.freshness = match.observedAt === null ? 'never' : 'stale';
-    if (match.resetCredits) draft.resetCredits = match.resetCredits;
-  }
+  // ── Sources ──────────────────────────────────────────────────
 
-  /**
-   * Deleting a row is only safe when spend collection actually answered. If the gateway is
-   * unreachable, retain history, except empty Anthropic placeholders that never held any data.
-   */
-  private guardDeletions(
-    composed: ProviderUsage[],
-    prior: ProviderUsage[],
-    today: PromiseSettledResult<PeriodSpend>,
-    month: PromiseSettledResult<PeriodSpend>,
-  ): ProviderUsage[] {
-    if (today.status === 'fulfilled' && month.status === 'fulfilled') return composed;
-    const reason = today.status === 'rejected' ? today.reason : (month as PromiseRejectedResult).reason;
-    const note = t('ux.usage.gatewayFailed', { error: errorMessage(reason) });
-    const seen = new Set(composed.map(usageRecordKey));
-    const retained = prior
-      .filter((row) => !seen.has(usageRecordKey(row)) && !isEmptyAnthropicPlaceholder(row))
-      .map((row) => staleCopy(row, note));
-    return [...composed.map((row) => (row.note ? row : { ...row, note })), ...retained];
+  private async readSpend(): Promise<LedgerSpendRow[]> {
+    return ledgerSpend(await this.readLedger(), this.billingOf, this.now());
   }
-
-  // ── Transport ────────────────────────────────────────────────
 
   /**
    * Ask the Codex account directly when a ChatGPT sign-in exists; otherwise, or when that read
@@ -751,19 +462,8 @@ export class UsageService {
     return records?.find((record) => record.provider === CODEX_PROVIDER) ?? null;
   }
 
-  /** Claude's own login answers first; the gateway's observation is the fallback. */
+  /** The Claude login's own usage reading; without a login there is none. */
   private async readAnthropicQuota(): Promise<AnthropicQuotaResult> {
-    const account = await this.readClaudeAccount();
-    if (account.snapshot) return account;
-    try {
-      const snapshot = await this.readGatewayQuota();
-      return { ...account, snapshot, notes: [...account.notes, ...(snapshot ? [] : [t('ux.usage.anthropicNoQuota')])] };
-    } catch (error) {
-      return { ...account, notes: [...account.notes, t('ux.usage.anthropicQuotaFailed', { error: errorMessage(error) })] };
-    }
-  }
-
-  private async readClaudeAccount(): Promise<AnthropicQuotaResult> {
     let live: AccountReading | null;
     try {
       live = await this.claudeAccount.readUsage();
@@ -776,7 +476,6 @@ export class UsageService {
       snapshot: {
         windows: live.windows.map((window) => ({ ...window })),
         observedAt: Math.floor(this.now().getTime() / 1000),
-        live: true,
       },
       ...(live.resetCredits ? { resetCredits: live.resetCredits } : {}),
       keepResets: false,
@@ -788,47 +487,6 @@ export class UsageService {
     await this.releaseThrottle(provider, windows)
       .catch((error: unknown) => log.warn(`${provider} throttle release failed: ${errorMessage(error)}`));
   }
-
-  private async readGatewayQuota(): Promise<GatewayQuotaSnapshot | null> {
-    const url = `${this.gatewayUrl()}/quota?provider=anthropic`;
-    const response = await this.fetch(url, { signal: AbortSignal.timeout(GATEWAY_USAGE_TIMEOUT_MS) });
-    if (!response.ok) throw new Error(`gateway quota HTTP ${response.status}`);
-    return parseGatewayQuota(await response.json());
-  }
-
-  /** Route A (billing-mode grouping) when the gateway supports it, else Route B (raw records). */
-  private async readSpend(period: WindowPeriod): Promise<PeriodSpend> {
-    if (this.groupedSpendSupported) {
-      const grouped = await this.readGroupedSpend(period);
-      if (grouped) return grouped;
-      this.groupedSpendSupported = false;
-    }
-    return this.readRecordSpend(period);
-  }
-
-  /** Grouped route only: raw records stop at the cap, which would understate a lifetime total. */
-  private async readAllTimeSpend(): Promise<PeriodSpend | null> {
-    return this.groupedSpendSupported ? this.readGroupedSpend('all') : null;
-  }
-
-  private async readGroupedSpend(period: GatewayPeriod): Promise<PeriodSpend | null> {
-    const url = `${this.gatewayUrl()}/usage?period=${period}&group_by=provider,billing_mode`;
-    const response = await this.fetch(url, { signal: AbortSignal.timeout(GATEWAY_USAGE_TIMEOUT_MS) });
-    if (response.status === 400) return null;
-    if (!response.ok) throw new Error(`gateway usage HTTP ${response.status}`);
-    const rows = parseGroupedSpend(await response.json());
-    return rows === null ? null : { rows, truncated: false, droppedRecords: 0 };
-  }
-
-  private async readRecordSpend(period: WindowPeriod): Promise<PeriodSpend> {
-    const since = encodeURIComponent(periodStartIso(period, this.now()));
-    const url = `${this.gatewayUrl()}/usage?format=records&since=${since}&limit=${GATEWAY_RECORDS_LIMIT}`;
-    const response = await this.fetch(url, { signal: AbortSignal.timeout(GATEWAY_USAGE_TIMEOUT_MS) });
-    if (!response.ok) throw new Error(`gateway usage HTTP ${response.status}`);
-    const payload = await response.json();
-    const { rows, dropped } = parseRecordSpend(payload);
-    return { rows, truncated: recordCount(payload) >= GATEWAY_RECORDS_LIMIT, droppedRecords: dropped };
-  }
 }
 
 export const usageService = new UsageService({
@@ -836,7 +494,6 @@ export const usageService = new UsageService({
     list: () => providerStateRepo.getSubscriptionSignOuts(),
     set: (provider, at) => providerStateRepo.setSubscriptionSignOut(provider, at),
   },
-  getOAuthProviders: readDaemonOAuthProviders,
   codexAccount: codexAccountClient,
   claudeAccount: claudeAccountClient,
   releaseThrottle: releaseRecoveredQuota,

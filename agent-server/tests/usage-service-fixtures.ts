@@ -1,8 +1,17 @@
-import { vi } from 'vitest';
 import type { AgentUsageScope, Backend } from '../src/agent-adapter/types.js';
 import { Capability } from '../src/agent-adapter/capabilities.js';
+import type { ConnectionBilling } from '../src/core/connections-file.js';
+import type { SelectionRef } from '../src/domain/connections/index.js';
+import type { CostEntry } from '../src/domain/costs/cost-tracker.js';
+import type { BillingOf } from '../src/domain/costs/ledger-spend.js';
+import type { ResetAccount } from '../src/domain/costs/reset-account.js';
 import { UsageService, type UsageServiceStore } from '../src/domain/costs/usage-service.js';
 import { UsageStore, usageRecordKey, type ProviderUsage } from '../src/domain/costs/usage-store.js';
+
+/** Midday, so "today" and the rolling windows never straddle a local midnight in these fixtures. */
+export const NOW = new Date(2026, 9, 30, 12, 0, 0);
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 
 export class MemoryUsageStore implements UsageServiceStore {
   private records: ProviderUsage[] = [];
@@ -58,49 +67,43 @@ export function fakeAdapter(
   };
 }
 
-export function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  });
+/** A ledger row `ageMs` before NOW. Defaults: Claude on the subscription, $1. */
+export function ledgerRow(ageMs: number, overrides: Partial<CostEntry> = {}): CostEntry {
+  return {
+    timestamp: new Date(NOW.getTime() - ageMs).toISOString(), project: 'nimbus', trigger: 'user',
+    cost_usd: 1, num_turns: null, duration_s: null, backend: 'claude', mode: 'plan',
+    connection: 'subscription', source: 'estimate', input_tokens: 10, output_tokens: 20,
+    cache_read_tokens: 0, cache_creation_tokens: 0, provider: 'anthropic', model: 'claude-x',
+    ...overrides,
+  };
 }
 
-/** Route A gateway: groups by provider and billing mode. Without `allRows` it predates lifetime totals. */
-export function gatewayFetch(
-  todayRows: unknown,
-  monthRows: unknown,
-  quotaProviders: unknown = [],
-  allRows?: unknown,
-): typeof fetch {
-  return vi.fn(async (input) => {
-    const url = String(input);
-    if (url.includes('/quota?')) return json({ providers: quotaProviders });
-    if (url.includes('period=all')) {
-      return allRows === undefined ? new Response('unsupported period', { status: 400 }) : json({ rows: allRows });
-    }
-    return json({ rows: url.includes('period=today') ? todayRows : monthRows });
-  }) as typeof fetch;
+export const hoursAgo = (hours: number): number => hours * HOUR_MS;
+export const daysAgo = (days: number): number => days * DAY_MS;
+
+/** A Claude row on a metered key connection. */
+export function claudeKeyRow(ageMs: number, connection: string, cost: number): CostEntry {
+  return ledgerRow(ageMs, { mode: 'api', connection, cost_usd: cost });
 }
 
-/** Route B gateway: rejects composite grouping, serves raw records instead. */
-export function legacyGatewayFetch(
-  todayRecords: unknown[],
-  monthRecords: unknown[],
-  quotaProviders: unknown = [],
-): typeof fetch {
-  return vi.fn(async (input) => {
-    const url = String(input);
-    if (url.includes('/quota?')) return json({ providers: quotaProviders });
-    if (url.includes('group_by=')) return new Response('unsupported group_by', { status: 400 });
-    // The two period reads differ only by `since`; anything older than a week is the month read.
-    const since = Date.parse(decodeURIComponent(new URL(url).searchParams.get('since') ?? ''));
-    const isToday = Date.now() - since < 7 * 24 * 60 * 60 * 1000;
-    return json({ records: isToday ? todayRecords : monthRecords });
-  }) as typeof fetch;
+/** A PI row on its provider. */
+export function piRow(ageMs: number, provider: string, cost: number, overrides: Partial<CostEntry> = {}): CostEntry {
+  return ledgerRow(ageMs, { backend: 'pi', mode: 'api', connection: provider, provider, cost_usd: cost, ...overrides });
 }
 
-export function spend(provider: string, billingMode: string, costUsd: unknown) {
-  return { provider, billing_mode: billingMode, cost_usd: costUsd };
+/**
+ * Billing by `<backend>:<connection or provider>`. Unlisted: Claude's subscription is a
+ * subscription, everything else metered.
+ */
+export function billingTable(subscriptions: string[] = ['pi:openai-codex']): BillingOf & { calls: SelectionRef[] } {
+  const calls: SelectionRef[] = [];
+  const of = (ref: SelectionRef): ConnectionBilling => {
+    calls.push(ref);
+    const key = ref.backend === 'claude' ? `claude:${ref.connection}` : `pi:${ref.provider}`;
+    if (ref.backend === 'claude' && ref.connection === 'subscription') return 'subscription';
+    return subscriptions.includes(key) ? 'subscription' : 'metered';
+  };
+  return Object.assign(of, { calls });
 }
 
 export function deferred() {
@@ -118,23 +121,27 @@ export function durableMemoryStore(): UsageStore {
 }
 
 export function serviceWith(options: {
-  store?: MemoryUsageStore;
-  anthropicModes?: string[];
-  subscriptionModes?: string[];
+  store?: UsageServiceStore;
   pi?: UsageProbeAdapter;
-  fetch?: typeof globalThis.fetch;
+  ledger?: CostEntry[];
+  readLedger?: () => Promise<readonly CostEntry[]>;
+  billingOf?: BillingOf;
+  claudeAccount?: Pick<ResetAccount, 'readUsage'>;
+  codexAccount?: Pick<ResetAccount, 'readUsage'>;
+  releaseThrottle?: (provider: string, windows: unknown[]) => Promise<unknown>;
 }) {
   const store = options.store ?? new MemoryUsageStore();
   const pi = options.pi ?? fakeAdapter('pi', async () => []);
+  const ledger = options.ledger ?? [];
   const service = new UsageService({
     store,
     getAdapter: () => pi,
-    getSettings: () => ({
-      anthropicSubscriptionModes: options.anthropicModes ?? ['plan'],
-      subscriptionBillingModes: options.subscriptionModes ?? ['plan', 'openai-codex'],
-    }),
-    fetch: options.fetch ?? gatewayFetch([], []),
-    gatewayUrl: 'http://gateway.test',
+    readLedger: options.readLedger ?? (async () => ledger),
+    billingOf: options.billingOf ?? billingTable(),
+    now: () => NOW,
+    ...(options.claudeAccount ? { claudeAccount: options.claudeAccount } : {}),
+    ...(options.codexAccount ? { codexAccount: options.codexAccount } : {}),
+    ...(options.releaseThrottle ? { releaseThrottle: options.releaseThrottle } : {}),
   });
   return { service, store };
 }

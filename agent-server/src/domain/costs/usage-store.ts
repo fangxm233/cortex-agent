@@ -5,7 +5,7 @@ export type UsageFreshness = 'live' | 'stale' | 'never' | 'unsupported';
 
 /**
  * How a row's traffic is billed. Subscription rows carry quota windows and never
- * carry spend (their gateway cost is an imputed API-equivalent price, not a bill);
+ * carry spend (their recorded cost is an imputed API-equivalent price, not a bill);
  * metered rows carry spend and have no quota windows.
  */
 export type UsageBilling = 'subscription' | 'api';
@@ -47,13 +47,14 @@ export function nextResetCredit(credits: UsageResetCredits): UsageResetCredit | 
 export interface ProviderUsage {
   provider: string;
   displayName: string;
+  /** Connections the row's traffic ran on (rows stored before connections hold gateway mode names). */
   modes: string[];
   windows: UsageWindow[];
   spend?: {
     today: number;
-    /** Rolling 30 days, matching the gateway's own `period=month`. */
+    /** Rolling 30 days. */
     month: number;
-    /** Everything the gateway has recorded; absent when the gateway cannot group by billing mode. */
+    /** The cost ledger's whole retention, 90 days; absent on rows stored before it was read. */
     all?: number;
   };
   observedAt: number | null;

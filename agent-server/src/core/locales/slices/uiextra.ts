@@ -44,17 +44,10 @@ export const uiextraEn = {
   // ── Machines panel (ui-service/query/machine-detail) ──
 
   // ── Usage panel notes (domain/costs/usage-service) ──
-  'ux.usage.costUnreadable': 'gateway ${period} cost was unreadable',
-  'ux.usage.costUnreadableCarried': 'gateway ${period} cost was unreadable; showing the last known figure',
-  'ux.usage.truncated': 'gateway ${period} usage was truncated at ${limit} records; spend may be understated',
-  'ux.usage.dropped': 'gateway ${period} usage skipped ${count} unreadable records; spend may be understated',
-  'ux.usage.anthropicDisabled': 'Anthropic account usage collection disabled by settings',
-  'ux.usage.anthropicQuotaFailed': 'Anthropic gateway quota collection failed: ${error}',
-  'ux.usage.anthropicNoQuota': 'gateway has no Anthropic quota observation',
   'ux.usage.codexFailed': 'OpenAI Codex usage collection failed: ${error}',
   'ux.usage.codexAccountFailed': 'OpenAI Codex account read failed, showing the last observed usage: ${error}',
-  'ux.usage.claudeAccountFailed': 'Claude account read failed, using the gateway quota: ${error}',
-  'ux.usage.gatewayFailed': 'gateway usage collection failed: ${error}',
+  'ux.usage.claudeAccountFailed': 'Claude account read failed, showing the last observed usage: ${error}',
+  'ux.usage.spendFailed': 'Spend could not be read, showing the last known figures: ${error}',
 } as const;
 
 export const uiextraZh: Record<keyof typeof uiextraEn, string> = {
@@ -96,15 +89,8 @@ export const uiextraZh: Record<keyof typeof uiextraEn, string> = {
   'ux.env.promptFileOutside': '提示词文件 "${file}" 不在 prompts/systemPrompts/ 目录内',
 
 
-  'ux.usage.costUnreadable': '无法读取网关 ${period} 的费用',
-  'ux.usage.costUnreadableCarried': '无法读取网关 ${period} 的费用，显示上次已知的数值',
-  'ux.usage.truncated': '网关 ${period} 用量在 ${limit} 条记录处被截断，花费可能偏低',
-  'ux.usage.dropped': '网关 ${period} 用量跳过了 ${count} 条无法读取的记录，花费可能偏低',
-  'ux.usage.anthropicDisabled': '已在设置中关闭 Anthropic 账号用量采集',
-  'ux.usage.anthropicQuotaFailed': 'Anthropic 网关额度采集失败：${error}',
-  'ux.usage.anthropicNoQuota': '网关没有 Anthropic 额度观测数据',
   'ux.usage.codexFailed': 'OpenAI Codex 用量采集失败：${error}',
   'ux.usage.codexAccountFailed': 'OpenAI Codex 账号读取失败，显示上次观测的用量：${error}',
-  'ux.usage.claudeAccountFailed': 'Claude 账号读取失败，改用网关额度：${error}',
-  'ux.usage.gatewayFailed': '网关用量采集失败：${error}',
+  'ux.usage.claudeAccountFailed': 'Claude 账号读取失败，显示上次观测的用量：${error}',
+  'ux.usage.spendFailed': '无法读取花费，显示上次已知的数值：${error}',
 };

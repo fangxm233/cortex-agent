@@ -195,7 +195,7 @@ describe.sequential('core settings', () => {
       turnNotifyThresholdS: 0,
       showToolCalls: false,
       waitpointMaxWakesPerHour: 7,
-      anthropicSubscriptionModes: [],
+      injectWaitMaxS: 30,
       uiCorsOrigins: ['https://file.example'],
     }));
 
@@ -204,12 +204,12 @@ describe.sequential('core settings', () => {
       'turnNotify',
       'showToolCalls',
       'waitpointMaxWakesPerHour',
-      'anthropicSubscriptionModes',
+      'injectWaitMaxS',
       'uiCorsOrigins',
       'feishuAdminChannel',
     ]);
     assert.equal(getSettings().feishuAdminChannel, 'oc_env', 'removed file key must reveal env fallback');
-    assert.deepEqual(getSettings().anthropicSubscriptionModes, []);
+    assert.equal(getSettings().injectWaitMaxS, 30);
   });
 
   test('admin env fallback uses CORTEX_ADMIN_CHANNEL when Slack is empty or absent', async (t) => {

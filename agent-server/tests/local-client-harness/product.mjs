@@ -57,7 +57,7 @@ function configureJobs() {
   const path = `${CORTEX}/config/settings.json`;
   const previous = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path, 'utf8')) : {};
   const settings = { ...previous, serverUpdateDisable: true, serverAutoUpdate: false,
-    providerUsageCollectionEnabled: false, anthropicSubscriptionModes: [],
+    providerUsageCollectionEnabled: false,
     memoryIndexRegenEnabled: false, storeArchiveEnabled: false, clientHotReloadEnabled: true };
   fs.writeFileSync(path, JSON.stringify(settings));
 }
