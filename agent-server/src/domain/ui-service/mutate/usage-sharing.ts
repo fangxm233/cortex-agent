@@ -9,8 +9,8 @@ import type { MutateArgs, Result, UiServiceDeps } from '../types.js';
 
 /**
  * Save the leaderboard opt-in and return what is now stored. Turning it off keeps the stored
- * identity so turning it back on later starts from it. Nothing is restarted: the gateway reloads
- * the file itself.
+ * identity so turning it back on later starts from it. Nothing is restarted: each upload rereads
+ * the file.
  */
 export async function handleUsageSharingSet(
   deps: UiServiceDeps,

@@ -38,6 +38,7 @@ test('timers and the outbound loop stop before the stores drain; the gateway goe
   for (const before of ['scheduler', 'waitpoint sweep', 'cache keep-warm', 'outbound drain loop', 'platforms', 'http server']) {
     assert.ok(names.indexOf(before) >= 0 && names.indexOf(before) < flush, `${before} precedes the drain`);
   }
+  assert.ok(names.indexOf('usage uploads') > names.indexOf('agent engines'), 'the last ledger rows are queued first');
   assert.equal(names[0], 'announce');
   assert.equal(names.at(-1), 'gateway');
 });

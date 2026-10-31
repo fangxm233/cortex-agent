@@ -3,6 +3,7 @@ import { writeFileSync, renameSync, mkdirSync, chmodSync } from 'node:fs';
 import path from 'node:path';
 import * as os from 'node:os';
 import { withFileLock } from './file-lock.js';
+import { inTestProcess } from './test-process.js';
 
 /** The operator's real homes: Cortex's data, PI's agent dir (shared with a separately installed
  *  `pi`) and the gateway's config. A test process must never write there — it would race the
@@ -11,11 +12,6 @@ import { withFileLock } from './file-lock.js';
  *  dir; a test that reaches files under the OS home must repoint HOME as well
  *  (tests/helpers/isolate-os-home.ts). Resolved once, at import, from the real home. */
 const REAL_HOMES = ['.cortex', '.pi', '.aistatus'].map((dir) => path.join(os.homedir(), dir));
-
-/** True only inside `node --test` / `tsx --test` worker processes (env set by the runner). */
-function inTestProcess(): boolean {
-  return !!process.env.NODE_TEST_CONTEXT;
-}
 
 /**
  * Write `data` to `filePath` atomically via a sibling tmp file + fs.rename.

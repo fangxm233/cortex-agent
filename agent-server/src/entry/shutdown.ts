@@ -15,6 +15,7 @@ import { shutdownBrowserBroker } from '@domain/browser/broker.js';
 import { stopDiskMonitor } from '@domain/monitor/disk-monitor.js';
 import { stopEventLoopMonitor } from '@domain/monitor/event-loop-monitor.js';
 import { stopGateway } from '@domain/costs/gateway-manager.js';
+import { flushLeaderboardUploads } from '@domain/costs/leaderboard-upload.js';
 import { stopBrowser } from '@platform/browser/managed-browser.js';
 import { stopWaitpointSweep } from '../orchestration/waitpoint-sweep.js';
 import { stopCacheKeepWarm } from '../orchestration/cache-keep-warm.js';
@@ -81,6 +82,8 @@ function drainSteps(h: ShutdownHandles): ShutdownStep[] {
     // SIGTERM landing between `writeFile(tmp)` and `rename(tmp, target)` in atomic-write.ts leaves
     // orphan .tmp.* siblings; the daemon gives 5s before SIGKILL, well over what this needs.
     { name: 'flush stores', run: () => Promise.allSettled([h.bus.close(), h.outboundQueue.flush(), flushAllRepositories()]) },
+    // After the engines closed, so the last turns' ledger rows are already queued.
+    { name: 'usage uploads', run: () => flushLeaderboardUploads() },
     { name: 'gateway', run: stopGateway },
   ];
 }

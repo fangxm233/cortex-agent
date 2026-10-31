@@ -1,5 +1,6 @@
 import { costRepo, type BudgetConfig } from '@store/cost-repo.js';
 import { t } from '@core/i18n.js';
+import { leaderboardUpload, type LeaderboardUpload } from './leaderboard-upload.js';
 export type { CostsData, BudgetConfig, ProjectBudget } from '@store/cost-repo.js';
 
 export interface CostEntry {
@@ -170,10 +171,11 @@ function addCostByMode(target: ModeBuckets, mode: string, cost: number): void {
 }
 
 /**
- * Record one backend cost event. source: 'estimate' (the default) is the backend's own figure; an
- * estimate without a cost or any token count carries nothing and is dropped.
+ * Record one backend cost event, then offer it to the leaderboard. source: 'estimate' (the default)
+ * is the backend's own figure; an estimate without a cost or any token count carries nothing and is
+ * dropped.
  */
-async function recordCost(input: RecordCostInput): Promise<void> {
+async function recordCost(input: RecordCostInput, upload: LeaderboardUpload = leaderboardUpload): Promise<void> {
   const effectiveSource = input.source || 'estimate';
   const observed = [
     input.input_tokens, input.output_tokens, input.cache_read_tokens,
@@ -201,6 +203,7 @@ async function recordCost(input: RecordCostInput): Promise<void> {
   if (input.provider) entry.provider = input.provider;
   if (input.model) entry.model = input.model;
   await costRepo.recordEntry(entry);
+  upload.share(entry);
 }
 
 function createTokenBucket(): TokenBucket {

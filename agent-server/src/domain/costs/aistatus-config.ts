@@ -5,8 +5,8 @@ import { AISTATUS_DIR } from '@core/paths.js';
 
 /**
  * The opt-in for the public aistatus.cc usage leaderboard, as stored in `~/.aistatus/config.yaml`.
- * That file belongs to the aistatus SDK: the gateway reads it to decide whether to upload token
- * counts, and only uploads when `uploadEnabled`, `name` and `email` are all set.
+ * The file's format belongs to the aistatus SDK. Cortex reads it before uploading each ledger row
+ * (leaderboard-upload.ts), and uploads only when `uploadEnabled`, `name` and `email` are all set.
  */
 export interface UsageSharingSettings {
   enabled: boolean;
@@ -66,8 +66,8 @@ export function usageSharingIssues(update: UsageSharingUpdate): UsageSharingIssu
 }
 
 /**
- * Write the choice in place, keeping keys this module does not own. The gateway picks the file up
- * on its own, so nothing is restarted here.
+ * Write the choice in place, keeping keys this module does not own. Every upload rereads the file,
+ * so nothing is restarted here.
  */
 export function writeUsageSharing(update: UsageSharingUpdate, dir: string = AISTATUS_DIR): void {
   const file = configPath(dir);
