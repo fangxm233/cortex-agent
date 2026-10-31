@@ -23,9 +23,9 @@ export type CustomProviderRequest =
  * `!login custom [list | add <name> <api> <url> <model...> | remove <name>]`.
  *
  * There is deliberately no key argument: a chat message is a durable, widely readable transcript,
- * and an upstream secret does not belong in one. A provider added here routes through the gateway
- * with the caller's own key passed through; to attach a stored key use the CLI (`--key -` reads it
- * from stdin) or the Web settings page, both of which keep the secret off any transcript.
+ * and an upstream secret does not belong in one. This command never sets a key; to attach one use
+ * the CLI (`--key -` reads it from stdin) or the Web settings page, both of which keep the secret
+ * off any transcript.
  */
 export function parseCustomProviderRequest(args: string[]): CustomProviderRequest {
   if (args.length === 0 || (args.length === 1 && args[0] === 'list')) return { kind: 'list' };

@@ -6,7 +6,7 @@ import { withFileLock } from './file-lock.js';
 import { inTestProcess } from './test-process.js';
 
 /** The operator's real homes: Cortex's data, PI's agent dir (shared with a separately installed
- *  `pi`) and the gateway's config. A test process must never write there — it would race the
+ *  `pi`) and aistatus's config. A test process must never write there — it would race the
  *  running daemon and leak fixtures into, or erase entries from, the live stores. Tests isolate via
  *  the vitest setup file (tests/_vitest-setup.ts), which repoints CORTEX_HOME at a per-file temp
  *  dir; a test that reaches files under the OS home must repoint HOME as well

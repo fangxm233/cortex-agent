@@ -37,7 +37,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** The endpoint this host reaches Anthropic through: the gateway route when one is configured
+/** The endpoint this host reaches Anthropic through: the configured base URL when one is set
  *  (same URL every turn bills to), else the API directly. */
 function resolveBaseUrl(options: FetchAnthropicModelsOptions): string {
   const env = options.env ?? process.env;
