@@ -70,7 +70,6 @@ export const authFlowStateInput = z.object({
   flowId: z.string().min(1),
 });
 
-export const authCustomProvidersInput = z.object({});
 
 // usageSharing.get / usageSharing.set — the aistatus.cc leaderboard opt-in. Shape gate only; the
 // name and email rule lives in usageSharingIssues() with the writer it guards.
@@ -154,33 +153,49 @@ export const authLogoutInput = z.object({
   authType: z.enum(['api_key', 'oauth']),
 });
 
-// ── auth.upsertCustomProvider / auth.removeCustomProvider ─────────
-// Shape gate only. The SEMANTIC rules — upstream scheme, duplicate model ids — stay with
-// validateCustomProvider(), which every surface (Web, chat, CLI) runs, so the rule set has one home
-// and one message table.
-const customProviderName = z.string().min(1).regex(CUSTOM_PROVIDER_NAME_RE);
+// ── connections.* ─────────────────────────────────────────────────
+// Settings edits the connections file directly: a Claude key or relay, a base-URL override of a
+// built-in PI provider, or a custom PI provider. Shape gate only; the semantic rules (URL scheme,
+// reserved and taken names, a Claude key being required) live with the editor, which names every
+// issue at once. `key` omitted keeps the stored key. It is never sent back.
+const connectionName = z.string().min(1).regex(CUSTOM_PROVIDER_NAME_RE);
+const modelIds = z.array(z.string().min(1));
 
-// auth.upsertCustomProvider / auth.removeCustomProvider — the definitions of self-hosted or proxied
-// endpoints. The upstream URL and key live in the gateway route, the protocol and models in PI's
-// catalog; both files are written from this one draft. `apiKey` omitted keeps the stored key.
-export const authUpsertCustomProviderInput = z.object({
-  name: customProviderName,
-  api: z.enum(CUSTOM_PROVIDER_APIS),
-  upstreamUrl: z.string().min(1),
-  /** Omitted keeps the stored upstream key; an empty string clears it. */
-  apiKey: z.string().optional(),
-  models: z.array(z.object({
-    id: z.string().min(1),
-    contextWindow: z.number().int().positive().optional(),
-    maxTokens: z.number().int().positive().optional(),
-    reasoning: z.boolean().optional(),
-  })).min(1),
-  headers: z.record(z.string(), z.string()).optional(),
-  compat: z.record(z.string(), z.unknown()).optional(),
-});
+export const connectionsListInput = z.object({});
 
-export const authRemoveCustomProviderInput = z.object({
-  name: customProviderName,
+export const connectionsUpsertInput = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('claude'),
+    id: connectionName,
+    label: z.string().optional(),
+    baseUrl: z.string().nullable().optional(),
+    authStyle: z.enum(['x-api-key', 'bearer']).optional(),
+    billing: z.enum(['metered', 'subscription']).optional(),
+    models: modelIds.nullable().optional(),
+    key: z.string().optional(),
+    create: z.boolean().optional(),
+  }),
+  z.object({
+    kind: z.literal('pi-override'),
+    provider: connectionName,
+    baseUrl: z.string(),
+    key: z.string().optional(),
+    create: z.boolean().optional(),
+  }),
+  z.object({
+    kind: z.literal('pi-custom'),
+    provider: connectionName,
+    api: z.enum(CUSTOM_PROVIDER_APIS),
+    baseUrl: z.string(),
+    models: modelIds.min(1),
+    key: z.string().optional(),
+    create: z.boolean().optional(),
+  }),
+]);
+
+export const connectionsRemoveInput = z.object({
+  backend: z.enum(['claude', 'pi']),
+  id: connectionName,
 });
 
 // Presence/type guard only; deep name validation (traversal / reserved / separators) lives in
@@ -793,7 +808,7 @@ export const queryInputSchemas = {
   'config.get': configGetInput,
   'auth.status': authStatusInput,
   'auth.flowState': authFlowStateInput,
-  'auth.customProviders': authCustomProvidersInput,
+  'connections.list': connectionsListInput,
   'usageSharing.get': usageSharingGetInput,
   'telemetry.info': telemetryInfoInput,
   'models.catalog': modelsCatalogInput,
@@ -861,8 +876,8 @@ export const mutateInputSchemas = {
   'auth.cancelFlow': authCancelFlowInput,
   'auth.logout': authLogoutInput,
   'auth.syncModels': authSyncModelsInput,
-  'auth.upsertCustomProvider': authUpsertCustomProviderInput,
-  'auth.removeCustomProvider': authRemoveCustomProviderInput,
+  'connections.upsert': connectionsUpsertInput,
+  'connections.remove': connectionsRemoveInput,
   'usageSharing.set': usageSharingSetInput,
   'telemetry.report': telemetryReportInput,
   'hooks.create': hooksCreateInput,

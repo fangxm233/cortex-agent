@@ -98,12 +98,10 @@ export type {
   LoginPendingPrompt,
   LoginPromptOption,
 } from '@domain/auth/index.js';
-import type { CustomProviderStores, CustomProviderView } from '@domain/pi-providers/index.js';
-export type {
-  CustomProviderApi,
-  CustomProviderModelSpec,
-  CustomProviderView,
-} from '@domain/pi-providers/index.js';
+import type { ConnectionView } from '@domain/connections/index.js';
+import type { ConnectionEditorDeps } from '@domain/connections/editor.js';
+export type { ConnectionKind, ConnectionView } from '@domain/connections/index.js';
+export type { CustomProviderApi } from '@domain/pi-providers/index.js';
 import type { UsageSharingSettings } from '@domain/costs/aistatus-config.js';
 export type { UsageSharingSettings } from '@domain/costs/aistatus-config.js';
 import type { TelemetryInfo } from '@domain/telemetry/info.js';
@@ -174,7 +172,12 @@ export interface AuthSyncModelsReturn {
   reason?: string;
 }
 
-export interface AuthRemoveCustomProviderReturn {
+export interface ConnectionsUpsertReturn {
+  /** The saved connection as the UI may show it: a key hint, never the key. */
+  connection: ConnectionView | null;
+}
+
+export interface ConnectionsRemoveReturn {
   removed: boolean;
 }
 
@@ -1657,7 +1660,7 @@ export interface QueryReturnMap {
   'config.get': ConfigSnapshot;
   'auth.status': AuthStatusSnapshot;
   'auth.flowState': LoginFlowState | null;
-  'auth.customProviders': CustomProviderView[];
+  'connections.list': ConnectionView[];
   'usageSharing.get': UsageSharingSettings;
   'telemetry.info': TelemetryInfo;
   'models.catalog': ModelCatalogSnapshot;
@@ -1728,8 +1731,8 @@ export interface MutateReturnMap {
   'auth.cancelFlow': LoginFlowState;
   'auth.logout': AuthLogoutReturn;
   'auth.syncModels': AuthSyncModelsReturn;
-  'auth.upsertCustomProvider': CustomProviderView;
-  'auth.removeCustomProvider': AuthRemoveCustomProviderReturn;
+  'connections.upsert': ConnectionsUpsertReturn;
+  'connections.remove': ConnectionsRemoveReturn;
   'usageSharing.set': UsageSharingSettings;
   'telemetry.report': { ok: true };
   'hooks.create': HooksCreateReturn;
@@ -1798,8 +1801,8 @@ export interface UiServiceDeps {
   logoutAccount?: (input: LogoutAccountInput) => Promise<AuthLogoutResult>;
   /** Seeds favorites and a missing default from the model catalog; defaults to the host's own. */
   syncModels?: (options: { backends?: Array<'claude' | 'pi'> }) => Promise<AuthSyncModelsReturn>;
-  /** Files custom providers are read from and written to; defaults to the host's own two files. */
-  customProviderStores?: CustomProviderStores;
+  /** The connections file Settings edits; defaults to the host's own. */
+  connectionEditor?: ConnectionEditorDeps;
   /** Directory holding the aistatus `config.yaml`; defaults to `~/.aistatus`. */
   usageSharingDir?: string;
   projectStore: {
