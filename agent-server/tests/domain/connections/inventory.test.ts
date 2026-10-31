@@ -87,4 +87,15 @@ describe('credential inventory', () => {
     expect(subject.billingOf({ backend: 'pi', provider: 'deepseek', connection: null })).toBe('metered');
     expect(inventory(false).billingOf({ backend: 'claude', provider: null, connection: null })).toBe('metered');
   });
+
+  it('bills a subscription-only PI provider as a subscription without a live login', () => {
+    fs.writeFileSync(path.join(dir, 'auth.json'), JSON.stringify({ openai: { type: 'oauth', access: 'fake' } }));
+    const subject = inventory(true);
+    for (const provider of ['openai-codex', 'google-gemini-cli', 'google-antigravity']) {
+      expect(subject.billingOf({ backend: 'pi', provider, connection: null })).toBe('subscription');
+    }
+    expect(subject.billingOf({ backend: 'pi', provider: 'openai', connection: null }),
+      'a Cortex connection for the provider carries its own key').toBe('metered');
+    expect(subject.billingOf({ backend: 'pi', provider: 'github-copilot', connection: null })).toBe('metered');
+  });
 });

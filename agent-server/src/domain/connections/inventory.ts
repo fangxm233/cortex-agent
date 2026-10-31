@@ -143,6 +143,13 @@ function claudeBilling(connection: string | null, views: ConnectionView[]): Conn
   return views.find((view) => view.id === id)?.billing ?? 'metered';
 }
 
+/** PI providers that exist only as a subscription sign-in, with no API-key form. Their spend is
+ *  never a bill, so spend recorded before a sign-out, or before the login moved to another
+ *  provider, stays covered. */
+const SUBSCRIPTION_ONLY_PI_PROVIDERS: ReadonlySet<string> = new Set([
+  'openai-codex', 'google-gemini-cli', 'google-antigravity',
+]);
+
 /** A PI provider on Cortex's own connection is metered; otherwise PI's OAuth logins are
  *  subscriptions (Sign in with ChatGPT, for one) and its API keys are metered. */
 function piBilling(
@@ -151,6 +158,7 @@ function piBilling(
   piOAuth: () => Set<string>,
 ): ConnectionBilling {
   if (!provider || findPi(provider)) return 'metered';
+  if (SUBSCRIPTION_ONLY_PI_PROVIDERS.has(provider)) return 'subscription';
   return piOAuth().has(provider) ? 'subscription' : 'metered';
 }
 
