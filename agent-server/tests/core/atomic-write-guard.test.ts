@@ -4,7 +4,7 @@ import { existsSync, rmSync, mkdtempSync, readFileSync, statSync, writeFileSync 
 import fsPromises from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { atomicWrite, mutateFileAtomically } from '../../src/core/atomic-write.js';
+import { atomicWrite, atomicWriteSync, mutateFileAtomically } from '../../src/core/atomic-write.js';
 
 const REAL_HOME_CORTEX = path.join(os.homedir(), '.cortex');
 
@@ -53,6 +53,16 @@ test('blocks a mutation before creating real-home lock state', async (t) => {
     /~\/\.cortex|production|CORTEX_HOME/i,
   );
   assert.equal(mkdirSpy.mock.calls.length, 0);
+});
+
+test('blocks a test-process write under the real PI and gateway homes', async () => {
+  for (const dir of ['.pi', '.aistatus']) {
+    const target = path.join(os.homedir(), dir, '__guard_probe_should_never_exist.json');
+    assert.equal(existsSync(target), false, 'precondition: probe file absent');
+    await assert.rejects(() => atomicWrite(target, '{}'), new RegExp(`real .*\\${dir}`));
+    assert.throws(() => atomicWriteSync(target, '{}'), new RegExp(`real .*\\${dir}`));
+    assert.equal(existsSync(target), false, 'no file was created under the real home');
+  }
 });
 
 test('creates restricted atomic temp files with the requested mode', async (t) => {
