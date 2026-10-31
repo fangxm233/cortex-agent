@@ -90,7 +90,7 @@ The shared kernel every other layer builds on: types, path constants, settings, 
 | `types/agent-types.ts` | `Backend`, `AgentResult`, `AgentProgress`, `AskUserQuestionInfo`, and the todo, context-usage, attachment and notice shapes |
 | `types/environment-types.ts` | Execution environment types: `AgentDefinition` (one `config/environments/*.json` file) and the `ResolvedEnvironment` a run opens with |
 | `config-generator.ts` | Config file initialization for new installs, and the MCP configs written at every start |
-| `gateway-generator.ts` | API gateway YAML generation |
+| `connections-file.ts` | The connections file (`config/connections.json`): parsing, owner-only writes, and the masked key hint every surface shows |
 | `models-generator.ts` | Default model and favorites JSON generation |
 
 ### Layer 1: `store/` — Persistence
@@ -145,9 +145,10 @@ The thickest layer. Contains one subdirectory per domain concern.
 | `runs/` | The run layer: `startRun` and the `AgentRun` ownership object, `RunRequest` selection/spec/prompt resolution and its shared builders (`builders.ts`), the backend-neutral `RunEvent` stream, and the `SessionEngines` pool |
 | `sessions/` | Session lifecycle and records, the session hook pipeline (`onNew`, `onMessageEnd`, pre-close) with optional agent injection, team sessions, and the retention sweep |
 | `executions/` | Execution registry access over `store/execution-repo.ts`, plus teardown and stop of live executions |
-| `auth/` | Claude Code, PI and Codex credentials and login flows, auth status and expiry watching, and gateway sync after a login |
-| `pi-providers/` | Custom PI providers: the model catalog entries and gateway routes behind `cortex auth provider` |
-| `costs/` | Cost tracking, gateway management, usage collection, account readings and banked resets, rate limiting with per-provider awareness |
+| `auth/` | Claude Code, PI and Codex credentials and login flows, auth status and expiry watching, and the model sync after a login |
+| `connections/` | The credential inventory (which connections exist, whether each can authenticate, subscription or metered billing), the per-spawn Claude route a connection gives Claude Code's environment, and the PI provider catalog each PI session gets |
+| `pi-providers/` | Custom PI providers: the definitions behind `cortex auth provider`, stored as PI connections |
+| `costs/` | Cost tracking, the usage-sharing leaderboard upload, usage collection, account readings and banked resets, rate limiting with per-provider awareness |
 | `scheduling/` | Persisted schedule engine plus settings-backed built-in job controller. `Scheduler` hot-reloads user schedules and opens a new session for each fire; built-in jobs such as the memory-index rebuild own daemon timers |
 | `waitpoints/` | Waitpoint service: arming, signal resolution, expiry, and the notices that wake a session (see [waitpoints.md](./waitpoints.md)) |
 | `boards/` | Board service, paths and slugs, the file watcher that re-renders open boards, and the projection of decisions onto a board |
@@ -209,7 +210,7 @@ layer) is detailed in [hooks.md](./hooks.md).
 | `shutdown.ts` | SIGTERM handling: an ordered list of shutdown steps, each run even when an earlier one fails, then exit |
 | `daemon.ts` | Process supervisor. Forks `app.js`, watches `$CORTEX_REPO/src` for auto-rebuild (when `CORTEX_REPO` is set), watches `.restart` trigger file, crash recovery with exponential backoff (1s→30s max). Publishes per-step rebuild progress, waits for an idle app before install/restart, and holds new turns across that window (see below) |
 | `daemon-notice.ts` | The app side of the downward IPC: turns `rebuild-aborted` into a system notice and `rebuild-hold` into the admission hold, and lifts the hold if the supervisor disconnects |
-| `cortex-cli.ts`, `cli.ts` | `cortex` CLI entry point. Dispatches to `init`, `config`, `auth`, `doctor`, `feishu`, `restart`, `setup-gateway`, `ui`, `client`, `install`, `schedule`, `memory`, `start`, `daemon`, `tui`, each implemented in its own `*-cli.ts` module (see [cli-reference.md](./cli-reference.md)) |
+| `cortex-cli.ts`, `cli.ts` | `cortex` CLI entry point. Dispatches to `init`, `config`, `auth`, `doctor`, `feishu`, `restart`, `ui`, `client`, `install`, `schedule`, `memory`, `start`, `daemon`, `tui`, each implemented in its own `*-cli.ts` module (see [cli-reference.md](./cli-reference.md)) |
 | `browser-cli.ts`, `hook-cli.ts`, `signal-cli.ts`, `production-evidence-export-cli.ts` | The `cortex-browser`, `cortex-hook`, `cortex-signal` and `cortex-evidence-export` binaries |
 | `init.ts` | Interactive first-time initialization |
 | `start-ui-http.ts`, `ui-http-gate.ts`, `ui-service-wiring.ts` | Start the Web UI host when `CORTEX_UI_HTTP` is on, and wire the `UiService` it serves |

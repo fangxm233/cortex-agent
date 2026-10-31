@@ -16,6 +16,7 @@ $CORTEX_HOME/
 │   ├── settings.json             # Runtime behavior settings (hot-reloaded)
 │   ├── preferences.json          # UI language for system messages (`!lang`)
 │   ├── models.json             # Default engine and favorite models
+│   ├── connections.json          # Provider keys and endpoints Cortex owns (owner-only)
 │   ├── environments/             # Execution environments — one JSON per environment
 │   ├── machines.json             # Machine registry for remote clients
 │   ├── budget.json               # Daily/monthly budget limits
@@ -55,10 +56,9 @@ $CORTEX_HOME/
 └── workspaces/                   # Clean-mode workspaces, one folder per clean session or subagent
 ```
 
-The gateway configuration defaults to `~/.aistatus/gateway.yaml`;
-`cortex setup-gateway` and provider logins write it. An instance with
-`CORTEX_GATEWAY_HOME` uses `<CORTEX_GATEWAY_HOME>/.aistatus/gateway.yaml`
-(see [Local model gateway](#local-model-gateway)).
+Outside `$CORTEX_HOME`, PI keeps its own logins and API keys in
+`~/.pi/agent/auth.json`, and the usage-sharing settings live in
+`~/.aistatus/config.yaml` (see [Usage-sharing home](#usage-sharing-home)).
 
 ## Loading order and precedence
 
@@ -150,66 +150,35 @@ start (see [Automatic migration out of .env](#automatic-migration-out-of-env)).
 | `CORTEX_CLIENT_TOKEN` | generated | Shared secret that remote clients present; the desktop app and the Web UI accept it as an alternative to a pairing code. `cortex init` and the first server start generate it |
 | `CORTEX_WEBHOOK_TOKEN` | generated | Bearer token of the loopback webhook (hook callbacks, `cortex-hook ask`). Generated the same way |
 
-### Local model gateway
+### Usage-sharing home
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `CORTEX_GATEWAY_PORT` | `9880` | Port the local model gateway listens on at `127.0.0.1`, an integer from `1` through `65535`. Cortex sets it in `config/.env` when it moves the gateway |
-| `CORTEX_GATEWAY_HOME` | OS user home | Absolute private home for the gateway child; its config, usage, quota and pricing cache live in `.aistatus/` beneath it |
+| `CORTEX_GATEWAY_HOME` | OS user home | Absolute path of another home for the `.aistatus/` directory, where the [usage-sharing](./quickstart.md#28-aistatus-token-usage-reporting) settings (`.aistatus/config.yaml`) live |
 
-These are startup settings in `$CORTEX_HOME/config/.env`, not hot-reloaded
-settings. Launcher environment variables take precedence; the CLI reads the same
-file. Invalid or empty values stop startup. Restart the instance's daemon after
-changing them.
+Cortex reads it at startup from the launcher environment first, then from
+`$CORTEX_HOME/config/.env`; the CLI reads it the same way. A relative path
+stops startup. Restart the instance's daemon after changing it.
 
-The gateway is a child process of the server. When the server starts, it tries
-the port set by `CORTEX_GATEWAY_PORT`, then the port saved in `config/.env` if
-the environment names a different one, then `9880`, and otherwise takes the first
-free port above the configured one. Cortex never routes through a gateway it did
-not start, even one that answers on the port and passes health checks: it may
-belong to another Cortex instance and carry that instance's credentials. A port
-held by any other process counts as taken. When the gateway moves, Cortex saves
-the new port to `config/.env` as `CORTEX_GATEWAY_PORT`, so later starts and CLI
-commands use it, and records the move in `$CORTEX_HOME/logs/gateway.log`. If
-another process binds the port before the gateway first answers, as when two
-instances start at the same moment, the gateway moves to the next free port the
-same way. Once it has answered, the port stays fixed for the life of the server
-process: a gateway that crashes restarts on the same port, and running sessions
-keep their route.
-
-The gateway writes its PID to `$CORTEX_HOME/data/gateway.pid`. When a server
-process is killed without stopping its gateway, the next start finds that
-gateway through this file, confirms from its command line that it is this
-instance's gateway, stops it and reuses its port.
-
-Cortex uses the chosen port for health checks, Claude and PI routing, usage
-queries and `cortex doctor`. PI custom providers saved with another local
-gateway port are routed to the current one. An explicit port is written into
-generated and updated gateway YAML, and a moved port into the existing YAML's
-`port:` as well. Editing only the YAML `port:` does not change the port Cortex
-uses. With no port override, YAML merges preserve existing fields.
+### A second instance
 
 A second instance on the same machine, whether it belongs to another user or to
 the same one, needs only a different `CORTEX_HOME`. Ports are picked
 automatically: `cortex init` writes a free [main port](#main-port) into the
-instance's `config/.env`, and the gateway takes a free port when the server
-starts. Instances of the same OS user share the gateway's files in
-`~/.aistatus` unless `CORTEX_GATEWAY_HOME` gives the second one a private home.
+instance's `config/.env`.
 
 Always launch that instance and its CLI commands with
 `CORTEX_HOME=/absolute/path/to/cortex-second`. Paths in `.env` must be absolute;
 `~` and `$CORTEX_HOME` are not expanded there.
 
-Configure provider credentials and run `cortex setup-gateway` for the second
-instance. The gateway obtains managed keys from its YAML and passthrough keys
-from incoming backend requests, not from `~/.claude` or `~/.pi` in its private
-home. `CORTEX_GATEWAY_HOME` changes only the gateway child's home, not Cortex's
-Claude or PI credential locations. In particular, PI credentials and custom
-provider catalogs under `~/.pi/agent/` remain shared by Cortex instances using
-the same OS home; use a separate OS home as well if those must be isolated.
-Do not copy rotating OAuth tokens between instances; use the backend's login flow. Leaderboard sharing preferences
-(`.aistatus/config.yaml`) are also private to that home and need their own configuration. No existing gateway
-files or credentials are copied automatically.
+Configure provider credentials for the second instance through its own login
+flow. Its [connections](#configconnectionsjson) and its Claude Code login are
+private to its `CORTEX_HOME`. PI credentials and the PI provider catalog under
+`~/.pi/agent/` are shared by Cortex instances using the same OS home; use a
+separate OS home as well if those must be isolated. Do not copy rotating OAuth
+tokens between instances; use the backend's login flow. Leaderboard sharing
+preferences (`.aistatus/config.yaml`) are shared by instances of the same OS
+user unless `CORTEX_GATEWAY_HOME` gives one a home of its own.
 
 ### Platform
 
@@ -245,10 +214,11 @@ still read as a deprecated fallback.
 
 ### API
 
-| Variable | Purpose |
-|---|---|
-| `ANTHROPIC_API_KEY` | Anthropic API key used by Claude Code runs on a metered (`api`) route |
-| `ANTHROPIC_BASE_URL` | Anthropic endpoint for Claude Code runs while the local gateway is down. With the gateway healthy, each run's base URL is its gateway route instead |
+Claude Code's endpoint and key come from each run's
+[connection](#configconnectionsjson), not from the daemon's environment.
+The daemon drops `ANTHROPIC_BASE_URL`, `ANTHROPIC_API_KEY` and
+`ANTHROPIC_AUTH_TOKEN` from its own environment at startup, and each Claude
+Code process gets only the values its connection sets.
 
 ### Main port
 
@@ -361,6 +331,70 @@ keys — see [`config/settings.json`](#configsettingsjson).
 
 `DEBUG` persists unabridged prompts, tool parameters, and tool results in per-session conversation-history files. These values can contain secrets, private file contents, or large outputs, and storage grows with their full size. Enable this mode only on a trusted development server and turn it off when inspection is complete. Turning it off immediately removes debug fields and buttons from transcript responses, but it does not delete records captured earlier.
 
+## config/connections.json
+
+Located at `$CORTEX_HOME/config/connections.json`, this file is Cortex's
+registry of the provider credentials and endpoints it owns. It holds keys, so it
+is written owner-only (mode `0600`); keys never appear in the UI or the logs,
+which show a masked hint at most. Cortex runs no proxy: each Claude Code or PI
+process calls its provider directly, with the credential its connection
+supplies.
+
+Two kinds of credential are not in this file. Claude Code's subscription is the
+login in [Cortex's Claude Code config directory](#claude-code-config-directory);
+it is the connection `subscription` whenever that login exists. PI's own logins
+and API keys stay in PI's credential store, `~/.pi/agent/auth.json`.
+
+```json
+{
+  "version": 1,
+  "connections": [
+    { "id": "api", "backend": "claude", "label": "api", "authStyle": "x-api-key",
+      "key": "sk-ant-...", "billing": "metered" },
+    { "id": "relay", "backend": "claude", "label": "Team relay",
+      "baseUrl": "https://relay.example.com", "authStyle": "bearer",
+      "key": "...", "billing": "metered" },
+    { "id": "deepseek", "backend": "pi", "provider": "deepseek",
+      "baseUrl": "https://proxy.example.com/deepseek", "key": "..." },
+    { "id": "my-vllm", "backend": "pi", "provider": "my-vllm",
+      "api": "openai-completions", "baseUrl": "http://127.0.0.1:8100/v1",
+      "models": [{ "id": "Model-27B" }] }
+  ]
+}
+```
+
+| Kind | Fields | Effect |
+|---|---|---|
+| Claude key connection | `id`, `backend: "claude"`, `key`; optional `label` (default: the id), `baseUrl`, `authStyle` (`x-api-key`, the default, or `bearer`), `billing` (`metered`, the default, or `subscription`), `models` | A Claude Code run on it gets `ANTHROPIC_BASE_URL` when `baseUrl` is set (the official Anthropic API otherwise) and the key in `ANTHROPIC_API_KEY` (`x-api-key`) or `ANTHROPIC_AUTH_TOKEN` (`bearer`). `models` adds the models the endpoint serves to the Claude model list |
+| PI base-URL override | `backend: "pi"`, `provider` (a PI built-in provider), `baseUrl`; optional `key`, `label` | PI calls that built-in provider at `baseUrl`. The key, when set, takes precedence over PI's own credential for the provider |
+| PI custom provider | as an override, plus `api` (the request protocol) and `models` (PI model definitions); optional `headers`, `compat` | Defines a provider PI does not ship; see [Custom providers](./backends.md#custom-providers) |
+
+Ids match `^[a-zA-Z0-9_-]+$`, and `subscription` is reserved. A PI connection's
+id is its provider name, so a provider has at most one connection. An invalid
+or duplicate entry is skipped with a warning.
+
+**Routing.** A Claude Code run takes its environment from its selection's
+connection. On `subscription`, Cortex clears `ANTHROPIC_BASE_URL`,
+`ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN`, so Claude Code uses its own
+login. A selection that names no connection runs on the default: the
+subscription when Claude Code is logged in, otherwise the first Claude
+connection in the file. A selection naming a connection that does not exist
+fails instead of running on another account. Each PI session gets a
+`models.json` that adds the overridden built-in providers and the custom
+providers, with their keys, to the providers defined in
+`~/.pi/agent/models.json`; every other PI built-in provider connects to its
+vendor with PI's own credentials. The file is read at each spawn, so a change
+needs no restart.
+
+**Where entries come from.** Saving an Anthropic API key — **Settings →
+Accounts**, `!login cc`, or `cortex auth login` — stores it as the `api`
+connection, on the official API unless that entry already names a `baseUrl`;
+removing the key removes the connection. `cortex auth provider`,
+**Settings → Accounts → Custom providers** and `!login custom` manage custom
+providers. A relay or a base-URL override of a PI built-in provider is added by
+editing the file. `!mode [connection]` shows or sets a channel's Claude
+connection.
+
 ## models.json
 
 Located at `$CORTEX_HOME/config/models.json`. It stores the default engine
@@ -377,7 +411,7 @@ unstar models. For backend details, see [backends.md](./backends.md).
     "provider": null,
     "model": "opus",
     "thinking": "high",
-    "mode": "plan"
+    "connection": null
   },
   "favorites": [
     { "backend": "claude", "provider": null, "model": "opus" },
@@ -395,10 +429,10 @@ unstar models. For backend details, see [backends.md](./backends.md).
 | `default.provider` | string or null | yes | `null` for Claude; an explicit provider id for PI, such as `openai-codex`, `deepseek`, or a [custom provider](./backends.md#custom-providers) |
 | `default.model` | string | yes | Non-empty model identifier, as the backend names it |
 | `default.thinking` | string or null | yes | Backend-native reasoning level; `null` uses the backend's default |
-| `default.mode` | string | yes | Gateway route, such as `plan` or `api` for Claude; PI uses its provider name (`pi-anthropic` for PI's `anthropic` provider) |
+| `default.connection` | string or null | yes | Claude: `subscription`, the id of a Claude connection in [`connections.json`](#configconnectionsjson), or `null` for the default connection. PI: `null` |
 | `favorites` | object[] | yes | Ordered model references, each with `backend`, `provider`, and `model`. Each model identity occurs at most once |
 
-Favorites store model identities, not thinking levels or routes. The default
+Favorites store model identities, not thinking levels or connections. The default
 need not be a favorite, and the favorites list may be empty. `thinking` accepts
 `low`/`medium`/`high`/`xhigh`/`max` on Claude and
 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max` on PI.
@@ -408,17 +442,18 @@ need not be a favorite, and the favorites list may be empty. `thinking` accepts
 An ordinary turn uses the session's recorded selection, then the channel's
 selection in `data/agent-state.json`, then `models.json`'s `default`. An explicit
 run request, such as a scheduled fire, can supply a complete selection directly.
-Each selection contains `backend`, `provider`, `model`, `thinking`, and `mode`;
+Each selection contains `backend`, `provider`, `model`, `thinking`, and `connection`;
 execution environments are independent of this choice.
 
 `data/agent-state.json` stores `channelSelections`, per-model `modelMemory`
-(`thinking` and `mode`, keyed by the JSON array `[backend, provider, model]`),
+(`thinking` and `connection`, keyed by the JSON array `[backend, provider, model]`),
 and `selectionDefault`, the last Web engine choice used to seed new conversations.
-Selecting a model restores its remembered thinking and route. Without a memory,
-thinking is `null`; Claude uses the first Anthropic route in `gateway.yaml`
-(`plan` if none is declared), and PI uses its provider name. User selection
+Selecting a model restores its remembered thinking and connection. Without a
+memory, thinking is `null` and a Claude model runs on the default connection:
+the subscription when Claude Code is logged in, otherwise the first Claude
+connection in `connections.json`. User selection
 changes update this memory. See
-[per-session controls](./backends.md#per-session-model-thinking-level-and-route).
+[per-session controls](./backends.md#per-session-model-thinking-level-and-connection).
 
 `!backend <claude|pi>` uses the configured default when it belongs to the target
 backend; otherwise it uses the first favorite on that backend, with its
@@ -426,10 +461,10 @@ remembered settings. If neither exists, favorite a model on that backend first.
 
 ### Validation rules
 
-`mode` and PI `provider` must match `^[a-zA-Z0-9_-]+$`. Claude requires a null
-provider. Thinking must be null or one of the backend's allowed values, and
-favorite identities must be unique. Selection writes validate the route against
-`gateway.yaml` when it is available. A file that parses but fails schema
+`connection` and PI `provider` must match `^[a-zA-Z0-9_-]+$`. Claude requires a null
+provider, and PI a null connection. Thinking must be null or one of the backend's allowed values, and
+favorite identities must be unique. Selection writes check that a named
+connection is one of the host's Claude connections. A file that parses but fails schema
 validation is rejected as a whole until corrected.
 
 ## Execution environments
@@ -522,7 +557,7 @@ until its backend process restarts.
 
 ## Environments and engine selection
 
-The engine selection decides backend, provider, model, thinking, and mode. An
+The engine selection decides backend, provider, model, thinking, and connection. An
 **execution environment** decides the prompt, tools, plugins, MCP surface, and
 ambient context. They change independently: `!model <id>` changes the model;
 `!agent <name>` changes the environment. `!agent reset` also leaves the engine
@@ -869,7 +904,7 @@ Three categories of variables deliberately remain in `.env`:
 
 - **Secrets and credentials** — `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`,
   `SLACK_APP_TOKEN`, `FEISHU_APP_ID`, `FEISHU_APP_SECRET`,
-  `ANTHROPIC_API_KEY`, `CORTEX_CLIENT_TOKEN`, `CORTEX_WEBHOOK_TOKEN`. They are
+  `CORTEX_CLIENT_TOKEN`, `CORTEX_WEBHOOK_TOKEN`. They are
   settings in a loose sense, but keeping them out of a file that the Web UI can
   read and write keeps the blast radius small.
 - **Variables consumed by child processes** — `CORTEX_HOME`,
@@ -1091,6 +1126,7 @@ polling mode as it uses with filesystem events.
 | `.env` | Environment variables | `$CORTEX_HOME/config/.env` |
 | `settings.json` | Runtime behavior settings (hot-reloaded) | `$CORTEX_HOME/config/settings.json` |
 | `models.json` | Default engine and favorite models | `$CORTEX_HOME/config/models.json` |
+| `connections.json` | Provider keys and endpoints Cortex owns | `$CORTEX_HOME/config/connections.json` |
 | `environments/` | Execution environments — one JSON per environment | `$CORTEX_HOME/config/environments/` |
 | `machines.json` | Machine registry | `$CORTEX_HOME/config/machines.json` |
 | `budget.json` | Budget limits | `$CORTEX_HOME/config/budget.json` |

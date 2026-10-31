@@ -253,4 +253,4 @@ Ordinary schedule records use the `scheduled-task` runner, which opens a new ses
 
 ## Rate limits
 
-When the schedule’s selected engine is rate-limited, the fire is skipped with a warning notice. A recurring schedule keeps its timing and fires at its next scheduled time; a `once` schedule is deleted at fire time and is not retried. Other startup failures, such as an invalid route, also produce a notice. A run that hits a rate limit after starting is paused and resumed like any other session.
+When the schedule’s selected engine is rate-limited, the fire is skipped with a warning notice. A recurring schedule keeps its timing and fires at its next scheduled time; a `once` schedule is deleted at fire time and is not retried. Other startup failures, such as a Claude connection that is not configured, also produce a notice. A run that hits a rate limit after starting is paused and resumed like any other session.

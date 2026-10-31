@@ -79,7 +79,7 @@ PI 会话永远拿不到 MCP 版的 `agent` 和 `agent_stop`：PI 注册了自�
 |---|---|---|
 | `cost_query` | `projectId?` | 查询当前费用：今日/本月支出、预算上限、剩余预算、API/plan 分摊、来源细分、token 用量；传入 `projectId` 时只统计该项目 |
 | `query_executions` | `execution_id?`, `status?` (`running`, `completed`, `failed`, `cancelled`, `stale`, `all`), `project?`, `limit?` | 查询执行记录——按状态、项目过滤，或按 ID 查找 |
-| `cortex_context` | _(none)_ | 返回当前执行上下文：`sessionId`、`project`、`backend`、`model`、`thinking`、`mode`；定时或回调触发的运行还有 `scheduleTaskId` 和 `callbackSource`；Web 会话还有 `board`，即会话绑定的看板（id、title、dir），未绑定时为 null |
+| `cortex_context` | _(none)_ | 返回当前执行上下文：`sessionId`、`project`、`backend`、`model`、`thinking`、`connection`；定时或回调触发的运行还有 `scheduleTaskId` 和 `callbackSource`；Web 会话还有 `board`，即会话绑定的看板（id、title、dir），未绑定时为 null |
 | `wait_create` | `label`, `intent`, `members?`, `quorum?`, `fail_fast?`, `max_signals?`, `expires_in_hours?`, `device?` | 登记一个 waitpoint，返回 id、一次性 secret 和可直接粘贴的发信号命令；随后结束这一轮 |
 | `wait_check` | `id?` | 查看某个 waitpoint，或列出本会话正在等待的全部内容 |
 | `wait_cancel` | `id` | 取消一个 waitpoint，使其无法触发 |

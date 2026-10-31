@@ -43,7 +43,7 @@ session emits.
 Configuration is resolved once per run. `resolveRunSelection`
 (`domain/runs/config-resolver.ts`) uses an explicit complete selection, then the
 session's recorded selection, the channel's selection, then `models.json`'s
-`default`. The selection supplies backend, model, provider, gateway mode, and
+`default`. The selection supplies backend, model, provider, connection, and
 thinking level. `buildEngineSpec` (`domain/runs/engine-spec.ts`) produces a
 backend-neutral `EngineSpec`, which the adapter translates into Claude Code
 command-line arguments or in-process PI session options. Each run uses one
@@ -168,7 +168,8 @@ assembled per session in `extensions.ts`:
   target the `pi` backend as native PI event handlers, so Cortex hook scripts
   see PI tool events. See [hooks.md](./hooks.md).
 - **Quota probe** (`quota-probe.ts`) — reads provider quota off response headers
-  on gateway-routed runs and hands each reading to the throttle.
+  (Codex publishes its utilization on every response) and hands each reading to
+  the throttle.
 
 System prompt override, appended prompts, and Cortex plugin skill directories
 are session options (`systemPrompt`, `appendSystemPrompt`,
@@ -192,7 +193,12 @@ chat or **Settings → Accounts** on the web — and stored in PI's own auth fil
 agent directory (a symlink on Linux and macOS, a copy on Windows) so the SDK
 reads it, and it reads user-defined providers from `~/.pi/agent/models.json`. An
 installation that also has the terminal `pi` CLI therefore shares one set of
-credentials and one provider catalog with Cortex.
+credentials and one provider catalog with Cortex. Cortex's own
+[connections](./configuration.md#configconnectionsjson) are added on top: the
+agent directory's `models.json` also carries the built-in providers whose base
+URL a connection overrides and the custom providers, with their keys, which take
+precedence over PI's own credentials for those providers. Every other built-in
+provider connects to its vendor with PI's own credentials.
 
 PI transcript retention is filesystem-based. Active PI backend session ids are
 protected during retention sweeps, while orphan transcript bundles under
@@ -230,7 +236,6 @@ ignored — and may set:
 | `tools` | Canonical tool names, translated into each backend's own spelling |
 | `model` | `provider/model[:thinking]` for a PI child, a bare model id for a Claude child |
 | `backend` | `claude` or `pi`; absent means "whatever the parent is running" |
-| `mode` | PI child route: role value, then the PI parent’s route on the same provider, then the provider name. Claude children use their Claude parent’s route or the configured Claude-backend default route |
 
 When `$CORTEX_HOME/config/agents/` does not exist yet, roles found in an
 `agents/` directory inside Cortex's private PI agent directory are moved into
@@ -243,15 +248,15 @@ model — but only when the child runs the same backend, since a Claude model id
 means nothing to PI and a PI `provider/model` means nothing to Claude. A Claude
 child without an explicit or same-backend parent model uses the Claude-backend
 default (the configured default if Claude, otherwise the first Claude favorite).
-A PI parent starting a Claude child also uses that Claude default’s route and
-requires a Claude default or favorite to be configured.
+A Claude child runs on its Claude parent's connection; a PI parent starting a
+Claude child uses that Claude default's connection and requires a Claude default or favorite to be configured.
 
 **What the caller can see.** The `subagent_type`, `model`, and `backend` field
 descriptions are rendered at tool-registration time rather than hardcoded, from
 what this host actually has. Roles come from the live role table — the built-in
 roles with `$CORTEX_HOME/config/agents/` laid over them — so a role you add shows
-up in the next session. Claude model ids come from the same table Cortex builds the gateway's
-Anthropic routes from, plus the daemon's current model. A PI parent reads its
+up in the next session. Claude model ids come from Cortex's shipped table of
+Anthropic models, plus the daemon's current model. A PI parent reads its
 own live model registry; a Claude parent cannot, because its MCP tool runs in a
 sidecar process that has no PI SDK, so the daemon passes down the provider/model
 pairs of its cached scan through the spawn environment. A cold cache simply
@@ -356,8 +361,8 @@ account appear logged in and is suppressed as soon as Claude owns a credential.
 
 When a running backend reports expired authentication, Cortex posts a card that
 names the provider and offers one-click re-login, pre-filled with the
-authentication type that failed: for Claude Code, the API key when the run used
-`api` mode and the subscription otherwise. While that login runs, the button
+authentication type that failed: for Claude Code, the API key when the run was on the
+`api` connection and the subscription otherwise. While that login runs, the button
 reopens it; after it fails, is cancelled or expires, the button starts a new
 one. A daily expiration scan checks in-use accounts and sends the same
 actionable warning for credentials that are expiring, expired, or missing. The
@@ -394,20 +399,13 @@ logged into, and it is managed from the same three surfaces as everything else:
 A definition needs four things: a name, the request protocol the endpoint
 speaks (`anthropic-messages`, `openai-completions`, `openai-responses`, or
 `google-generative-ai`), the upstream URL, and at least one model id. An
-upstream key is optional; without one the gateway passes the caller's own key
-through.
+upstream key is optional, since some endpoints need none.
 
-Saving writes two files. `~/.pi/agent/models.json` gets a `providers.<name>`
-entry whose `baseUrl` points at the gateway, so the terminal `pi` and Cortex
-share one definition. `~/.aistatus/gateway.yaml` gets the route that forwards to
-the real endpoint, carrying the upstream key. **The key lives only in the
-gateway config** — the PI catalog holds a placeholder, so copying the catalog
-around never copies a secret. Every call therefore goes through the gateway and
-is accounted and throttled like any other route. The generated gateway config
-sets `max_body_size_mb: 100`. With aistatus 0.0.8 or newer, this caps each
-buffered request body in MiB; edit the top-level value to use a different limit.
-The gateway reloads its config by itself, so route and body-limit changes need
-no restart.
+Saving stores the definition, key included, as a PI connection in
+[`config/connections.json`](./configuration.md#configconnectionsjson). Each PI
+session gets a `models.json` holding the custom providers and the built-in
+providers whose base URL a connection overrides, with their keys; PI calls the
+endpoint directly. The next spawn picks up a change without a restart.
 
 The chat command deliberately has no key argument: a channel transcript is a
 poor place for a secret. Add the key from the CLI with `--key -` (read from
@@ -416,15 +414,16 @@ stdin) or from the Web form, both of which keep it off any transcript.
 To use a custom provider, choose its model in the picker or enter
 `!model my-vllm/Model-27B`. You can favorite it and make it the default (see
 [configuration.md](./configuration.md#modelsjson)). Deleting a provider removes
-its catalog entry and gateway route; first move sessions, the default,
+its connection; first move sessions, the default,
 favorites, and schedules using it to another provider.
 
 ## Selecting a backend
 
 Each session stores a concrete engine selection: `backend`, `provider`, `model`,
-`thinking`, and `mode`. `backend` is `claude` or `pi`; Claude uses a null provider,
-while PI requires a provider id that selects its request protocol and gateway
-endpoint. The default selection and favorites live in
+`thinking`, and `connection`. `backend` is `claude` or `pi`; Claude uses a null provider,
+while PI requires a provider id that selects its request protocol and endpoint.
+`connection` names the Claude connection a Claude session runs on and is null
+for PI, whose provider is its connection. The default selection and favorites live in
 [`config/models.json`](./configuration.md#modelsjson).
 
 `!backend <claude|pi>` selects the configured default if it belongs to the target
@@ -432,7 +431,7 @@ backend, otherwise the first favorite on that backend with its remembered
 settings. If neither exists, favorite a model there first. A conversation with
 history cannot change backend; start a new session for that.
 
-## Per-session model, thinking level and route
+## Per-session model, thinking level and connection
 
 The Web and mobile composer's engine picker lists favorite models at its root,
 showing each model and its remembered thinking level, grouped by backend and
@@ -443,24 +442,24 @@ The execution environment is a separate choice; see
 [configuration.md](./configuration.md#choosing-an-environment-per-conversation).
 
 A selection is saved on the session. Choosing a model restores that model's
-remembered thinking and route; without a memory, thinking is null, Claude uses
-the first Anthropic route in `gateway.yaml` (`plan` if none is declared), and PI
-uses its provider name (`pi-anthropic` for PI's `anthropic` provider). User changes update the model's memory. A fresh Web
+remembered thinking and connection; without a memory, thinking is null and a
+Claude model runs on the default connection. User changes update the model's memory. A fresh Web
 conversation starts from the last selected engine on this host.
 
 A conversation with history cannot change backend. The picker disables models
 on the other backend; a new draft can choose either backend.
 
-**Route** is the gateway endpoint's billing lane: for example, `plan` for an
-Anthropic subscription or `api` for a metered key. The picker offers routes
-declared for the endpoint in `gateway.yaml`, and hides the route choice when
-only one is available. Claude Code and PI's built-in `anthropic` provider share
-the `anthropic` section of `gateway.yaml` but are separate entries in the
-catalog: PI's provider uses only its own route, `pi-anthropic`, which passes
-PI's Anthropic login through, and Claude Code uses every other route in that
-section. When both are signed in, each keeps its own models, favorites, quota
-and rate limits. The model catalog supplies each endpoint's backend,
-provider, routes, and models. Thinking levels use the backend's range, narrowed
+**Connection** is the credential and endpoint a Claude session runs on:
+`subscription` for Claude Code's own login, or the id of a key connection:
+`api` for a saved Anthropic API key, or the id given to a relay (see
+[Connections](./configuration.md#configconnectionsjson)). The default is the
+subscription when Claude Code is logged in, otherwise the first stored Claude
+connection. The picker offers the host's Claude connections, and hides the
+choice when there is only one. Claude Code and PI's built-in `anthropic`
+provider are separate entries in the catalog: PI's provider runs on PI's own
+Anthropic credentials. When both are signed in, each keeps its own models,
+favorites, quota and rate limits. The model catalog supplies each endpoint's
+backend, provider, connections, and models. Thinking levels use the backend's range, narrowed
 to the model's own levels where PI reports them.
 
 **Settings → Models** manages the default model and the favorites list. Platform
@@ -474,7 +473,7 @@ channels use the same selection rules through these commands:
 | `!model reset` | Restores the complete configured default selection |
 | `!thinking [level]` | Shows or sets the reasoning level |
 | `!thinking reset` | Sets thinking to null, using the backend default |
-| `!mode [route]` | Shows or sets the gateway route, validated against the endpoint's routes |
+| `!mode [connection]` | Shows or sets the channel's Claude connection, validated against the host's Claude connections |
 
 ## Thinking level
 
@@ -489,8 +488,8 @@ accept is clamped by PI to the nearest one it does.
 Cortex tracks rolling usage windows by provider. Provider identifiers are opaque strings, so
 the throttle can track any number of providers without a fixed provider
 enum. Each provider keeps its own window types and reset times. A provider
-and route mode are gated without blocking another provider that happens to
-use the same mode name.
+and the connections its traffic runs on are gated without blocking another
+provider that happens to use a connection of the same name.
 
 The policy is configured in [`config/settings.json`](./configuration.md#configsettingsjson)
 as `providerRateLimits`, an object keyed by provider id. Each provider can

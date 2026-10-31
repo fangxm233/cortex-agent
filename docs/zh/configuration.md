@@ -14,6 +14,7 @@ $CORTEX_HOME/
 │   ├── settings.json             # 运行时行为设置（热更新）
 │   ├── preferences.json          # 系统消息的界面语言（`!lang`）
 │   ├── models.json             # 默认引擎与收藏模型
+│   ├── connections.json          # Cortex 自己保管的 provider 密钥与端点（仅属主可读写）
 │   ├── environments/             # 执行环境——每个环境一个 JSON
 │   ├── machines.json             # 远程客户端机器注册表
 │   ├── budget.json               # 每日/每月预算限制
@@ -53,7 +54,7 @@ $CORTEX_HOME/
 └── workspaces/                   # 干净模式工作区，每个干净会话或子智能体一个文件夹
 ```
 
-网关配置默认为 `~/.aistatus/gateway.yaml`，由 `cortex setup-gateway` 和 provider 登录写入。设置 `CORTEX_GATEWAY_HOME` 的实例使用 `<CORTEX_GATEWAY_HOME>/.aistatus/gateway.yaml`，见[本地模型网关](#local-model-gateway)。
+`$CORTEX_HOME` 之外，PI 把自己的登录和 API key 保存在 `~/.pi/agent/auth.json`，用量共享设置位于 `~/.aistatus/config.yaml`（见[用量共享目录](#usage-sharing-home)）。
 
 ## 加载顺序和优先级 {#loading-order-and-precedence}
 
@@ -101,26 +102,21 @@ $CORTEX_HOME/
 | `CORTEX_CLIENT_TOKEN` | 自动生成 | 远程客户端出示的共享密钥；桌面 App 和 Web UI 也接受它，作为配对码之外的另一种方式。由 `cortex init` 和服务器首次启动生成 |
 | `CORTEX_WEBHOOK_TOKEN` | 自动生成 | 回环 webhook（钩子回调、`cortex-hook ask`）的 Bearer token。生成方式相同 |
 
-### 本地模型网关 {#local-model-gateway}
+### 用量共享目录 {#usage-sharing-home}
 
 | 变量 | 默认值 | 用途 |
 |---|---|---|
-| `CORTEX_GATEWAY_PORT` | `9880` | 本地模型网关在 `127.0.0.1` 上监听的端口，`1`–`65535` 的整数。网关换端口时 Cortex 把它写入 `config/.env` |
-| `CORTEX_GATEWAY_HOME` | OS 用户 home | 网关子进程的独立 home，必须是绝对路径；配置、usage、quota、pricing cache 位于其下 `.aistatus/` |
+| `CORTEX_GATEWAY_HOME` | OS 用户 home | 为 `.aistatus/` 目录另指一个 home，必须是绝对路径；[用量共享](./quickstart.md#28-aistatus-token-usage-reporting)设置（`.aistatus/config.yaml`）就在其中 |
 
-这两项属于 `$CORTEX_HOME/config/.env` 中的启动设置，不热更新。启动环境优先于文件，CLI 也读取同一文件。空值或非法值会阻止启动；修改后须重启该实例的 daemon。
+Cortex 在启动时先读启动环境，再读 `$CORTEX_HOME/config/.env`；CLI 也按同样方式读取。相对路径会阻止启动。修改后须重启该实例的 daemon。
 
-网关是 server 的子进程。server 启动时依次尝试：`CORTEX_GATEWAY_PORT` 指定的端口；环境变量指定了别的端口时，`config/.env` 中保存的端口；`9880`；都被占用时取配置端口之上第一个空闲端口。Cortex 从不经由不是自己启动的网关转发请求，即使它在该端口上应答、健康检查也通过：它可能属于另一个 Cortex 实例，带着那个实例的凭据。端口被其他任何进程占用都视为不可用。网关换端口后，Cortex 把新端口以 `CORTEX_GATEWAY_PORT` 写入 `config/.env`，之后的启动和 CLI 命令都使用它，并在 `$CORTEX_HOME/logs/gateway.log` 中记录这次换端口。网关第一次应答之前，如果端口被其他进程抢先绑定（例如两个实例同时启动），网关同样换到下一个空闲端口。一旦应答过，端口在 server 进程的整个生命周期内保持不变：网关崩溃后在同一端口重启，正在运行的会话路由不受影响。
+### 第二个实例 {#a-second-instance}
 
-网关把自己的 PID 写入 `$CORTEX_HOME/data/gateway.pid`。server 进程被杀而网关没有停止时，下次启动会通过这个文件找到那个网关，根据命令行确认它是本实例的网关，结束它并沿用它的端口。
-
-健康检查、Claude/PI 路由、usage 查询和 `cortex doctor` 都使用选定的端口。以其他本机网关端口保存的 PI 自定义 provider 会路由到当前网关。显式端口写入生成或更新的网关 YAML，换端口时还会写入现有 YAML 的 `port:`。只改 YAML 的 `port:` 不会改变 Cortex 使用的端口。未显式设置端口时，YAML 合并保留既有字段。
-
-同机第二个实例，无论属于另一个用户还是同一用户，只需使用不同的 `CORTEX_HOME`。端口自动选取：`cortex init` 把一个空闲的[主端口](#main-port)写入该实例的 `config/.env`，网关在 server 启动时取一个空闲端口。同一 OS 用户的多个实例共享 `~/.aistatus` 下的网关文件，除非用 `CORTEX_GATEWAY_HOME` 给第二个实例指定独立目录。
+同机第二个实例，无论属于另一个用户还是同一用户，只需使用不同的 `CORTEX_HOME`。端口自动选取：`cortex init` 把一个空闲的[主端口](#main-port)写入该实例的 `config/.env`。
 
 启动该实例及运行其 CLI 时，始终指定 `CORTEX_HOME=/absolute/path/to/cortex-second`。`.env` 中路径须写绝对路径，不展开 `~` 或 `$CORTEX_HOME`。
 
-为第二实例配置 provider 凭据并运行 `cortex setup-gateway`。网关从自己的 YAML 读取托管 key，或从后端请求接收透传 key，不从独立 home 下的 `~/.claude`、`~/.pi` 读取登录。`CORTEX_GATEWAY_HOME` 只改变网关子进程的 home，不改变 Cortex 的 Claude/PI 凭据位置。尤其是 `~/.pi/agent/` 中的 PI 凭据和自定义 provider 目录仍由使用同一 OS home 的 Cortex 实例共享；如需隔离它们，也要为 Cortex 使用独立 OS home。不要跨实例复制会轮换的 OAuth token，应使用后端登录流程。排行榜共享偏好（`.aistatus/config.yaml`）也按 home 隔离，需单独配置。既有网关文件和凭据不会自动复制。
+通过第二实例自己的登录流程配置 provider 凭据。它的[连接](#configconnectionsjson)和 Claude Code 登录都只属于它的 `CORTEX_HOME`。`~/.pi/agent/` 中的 PI 凭据和 PI provider 目录由使用同一 OS home 的 Cortex 实例共享；如需隔离它们，也要为 Cortex 使用独立 OS home。不要跨实例复制会轮换的 OAuth token，应使用后端登录流程。排行榜共享偏好（`.aistatus/config.yaml`）由同一 OS 用户的实例共享，除非用 `CORTEX_GATEWAY_HOME` 给某个实例指定独立目录。
 
 ### 平台 {#platform}
 
@@ -145,10 +141,7 @@ $CORTEX_HOME/
 
 ### API {#api}
 
-| 变量 | 用途 |
-|---|---|
-| `ANTHROPIC_API_KEY` | Claude Code 在计量（`api`）路由上运行时使用的 Anthropic API 密钥 |
-| `ANTHROPIC_BASE_URL` | 本地网关宕机时 Claude Code 运行使用的 Anthropic endpoint。网关正常时，每次运行的 base URL 是其网关路由 |
+Claude Code 的端点和密钥来自每次运行的[连接](#configconnectionsjson)，而不是 daemon 的环境。daemon 启动时从自身环境中丢弃 `ANTHROPIC_BASE_URL`、`ANTHROPIC_API_KEY` 和 `ANTHROPIC_AUTH_TOKEN`，每个 Claude Code 进程只拿到其连接设置的值。
 
 ### 主端口 {#main-port}
 
@@ -239,6 +232,42 @@ Web UI 宿主服务浏览器工作台、桌面 App 和手机 App。[浏览器访
 
 `DEBUG` 会把未截断的 prompt、工具参数和工具结果持久化到各会话的 conversation-history 文件中。这些内容可能包含密钥、私有文件内容或体积很大的输出，存储占用也按完整内容增长。仅应在可信的开发服务器上启用，检查完成后及时关闭。关闭后 transcript 响应会立即去掉调试字段和按钮，但此前已记录的内容不会被删除。
 
+## config/connections.json {#configconnectionsjson}
+
+位于 `$CORTEX_HOME/config/connections.json`，是 Cortex 自己保管的 provider 凭据与端点的登记表。文件里有密钥，因此只允许属主读写（mode `0600`）；密钥从不出现在 UI 或日志中，最多显示一段掩码提示。Cortex 不运行任何代理：每个 Claude Code 或 PI 进程都用其连接提供的凭据直接调用 provider。
+
+有两类凭据不在这个文件里。Claude Code 的订阅是 [Cortex 的 Claude Code 配置目录](#claude-code-config-directory)中的登录，只要该登录存在，它就是名为 `subscription` 的连接。PI 自己的登录和 API key 留在 PI 的凭据存储 `~/.pi/agent/auth.json` 中。
+
+```json
+{
+  "version": 1,
+  "connections": [
+    { "id": "api", "backend": "claude", "label": "api", "authStyle": "x-api-key",
+      "key": "sk-ant-...", "billing": "metered" },
+    { "id": "relay", "backend": "claude", "label": "Team relay",
+      "baseUrl": "https://relay.example.com", "authStyle": "bearer",
+      "key": "...", "billing": "metered" },
+    { "id": "deepseek", "backend": "pi", "provider": "deepseek",
+      "baseUrl": "https://proxy.example.com/deepseek", "key": "..." },
+    { "id": "my-vllm", "backend": "pi", "provider": "my-vllm",
+      "api": "openai-completions", "baseUrl": "http://127.0.0.1:8100/v1",
+      "models": [{ "id": "Model-27B" }] }
+  ]
+}
+```
+
+| 类型 | 字段 | 作用 |
+|---|---|---|
+| Claude key 连接 | `id`、`backend: "claude"`、`key`；可选 `label`（默认为 id）、`baseUrl`、`authStyle`（默认 `x-api-key`，或 `bearer`）、`billing`（默认 `metered`，或 `subscription`）、`models` | 跑在它上面的 Claude Code 运行在设置了 `baseUrl` 时得到 `ANTHROPIC_BASE_URL`（否则用 Anthropic 官方 API），密钥放在 `ANTHROPIC_API_KEY`（`x-api-key`）或 `ANTHROPIC_AUTH_TOKEN`（`bearer`）中。`models` 把该端点提供的模型加入 Claude 模型列表 |
+| PI base URL 覆盖 | `backend: "pi"`、`provider`（PI 内置 provider）、`baseUrl`；可选 `key`、`label` | PI 在 `baseUrl` 调用该内置 provider。设置了密钥时，它优先于 PI 自己为该 provider 保存的凭据 |
+| PI 自定义 provider | 同覆盖，另加 `api`（请求协议）和 `models`（PI 模型定义）；可选 `headers`、`compat` | 定义 PI 未内置的 provider；见[自定义 provider](./backends.md#custom-providers) |
+
+id 须匹配 `^[a-zA-Z0-9_-]+$`，`subscription` 为保留名。PI 连接的 id 就是它的 provider 名，因此一个 provider 至多一个连接。无效或重复的条目会被跳过并记录警告。
+
+**路由。** Claude Code 运行的环境取自其选择所指的连接。使用 `subscription` 时，Cortex 清除 `ANTHROPIC_BASE_URL`、`ANTHROPIC_API_KEY` 和 `ANTHROPIC_AUTH_TOKEN`，让 Claude Code 使用自己的登录。没有指定连接的选择使用默认连接：Claude Code 已登录时为订阅，否则为文件中第一个 Claude 连接。指定的连接不存在时运行会失败，不会改用另一个账号。每个 PI 会话拿到一份 `models.json`，在 `~/.pi/agent/models.json` 定义的 provider 之上加入被覆盖的内置 provider 和自定义 provider，并带上各自的密钥；其余 PI 内置 provider 用 PI 自己的凭据直接连接各自的厂商。每次 spawn 都会重新读取该文件，因此改动无需重启。
+
+**条目从哪里来。** 保存 Anthropic API key——**设置 → 账号**、`!login cc` 或 `cortex auth login`——会把它存为 `api` 连接，除非该条目已有 `baseUrl`，否则指向官方 API；移除密钥即移除该连接。`cortex auth provider`、**设置 → 账号 → 自定义 Provider** 和 `!login custom` 管理自定义 provider。中转站或 PI 内置 provider 的 base URL 覆盖通过编辑该文件添加。`!mode [connection]` 查看或设置频道的 Claude 连接。
+
 ## models.json {#modelsjson}
 
 位于 `$CORTEX_HOME/config/models.json`，保存默认引擎选择和收藏模型列表。**设置 → 模型** 管理默认模型与收藏；输入框的完整模型列表也可以用星标收藏或取消收藏。后端详情见 [backends.md](./backends.md)。
@@ -252,7 +281,7 @@ Web UI 宿主服务浏览器工作台、桌面 App 和手机 App。[浏览器访
     "provider": null,
     "model": "opus",
     "thinking": "high",
-    "mode": "plan"
+    "connection": null
   },
   "favorites": [
     { "backend": "claude", "provider": null, "model": "opus" },
@@ -270,22 +299,22 @@ Web UI 宿主服务浏览器工作台、桌面 App 和手机 App。[浏览器访
 | `default.provider` | string 或 null | 是 | Claude 为 `null`；PI 必须指定 provider id，例如 `openai-codex`、`deepseek` 或[自定义 provider](./backends.md#custom-providers) |
 | `default.model` | string | 是 | 非空模型标识符，按后端命名 |
 | `default.thinking` | string 或 null | 是 | 后端原生思考档位；`null` 使用后端默认值 |
-| `default.mode` | string | 是 | 网关路由，例如 Claude 的 `plan` 或 `api`；PI 使用 provider 名称（PI 的 `anthropic` provider 为 `pi-anthropic`） |
+| `default.connection` | string 或 null | 是 | Claude：`subscription`、[`connections.json`](#configconnectionsjson) 中某个 Claude 连接的 id，或 `null` 表示默认连接。PI：`null` |
 | `favorites` | object[] | 是 | 按顺序存放模型引用，每项包含 `backend`、`provider`、`model`。同一模型身份最多出现一次 |
 
-收藏只保存模型身份，不保存思考档位或路由。默认模型不必在收藏中，收藏列表也可以为空。Claude 的 `thinking` 接受 `low`/`medium`/`high`/`xhigh`/`max`；PI 接受 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`。
+收藏只保存模型身份，不保存思考档位或连接。默认模型不必在收藏中，收藏列表也可以为空。Claude 的 `thinking` 接受 `low`/`medium`/`high`/`xhigh`/`max`；PI 接受 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`。
 
 ### 引擎选择解析 {#selection-resolution}
 
-普通回合依次使用会话记录的选择、`data/agent-state.json` 中的频道选择、`models.json` 的 `default`。显式运行请求（例如定时触发）可以直接提供完整选择。每个选择包含 `backend`、`provider`、`model`、`thinking` 和 `mode`；执行环境与此相互独立。
+普通回合依次使用会话记录的选择、`data/agent-state.json` 中的频道选择、`models.json` 的 `default`。显式运行请求（例如定时触发）可以直接提供完整选择。每个选择包含 `backend`、`provider`、`model`、`thinking` 和 `connection`；执行环境与此相互独立。
 
-`data/agent-state.json` 保存 `channelSelections`、按模型的 `modelMemory`（`thinking` 和 `mode`，键为 JSON 数组 `[backend, provider, model]`），以及用于新建 Web 对话的上次引擎选择 `selectionDefault`。选择模型时恢复其记住的思考档位与路由。没有记忆时，thinking 为 `null`；Claude 使用 `gateway.yaml` 中第一条 Anthropic 路由（未声明时用 `plan`），PI 使用 provider 名称。用户修改选择时会更新这份记忆。参见[按会话控制](./backends.md#per-session-model-thinking-level-and-route)。
+`data/agent-state.json` 保存 `channelSelections`、按模型的 `modelMemory`（`thinking` 和 `connection`，键为 JSON 数组 `[backend, provider, model]`），以及用于新建 Web 对话的上次引擎选择 `selectionDefault`。选择模型时恢复其记住的思考档位与连接。没有记忆时，thinking 为 `null`，Claude 模型使用默认连接：Claude Code 已登录时为订阅，否则为 `connections.json` 中第一个 Claude 连接。用户修改选择时会更新这份记忆。参见[按会话控制](./backends.md#per-session-model-thinking-level-and-connection)。
 
 `!backend <claude|pi>` 在配置的默认选择属于目标后端时使用它，否则使用该后端的第一个收藏及其记住的设置。两者都没有时，需要先收藏该后端的一个模型。
 
 ### 验证规则 {#validation-rules}
 
-`mode` 和 PI 的 `provider` 必须匹配 `^[a-zA-Z0-9_-]+$`。Claude 的 provider 必须为 null。Thinking 必须为 null 或后端允许的值，收藏中的模型身份不能重复。写入选择时，若 `gateway.yaml` 可用，会据此校验路由。能解析但未通过 schema 校验的文件会被整体拒绝，直到修正。
+`connection` 和 PI 的 `provider` 必须匹配 `^[a-zA-Z0-9_-]+$`。Claude 的 provider 必须为 null，PI 的 connection 必须为 null。Thinking 必须为 null 或后端允许的值，收藏中的模型身份不能重复。写入选择时会检查所指定的连接是否为本机的 Claude 连接。能解析但未通过 schema 校验的文件会被整体拒绝，直到修正。
 
 ## 执行环境 {#execution-environments}
 
@@ -334,7 +363,7 @@ Cortex 随包提供两个：
 
 ## 执行环境与引擎选择 {#environments-and-engine-selection}
 
-引擎选择决定 backend、provider、model、thinking 和 mode。**执行环境**决定提示、工具、插件、MCP 面与环境上下文。两者独立：`!model <id>` 只换模型，`!agent <name>` 只换环境；`!agent reset` 也保留引擎选择。
+引擎选择决定 backend、provider、model、thinking 和 connection。**执行环境**决定提示、工具、插件、MCP 面与环境上下文。两者独立：`!model <id>` 只换模型，`!agent <name>` 只换环境；`!agent reset` 也保留引擎选择。
 
 ### 按对话选执行环境 {#choosing-an-environment-per-conversation}
 
@@ -509,7 +538,7 @@ config 目录被监视。`settings.json` 的变更去抖 300 毫秒后重新读�
 
 有三类变量刻意留在 `.env`：
 
-- **密钥与凭据**——`SLACK_BOT_TOKEN`、`SLACK_SIGNING_SECRET`、`SLACK_APP_TOKEN`、`FEISHU_APP_ID`、`FEISHU_APP_SECRET`、`ANTHROPIC_API_KEY`、`CORTEX_CLIENT_TOKEN`、`CORTEX_WEBHOOK_TOKEN`。它们广义上也是设置，但把它们挡在一个 Web UI 可读可写的文件之外，能把影响面压到最小。
+- **密钥与凭据**——`SLACK_BOT_TOKEN`、`SLACK_SIGNING_SECRET`、`SLACK_APP_TOKEN`、`FEISHU_APP_ID`、`FEISHU_APP_SECRET`、`CORTEX_CLIENT_TOKEN`、`CORTEX_WEBHOOK_TOKEN`。它们广义上也是设置，但把它们挡在一个 Web UI 可读可写的文件之外，能把影响面压到最小。
 - **由子进程消费的变量**——`CORTEX_HOME`、`CORTEX_PROJECTS_DIR`、`CORTEX_UI_PORT`、`DEBUG`、`CORTEX_LANG` 以及数据文件覆盖项。钩子、MCP 服务器、CLI 和 `cortex-client` 都继承守护进程的环境；服务器侧的 JSON 文件根本传不到它们那里。
 - **启动拓扑**——`CORTEX_PLATFORM`、`CORTEX_MACHINE`、`CORTEX_UI_HTTP`、`CORTEX_UI_HOST`、`CORTEX_CLIENT_PORT`、`CORTEX_UI_SPA_DIR`、`CORTEX_UI_TOKEN_LOGIN`。它们决定启动时存在哪些适配器与监听器，热更新对它们没有意义，结构上就必须重启。
 
@@ -621,6 +650,7 @@ init 还会在 `config/machines.json`、`config/preferences.json` 和 `data/agen
 | `.env` | 环境变量 | `$CORTEX_HOME/config/.env` |
 | `settings.json` | 运行时行为设置（热更新） | `$CORTEX_HOME/config/settings.json` |
 | `models.json` | 默认引擎与收藏模型 | `$CORTEX_HOME/config/models.json` |
+| `connections.json` | Cortex 自己保管的 provider 密钥与端点 | `$CORTEX_HOME/config/connections.json` |
 | `environments/` | 执行环境——每个环境一个 JSON | `$CORTEX_HOME/config/environments/` |
 | `machines.json` | 机器注册表 | `$CORTEX_HOME/config/machines.json` |
 | `budget.json` | 预算限制 | `$CORTEX_HOME/config/budget.json` |

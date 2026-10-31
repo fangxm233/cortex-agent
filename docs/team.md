@@ -18,13 +18,13 @@ A worker is an ordinary session that belongs to a lead. It has its own transcrip
 resume history, runs on Claude or PI like any session, and has the full tool surface, including
 the one-shot `agent` tool. It cannot start workers of its own, so a team is one level deep.
 A worker inherits its lead's project and copies the lead's complete engine selection:
-backend, provider, model, thinking, and route. The lead can pass `backend` and `model`
+backend, provider, model, thinking, and connection. The lead can pass `backend` and `model`
 in the same format as the `agent` tool (`provider/model[:thinking]` for PI, a bare model id
 for Claude). On the same backend, only the named parts change. For another backend,
 the worker starts from `models.json`'s default if it belongs to that backend, otherwise
 that backend's first favorite with its remembered settings. With neither available,
-creation fails and asks you to favorite a model on that backend. An explicit change of
-PI provider uses that provider's route. A Claude lead can run PI workers and vice versa.
+creation fails and asks you to favorite a model on that backend. A Claude worker runs on
+the connection of the selection it starts from. A Claude lead can run PI workers and vice versa.
 Creating a worker leaves the engine choice for new user conversations unchanged.
 
 A lead uses workers only when there are several tasks (or the work splits into several) or the user

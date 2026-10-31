@@ -243,29 +243,25 @@ all data directories, and whether `.env`, `mcp-config.json`, and
 **`cortex doctor [--fix] [--json]`**
 
 Health-check the whole installation in one pass and report what is wrong.
-The default run is read-only and safe at any time. It inspects four areas:
+The default run is read-only and safe at any time. It inspects three areas:
 
 - Runtime & process — Node version, `git` on PATH (a failure on Windows, a
   warning elsewhere), the `claude` binary on PATH (a warning when missing; PI
   always passes, since it runs in-process from the bundled SDK), and whether the
   daemon is running.
 - Backend install / login — data directories exist and are writable, `.env`
-  is present, the client and webhook tokens are set, `ANTHROPIC_API_KEY`
-  status, and that `agent-state.json`, `models.json`, and `mcp-config.json` are
+  is present, the client and webhook tokens are set, the Claude connection
+  the default selection names exists (skipped when the default runs on the
+  subscription or on PI), and that `agent-state.json`, `models.json`, and `mcp-config.json` are
   present and valid. A missing `models.json` is a warning; invalid JSON, an
   invalid default selection, or a missing or invalid favorites array is a failure. It also smoke-tests the installed PI runtime and its
   `login` export, then summarizes expired or logged-out in-use providers from
   the credential-free backend auth snapshot. These two checks warn rather than
-  fail. In API mode, a healthy gateway with no local key is reported as
-  gateway-backed information instead of a false logged-out warning.
+  fail. When the default runs on a configured key connection, a logged-out
+  Claude Code subscription is not reported as a problem.
 - Messaging platform — resolves `CORTEX_PLATFORM` and validates the
   credentials for each enabled platform (Slack `xoxb-`/signing/`xapp-`,
   Feishu app id/secret).
-- Gateway — the configured gateway YAML's presence and a health probe of
-  `http://127.0.0.1:<CORTEX_GATEWAY_PORT>/status` (default port `9880`).
-  Its directory follows `CORTEX_GATEWAY_HOME`, defaulting to `~/.aistatus/`.
-  The probe is reported as a failure only
-  when the gateway is actually in use; otherwise it is skipped.
 
 Each check prints `[OK]`, `[WARN]`, `[FAIL]`, or `[--]` (skipped) with a
 short detail and, for problems, a fix hint. The command exits `1` when any
@@ -315,9 +311,13 @@ without starting an authentication flow; help works without a TTY.
 
 The result is JSON on stdout, with human prompts and errors on stderr; no
 `--json` flag is needed or accepted. Results omit secrets. A successful login
-synchronizes gateway/model configuration and reports the sync result with
+synchronizes the model configuration and reports the sync result with
 `inferenceVerified: false`: credentials are configured, not inference-tested,
-and no paid model request is sent.
+and no paid model request is sent. The sync preserves an existing default and
+favorites, supplies a missing default, and adds a recommended favorite for each
+newly connected backend/provider group without one. Its result includes
+`defaultSet` and `favorites`. Saving an Anthropic API key stores it as the `api`
+[connection](./configuration.md#configconnectionsjson).
 
 Options:
 - `--backend pi|claude` — choose the backend; omitted means select interactively
@@ -341,7 +341,7 @@ URL or model list edits the stored definition in place.
 Options:
 - `--name <name>` — provider name; letters, digits, `-` and `_` only
 - `--api <api>` — request protocol: `anthropic-messages`, `openai-completions`, `openai-responses`, or `google-generative-ai`
-- `--url <url>` — upstream endpoint, stored in the gateway route
+- `--url <url>` — the endpoint PI calls
 - `--key <key|->` — upstream API key; `-` reads it from stdin so it never appears in shell history
 - `--model <id>` — a model id the endpoint serves; repeat for several
 - `--dry-run` — on `remove`, report what would be deleted without deleting it
@@ -361,29 +361,10 @@ cortex auth provider list --json
 cortex auth provider remove --name my-vllm --dry-run
 ```
 
-See [Backends: Custom providers](./backends.md#custom-providers) for what the
-two writes contain and how a definition reaches an agent.
-
-**`cortex setup-gateway [--dry-run] [--output-dir <path>]`**
-
-Auto-detect Claude Code and PI configurations from their local config
-files, generate the gateway YAML (with backup of existing),
-and write `$CORTEX_HOME/config/models.json`. Run this whenever you add
-a new API key or change models. The default output is
-`~/.aistatus/gateway.yaml`; `CORTEX_GATEWAY_HOME` selects
-`<CORTEX_GATEWAY_HOME>/.aistatus/gateway.yaml`, and `CORTEX_GATEWAY_PORT`
-sets its port. Both settings may be saved in `$CORTEX_HOME/config/.env`; see
-[Local model gateway](./configuration.md#local-model-gateway) for multi-instance setup.
-
-Options:
-- `--dry-run` — print the generated gateway.yaml to stdout without writing
-- `--output-dir <path>` — write gateway.yaml and models.json under `<path>` instead of defaults; this exports files and does not change the running gateway location
-
-Setup preserves an existing default selection and merges favorites. Its summary
-shows the default model and favorites; use **Settings → Models** to change the
-default. Provider-login sync also preserves existing choices, supplies a missing
-default, and adds a recommended favorite for each newly connected backend/provider
-group without one. Its result includes `defaultSet` and `favorites`.
+The definition, key included, is stored as a PI connection in
+[`config/connections.json`](./configuration.md#configconnectionsjson). See
+[Backends: Custom providers](./backends.md#custom-providers) for how a
+definition reaches an agent.
 
 **`cortex schedule <list|get|add|edit|pause|resume|remove> [<id>] [options]`**
 

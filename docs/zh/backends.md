@@ -19,7 +19,7 @@
 
 **引擎**就是后端进程本身——池化的 `claude` 子进程，或进程内的 PI SDK 会话。`SessionEngines`（`domain/runs/engines.ts`）是池化引擎的唯一持有者：`acquire(spec)` 在该 spec 的 engine key 对应的会话仍存活、且由同一 session identity 打开时复用它，否则将其退休并新开一个。适配器是无状态的；它依据 `EngineSpec` 打开一个会话，并翻译该会话发出的内容。
 
-配置每次运行只解析一次。`resolveRunSelection`（`domain/runs/config-resolver.ts`）依次使用显式请求的完整选择、会话记录的选择、频道选择、`models.json` 的 `default`。选择提供后端、模型、provider、gateway mode 与思考档位。`buildEngineSpec`（`domain/runs/engine-spec.ts`）生成后端中立的 `EngineSpec`，适配器将其转换成 Claude Code 的命令行参数或进程内 PI 的 session options。每次运行使用一个引擎选择。
+配置每次运行只解析一次。`resolveRunSelection`（`domain/runs/config-resolver.ts`）依次使用显式请求的完整选择、会话记录的选择、频道选择、`models.json` 的 `default`。选择提供后端、模型、provider、connection 与思考档位。`buildEngineSpec`（`domain/runs/engine-spec.ts`）生成后端中立的 `EngineSpec`，适配器将其转换成 Claude Code 的命令行参数或进程内 PI 的 session options。每次运行使用一个引擎选择。
 
 此后引擎发出一条 `RunEvent` 流（`agent-adapter/run-events.ts`）。每个适配器把其后端的原生事件翻译成 `agent-adapter/normalize/` 中声明的 `NormalizedEvent` 形状，`toRunEvent` 再为它们标上运行的阶段，因此运行层永远不需要知道运行的是哪个后端。
 
@@ -62,7 +62,7 @@ PI 在 Cortex 服务器进程内运行。引擎（`@earendil-works/pi-coding-age
 - **MCP 桥接**（`mcp-bridge.ts`）——把按 composition 限定的 Cortex 工具 bundle 以进程内方式经一对内存 MCP transport 提供出来，并绑定到专为该会话构建的 tool context。被指派的 plugin MCP server 仍各自保有独立的 stdio 子进程或远程连接。
 - **工具垫片**（`tool-shims.ts`）——注册 PI 本地的 `web_fetch`、`web_search` 与 `todo_write` 工具，每个都按其 Claude 名称（`WebFetch`、`WebSearch`、`TodoWrite`）受会话的工具允许列表约束；在会话可以委派时，还注册 `agent` 与 `agent_stop` 委派工具（参见[子智能体](#subagents)）。
 - **钩子桥接**（`hook-bridge.ts`）——把钩子注册表中面向 `pi` 后端的条目挂成 PI 原生事件处理器，Cortex 钩子脚本因此能看到 PI 的工具事件。参见 [hooks.md](./hooks.md)。
-- **额度探针**（`quota-probe.ts`）——在经网关路由的运行中从响应头读取 provider 额度，并把每次读数交给限流器。
+- **额度探针**（`quota-probe.ts`）——从响应头读取 provider 额度（Codex 在每次响应中公布用量），并把每次读数交给限流器。
 
 系统提示覆盖、追加提示与 Cortex 插件 skill 目录都是 session options（`systemPrompt`、`appendSystemPrompt`、`additionalSkillPaths`），而不是命令行标志。
 
@@ -70,7 +70,7 @@ PI 在 Cortex 服务器进程内运行。引擎（`@earendil-works/pi-coding-age
 
 **缓存预热。** Cortex 在主会话和子智能体会话中都关闭 PI 的自动 prompt-cache 预热。provider 的普通提示缓存仍可使用；Cortex 不会额外发起用量不在其费用统计之内的预热请求。这是运行时覆盖，不会改动终端 PI 的设置。
 
-**凭据。** PI 的 provider 凭据由 Cortex 管理——聊天里的 `!login pi`，或网页端的**设置 → 账号**——并保存在 PI 自己的认证文件 `~/.pi/agent/auth.json` 中。Cortex 让该文件在其私有 PI agent 目录内可见（Linux 与 macOS 用符号链接，Windows 用复制）供 SDK 读取，并从 `~/.pi/agent/models.json` 读取用户自定义的 provider。因此同时装有终端 `pi` CLI 的安装与 Cortex 共用同一份凭据和同一份 provider catalog。
+**凭据。** PI 的 provider 凭据由 Cortex 管理——聊天里的 `!login pi`，或网页端的**设置 → 账号**——并保存在 PI 自己的认证文件 `~/.pi/agent/auth.json` 中。Cortex 让该文件在其私有 PI agent 目录内可见（Linux 与 macOS 用符号链接，Windows 用复制）供 SDK 读取，并从 `~/.pi/agent/models.json` 读取用户自定义的 provider。因此同时装有终端 `pi` CLI 的安装与 Cortex 共用同一份凭据和同一份 provider catalog。Cortex 自己的[连接](./configuration.md#configconnectionsjson)叠加在其上：agent 目录的 `models.json` 还会写入被连接覆盖了 base URL 的内置 provider 和自定义 provider，并带上各自的密钥，对这些 provider 而言它们优先于 PI 自己的凭据。其余内置 provider 用 PI 自己的凭据直接连接各自的厂商。
 
 PI transcript 的保留基于文件系统。活跃的 PI 后端 session id 在保留扫描中受保护，而 `$CORTEX_HOME/logs/sessions-pi/` 下的孤立 transcript bundle 只有在超过保留截止线后仍无引用、且经过第二轮确认扫描后才会删除。
 
@@ -89,13 +89,12 @@ PI provider 名称与 Cortex 后端名称相互独立。特别地，`openai-code
 | `tools` | 规范工具名，翻译成各后端自己的拼写 |
 | `model` | PI 子智能体用 `provider/model[:thinking]`，Claude 子智能体用裸模型 id |
 | `backend` | `claude` 或 `pi`；不填表示"父端运行的是哪个就用哪个" |
-| `mode` | PI 子端依次使用角色值、同 provider 的 PI 父端路由、provider 名称。Claude 子端使用 Claude 父端路由或配置的 Claude 后端默认路由 |
 
 当 `$CORTEX_HOME/config/agents/` 尚不存在时，Cortex 私有 PI agent 目录内 `agents/` 目录中的角色会在启动时被移入其中，该目录随后被改名为 `agents.migrated`，这样在那里做的修改不会悄无声息地毫无效果。
 
-**模型如何选定。** 模型依次取任务显式给出的 `model`、角色的 `model`，最后是父端自己的模型——但最后一项仅在子端与父端运行同一后端时适用，因为 Claude 的模型 id 对 PI 毫无意义，PI 的 `provider/model` 对 Claude 亦然。Claude 子端没有显式模型或同后端父端模型时，使用 Claude 后端默认值（配置默认值属于 Claude 时用它，否则用第一个 Claude 收藏）。PI 父端创建 Claude 子端时也使用该 Claude 默认值的路由，需要事先配置 Claude 默认值或收藏。
+**模型如何选定。** 模型依次取任务显式给出的 `model`、角色的 `model`，最后是父端自己的模型——但最后一项仅在子端与父端运行同一后端时适用，因为 Claude 的模型 id 对 PI 毫无意义，PI 的 `provider/model` 对 Claude 亦然。Claude 子端没有显式模型或同后端父端模型时，使用 Claude 后端默认值（配置默认值属于 Claude 时用它，否则用第一个 Claude 收藏）。Claude 子端沿用 Claude 父端的连接；PI 父端创建 Claude 子端时使用该 Claude 默认值的连接，需要事先配置 Claude 默认值或收藏。
 
-**调用方能看到什么。** `subagent_type`、`model` 与 `backend` 三个字段的描述在注册工具时按本机实际拥有的内容生成，而不是写死。角色取自实时的角色表——内置角色叠加上 `$CORTEX_HOME/config/agents/`——因此你新增的角色在下一个会话就会出现。Claude 模型 id 来自 Cortex 生成 gateway 的 Anthropic 路由所用的同一张表，再加上守护进程当前的模型。PI 父端读取自己的实时模型注册表；Claude 父端读不到，因为它的 MCP 工具运行在没有 PI SDK 的 sidecar 进程里，所以守护进程把自己缓存扫描到的 provider/model 对经 spawn 环境传下去。缓存为空只意味着暂时还列不出 PI 模型——不会为了装饰一次 Claude spawn 而触发扫描。角色和模型各自有字符预算，超出部分渲染为 `(+N more)`。这些列表是快照，会话中途不会变化；它们是提示而非白名单：未列出的模型 id 仍会被接受并透传。一无所知时，描述回退到通用措辞，工具不会因为缺少 catalog 而失败。
+**调用方能看到什么。** `subagent_type`、`model` 与 `backend` 三个字段的描述在注册工具时按本机实际拥有的内容生成，而不是写死。角色取自实时的角色表——内置角色叠加上 `$CORTEX_HOME/config/agents/`——因此你新增的角色在下一个会话就会出现。Claude 模型 id 来自 Cortex 内置的 Anthropic 模型表，再加上守护进程当前的模型。PI 父端读取自己的实时模型注册表；Claude 父端读不到，因为它的 MCP 工具运行在没有 PI SDK 的 sidecar 进程里，所以守护进程把自己缓存扫描到的 provider/model 对经 spawn 环境传下去。缓存为空只意味着暂时还列不出 PI 模型——不会为了装饰一次 Claude spawn 而触发扫描。角色和模型各自有字符预算，超出部分渲染为 `(+N more)`。这些列表是快照，会话中途不会变化；它们是提示而非白名单：未列出的模型 id 仍会被接受并透传。一无所知时，描述回退到通用措辞，工具不会因为缺少 catalog 而失败。
 
 **隔离。** `pi` 子端是一个不写 transcript、headless 运行的嵌套进程内会话。`claude` 子端是一次冻结的一次性 `claude` 运行：没有可恢复的会话、没有钩子、没有环境规则、没有 transcript 日志。无论哪种，子端的 MCP 面都是去掉委派工具后的 `cortex-core` bundle，因此不能继续向下扇出。
 
@@ -136,7 +135,7 @@ PI provider 名称与 Cortex 后端名称相互独立。特别地，`openai-code
 
 对于 Claude Code 订阅，Cortex 针对自己的 Claude 配置目录启动 `claude auth login --claudeai`，把命令输出的授权 URL 发送到发起渠道，并把返回的 code 写入该命令的标准输入。OAuth 交换和凭据持久化由 Claude Code 负责。只有在清空认证相关环境变量后执行的 `claude auth status --json` 报告 `loggedIn: true` 时，Cortex 才把流程标记为完成；它从不读取或保存最终的 token。订阅登出同样交给 `claude auth logout`，并验证登出后的状态。旧版由 Cortex 管理的订阅 token 在 Claude Code 未登录期间仍是可删除的运行时凭据，但它不会让账号显示为已登录，并会在 Claude 拥有凭据后立即被抑制。
 
-运行中的后端报告认证过期时，Cortex 会发送一张点名 provider 的卡片，提供一键重新登录，并预填失败的那种认证方式：对 Claude Code，运行使用 `api` 模式时是 API key，否则是订阅。该登录进行中时，按钮会重新打开它；登录失败、被取消或过期后，按钮会发起一次新的登录。每日过期扫描检查使用中的账号，并对即将过期、已过期或缺失的凭据发送同一种可操作提醒。若某个 provider 在提醒窗口内已被运行时通知报告过，每日扫描会跳过它，因此定时预警不会重复你刚收到的通知。反方向是有意为之：运行时失败总会通知，即使每日扫描之前已对该 provider 预警过，因为会话中的失败正是你那一刻最需要的消息。
+运行中的后端报告认证过期时，Cortex 会发送一张点名 provider 的卡片，提供一键重新登录，并预填失败的那种认证方式：对 Claude Code，运行使用 `api` 连接时是 API key，否则是订阅。该登录进行中时，按钮会重新打开它；登录失败、被取消或过期后，按钮会发起一次新的登录。每日过期扫描检查使用中的账号，并对即将过期、已过期或缺失的凭据发送同一种可操作提醒。若某个 provider 在提醒窗口内已被运行时通知报告过，每日扫描会跳过它，因此定时预警不会重复你刚收到的通知。反方向是有意为之：运行时失败总会通知，即使每日扫描之前已对该 provider 预警过，因为会话中的失败正是你那一刻最需要的消息。
 
 在主机上做只读状态检查，可运行：
 
@@ -157,29 +156,29 @@ cortex auth status --json
 | Web（桌面与移动端） | **设置 → 账号 → 自定义 Provider** |
 | Slack / 飞书 | `!login custom [list \| add <name> <api> <url> <model…> \| remove <name>]` |
 
-一条定义需要四样东西：名称、端点使用的请求协议（`anthropic-messages`、`openai-completions`、`openai-responses` 或 `google-generative-ai`）、上游 URL，以及至少一个模型 id。上游密钥可选；不填时网关会透传调用方自己的 key。
+一条定义需要四样东西：名称、端点使用的请求协议（`anthropic-messages`、`openai-completions`、`openai-responses` 或 `google-generative-ai`）、上游 URL，以及至少一个模型 id。上游密钥可选，有些端点不需要密钥。
 
-保存会写两份文件。`~/.pi/agent/models.json` 新增一条 `providers.<name>`，其 `baseUrl` 指向网关，因此终端的 `pi` 与 Cortex 共用同一份定义。`~/.aistatus/gateway.yaml` 新增转发到真实端点的路由，并携带上游密钥。**密钥只存在于网关配置中**——PI catalog 里放的是占位符，所以到处复制 catalog 也不会复制出密钥。因此每次调用都经过网关，与其他路由一样计入用量并受限流。生成的网关配置设置 `max_body_size_mb: 100`。在 aistatus 0.0.8 及以上版本中，该值以 MiB 为单位限制每个缓冲的请求体；要使用其他限额，修改这个顶层值即可。网关会自行重新加载配置，因此路由和请求体限额的变更都无需重启。
+保存时，定义连同密钥作为一条 PI 连接存入 [`config/connections.json`](./configuration.md#configconnectionsjson)。每个 PI 会话拿到一份 `models.json`，其中只有自定义 provider 和被连接覆盖了 base URL 的内置 provider，并带上各自的密钥；PI 直接调用该端点。改动在下一次 spawn 时生效，无需重启。
 
 聊天命令刻意不提供密钥参数：频道记录不适合放密钥。请用 CLI 的 `--key -`（从标准输入读取）或 Web 表单添加密钥，两者都不会把它留在任何记录里。
 
-要使用自定义 provider，在模型选择器中选择它的模型，或输入 `!model my-vllm/Model-27B`。可将模型加入收藏，并在需要时设为默认（见 [configuration.md](./configuration.md#modelsjson)）。删除 provider 会同时移除 catalog 条目与网关路由；请先把使用它的会话、默认模型、收藏和定时任务改到其他 provider。
+要使用自定义 provider，在模型选择器中选择它的模型，或输入 `!model my-vllm/Model-27B`。可将模型加入收藏，并在需要时设为默认（见 [configuration.md](./configuration.md#modelsjson)）。删除 provider 会移除它的连接；请先把使用它的会话、默认模型、收藏和定时任务改到其他 provider。
 
 ## 选择后端 {#selecting-a-backend}
 
-每个会话保存完整的引擎选择：`backend`、`provider`、`model`、`thinking` 和 `mode`。`backend` 为 `claude` 或 `pi`；Claude 的 provider 为 null，PI 则必须指定 provider id，用于选择请求协议和网关 endpoint。默认选择与收藏保存在 [`config/models.json`](./configuration.md#modelsjson)。
+每个会话保存完整的引擎选择：`backend`、`provider`、`model`、`thinking` 和 `connection`。`backend` 为 `claude` 或 `pi`；Claude 的 provider 为 null，PI 则必须指定 provider id，用于选择请求协议和 endpoint。`connection` 指明 Claude 会话使用哪个 Claude 连接；PI 的 provider 本身就是它的连接，因此该字段为 null。默认选择与收藏保存在 [`config/models.json`](./configuration.md#modelsjson)。
 
 `!backend <claude|pi>` 在配置的默认选择属于目标后端时使用它，否则使用该后端的第一个收藏及其记住的设置。两者都没有时，需要先收藏该后端的一个模型。有历史的对话不能切换后端；需要新建会话。
 
-## 按会话选择模型、思考档位与路由 {#per-session-model-thinking-level-and-route}
+## 按会话选择模型、思考档位与连接 {#per-session-model-thinking-level-and-connection}
 
 Web 和移动端输入框的引擎选择器在根层列出收藏模型，显示模型名与记住的思考档位，按 backend 和 provider 分组。打开完整模型列表可选择其他模型，也可用每行的星标收藏或取消收藏。思考档位包含默认选项，保存为 `null`，由后端决定。`/model` 打开模型选择。执行环境是独立选项，见 [configuration.md](./configuration.md#choosing-an-environment-per-conversation)。
 
-选择保存在会话上。选模型会恢复该模型记住的思考档位与路由；没有记忆时，thinking 为 null，Claude 使用 `gateway.yaml` 中第一条 Anthropic 路由（未声明时用 `plan`），PI 使用 provider 名称（PI 的 `anthropic` provider 为 `pi-anthropic`）。用户修改选择时更新模型记忆。新建 Web 对话从本机上一次选定的引擎开始。
+选择保存在会话上。选模型会恢复该模型记住的思考档位与连接；没有记忆时，thinking 为 null，Claude 模型使用默认连接。用户修改选择时更新模型记忆。新建 Web 对话从本机上一次选定的引擎开始。
 
 有历史的对话不能切换后端。选择器会禁用另一后端的模型；新草稿可以任选后端。
 
-**路由**是 gateway 端点的计费通道，例如 Anthropic 订阅的 `plan` 或计量密钥的 `api`。选择器只提供该端点在 `gateway.yaml` 中声明的路由，只有一条时隐藏路由选择。Claude Code 与 PI 内置的 `anthropic` provider 共用 `gateway.yaml` 的 `anthropic` 段，但在模型目录里是两条独立的条目：PI 的 provider 只用自己的路由 `pi-anthropic`，透传 PI 自己的 Anthropic 登录；Claude Code 使用该段中的其余路由。两者都登录时，各自的模型、收藏、额度和限流互不混用。模型目录提供各 endpoint 的 backend、provider、路由和模型。思考档位取后端的值域；PI 提供模型自身档位时，按该范围收窄。
+**连接**是 Claude 会话所用的凭据与端点：`subscription` 表示 Claude Code 自己的登录，或者是某个 key 连接的 id：已保存的 Anthropic API key 为 `api`，中转站则是为它起的 id（见[连接](./configuration.md#configconnectionsjson)）。Claude Code 已登录时默认使用订阅，否则使用第一个已保存的 Claude 连接。选择器列出本机的 Claude 连接，只有一个时隐藏连接选择。Claude Code 与 PI 内置的 `anthropic` provider 在模型目录里是两条独立的条目：PI 的 provider 使用 PI 自己的 Anthropic 凭据。两者都登录时，各自的模型、收藏、额度和限流互不混用。模型目录提供各 endpoint 的 backend、provider、连接和模型。思考档位取后端的值域；PI 提供模型自身档位时，按该范围收窄。
 
 **设置 → 模型** 管理默认模型与收藏列表。平台频道通过以下命令使用同样的选择规则：
 
@@ -191,7 +190,7 @@ Web 和移动端输入框的引擎选择器在根层列出收藏模型，显示�
 | `!model reset` | 恢复完整的配置默认选择 |
 | `!thinking [level]` | 查看或设置思考档位 |
 | `!thinking reset` | 将 thinking 设为 null，使用后端默认值 |
-| `!mode [route]` | 查看或设置网关路由，按 endpoint 的路由校验 |
+| `!mode [connection]` | 查看或设置频道的 Claude 连接，按本机的 Claude 连接校验 |
 
 ## 思考档位 {#thinking-level}
 
@@ -199,7 +198,7 @@ Web 和移动端输入框的引擎选择器在根层列出收藏模型，显示�
 
 ## 用量限流与自动恢复 {#usage-limit-throttling-and-auto-resume}
 
-Cortex 按 provider 跟踪滚动用量窗口。provider 标识是不透明字符串，因此限流器可以跟踪任意数量的 provider，无需固定的 provider 枚举。每个 provider 保有自己的窗口类型和重置时间。限流门禁作用于 provider 与 route mode 的组合，不会阻塞恰好使用相同 mode 名称的另一个 provider。
+Cortex 按 provider 跟踪滚动用量窗口。provider 标识是不透明字符串，因此限流器可以跟踪任意数量的 provider，无需固定的 provider 枚举。每个 provider 保有自己的窗口类型和重置时间。限流门禁作用于 provider 及其流量所走的连接，不会阻塞恰好使用同名连接的另一个 provider。
 
 这套策略在 [`config/settings.json`](./configuration.md#configsettingsjson) 中以 `providerRateLimits` 配置，它是一个以 provider id 为键的对象。每个 provider 可以有一个由 `{ type, label?, enabled, threshold? }` 条目组成的 `windows` 数组，因此 5 小时、weekly、含超额 weekly、Codex 主/次窗口以及带标签的模型窗口都能独立配置。`threshold` 是大于 `0` 且不超过 `1` 的比率；省略时，weekly 窗口（`seven_day`、`seven_day_overage_included`）使用 `0.95`，其他所有窗口（包括 `five_hour`）使用 `0.90`。精确窗口策略优先于可见且可清除的旧版 provider 回退。桌面端和移动端的用量页面编辑这些行；只统计花费的 provider 不显示额度控件。
 

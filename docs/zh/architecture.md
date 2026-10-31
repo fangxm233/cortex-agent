@@ -86,7 +86,7 @@ L5  entry/         → everything (composition root)
 | `types/agent-types.ts` | `Backend`、`AgentResult`、`AgentProgress`、`AskUserQuestionInfo`，以及 todo、上下文用量、附件和通知的结构 |
 | `types/environment-types.ts` | 执行环境类型：`AgentDefinition`（对应一个 `config/environments/*.json` 文件），以及一次运行打开时使用的 `ResolvedEnvironment` |
 | `config-generator.ts` | 新安装的配置文件初始化，以及每次启动时写入的 MCP 配置 |
-| `gateway-generator.ts` | API 网关 YAML 生成 |
+| `connections-file.ts` | 连接文件（`config/connections.json`）：解析、仅属主可读写的写入，以及各界面显示的密钥掩码提示 |
 | `models-generator.ts` | 默认模型与收藏 JSON 生成 |
 
 ### 第 1 层：`store/` — 持久化 {#layer-1-store-persistence}
@@ -141,9 +141,10 @@ L5  entry/         → everything (composition root)
 | `runs/` | 运行层：`startRun` 与 `AgentRun` 所有权对象、`RunRequest` 的引擎选择/spec/提示解析及其共享构建器（`builders.ts`）、后端中立的 `RunEvent` 流，以及 `SessionEngines` 池 |
 | `sessions/` | 会话生命周期与记录、会话钩子管道（`onNew`、`onMessageEnd`、关闭前）及可选的智能体注入、团队会话，以及保留期清理 |
 | `executions/` | 基于 `store/execution-repo.ts` 的执行注册表访问，以及存活执行的清理与停止 |
-| `auth/` | Claude Code、PI 和 Codex 的凭据与登录流程、认证状态与过期监视，以及登录后的网关同步 |
-| `pi-providers/` | 自定义 PI 提供商：`cortex auth provider` 背后的模型目录条目和网关路由 |
-| `costs/` | 费用追踪、网关管理、用量采集、账户读数与 banked reset、按提供商感知的速率限制 |
+| `auth/` | Claude Code、PI 和 Codex 的凭据与登录流程、认证状态与过期监视，以及登录后的模型同步 |
+| `connections/` | 凭据清单（有哪些连接、各自能否认证、订阅还是计量计费）、按 spawn 由连接决定的 Claude Code 环境路由，以及每个 PI 会话拿到的 PI provider 目录 |
+| `pi-providers/` | 自定义 PI 提供商：`cortex auth provider` 背后的定义，存为 PI 连接 |
+| `costs/` | 费用追踪、用量共享排行榜上传、用量采集、账户读数与 banked reset、按提供商感知的速率限制 |
 | `scheduling/` | 持久化调度引擎，加上由设置驱动的内置作业控制器。`Scheduler` 热重载用户定时任务，每次触发都新开一个会话；记忆索引重建等内置作业拥有自己的守护进程计时器 |
 | `waitpoints/` | Waitpoint 服务：布设、信号解析、过期，以及唤醒会话的通知（参见 [waitpoints.md](./waitpoints.md)） |
 | `boards/` | 看板服务、路径与 slug、重新渲染已打开看板的文件监视器，以及把决策投射到看板上 |
@@ -204,7 +205,7 @@ L5  entry/         → everything (composition root)
 | `shutdown.ts` | SIGTERM 处理：一个有序的关闭步骤列表，前一步失败后续步骤照样执行，最后退出 |
 | `daemon.ts` | 进程监督器。Fork `app.js`，监视 `$CORTEX_REPO/src` 以自动重建（设置了 `CORTEX_REPO` 时），监视 `.restart` 触发文件，带指数退避的崩溃恢复（1s→30s 上限）。发布逐步骤的重建进度，在 install/restart 之前等待 app 空闲，并在这段窗口内拦住新回合（见下文） |
 | `daemon-notice.ts` | 下行 IPC 的 app 侧：把 `rebuild-aborted` 变成系统通知、把 `rebuild-hold` 变成准入侧的闸门，并在监督器断开连接时解除闸门 |
-| `cortex-cli.ts`、`cli.ts` | `cortex` CLI 入口。分派到 `init`、`config`、`auth`、`doctor`、`feishu`、`restart`、`setup-gateway`、`ui`、`client`、`install`、`schedule`、`memory`、`start`、`daemon`、`tui`，各自在独立的 `*-cli.ts` 模块中实现（参见 [cli-reference.md](./cli-reference.md)） |
+| `cortex-cli.ts`、`cli.ts` | `cortex` CLI 入口。分派到 `init`、`config`、`auth`、`doctor`、`feishu`、`restart`、`ui`、`client`、`install`、`schedule`、`memory`、`start`、`daemon`、`tui`，各自在独立的 `*-cli.ts` 模块中实现（参见 [cli-reference.md](./cli-reference.md)） |
 | `browser-cli.ts`、`hook-cli.ts`、`signal-cli.ts`、`production-evidence-export-cli.ts` | `cortex-browser`、`cortex-hook`、`cortex-signal` 和 `cortex-evidence-export` 可执行文件 |
 | `init.ts` | 交互式首次初始化 |
 | `start-ui-http.ts`、`ui-http-gate.ts`、`ui-service-wiring.ts` | 在 `CORTEX_UI_HTTP` 开启时启动 Web UI 宿主，并连接它所提供的 `UiService` |

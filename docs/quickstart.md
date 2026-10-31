@@ -392,8 +392,7 @@ status without starting provider login or waiting for input. Omitted
 selection and installation behavior. These runs can finish without a
 configured provider. Sign in later with `cortex auth login` or
 **Settings → Accounts**; a successful `cortex auth login` also configures
-the gateway routes, default model, and favorites. `cortex setup-gateway` runs that
-configuration again on its own.
+the default model and favorites.
 Remote login is also available through `!login` in Slack or Feishu; see
 [Backends: Remote login](./backends.md#remote-login).
 
@@ -425,9 +424,8 @@ one-click re-login button, and a daily scan warns about credentials that
 are close to expiring.
 
 Once the login finishes, the refreshed credentials are picked up on the
-next agent run. If the endpoint or model changed, re-run
-`cortex setup-gateway` to refresh the gateway and model list, then choose the
-desired default in **Settings → Models**. Sync preserves an existing default.
+next agent run. If the model you want changed, choose the desired default in
+**Settings → Models**. The sync after a login preserves an existing default.
 
 ---
 
@@ -493,7 +491,6 @@ adds a new one; see
 
 ```
 ~/.aistatus/
-├── gateway.yaml                # gateway routing config (generated once credentials are detected)
 └── config.yaml                 # aistatus uploader settings (your name/org/email)
 ```
 
@@ -520,7 +517,7 @@ launchctl load ~/Library/LaunchAgents/cc.cortex.agent-server.plist
 
 Check the daemon with `cortex daemon status`. `cortex config` shows resolved
 paths and initialization status, and `cortex doctor` checks the runtime, login,
-platform, and gateway (`--fix` repairs what it can).
+and platform (`--fix` repairs what it can).
 
 ### Open the Web workbench
 

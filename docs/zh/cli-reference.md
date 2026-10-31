@@ -141,12 +141,11 @@ client 的 `CORTEX_HOME` 取自 `clientCommand` 中的 bundle 路径，默认是
 
 **`cortex doctor [--fix] [--json]`**
 
-一次性对整个安装做健康检查并报告问题。默认运行是只读的，任何时候运行都安全。它检查四个方面：
+一次性对整个安装做健康检查并报告问题。默认运行是只读的，任何时候运行都安全。它检查三个方面：
 
 - 运行时与进程——Node 版本、PATH 上的 `git`（Windows 上缺失为失败，其他平台为警告）、PATH 上的 `claude` 可执行文件（缺失为警告；PI 始终通过，因为它在进程内由内置 SDK 运行），以及守护进程是否在运行。
-- 后端安装 / 登录——数据目录存在且可写、`.env` 存在、客户端与 webhook token 已设置、`ANTHROPIC_API_KEY` 状态，以及 `agent-state.json`、`models.json` 和 `mcp-config.json` 存在且有效。缺少 `models.json` 为警告；JSON 无效、默认引擎选择无效、收藏数组缺失或无效为失败。它还会对已安装的 PI 运行时及其 `login` 导出做烟测，再从不含凭据的后端认证快照中汇总使用中但已过期或未登录的 provider。这两项检查只产生警告，不会失败。API 模式下，若 gateway 健康但本地没有 key，会报告为由 gateway 托管的说明信息，而不是误报未登录警告。
+- 后端安装 / 登录——数据目录存在且可写、`.env` 存在、客户端与 webhook token 已设置、默认选择所指定的 Claude 连接是否存在（默认使用订阅或 PI 时跳过），以及 `agent-state.json`、`models.json` 和 `mcp-config.json` 存在且有效。缺少 `models.json` 为警告；JSON 无效、默认引擎选择无效、收藏数组缺失或无效为失败。它还会对已安装的 PI 运行时及其 `login` 导出做烟测，再从不含凭据的后端认证快照中汇总使用中但已过期或未登录的 provider。这两项检查只产生警告，不会失败。默认选择使用已配置的 key 连接时，Claude Code 订阅未登录不会被报告为问题。
 - 消息平台——解析 `CORTEX_PLATFORM`，并校验每个已启用平台的凭据（Slack `xoxb-`/signing/`xapp-`，飞书 app id/secret）。
-- 网关——所配置的 gateway YAML 是否存在，以及对 `http://127.0.0.1:<CORTEX_GATEWAY_PORT>/status` 的健康探测（默认端口 `9880`）。目录由 `CORTEX_GATEWAY_HOME` 决定，默认为 `~/.aistatus/`。只有在网关实际被使用时，探测才会报告为失败；否则跳过。
 
 每项检查打印 `[OK]`、`[WARN]`、`[FAIL]` 或 `[--]`（跳过），附简短说明，有问题时附修复提示。任一检查失败时命令以 `1` 退出，否则以 `0` 退出；警告不会让运行失败。
 
@@ -173,7 +172,7 @@ client 的 `CORTEX_HOME` 取自 `clientCommand` 中的 bundle 路径，默认是
 
 即使已提供全部选择参数，登录仍要求 stdin 和 stderr 都是 TTY。API key 与授权响应通过隐藏输入提示收集；此命令不接受密钥、token 或授权码参数。浏览器链接与设备授权指引显示在 stderr。非 TTY 登录会立即失败，不启动认证流程；帮助信息无需 TTY。
 
-结果以 JSON 写入 stdout，面向人的提示与错误写入 stderr；不需要也不接受 `--json` 参数。结果不含秘密值。登录成功后同步 gateway/模型配置，并报告同步结果与 `inferenceVerified: false`：凭据已配置，但未经推理测试，也不会发送付费模型请求。
+结果以 JSON 写入 stdout，面向人的提示与错误写入 stderr；不需要也不接受 `--json` 参数。结果不含秘密值。登录成功后同步模型配置，并报告同步结果与 `inferenceVerified: false`：凭据已配置，但未经推理测试，也不会发送付费模型请求。同步保留已有默认选择与收藏，补齐缺失的默认值，并为尚无收藏的新接通 backend/provider 组合添加一个推荐收藏。同步结果包含 `defaultSet` 和 `favorites`。保存的 Anthropic API key 存为 `api` [连接](./configuration.md#configconnectionsjson)。
 
 选项：
 - `--backend pi|claude` — 选择后端；省略时交互选择
@@ -195,7 +194,7 @@ cortex auth login --help
 选项：
 - `--name <name>` — provider 名称，仅限字母、数字、`-` 和 `_`
 - `--api <api>` — 请求协议：`anthropic-messages`、`openai-completions`、`openai-responses` 或 `google-generative-ai`
-- `--url <url>` — 上游端点，保存在网关路由中
+- `--url <url>` — PI 调用的端点
 - `--key <key|->` — 上游 API key；`-` 表示从 stdin 读取，这样它不会出现在 shell 历史中
 - `--model <id>` — 该端点提供的模型 id；多个时重复使用
 - `--dry-run` — 用于 `remove`：报告将删除的内容，但不删除
@@ -215,17 +214,7 @@ cortex auth provider list --json
 cortex auth provider remove --name my-vllm --dry-run
 ```
 
-两处写入的内容以及一条定义如何到达 agent，参见 [后端：自定义 provider](./backends.md#custom-providers)。
-
-**`cortex setup-gateway [--dry-run] [--output-dir <path>]`**
-
-从本地配置文件自动检测 Claude Code 和 PI 配置，生成 gateway YAML（备份已有文件），并写入 `$CORTEX_HOME/config/models.json`。每当你添加新的 API key 或更换模型时运行此命令。默认写入 `~/.aistatus/gateway.yaml`；`CORTEX_GATEWAY_HOME` 将其设为 `<CORTEX_GATEWAY_HOME>/.aistatus/gateway.yaml`，`CORTEX_GATEWAY_PORT` 指定其端口。两项均可保存在 `$CORTEX_HOME/config/.env`，多实例设置见[本地模型网关](./configuration.md#local-model-gateway)。
-
-选项：
-- `--dry-run` — 将生成的 gateway.yaml 打印到 stdout 而不写入
-- `--output-dir <path>` — 在 `<path>` 下写入 gateway.yaml 和 models.json，而不是默认位置；仅导出文件，不改变运行中网关的位置
-
-设置保留已有默认选择并合并收藏，摘要显示默认模型与收藏；修改默认值可用**设置 → 模型**。登录后的同步也保留已有选择，补齐缺失的默认值，并为尚无收藏的新接通 backend/provider 组合添加一个推荐收藏。同步结果包含 `defaultSet` 和 `favorites`。
+定义连同密钥作为一条 PI 连接存入 [`config/connections.json`](./configuration.md#configconnectionsjson)。一条定义如何到达 agent，参见 [后端：自定义 provider](./backends.md#custom-providers)。
 
 **`cortex schedule <list|get|add|edit|pause|resume|remove> [<id>] [options]`**
 

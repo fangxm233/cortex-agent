@@ -14,11 +14,11 @@
 
 worker 是隶属于某个主会话的普通会话。它有自己的 transcript、上下文和续跑历史，和其他会话一样可以跑在
 Claude 或 PI 上，拥有完整的工具面，包括一次性的 `agent` 工具。它不能再创建自己的 worker，所以团队只有
-一层。worker 继承主会话的项目，并复制其完整引擎选择：backend、provider、model、thinking 和 route。
+一层。worker 继承主会话的项目，并复制其完整引擎选择：backend、provider、model、thinking 和 connection。
 主会话可以传 `backend` 和 `model`，格式与 `agent` 工具相同（PI 用 `provider/model[:thinking]`，Claude 用
 裸模型 id）。同一后端只替换写出的部分；换后端时，如果 `models.json` 的默认选择属于目标后端，就使用它，
 否则使用目标后端的第一个收藏及其记住的设置。两者都没有时创建失败，并提示先收藏该后端的模型。
-显式改变 PI provider 时使用该 provider 的路由。Claude 主会话可以带 PI worker，反之亦然。
+Claude worker 使用其起始选择的连接。Claude 主会话可以带 PI worker，反之亦然。
 创建 worker 不会改变用户新对话的引擎选择。
 
 主会话只在有多个任务（或可拆成多个任务）、或用户切换到新任务时才用 worker；单一任务留在主会话里做。

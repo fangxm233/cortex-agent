@@ -284,7 +284,7 @@ cortex auth status
 
 登录要求交互式 TTY。密钥与授权响应通过提示输入，不能作为命令参数传入。命令将 JSON 结果写入 stdout，将面向人的提示与指引写入 stderr。`cortex auth login --help` 列出选项，详见 [CLI 参考](./cli-reference.md#commands)。
 
-使用 `--answers <file>` 或 `--json` 时，init 检测凭据并报告状态，不会启动 Provider 登录或等待输入。省略 `backends` 时默认使用 PI；显式提供 `backends` 时保留所指定的后端选择与安装行为。即使尚未配置 Provider，这类运行也能完成。之后可用 `cortex auth login` 或**设置 → 账号**登录；`cortex auth login` 成功后也会配置 gateway 路由、默认模型与收藏。`cortex setup-gateway` 可单独重新执行这一配置。Slack 或飞书中也可通过 `!login` 远程登录，参见[后端：远程登录](./backends.md#remote-login)。
+使用 `--answers <file>` 或 `--json` 时，init 检测凭据并报告状态，不会启动 Provider 登录或等待输入。省略 `backends` 时默认使用 PI；显式提供 `backends` 时保留所指定的后端选择与安装行为。即使尚未配置 Provider，这类运行也能完成。之后可用 `cortex auth login` 或**设置 → 账号**登录；`cortex auth login` 成功后也会配置默认模型与收藏。Slack 或飞书中也可通过 `!login` 远程登录，参见[后端：远程登录](./backends.md#remote-login)。
 
 非交互式模型选择可通过 `--answers` 的 `defaultChoice` 和 `favorites` 指定，每个选择都是包含 `mode` 与 `model` 的对象。显式 `defaultChoice` 会替换已保存的默认值，否则保留它；收藏合并并包含所选默认模型。按位置读取的 stdin 协议末尾有两行模型选择：第一行为默认模型的 `mode:model`，第二行为逗号分隔的收藏 `mode:model`。
 
@@ -303,7 +303,7 @@ Re-authenticate to continue.
 
 Cortex 也会主动提醒。运行中的智能体一旦撞上认证过期，就会发出点名 provider 的通知卡，卡上带一键重登按钮；每日扫描还会对临近过期的凭据发出预警。
 
-登录完成后，刷新的凭据会在下一次智能体运行时被识别。如果端点或模型发生了变化，重新运行 `cortex setup-gateway` 刷新网关与模型列表，再在**设置 → 模型**中选择所需默认模型。同步保留已有默认值。
+登录完成后，刷新的凭据会在下一次智能体运行时被识别。如果想用的模型变了，在**设置 → 模型**中选择所需默认模型。登录后的同步保留已有默认值。
 
 ---
 
@@ -354,7 +354,6 @@ Cortex 的内置插件、钩子、规则、子智能体角色与系统提示词�
 
 ```
 ~/.aistatus/
-├── gateway.yaml                # 网关路由配置（检测到凭据后生成）
 └── config.yaml                 # aistatus 上传器设置（你的姓名/组织/邮箱）
 ```
 
@@ -377,7 +376,7 @@ systemctl --user enable --now cortex
 launchctl load ~/Library/LaunchAgents/cc.cortex.agent-server.plist
 ```
 
-用 `cortex daemon status` 检查守护进程状态；`cortex config` 显示解析后的路径和初始化状态；`cortex doctor` 检查运行时、登录、平台和 gateway（`--fix` 修复能修复的部分）。
+用 `cortex daemon status` 检查守护进程状态；`cortex config` 显示解析后的路径和初始化状态；`cortex doctor` 检查运行时、登录和平台（`--fix` 修复能修复的部分）。
 
 ### 打开 Web 工作台 {#open-the-web-workbench}
 
