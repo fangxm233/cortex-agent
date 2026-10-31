@@ -17,7 +17,7 @@ export interface NameCatalog {
   piProviders: ReadonlySet<string>;
   /** `provider/model` pairs from the static catalog. */
   piModels: ReadonlySet<string>;
-  /** Every model id in the static catalog, any provider (gateway-routed Claude Code). */
+  /** Every model id in the static catalog, any provider (Claude Code on a non-Anthropic connection). */
   modelIds: ReadonlySet<string>;
   /** User-defined PI providers (models.json) → their API kind. */
   customProviders: ReadonlyMap<string, string>;

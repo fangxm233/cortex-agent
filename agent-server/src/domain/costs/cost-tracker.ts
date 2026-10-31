@@ -472,13 +472,13 @@ async function formatCostReport(project: string | null = null): Promise<string> 
   lines.push(formatModeLine('API', buildModeBucket(summary.byMode, 'api')));
   lines.push(formatModeLine('Plan', buildModeBucket(summary.byMode, 'plan')));
 
-  // Source breakdown (gateway vs estimate)
+  // Source breakdown (where each cost record came from)
   if (Object.keys(summary.bySource).length > 0) pushStatsSection(lines, t('notice.cost.bySource'), summary.bySource);
 
   // Backend breakdown — show when PI is present (N2H-2: simplified condition)
   if ('pi' in summary.byBackend) pushStatsSection(lines, t('notice.cost.byBackend'), summary.byBackend);
 
-  // Token usage (from gateway data)
+  // Token usage
   const tok = summary.tokens;
   if (tok.total.input > 0 || tok.total.output > 0) {
     lines.push('');

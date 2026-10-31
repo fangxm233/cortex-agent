@@ -378,7 +378,7 @@ function routeToken(value: string | null | undefined, render: (v: string) => str
 /** Identity of the route this spawn would take: the endpoint verbatim (not a secret, and worth
  *  reading when a pool mismatch is investigated) plus one digest per credential. Session pools
  *  compare it so a mode switch can never hand a caller a live process that is still pointed at
- *  the previous gateway or still holding the previous account's key (K-053). */
+ *  the previous endpoint or still holding the previous account's key (K-053). */
 export function claudeRouteIdentity(route: ClaudeRouteInputs): string {
   const endpoint = routeToken(
     // setIfPresent skips a falsy field, so an empty base URL means "no base URL", not "empty".

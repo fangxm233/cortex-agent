@@ -124,8 +124,8 @@ const defaultInjectDeps: InjectDeps = {
 };
 
 /** The next turn on the engine `after` ran on: same session, agent, selection, policy and route —
- *  the route keeps `after`'s trigger, since the gateway URL names it and the process was spawned on
- *  it; the follow-up's own trigger is what its execution and cost are recorded under. */
+ *  the route keeps `after`'s trigger, since the process was spawned on it; the follow-up's own
+ *  trigger is what its execution and cost are recorded under. */
 function followUpRequest(
   after: RunRequest,
   next: { prompt: string; trigger: string; backendSessionId: string },

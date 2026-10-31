@@ -129,7 +129,7 @@ export async function handleAuthLogout(
 }
 
 /**
- * Re-derive gateway routes and favorites from the backends this machine can reach.
+ * Re-derive the model list and favorites from the backends this machine can reach.
  *
  * Runs automatically after a login (see the `onLoginSuccess` wiring in entry/app.ts); this is the
  * manual entry point for the cases that misses — a credential that predates the automatic sync, or

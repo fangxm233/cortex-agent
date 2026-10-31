@@ -42,7 +42,7 @@ export interface PiRuntimeHandle {
 
 export interface PiRuntimeCallbacks {
   onEvent(event: PiRawEvent): void;
-  /** Provider quota read off response headers; set only for gateway-routed runs. */
+  /** Provider quota read off response headers; set only for runs that report quota. */
   onProviderQuota?(reading: CodexQuotaReading): void;
 }
 

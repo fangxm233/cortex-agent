@@ -10,7 +10,7 @@ const REQUEST_TIMEOUT_MS = 10_000;
 const USAGE_PATH = '/api/oauth/usage?cedar_ember=1&skip_spend=1';
 const RESET_PROGRAM = 'cedar_ember';
 const GRANT_ID = /^[a-z0-9_-]{1,40}$/;
-/** The account windows the gateway quota path also reports, so both sources fill one row. */
+/** The account windows Claude Code's rate-limit events also report, so both sources fill one row. */
 const WINDOW_TYPES = ['five_hour', 'seven_day'] as const;
 /** Claude Code reads its rate-limit header `seven_day_overage_included` as this per-model weekly
  *  limit, so the reading takes that type to share the throttle's window and policy. */

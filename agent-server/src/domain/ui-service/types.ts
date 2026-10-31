@@ -1790,7 +1790,7 @@ export interface UiServiceDeps {
   getAuthStatus?: () => Promise<AuthStatusSnapshot>;
   authLogin?: AuthLoginService;
   logoutAccount?: (input: LogoutAccountInput) => Promise<AuthLogoutResult>;
-  /** Re-derives gateway routes and favorites; defaults to discovery-backed sync. */
+  /** Re-derives the model list and favorites; defaults to discovery-backed sync. */
   syncGateway?: (options: { backends?: string[] }) => Promise<AuthSyncGatewayReturn>;
   /** Files custom providers are read from and written to; defaults to the host's own two files. */
   customProviderStores?: CustomProviderStores;

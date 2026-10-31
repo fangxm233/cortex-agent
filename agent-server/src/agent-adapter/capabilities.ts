@@ -17,7 +17,7 @@ export enum Capability {
   Subagents = 'subagents',
 }
 
-// Claude: account quota is observed by the local HTTP gateway.
+// Claude: account quota is read off Claude Code's rate-limit events.
 const CLAUDE_CAPS: Capability[] = [
   // Print mode accepts a user message written to stdin while a turn is in flight.
   Capability.MidTurnInject,

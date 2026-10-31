@@ -40,7 +40,7 @@ export interface PISessionOptions {
   registry: Map<string, string>;
   /** Passed the closing session itself so the pool only evicts the entry it still owns. */
   onClose?: (sessionKey: string, session: unknown) => void;
-  /** Called with each provider quota reading; set only for gateway-routed runs. */
+  /** Called with each provider quota reading; set only for runs that report quota. */
   onProviderQuota?: (reading: CodexQuotaReading) => void;
   /** The daemon's subagent machinery, handed to this session's `agent` tool (D10). */
   subagent?: PiSubagentBridge;

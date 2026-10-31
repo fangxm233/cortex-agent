@@ -2,8 +2,8 @@ import { existsSync, readFileSync } from 'fs';
 
 /**
  * A models.json provider block is a *definition* (a user-defined provider) when it declares both a
- * protocol and its own models. A bare `baseUrl` (optionally with `compat`) is the override cortex
- * writes to route a PI built-in through the gateway — PI already knows those providers.
+ * protocol and its own models. A bare `baseUrl` (optionally with `compat`) is an override that points
+ * a PI built-in at another endpoint — PI already knows those providers.
  */
 export function isCustomProviderEntry(entry: unknown): entry is Record<string, unknown> {
   if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;

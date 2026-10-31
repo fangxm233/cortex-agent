@@ -45,7 +45,7 @@ function sessionModelEnv(env: NodeJS.ProcessEnv, getSnapshot?: SubagentModelEnvG
  * The Cortex extensions a session runs with, each closed over the session's request rather
  * than `process.env`: the MCP bridge (Cortex bundles in-process, plugin servers as independent
  * connections), the tool shims, image-first requests, the optional hook bridge, and the quota
- * probe for gateway-routed runs that have somewhere to report to. The same quota reporter reaches
+ * probe for runs that have somewhere to report to. The same quota reporter reaches
  * nested child sessions through the shims: a child's provider calls are the parent's spend, and
  * codex publishes quota only on real responses, so dropping the child's would starve the reading.
  */

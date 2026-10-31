@@ -6,8 +6,8 @@ import {
 import type { UiServiceDeps, QueryParams } from '../types.js';
 
 /**
- * Every entry is derived from PI's own catalog joined with its gateway route, so the list shows the
- * same definitions the terminal `pi` sees. The upstream key stays in the gateway config: the view
+ * Every entry is derived from PI's own catalog joined with its Cortex connection, so the list shows
+ * the same definitions the terminal `pi` sees. The upstream key stays in the connection: the view
  * reports only whether one is stored.
  */
 export async function handleCustomProvidersList(

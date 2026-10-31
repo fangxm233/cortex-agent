@@ -1,5 +1,5 @@
-// Known P1 limitation: API mode reflects only the saved local key. A healthy gateway may carry
-// upstream credentials while this snapshot reports the API-key slot as logged out.
+// API mode reflects only the saved local key: a key carried by a Claude connection does not show
+// as a logged-in API-key slot here.
 
 import { readClaudeStore } from '@core/claude-credentials.js';
 import { piUserAuthPath } from '@core/pi-sdk.js';

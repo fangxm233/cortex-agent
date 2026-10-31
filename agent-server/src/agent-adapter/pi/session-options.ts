@@ -104,7 +104,7 @@ export function buildPiEnv(
 export interface PiSessionRequest {
   sessionKey: string;
   cwd: string;
-  /** PI agent dir holding auth.json and the gateway-routed models.json. */
+  /** PI agent dir holding auth.json and models.json. */
   agentDir: string;
   sessionDir: string;
   /** Existing transcript to resume, or null to start a new one. Not part of the identity. */
@@ -122,7 +122,7 @@ export interface PiSessionRequest {
   disableHooks: boolean;
   /** Clean mode: PI loads no context files (AGENTS.md and the like) from the cwd or its ancestors. */
   noContextFiles?: boolean;
-  /** Gateway-routed runs report provider quota read off response headers. */
+  /** Whether the run reports provider quota read off response headers. */
   reportsProviderQuota: boolean;
   /** Plugin MCP servers, already filtered by composition. Empty when none apply. */
   pluginMcpServers: McpServerConfig[];
