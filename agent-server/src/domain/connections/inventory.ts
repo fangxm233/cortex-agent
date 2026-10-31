@@ -150,14 +150,15 @@ const SUBSCRIPTION_ONLY_PI_PROVIDERS: ReadonlySet<string> = new Set([
   'openai-codex', 'google-gemini-cli', 'google-antigravity',
 ]);
 
-/** A PI provider on Cortex's own connection is metered; otherwise PI's OAuth logins are
- *  subscriptions (Sign in with ChatGPT, for one) and its API keys are metered. */
+/** A PI provider whose Cortex connection carries a key is metered: that key is what PI sends.
+ *  Otherwise — no connection, or one that only moves the endpoint — PI sends its own credential:
+ *  its OAuth logins are subscriptions (Sign in with ChatGPT, for one), its API keys metered. */
 function piBilling(
   provider: string | null,
   findPi: (provider: string) => ConnectionView | null,
   piOAuth: () => Set<string>,
 ): ConnectionBilling {
-  if (!provider || findPi(provider)) return 'metered';
+  if (!provider || findPi(provider)?.keyHint) return 'metered';
   if (SUBSCRIPTION_ONLY_PI_PROVIDERS.has(provider)) return 'subscription';
   return piOAuth().has(provider) ? 'subscription' : 'metered';
 }

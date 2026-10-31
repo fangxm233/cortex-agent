@@ -95,7 +95,21 @@ describe('credential inventory', () => {
       expect(subject.billingOf({ backend: 'pi', provider, connection: null })).toBe('subscription');
     }
     expect(subject.billingOf({ backend: 'pi', provider: 'openai', connection: null }),
-      'a Cortex connection for the provider carries its own key').toBe('metered');
+      'a key-less override keeps the billing of the login underneath').toBe('subscription');
     expect(subject.billingOf({ backend: 'pi', provider: 'github-copilot', connection: null })).toBe('metered');
+  });
+
+  it('bills a PI provider as metered when its connection carries a key, whatever the login underneath', () => {
+    writeConnections([
+      { id: 'openai-codex', backend: 'pi', provider: 'openai-codex', baseUrl: 'http://proxy.invalid:1' },
+      { id: 'deepseek', backend: 'pi', provider: 'deepseek', baseUrl: 'https://relay.example.com', key: KEYS[1] },
+      { id: 'local', backend: 'pi', provider: 'local', api: 'openai-completions', baseUrl: 'http://127.0.0.1:8000/v1',
+        models: [{ id: 'm1' }] },
+    ], path.join(dir, 'connections.json'));
+    fs.writeFileSync(path.join(dir, 'auth.json'), JSON.stringify({ deepseek: { type: 'oauth', access: 'fake' } }));
+    const subject = inventory(true);
+    expect(subject.billingOf({ backend: 'pi', provider: 'openai-codex', connection: null })).toBe('subscription');
+    expect(subject.billingOf({ backend: 'pi', provider: 'deepseek', connection: null })).toBe('metered');
+    expect(subject.billingOf({ backend: 'pi', provider: 'local', connection: null })).toBe('metered');
   });
 });
