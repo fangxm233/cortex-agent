@@ -241,7 +241,7 @@ Cortex 内置服务器根据以下变量构建每个会话的上下文。在 Cla
 | `SLACK_CHANNEL`, `FEISHU_CHANNEL` | 会话的频道 | 平台能力组选择、交互工具、文件投递、子智能体与团队路由 |
 | `SLACK_BOT_TOKEN` | 服务器环境 | cortex-slack（`slack_send_file`） |
 | `CORTEX_SESSION_ID` | 会话上下文 | 交互工具、`cortex_context`、waitpoint、Web 投递 |
-| `CORTEX_PROJECT`, `CORTEX_BACKEND`, `CORTEX_MODEL`, `CORTEX_PROVIDER`, `CORTEX_THINKING`, `CORTEX_MODE` | 会话上下文 | `cortex_context` |
+| `CORTEX_PROJECT`, `CORTEX_BACKEND`, `CORTEX_MODEL`, `CORTEX_PROVIDER`, `CORTEX_THINKING`, `CORTEX_CONNECTION` | 会话上下文 | `cortex_context` |
 | `CORTEX_SCHEDULE_TASK_ID`, `CORTEX_CALLBACK_SOURCE` | 定时或回调触发的运行时设置 | `cortex_context` |
 | `CORTEX_WEBHOOK_TOKEN`, `CORTEX_UI_PORT` | 服务器环境 | 所有调用 loopback webhook 的工具 |
 | `CORTEX_MCP_BUNDLES` | 后端进程的 composition | 内置服务器中的能力组选择 |

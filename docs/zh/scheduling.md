@@ -52,7 +52,7 @@ Web 和移动端编辑器选择模型与思考档位。CLI 与聊天命令的 `-
         "provider": null,
         "model": "haiku",
         "thinking": null,
-        "mode": "plan"
+        "connection": "subscription"
       },
       "intervalMs": 3600000,
       "createdAt": 1747680000000,
@@ -71,7 +71,7 @@ Web 和移动端编辑器选择模型与思考档位。CLI 与聊天命令的 `-
 | `type` | `interval`、`daily`、`weekly` 或 `once` |
 | `message` | 调度触发时发送的提示（触发时自动加上 `[Scheduled Task]` 前缀） |
 | `projectId` | 调度所属的项目；每次触发的会话都在这个项目中打开 |
-| `selection` | 完整引擎选择：`backend`、`provider`、`model`、`thinking`、`mode`。未指定时保存创建时的配置默认选择；之后更换默认值或模型记忆不影响已有调度 |
+| `selection` | 完整引擎选择：`backend`、`provider`、`model`、`thinking`、`connection`（Claude：`subscription`、连接 id，或 `null` 表示默认连接；PI：`null`）。未指定时保存创建时的配置默认选择；之后更换默认值或模型记忆不影响已有调度 |
 | `intervalMs` | `interval` 类型：两次触发之间的毫秒数 |
 | `time` | `daily`/`weekly` 类型：`HH:MM` 24 小时制时间 |
 | `dayOfWeek` | `weekly` 类型：0-6（0=周日） |

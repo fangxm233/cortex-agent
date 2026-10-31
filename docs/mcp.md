@@ -460,7 +460,7 @@ same values are passed to the in-process server directly.
 | `SLACK_CHANNEL`, `FEISHU_CHANNEL` | The session's channel | Platform-bundle selection, interaction tools, file delivery, subagent and team routing |
 | `SLACK_BOT_TOKEN` | Server environment | cortex-slack (`slack_send_file`) |
 | `CORTEX_SESSION_ID` | Session context | Interaction tools, `cortex_context`, waitpoints, Web delivery |
-| `CORTEX_PROJECT`, `CORTEX_BACKEND`, `CORTEX_MODEL`, `CORTEX_PROVIDER`, `CORTEX_THINKING`, `CORTEX_MODE` | Session context | `cortex_context` |
+| `CORTEX_PROJECT`, `CORTEX_BACKEND`, `CORTEX_MODEL`, `CORTEX_PROVIDER`, `CORTEX_THINKING`, `CORTEX_CONNECTION` | Session context | `cortex_context` |
 | `CORTEX_SCHEDULE_TASK_ID`, `CORTEX_CALLBACK_SOURCE` | Set for scheduled or callback-triggered runs | `cortex_context` |
 | `CORTEX_WEBHOOK_TOKEN`, `CORTEX_UI_PORT` | Server environment | Every tool that calls the loopback webhook |
 | `CORTEX_MCP_BUNDLES` | Backend process composition | Bundle selection in the bundled server |

@@ -57,7 +57,7 @@ Each schedule is stored as a JSON object in `~/.cortex/data/schedules.json`:
         "provider": null,
         "model": "haiku",
         "thinking": null,
-        "mode": "plan"
+        "connection": "subscription"
       },
       "intervalMs": 3600000,
       "createdAt": 1747680000000,
@@ -76,7 +76,7 @@ Each schedule is stored as a JSON object in `~/.cortex/data/schedules.json`:
 | `type` | `interval`, `daily`, `weekly`, or `once` |
 | `message` | The prompt to send when the schedule fires (a `[Scheduled Task]` prefix is added automatically at fire time) |
 | `projectId` | Project the schedule belongs to; each fire's session opens in it |
-| `selection` | Complete engine choice: `backend`, `provider`, `model`, `thinking`, and `mode`. Without an explicit choice, stores the configured default at creation; later default or model-memory changes do not alter existing schedules |
+| `selection` | Complete engine choice: `backend`, `provider`, `model`, `thinking`, and `connection` (Claude: `subscription`, a connection id, or `null` for the default; PI: `null`). Without an explicit choice, stores the configured default at creation; later default or model-memory changes do not alter existing schedules |
 | `intervalMs` | For `interval` type: milliseconds between fires |
 | `time` | For `daily`/`weekly` types: `HH:MM` 24-hour time |
 | `dayOfWeek` | For `weekly` type: 0-6 (0=Sunday) |
