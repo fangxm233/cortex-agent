@@ -4,7 +4,7 @@ import {
   handleAuthCancelFlow,
   handleAuthRespondPrompt,
   handleAuthStartLogin,
-  handleAuthSyncGateway,
+  handleAuthSyncModels,
 } from '../../../src/domain/ui-service/mutate/auth.js';
 import { createUiService } from '../../../src/domain/ui-service/ui-service.js';
 import { EventBus } from '../../../src/events/event-bus.js';
@@ -280,20 +280,20 @@ test('auth.logout of a subscription login hides its usage; an API-key logout lea
     ['anthropic::api', 'openai-codex::subscription']);
 });
 
-test('auth.syncGateway rebuilds model routing and reports what it produced', async () => {
+test('auth.syncModels seeds models for the reachable routes and reports what it produced', async () => {
   const calls: unknown[] = [];
   const deps = {
-    syncGateway: async (options: unknown) => {
+    syncModels: async (options: unknown) => {
       calls.push(options);
-      return { configured: true, endpoints: 2, defaultSet: true, favorites: [{ backend: 'claude', provider: null, model: 'opus' }] };
+      return { configured: true, routes: 2, defaultSet: true, favorites: [{ backend: 'claude', provider: null, model: 'opus' }] };
     },
   } as unknown as UiServiceDeps;
 
-  const result = await handleAuthSyncGateway(deps, {});
+  const result = await handleAuthSyncModels(deps, {});
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.ok && result.data, {
-    configured: true, endpoints: 2, defaultSet: true, favorites: [{ backend: 'claude', provider: null, model: 'opus' }],
+    configured: true, routes: 2, defaultSet: true, favorites: [{ backend: 'claude', provider: null, model: 'opus' }],
   });
   assert.equal(calls.length, 1);
 });

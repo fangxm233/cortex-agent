@@ -266,7 +266,7 @@ id 须匹配 `^[a-zA-Z0-9_-]+$`，`subscription` 为保留名。PI 连接的 id 
 
 **路由。** Claude Code 运行的环境取自其选择所指的连接。使用 `subscription` 时，Cortex 清除 `ANTHROPIC_BASE_URL`、`ANTHROPIC_API_KEY` 和 `ANTHROPIC_AUTH_TOKEN`，让 Claude Code 使用自己的登录。没有指定连接的选择使用默认连接：Claude Code 已登录时为订阅，否则为文件中第一个 Claude 连接。指定的连接不存在时运行会失败，不会改用另一个账号。每个 PI 会话拿到一份 `models.json`，在 `~/.pi/agent/models.json` 定义的 provider 之上加入被覆盖的内置 provider 和自定义 provider，并带上各自的密钥；其余 PI 内置 provider 用 PI 自己的凭据直接连接各自的厂商。每次 spawn 都会重新读取该文件，因此改动无需重启。
 
-**条目从哪里来。** 保存 Anthropic API key——**设置 → 账号**、`!login cc` 或 `cortex auth login`——会把它存为 `api` 连接，除非该条目已有 `baseUrl`，否则指向官方 API；移除密钥即移除该连接。`cortex auth provider`、**设置 → 账号 → 自定义 Provider** 和 `!login custom` 管理自定义 provider。中转站或 PI 内置 provider 的 base URL 覆盖通过编辑该文件添加。`!mode [connection]` 查看或设置频道的 Claude 连接。
+**条目从哪里来。** 保存 Anthropic API key——**设置 → 账号**、`!login cc` 或 `cortex auth login`——会把它存为 `api` 连接，除非该条目已有 `baseUrl`，否则指向官方 API；移除密钥即移除该连接。**设置 → 账号 → 连接** 列出所有条目（密钥只显示掩码提示），可新建、编辑或删除三种条目中的任意一种。`cortex auth provider` 和 `!login custom` 管理自定义 provider。Claude 连接的 `label` 和 `billing` 通过编辑该文件设置；在设置里新建的连接以 id 作为 label，计费为 `metered`。`!connection [id|reset]`（别名 `!mode`）查看或设置频道的 Claude 连接。
 
 ## models.json {#modelsjson}
 
@@ -299,22 +299,22 @@ id 须匹配 `^[a-zA-Z0-9_-]+$`，`subscription` 为保留名。PI 连接的 id 
 | `default.provider` | string 或 null | 是 | Claude 为 `null`；PI 必须指定 provider id，例如 `openai-codex`、`deepseek` 或[自定义 provider](./backends.md#custom-providers) |
 | `default.model` | string | 是 | 非空模型标识符，按后端命名 |
 | `default.thinking` | string 或 null | 是 | 后端原生思考档位；`null` 使用后端默认值 |
-| `default.connection` | string 或 null | 是 | Claude：`subscription`、[`connections.json`](#configconnectionsjson) 中某个 Claude 连接的 id，或 `null` 表示默认连接。PI：`null` |
+| `default.connection` | string 或 null | 是 | Claude：连接 id（`subscription`，或 [`connections.json`](#configconnectionsjson) 中的某个 Claude 连接，如 `api` 或中转），或 `null` 表示每次运行使用默认连接。PI：恒为 `null` |
 | `favorites` | object[] | 是 | 按顺序存放模型引用，每项包含 `backend`、`provider`、`model`。同一模型身份最多出现一次 |
 
 收藏只保存模型身份，不保存思考档位或连接。默认模型不必在收藏中，收藏列表也可以为空。Claude 的 `thinking` 接受 `low`/`medium`/`high`/`xhigh`/`max`；PI 接受 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`。
 
 ### 引擎选择解析 {#selection-resolution}
 
-普通回合依次使用会话记录的选择、`data/agent-state.json` 中的频道选择、`models.json` 的 `default`。显式运行请求（例如定时触发）可以直接提供完整选择。每个选择包含 `backend`、`provider`、`model`、`thinking` 和 `connection`；执行环境与此相互独立。
+显式运行请求（例如定时触发）使用它自带的完整选择。否则，会话一旦存在就使用会话记录的选择；会话存在之前使用 `data/agent-state.json` 中频道的草稿选择；最后是 `models.json` 的 `default`。每个选择包含 `backend`、`provider`、`model`、`thinking` 和 `connection`；执行环境与此相互独立。Claude 的 `connection` 为 `null` 时每次运行现算：默认连接能运行该模型就用它，否则用第一个能运行的连接。指定的连接已不存在时同样回退，并在日志中记一条警告；只有请求里显式指定一个不存在的连接才会被拒绝。
 
-`data/agent-state.json` 保存 `channelSelections`、按模型的 `modelMemory`（`thinking` 和 `connection`，键为 JSON 数组 `[backend, provider, model]`），以及用于新建 Web 对话的上次引擎选择 `selectionDefault`。选择模型时恢复其记住的思考档位与连接。没有记忆时，thinking 为 `null`，Claude 模型使用默认连接：Claude Code 已登录时为订阅，否则为 `connections.json` 中第一个 Claude 连接。用户修改选择时会更新这份记忆。参见[按会话控制](./backends.md#per-session-model-thinking-level-and-connection)。
+`data/agent-state.json` 保存 `channelSelections`、按模型的 `modelMemory`（只有 `thinking`，键为 JSON 数组 `[backend, provider, model]`），以及用于新建 Web 对话的上次引擎选择 `selectionDefault`。选择模型时恢复其记住的思考档位（没有记忆时为 `null`），对话已选的连接若能运行新模型则保留。用户修改选择时会更新这份记忆。旧版记忆中附带的连接只读取其思考档位。参见[按会话控制](./backends.md#per-session-model-thinking-level-and-route)。
 
 `!backend <claude|pi>` 在配置的默认选择属于目标后端时使用它，否则使用该后端的第一个收藏及其记住的设置。两者都没有时，需要先收藏该后端的一个模型。
 
 ### 验证规则 {#validation-rules}
 
-`connection` 和 PI 的 `provider` 必须匹配 `^[a-zA-Z0-9_-]+$`。Claude 的 provider 必须为 null，PI 的 connection 必须为 null。Thinking 必须为 null 或后端允许的值，收藏中的模型身份不能重复。写入选择时会检查所指定的连接是否为本机的 Claude 连接。能解析但未通过 schema 校验的文件会被整体拒绝，直到修正。
+PI 的 `provider` 必须匹配 `^[a-zA-Z0-9_-]+$`。Claude 的 provider 必须为 null，PI 的 connection 必须为 null。Thinking 必须为 null 或该模型接受的档位（目录知道模型自身档位时按其校验，否则按后端值域），收藏中的模型身份不能重复。写入选择时若指定了连接，会按本机的连接校验。能解析但未通过 schema 校验的文件会被整体拒绝，直到修正。
 
 ## 执行环境 {#execution-environments}
 

@@ -153,8 +153,10 @@ cortex auth status --json
 | 入口 | 用法 |
 |---|---|
 | CLI | `cortex auth provider list \| add \| remove` |
-| Web（桌面与移动端） | **设置 → 账号 → 自定义 Provider** |
+| Web（桌面与移动端） | **设置 → 账号 → 连接** |
 | Slack / 飞书 | `!login custom [list \| add <name> <api> <url> <model…> \| remove <name>]` |
+
+网页端的 **连接** 分区列出 Cortex 存储的所有连接：Claude 端点（API key 与中转）、PI 内置 provider 的 base URL 覆盖，以及自定义 provider。每行只显示密钥提示，不显示密钥本身。**新建连接** 时选择三种类型之一；名称之后不可修改。Claude 的 `api` 行与 Claude Code 分区里的 API key 槽位是同一条记录，在任一处编辑或删除都会反映到另一处。删除 Claude 连接后，使用它的会话改用默认连接；删除覆盖后，该 provider 的请求改回使用它自带的端点和登录。
 
 一条定义需要四样东西：名称、端点使用的请求协议（`anthropic-messages`、`openai-completions`、`openai-responses` 或 `google-generative-ai`）、上游 URL，以及至少一个模型 id。上游密钥可选，有些端点不需要密钥。
 
@@ -170,15 +172,17 @@ cortex auth status --json
 
 `!backend <claude|pi>` 在配置的默认选择属于目标后端时使用它，否则使用该后端的第一个收藏及其记住的设置。两者都没有时，需要先收藏该后端的一个模型。有历史的对话不能切换后端；需要新建会话。
 
-## 按会话选择模型、思考档位与连接 {#per-session-model-thinking-level-and-connection}
+## 按会话选择模型、思考档位与连接 {#per-session-model-thinking-level-and-route}
 
 Web 和移动端输入框的引擎选择器在根层列出收藏模型，显示模型名与记住的思考档位，按 backend 和 provider 分组。打开完整模型列表可选择其他模型，也可用每行的星标收藏或取消收藏。思考档位包含默认选项，保存为 `null`，由后端决定。`/model` 打开模型选择。执行环境是独立选项，见 [configuration.md](./configuration.md#choosing-an-environment-per-conversation)。
 
-选择保存在会话上。选模型会恢复该模型记住的思考档位与连接；没有记忆时，thinking 为 null，Claude 模型使用默认连接。用户修改选择时更新模型记忆。新建 Web 对话从本机上一次选定的引擎开始。
+选择保存在会话上。选模型会恢复该模型记住的思考档位（没有记忆时为 null）；用户修改选择时更新这份记忆。新建 Web 对话从本机上一次选定的引擎开始。
 
 有历史的对话不能切换后端。选择器会禁用另一后端的模型；新草稿可以任选后端。
 
-**连接**是 Claude 会话所用的凭据与端点：`subscription` 表示 Claude Code 自己的登录，或者是某个 key 连接的 id：已保存的 Anthropic API key 为 `api`，中转站则是为它起的 id（见[连接](./configuration.md#configconnectionsjson)）。Claude Code 已登录时默认使用订阅，否则使用第一个已保存的 Claude 连接。选择器列出本机的 Claude 连接，只有一个时隐藏连接选择。Claude Code 与 PI 内置的 `anthropic` provider 在模型目录里是两条独立的条目：PI 的 provider 使用 PI 自己的 Anthropic 凭据。两者都登录时，各自的模型、收藏、额度和限流互不混用。模型目录提供各 endpoint 的 backend、provider、连接和模型。思考档位取后端的值域；PI 提供模型自身档位时，按该范围收窄。
+**连接**只用于 Claude Code：对话使用本机哪一个 Claude 连接——订阅、API key，或在 **设置 → 账号** 中添加的中转或本地端点。只有当前模型有多于一个连接可用时，选择器才显示连接行。其中 **默认** 一项不指定连接：每次运行时，默认连接（已登录订阅时即订阅）能运行该模型就用它，否则用第一个能运行的连接。自带模型列表的连接只运行列表里的模型。换模型时，已选的连接若能运行新模型就保留。已选连接之后被删除时，回退到默认连接，对话不会因此失败。PI 没有连接行：provider 本身就是连接。Claude Code 与 PI 内置的 `anthropic` provider 是两条独立的条目：PI 的 provider 使用 PI 自己的 Anthropic 凭据，两者都登录时，各自的模型、收藏、额度和限流互不混用。
+
+模型目录列出各后端与 PI provider 的模型：Claude 的来自 Anthropic Models API 加上各连接自带的模型列表，PI 的来自它自己的扫描，含自定义 provider。思考档位优先取来源报告的模型自身档位，否则取后端的值域。
 
 **设置 → 模型** 管理默认模型与收藏列表。平台频道通过以下命令使用同样的选择规则：
 
@@ -190,7 +194,7 @@ Web 和移动端输入框的引擎选择器在根层列出收藏模型，显示�
 | `!model reset` | 恢复完整的配置默认选择 |
 | `!thinking [level]` | 查看或设置思考档位 |
 | `!thinking reset` | 将 thinking 设为 null，使用后端默认值 |
-| `!mode [connection]` | 查看或设置频道的 Claude 连接，按本机的 Claude 连接校验 |
+| `!connection [id\|reset]` | 查看或设置 Claude 连接；`reset` 回到默认连接。`!mode` 为别名 |
 
 ## 思考档位 {#thinking-level}
 

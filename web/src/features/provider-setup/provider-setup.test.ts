@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AuthAccountStatus, ConfigModels, EngineSelection } from '@cortex-agent/ui-contract';
+import type { AuthAccountStatus, ConfigModels, EngineSelection, ModelCatalogSnapshot } from '@cortex-agent/ui-contract';
 import { POPULAR_PROVIDERS, ProviderSetupController, readyModels, setupErrorText, splitPopular } from './provider-setup';
 import { modelKey } from '@/lib/model-selection';
 import { en, zh } from '@/i18n';
@@ -28,28 +28,29 @@ function fixture() {
   return { ports, controller: new ProviderSetupController(ports) };
 }
 
+const CLAUDE_CATALOG = { piPending: false, thinkingLevels: { claude: [], pi: [] }, routes: [{
+  backend: 'claude', provider: null, endpoint: 'anthropic', connections: ['subscription', 'qwen'],
+  models: ['opus', 'qwen-coder'], source: 'builtin', modelThinking: {}, modelConnections: { 'qwen-coder': ['qwen'] },
+}] } as unknown as ModelCatalogSnapshot;
+
 describe('provider onboarding model readiness', () => {
   it.each(['unknown', 'expired', 'logged-out'] as const)('does not count %s credentials as ready', state => {
-    expect(readyModels([selection()], [account({ state })], true, true)).toEqual([]);
+    expect(readyModels([selection()], [account({ state })], true, true, null)).toEqual([]);
   });
   it('requires matching provider, runtime and installed CC independently', () => {
-    expect(readyModels([selection()], [account({ provider: 'anthropic' })], true, true)).toEqual([]);
-    expect(readyModels([selection()], [account()], false, true)).toEqual([]);
-    const cc = selection({ backend: 'claude', provider: null, connection: 'subscription' });
-    const auth = account({ backend: 'claude', provider: 'anthropic' });
-    expect(readyModels([cc], [auth], true, false)).toEqual([]);
-    expect(readyModels([cc], [auth], false, true)).toEqual([cc]);
-    expect(readyModels([cc], [auth], false, null)).toEqual([]);
-    expect(readyModels([{ ...cc, connection: null }], [auth], false, true)).toEqual([]);
+    expect(readyModels([selection()], [account({ provider: 'anthropic' })], true, true, null)).toEqual([]);
+    expect(readyModels([selection()], [account()], false, true, null)).toEqual([]);
+    const cc = selection({ backend: 'claude', provider: null, model: 'opus' });
+    expect(readyModels([cc], [], true, false, CLAUDE_CATALOG)).toEqual([]);
+    expect(readyModels([cc], [], false, true, CLAUDE_CATALOG)).toEqual([cc]);
+    expect(readyModels([cc], [], false, null, CLAUDE_CATALOG)).toEqual([]);
   });
-  it('matches Claude plan selections to subscription credentials, including inactive slots', () => {
-    const cc = selection({ backend: 'claude', provider: null, connection: 'subscription' });
-    const api = account({ backend: 'claude', provider: 'anthropic', authType: 'api_key' });
-    expect(readyModels([cc], [api], true, true)).toEqual([]);
-    expect(readyModels([{ ...cc, connection: 'api' }], [api], true, true)).toHaveLength(1);
-    expect(readyModels([cc], [{ ...api, authType: 'oauth' }], true, true)).toEqual([cc]);
-    const credentials = [{ authType: 'oauth', state: 'expiring' }] as AuthAccountStatus['credentials'];
-    expect(readyModels([cc], [{ ...api, credentials }], true, true)).toEqual([cc]);
+  it('counts a Claude model ready when a connection serves it, whichever it names', () => {
+    const cc = selection({ backend: 'claude', provider: null, model: 'qwen-coder' });
+    expect(readyModels([cc], [], true, true, CLAUDE_CATALOG)).toEqual([cc]);
+    expect(readyModels([{ ...cc, connection: 'subscription' }], [], true, true, CLAUDE_CATALOG)).toHaveLength(1);
+    // No Claude connection on this host: nothing in the catalog can run it.
+    expect(readyModels([cc], [], true, true, { ...CLAUDE_CATALOG, routes: [] })).toEqual([]);
   });
   it('loads without installing or syncing, then rescans and syncs after login once', async () => {
     const { ports, controller } = fixture();
@@ -79,7 +80,7 @@ describe('provider onboarding model readiness', () => {
   });
   it('treats a rescan with nothing logged in yet as no change, not a failure', async () => {
     const { ports, controller } = fixture();
-    ports.sync.mockResolvedValueOnce({ configured: false, reason: 'no-endpoints' });
+    ports.sync.mockResolvedValueOnce({ configured: false, reason: 'no-routes' });
     await controller.refresh();
     expect(controller.state.error).toBeNull();
     expect(controller.state.sync).toBe('idle');
@@ -97,15 +98,14 @@ describe('provider onboarding model readiness', () => {
     expect(ports.select).toHaveBeenCalledWith(selection({ thinking: 'high' }));
     expect(controller.canContinue()).toBe(true);
   });
-  it('checks the actual default route rather than a remembered favorite with the same identity', async () => {
+  it('checks the default against the catalog rather than a remembered favorite with the same identity', async () => {
     const { ports, controller } = fixture();
     const cc = selection({ backend: 'claude', provider: null, connection: 'api' });
     ports.claude.mockResolvedValue({ installed: true, version: '1' });
-    ports.status.mockResolvedValue({ accounts: [account({ backend: 'claude', provider: 'anthropic' })], piRuntime: { available: true } });
-    ports.config.mockResolvedValue({ models: models({ default: cc, favorites: [cc],
-      memory: { [modelKey(cc)]: { thinking: null, connection: 'subscription' } } }) });
+    ports.config.mockResolvedValue({ models: models({ default: cc, favorites: [cc], memory: { [modelKey(cc)]: { thinking: null } } }) });
+    // The catalog has no Claude route: nothing on this host can run the default yet.
     await controller.load();
-    expect(controller.available()).toHaveLength(1);
+    expect(controller.available()).toEqual([]);
     expect(controller.canContinue()).toBe(false);
   });
   it('allows a usable default even after it was removed from favorites', async () => {
@@ -148,7 +148,7 @@ describe('provider onboarding model readiness', () => {
 describe('setupErrorText', () => {
   it('localizes setup codes and leaves raw detail alone', () => {
     expect(setupErrorText('not-installed', zh)).toBe('Claude Code 仍未安装');
-    expect(setupErrorText('no-endpoints', zh)).toBe('no-endpoints');
+    expect(setupErrorText('no-routes', zh)).toBe('no-routes');
     expect(setupErrorText('claude_local_required', zh)).toContain('本机 Cortex 设置连接');
     expect(setupErrorText('claude_install_failed: exit 1: npm ERR! 404', zh)).toBe('Claude Code 安装失败 (exit 1: npm ERR! 404)');
     expect(setupErrorText('claude_install_failed: exit 1: npm ERR! 404', en)).toBe('Claude Code installation failed (exit 1: npm ERR! 404)');

@@ -512,8 +512,8 @@ test('stdin consumes exactly two model lines after the platform token blocks', (
   const prefix = ['pi', 'feishu,slack', 'n', '', '', '', 'n'];
   const tokens = ['signing', 'app', 'bot', 'feishu-id', 'feishu-secret', 'lark'];
   const answers = parseInitAnswersLines([...prefix, ...tokens, 'deepseek:flash', 'deepseek:pro, plan:opus', 'ignored:third']);
-  assert.deepEqual(answers.defaultChoice, { mode: 'deepseek', model: 'flash' });
-  assert.deepEqual(answers.favorites, [{ mode: 'deepseek', model: 'pro' }, { mode: 'plan', model: 'opus' }]);
+  assert.deepEqual(answers.defaultChoice, { route: 'deepseek', model: 'flash' });
+  assert.deepEqual(answers.favorites, [{ route: 'deepseek', model: 'pro' }, { route: 'plan', model: 'opus' }]);
   assert.equal(answers.slackConfig?.botToken, 'bot');
   assert.equal(answers.feishuConfig?.domain, 'lark');
 });
@@ -523,7 +523,7 @@ test('stdin model lines are optional and preserve colons in model IDs', () => {
   assert.equal(parseInitAnswersLines(prefix).defaultChoice, undefined);
   const answers = parseInitAnswersLines([...prefix, 'pi:org/model:v1', 'invalid, pi:second:v2']);
   assert.equal(answers.defaultChoice?.model, 'org/model:v1');
-  assert.deepEqual(answers.favorites, [{ mode: 'pi', model: 'second:v2' }]);
+  assert.deepEqual(answers.favorites, [{ route: 'pi', model: 'second:v2' }]);
 });
 
 test('parseInitAnswersJson reads the full desktop-wizard document', () => {
@@ -535,8 +535,8 @@ test('parseInitAnswersJson reads the full desktop-wizard document', () => {
     platforms: ['slack', 'slack', 'feishu', 'bogus'],
     installService: true,
     gatewayUsage: { enabled: true, name: 'n', org: 'o', email: 'e' },
-    defaultChoice: { mode: 'cc', model: 'opus' },
-    favorites: [{ mode: 'cc', model: 'haiku' }, { mode: 'cc' }],
+    defaultChoice: { backend: 'claude', provider: null, model: 'opus' },
+    favorites: [{ backend: 'pi', provider: 'deepseek', model: 'flash' }, { mode: 'plan', model: 'haiku' }, { mode: 'cc' }],
     localUi: { enabled: true, port: 4321 },
   }));
 
@@ -547,8 +547,10 @@ test('parseInitAnswersJson reads the full desktop-wizard document', () => {
   assert.deepEqual(answers.platforms, ['slack', 'feishu'], 'duplicates and unknown platforms dropped');
   assert.equal(answers.installService, true);
   assert.deepEqual(answers.gatewayUsage, { enabled: true, name: 'n', org: 'o', email: 'e' });
-  assert.deepEqual(answers.defaultChoice, { mode: 'cc', model: 'opus' });
-  assert.deepEqual(answers.favorites, [{ mode: 'cc', model: 'haiku' }], 'half-specified choice dropped');
+  assert.deepEqual(answers.defaultChoice, { route: 'claude', model: 'opus' });
+  assert.deepEqual(answers.favorites, [
+    { route: 'deepseek', model: 'flash' }, { route: 'plan', model: 'haiku' },
+  ], 'an older {mode, model} still parses; a half-specified choice is dropped');
   assert.deepEqual(answers.localUi, { enabled: true, port: 4321 });
 });
 

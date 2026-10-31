@@ -42,8 +42,11 @@ export const providersEn = {
   'provider.issue.models-required': 'Define at least one model id.',
   'provider.issue.model-id-required': 'Every model needs an id.',
   'provider.issue.model-id-duplicate': 'Model ids must be unique.',
-  'provider.issue.not-found': 'No such custom provider.',
-  'provider.issue.write-failed': 'Writing the provider files failed.',
+  'provider.issue.name-reserved': 'That name is reserved for the Claude subscription.',
+  'provider.issue.name-taken': 'A connection with that name already exists.',
+  'provider.issue.key-required': 'A Claude connection needs an API key.',
+  'provider.issue.not-found': 'No such connection.',
+  'provider.issue.write-failed': 'Writing the connections file failed.',
 };
 
 export const providersZh: Record<keyof typeof providersEn, string> = {
@@ -87,6 +90,9 @@ export const providersZh: Record<keyof typeof providersEn, string> = {
   'provider.issue.models-required': '至少定义一个模型 id。',
   'provider.issue.model-id-required': '每个模型都需要 id。',
   'provider.issue.model-id-duplicate': '模型 id 不能重复。',
-  'provider.issue.not-found': '没有这个自定义 provider。',
-  'provider.issue.write-failed': '写入 provider 配置失败。',
+  'provider.issue.name-reserved': '这个名称保留给 Claude 订阅。',
+  'provider.issue.name-taken': '已有同名连接。',
+  'provider.issue.key-required': 'Claude 连接必须填写 API key。',
+  'provider.issue.not-found': '没有这个连接。',
+  'provider.issue.write-failed': '写入连接文件失败。',
 };

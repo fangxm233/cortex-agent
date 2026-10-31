@@ -1,12 +1,13 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import type { AuthStatusSnapshot, CustomProviderView } from '@cortex-agent/ui-contract';
+import type { AuthStatusSnapshot, ConnectionView } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 import { buildAccountsVm } from '@/features/settings/vm/accounts-vm';
+import { buildConnectionRows } from '@/features/settings/vm/connections-vm';
 import { MAccountsView } from './MAccountsView';
 
-// The editor itself is a bottom sheet, which needs a DOM to mount; its rules are covered by
-// custom-provider-vm.test.ts and by the desktop editor, which uses the same view model.
+// The editor itself is a bottom sheet, covered by MConnectionSheet.test.tsx; its rules are covered
+// by connections-vm.test.ts and by the desktop editor, which uses the same view model.
 
 const EMPTY_STATUS: AuthStatusSnapshot = {
   generatedAt: '2030-01-01T00:00:00.000Z',
@@ -14,26 +15,14 @@ const EMPTY_STATUS: AuthStatusSnapshot = {
   piRuntime: { available: true, version: 'test', entry: null, error: null },
 };
 
-const PROVIDER: CustomProviderView = {
-  name: 'my-vllm',
-  api: 'anthropic-messages',
-  models: [{ id: 'Model-27B' }],
-  upstreamUrl: 'http://127.0.0.1:8100',
-  hasApiKey: true,
-  routed: false,
+const KEY = 'sk-ant-sentinel-key';
+const API: ConnectionView = {
+  id: 'api', backend: 'claude', provider: null, kind: 'key', label: 'api', baseUrl: null, authStyle: 'x-api-key',
+  billing: 'metered', authenticated: true, keyHint: 'sk-…-key', models: null,
 };
+const ROWS = buildConnectionRows([API], { connOfficialApi: 'Anthropic API', connAnthropicModels: 'Anthropic models' });
 
-function mountView(over: {
-  providers?: CustomProviderView[];
-  confirmingDelete?: string | null;
-  savePending?: boolean;
-  removePending?: boolean;
-} = {}): {
-  renderer: ReactTestRenderer;
-  onNew: ReturnType<typeof vi.fn>;
-  onEdit: ReturnType<typeof vi.fn>;
-  onDelete: ReturnType<typeof vi.fn>;
-} {
+function mountView(over: { confirmingDelete?: string | null; savePending?: boolean; removePending?: boolean } = {}) {
   const onNew = vi.fn();
   const onEdit = vi.fn();
   const onDelete = vi.fn();
@@ -45,8 +34,8 @@ function mountView(over: {
           vm={buildAccountsVm(EMPTY_STATUS)} filter="" onFilter={() => {}}
           onBack={() => {}} onLogin={() => {}} onLogout={() => {}} actionsDisabled={false}
           onRescan={() => {}} rescanning={false}
-          custom={{
-            providers: over.providers ?? [PROVIDER],
+          connections={{
+            rows: ROWS,
             confirmingDelete: over.confirmingDelete ?? null,
             savePending: over.savePending ?? false,
             removePending: over.removePending ?? false,
@@ -60,14 +49,24 @@ function mountView(over: {
 }
 
 function button(renderer: ReactTestRenderer, action: string) {
-  return renderer.root.findAll(node => node.props['data-cpv-action'] === action)[0];
+  return renderer.root.findAll(node => node.props['data-conn-action'] === action)[0];
 }
 
-describe('mobile custom providers', () => {
-  it('arms a delete before it removes the provider', () => {
+describe('mobile connections', () => {
+  it('shows the API-key slot row with its key hint only', () => {
+    const view = mountView();
+    const json = JSON.stringify(view.renderer.toJSON());
+    expect(json).toContain('sk-…-key');
+    expect(json).not.toContain(KEY);
+    expect(view.renderer.root.findAll(node => node.props['data-conn-api-key-slot'] === '').length).toBeGreaterThan(0);
+  });
+
+  it('passes the row to delete and names the effect once armed', () => {
     const view = mountView();
     act(() => { button(view.renderer, 'delete').props.onClick(); });
-    expect(view.onDelete).toHaveBeenCalledWith('my-vllm');
+    expect(view.onDelete).toHaveBeenCalledWith(ROWS[0]);
+    const armed = mountView({ confirmingDelete: 'claude:api' });
+    expect(armed.renderer.root.findAll(node => node.props['data-conn-risk'] === '').length).toBeGreaterThan(0);
   });
 
   it('gates save/edit and remove actions independently', () => {

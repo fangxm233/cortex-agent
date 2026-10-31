@@ -4,7 +4,7 @@ import type { ConfigSnapshot, ModelRef } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import { hasRoute, modelKey, selectionForModel } from '@/lib/model-selection';
+import { modelKey, selectionForModel } from '@/lib/model-selection';
 import { buildModelFacts, catalogModels, defaultModelOptions } from '@/features/settings/vm/models-panel-vm';
 
 function useModelWrites() {
@@ -62,11 +62,8 @@ function useModelActions(resources: ReturnType<typeof useModelsResources>, optio
     const snapshot = config.data;
     if (!ref || !snapshot) return;
     run(async () => {
-      let selection = selectionForModel(ref, snapshot, catalog.data);
-      if (!hasRoute(selection)) {
-        const result = await catalog.refetch({ throwOnError: true });
-        selection = selectionForModel(ref, snapshot, result.data);
-      }
+      const data = catalog.data ?? (await catalog.refetch({ throwOnError: true })).data;
+      const selection = selectionForModel(ref, snapshot, data, snapshot.models.default);
       await writes.setDefault.mutateAsync({ selection });
     });
   };

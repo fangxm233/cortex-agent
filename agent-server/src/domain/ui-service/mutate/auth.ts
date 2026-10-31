@@ -1,6 +1,7 @@
 import { t } from '@core/i18n.js';
 import { createLogger } from '@core/log.js';
 import { usageService } from '@domain/costs/usage-service.js';
+import { seedModelsFromCatalog } from '@domain/models/seed.js';
 import {
   authLoginService,
   bindAuthNoticeFlow,
@@ -8,13 +9,12 @@ import {
   logoutAccount,
   resolveAuthNoticeFlow,
   resumableNoticeFlow,
-  syncGatewayFromBackends,
   type AuthLoginService,
   type LoginFlowState,
 } from '@domain/auth/index.js';
 import type {
   AuthLogoutReturn,
-  AuthSyncGatewayReturn,
+  AuthSyncModelsReturn,
   Result,
   UiServiceDeps,
   MutateArgs,
@@ -129,24 +129,24 @@ export async function handleAuthLogout(
 }
 
 /**
- * Re-derive the model list and favorites from the backends this machine can reach.
+ * Add a favorite for each route the host can now reach, and a default when none is set.
  *
  * Runs automatically after a login (see the `onLoginSuccess` wiring in entry/app.ts); this is the
- * manual entry point for the cases that misses — a credential that predates the automatic sync, or
- * a provider scan that failed transiently. Finding nothing to configure is a legitimate outcome and
+ * manual entry point for the cases that misses — a credential that predates the automatic seeding,
+ * or a provider scan that failed transiently. Finding nothing to seed is a legitimate outcome and
  * comes back as `ok` with `configured: false`, so the caller can explain rather than show an error.
  */
-export async function handleAuthSyncGateway(
+export async function handleAuthSyncModels(
   deps: UiServiceDeps,
-  args: MutateArgs<'auth.syncGateway'>,
-): Promise<Result<AuthSyncGatewayReturn>> {
-  const sync = deps.syncGateway ?? syncGatewayFromBackends;
+  args: MutateArgs<'auth.syncModels'>,
+): Promise<Result<AuthSyncModelsReturn>> {
+  const sync = deps.syncModels ?? seedModelsFromCatalog;
   const result = await sync({ backends: args.backend ? [args.backend] : undefined });
   return {
     ok: true,
     data: {
       configured: result.configured,
-      endpoints: result.endpoints,
+      routes: result.routes,
       defaultSet: result.defaultSet,
       favorites: result.favorites,
       ...(result.reason ? { reason: result.reason } : {}),

@@ -389,10 +389,12 @@ needs no restart.
 **Where entries come from.** Saving an Anthropic API key — **Settings →
 Accounts**, `!login cc`, or `cortex auth login` — stores it as the `api`
 connection, on the official API unless that entry already names a `baseUrl`;
-removing the key removes the connection. `cortex auth provider`,
-**Settings → Accounts → Custom providers** and `!login custom` manage custom
-providers. A relay or a base-URL override of a PI built-in provider is added by
-editing the file. `!mode [connection]` shows or sets a channel's Claude
+removing the key removes the connection. **Settings → Accounts → Connections**
+lists every entry with a masked key hint and adds, edits or deletes any of the
+three kinds. `cortex auth provider` and `!login custom` manage custom providers.
+A Claude connection's `label` and `billing` are set by editing the file; one
+added in Settings uses its id as the label and `metered` billing.
+`!connection [id|reset]` (alias `!mode`) shows or sets a channel's Claude
 connection.
 
 ## models.json
@@ -429,7 +431,7 @@ unstar models. For backend details, see [backends.md](./backends.md).
 | `default.provider` | string or null | yes | `null` for Claude; an explicit provider id for PI, such as `openai-codex`, `deepseek`, or a [custom provider](./backends.md#custom-providers) |
 | `default.model` | string | yes | Non-empty model identifier, as the backend names it |
 | `default.thinking` | string or null | yes | Backend-native reasoning level; `null` uses the backend's default |
-| `default.connection` | string or null | yes | Claude: `subscription`, the id of a Claude connection in [`connections.json`](#configconnectionsjson), or `null` for the default connection. PI: `null` |
+| `default.connection` | string or null | yes | Claude: a connection id (`subscription`, or a Claude connection in [`connections.json`](#configconnectionsjson) such as `api` or a relay) or `null` to use the default connection each run. PI: always `null` |
 | `favorites` | object[] | yes | Ordered model references, each with `backend`, `provider`, and `model`. Each model identity occurs at most once |
 
 Favorites store model identities, not thinking levels or connections. The default
@@ -439,21 +441,25 @@ need not be a favorite, and the favorites list may be empty. `thinking` accepts
 
 ### Selection resolution
 
-An ordinary turn uses the session's recorded selection, then the channel's
-selection in `data/agent-state.json`, then `models.json`'s `default`. An explicit
-run request, such as a scheduled fire, can supply a complete selection directly.
-Each selection contains `backend`, `provider`, `model`, `thinking`, and `connection`;
-execution environments are independent of this choice.
+An explicit run request, such as a scheduled fire, uses its own complete
+selection. Otherwise a turn uses the session's recorded selection once the
+session exists; before that, the channel's draft selection in
+`data/agent-state.json`; then `models.json`'s `default`. Each selection contains
+`backend`, `provider`, `model`, `thinking`, and `connection`; execution
+environments are independent of this choice. A Claude `connection` of `null` is
+resolved on every run: the default connection if it serves the model, otherwise
+the first connection that does. A named connection that no longer exists falls
+back the same way, with a warning in the log; only a request that names a
+missing connection is refused.
 
 `data/agent-state.json` stores `channelSelections`, per-model `modelMemory`
-(`thinking` and `connection`, keyed by the JSON array `[backend, provider, model]`),
-and `selectionDefault`, the last Web engine choice used to seed new conversations.
-Selecting a model restores its remembered thinking and connection. Without a
-memory, thinking is `null` and a Claude model runs on the default connection:
-the subscription when Claude Code is logged in, otherwise the first Claude
-connection in `connections.json`. User selection
-changes update this memory. See
-[per-session controls](./backends.md#per-session-model-thinking-level-and-connection).
+(`thinking` only, keyed by the JSON array `[backend, provider, model]`), and
+`selectionDefault`, the last Web engine choice used to seed new conversations.
+Selecting a model restores its remembered thinking (`null` without a memory) and
+keeps the conversation's connection while it serves the new model. User
+selection changes update this memory. Older memory entries that also name a
+connection are read for their thinking only. See
+[per-session controls](./backends.md#per-session-model-thinking-level-and-route).
 
 `!backend <claude|pi>` uses the configured default when it belongs to the target
 backend; otherwise it uses the first favorite on that backend, with its
@@ -461,11 +467,12 @@ remembered settings. If neither exists, favorite a model on that backend first.
 
 ### Validation rules
 
-`connection` and PI `provider` must match `^[a-zA-Z0-9_-]+$`. Claude requires a null
-provider, and PI a null connection. Thinking must be null or one of the backend's allowed values, and
-favorite identities must be unique. Selection writes check that a named
-connection is one of the host's Claude connections. A file that parses but fails schema
-validation is rejected as a whole until corrected.
+PI `provider` must match `^[a-zA-Z0-9_-]+$`. Claude requires a null provider;
+PI requires a null connection. Thinking must be null or one of the levels the
+model accepts (its own where the catalog knows them, otherwise the backend's),
+and favorite identities must be unique. A selection write that names a
+connection checks it against this host's connections. A file that parses but
+fails schema validation is rejected as a whole until corrected.
 
 ## Execution environments
 

@@ -58,18 +58,18 @@ export function splitPopular<T extends { provider: string }>(providers: T[]): { 
 }
 
 function matchesAccount(selection: EngineSelection, account: AuthAccountStatus): boolean {
-  const { backend } = selection;
-  const provider = backend === 'claude' ? 'anthropic' : selection.provider;
-  if (account.backend !== backend || account.provider !== provider) return false;
-  const type = selection.connection === 'api' ? 'api_key' : 'oauth';
-  if (backend === 'pi') return usable(account.state);
-  return (account.authType === type && usable(account.state))
-    || account.credentials.some(c => c.authType === type && usable(c.state));
+  return account.backend === 'pi' && account.provider === selection.provider && usable(account.state);
 }
-export function readyModels(selections: EngineSelection[], accounts: AuthAccountStatus[], pi: boolean, cc: boolean | null): EngineSelection[] {
+/** A PI model is ready once its provider's login is usable and PI runs; a Claude model once Claude
+ *  Code is installed and a connection in the catalog serves it. */
+export function readyModels(
+  selections: EngineSelection[], accounts: AuthAccountStatus[], pi: boolean, cc: boolean | null,
+  catalog: ModelCatalogSnapshot | null,
+): EngineSelection[] {
   return selections.filter(selection => {
-    const available = selection.backend === 'pi' ? pi : cc === true;
-    return available && !!selection.model && hasRoute(selection) && accounts.some(a => matchesAccount(selection, a));
+    if (!selection.model) return false;
+    if (selection.backend === 'claude') return cc === true && hasRoute(selection, catalog);
+    return pi && accounts.some(a => matchesAccount(selection, a));
   });
 }
 
@@ -90,7 +90,7 @@ export class ProviderSetupController {
   }
   private ready(selections: EngineSelection[]) {
     return readyModels(selections, this.state.status?.accounts ?? [],
-      this.state.status?.piRuntime.available === true, this.state.claude?.installed ?? null);
+      this.state.status?.piRuntime.available === true, this.state.claude?.installed ?? null, this.state.catalog);
   }
   available() {
     const { models, catalog } = this.state;
@@ -117,7 +117,7 @@ export class ProviderSetupController {
     try {
       const result = await this.ports.sync();
       // Nothing logged in yet is not a failure; the model card already asks the user to sign in.
-      if (result.configured || result.reason === 'no-endpoints') {
+      if (result.configured || result.reason === 'no-routes') {
         this.patch({ sync: result.configured ? 'success' : 'idle', error: null });
       } else this.patch({ sync: 'failed', error: result.reason ?? 'not-configured' });
     } catch (error) { this.patch({ sync: 'failed', error: message(error) }); }

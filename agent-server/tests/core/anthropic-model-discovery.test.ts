@@ -60,7 +60,7 @@ function model(
   return { id, displayName: null, maxInputTokens, effortLevels };
 }
 
-test('the fetch goes through ANTHROPIC_BASE_URL with the resolved credential', async () => {
+test('the fetch asks the official API with the key connection, whatever the environment says', async () => {
   const calls: Array<{ url: string; headers: Record<string, string> }> = [];
   const models = await fetchAnthropicModels({
     env: { ANTHROPIC_BASE_URL: 'http://127.0.0.1:9880/m/plan/x/anthropic/' },
@@ -72,7 +72,7 @@ test('the fetch goes through ANTHROPIC_BASE_URL with the resolved credential', a
       return jsonResponse({ data: [apiModel('claude-opus-9', 1_000_000, { low: true, xhigh: false })] });
     }) as unknown as typeof fetch,
   });
-  assert.equal(calls[0]?.url, 'http://127.0.0.1:9880/m/plan/x/anthropic/v1/models?limit=1000');
+  assert.equal(calls[0]?.url, 'https://api.anthropic.com/v1/models?limit=1000');
   assert.equal(calls[0]?.headers['x-api-key'], 'sk-ant-k');
   assert.deepEqual(models, [{
     id: 'claude-opus-9', displayName: 'CLAUDE-OPUS-9', maxInputTokens: 1_000_000, effortLevels: ['low'],

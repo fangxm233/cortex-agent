@@ -30,6 +30,7 @@ import { handleDefaultAgentResult } from '../../../src/orchestration/turn/termin
 import { MockAdapter, MockOutputStream } from '../../../src/platform/testing.js';
 import { runRequestFixture } from '../../run-request-fixture.js';
 import { setChannelSelection } from '../../../src/domain/agents/config.js';
+import { seedClaudeKeyConnection } from '../../_seed-connections.js';
 import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
 const selection: EngineSelection = { backend: 'claude', provider: null, model: 'session-model', thinking: 'high', connection: 'session-route' };
 
@@ -97,7 +98,8 @@ function finishTurn(s: ReturnType<typeof freshSession>, request: ReturnType<type
   });
 }
 
-beforeAll(() => {});
+// The session's own connection exists, so its run keeps it.
+beforeAll(() => { seedClaudeKeyConnection('session-route'); });
 beforeEach(() => {
   started.length = 0;
   rmSync(CAPTURE, { force: true });

@@ -49,10 +49,11 @@ test('read reports a complete default; model change writes channel, session, mem
   const api = await fresh();
   expect(api.readChannelSelection('web:a')).toEqual(claude);
   const result = await api.applyChannelSelection({ channel: 'web:a', model: 'sonnet', thinking: 'xhigh' });
-  const expected = { ...claude, model: 'sonnet', thinking: 'xhigh', connection: 'subscription' };
+  // The conversation's connection serves the new model, so it stays; memory keeps only thinking.
+  const expected = { ...claude, model: 'sonnet', thinking: 'xhigh' };
   expect(result).toEqual({ ...expected, ok: true, backendChanged: false });
   expect(stored().channelSelections['web:a']).toEqual(expected);
-  expect(stored().modelMemory['["claude",null,"sonnet"]']).toEqual({ thinking: 'xhigh', connection: 'subscription' });
+  expect(stored().modelMemory['["claude",null,"sonnet"]']).toEqual({ thinking: 'xhigh' });
   expect(stored().selectionDefault).toEqual(expected);
   expect(patches).toEqual([{ backend: 'claude', selection: expected }]);
   expect((await fresh()).readChannelSelection('web:a')).toEqual(expected);
@@ -63,26 +64,27 @@ test('undefined leaves fields untouched and null thinking explicitly clears', as
   const api = await fresh();
   const result = await api.applyChannelSelection({ channel: 'web:a', model: undefined, thinking: null });
   expect(result).toEqual({ ...claude, thinking: null, ok: true, backendChanged: false });
-  expect(stored().modelMemory['["claude",null,"opus"]']).toEqual({ thinking: null, connection: 'api' });
+  expect(stored().modelMemory['["claude",null,"opus"]']).toEqual({ thinking: null });
 });
 
-test('new model loads its own memory, not the previous model settings', async () => {
+test('new model loads its own thinking; older memory\'s connection is ignored', async () => {
+  session = { ...session!, selection: { ...claude, connection: null } };
   seed({ modelMemory: { '["claude",null,"sonnet"]': { thinking: 'low', connection: 'api' } } });
   const api = await fresh();
   expect(await api.applyChannelSelection({ channel: 'web:a', model: 'sonnet' }))
-    .toMatchObject({ thinking: 'low', connection: 'api' });
+    .toMatchObject({ thinking: 'low', connection: null });
   expect(await api.applyChannelSelection({ channel: 'web:a', model: 'haiku' }))
-    .toMatchObject({ thinking: null, connection: 'subscription' });
-  expect(await api.applyChannelSelection({ channel: 'web:a', model: 'sonnet', thinking: null, connection: null }))
     .toMatchObject({ thinking: null, connection: null });
+  expect(await api.applyChannelSelection({ channel: 'web:a', model: 'sonnet', thinking: null, connection: 'api' }))
+    .toMatchObject({ thinking: null, connection: 'api' });
 });
 
-test('switching back restores the last explicit choice including null thinking', async () => {
+test('switching back restores the model\'s last thinking, null included; the connection stays the conversation\'s', async () => {
   const api = await fresh();
   await api.applyChannelSelection({ channel: 'web:a', thinking: null, connection: 'subscription' });
   await api.applyChannelSelection({ channel: 'web:a', model: 'sonnet', thinking: 'high', connection: 'api' });
   expect(await api.applyChannelSelection({ channel: 'web:a', model: 'opus' }))
-    .toMatchObject({ thinking: null, connection: 'subscription' });
+    .toMatchObject({ thinking: null, connection: 'api' });
 });
 
 test('a complete selection overrides memory, including an explicit reset to the default', async () => {
@@ -169,8 +171,9 @@ test('backend-only pick without memory preserves default thinking and route, whi
   expect(await api.applyChannelSelection({ channel: 'web:a', backend: 'claude', model: 'opus', thinking: 'low', connection: 'subscription' }))
     .toMatchObject({ thinking: 'low', connection: 'subscription', ok: true });
   await api.applyChannelSelection({ channel: 'web:a', ...pi });
+  // The model's memory brings its thinking back; the connection starts where the default does.
   expect(await api.applyChannelSelection({ channel: 'web:a', backend: 'claude', model: 'opus' }))
-    .toMatchObject({ thinking: 'low', connection: 'subscription', ok: true });
+    .toMatchObject({ thinking: 'low', connection: 'api', ok: true });
 });
 
 test('target backend thinking is validated before any write', async () => {
@@ -193,13 +196,14 @@ test('invalid provider, model and connection are refused without mutation', asyn
   expect(stored()).toEqual({});
 });
 
-test('a remembered Claude connection that no longer exists is refused like a requested one', async () => {
+test('a connection that no longer exists is dropped when carried and refused only when requested', async () => {
   seed({ modelMemory: { '["claude",null,"sonnet"]': { thinking: null, connection: 'removed' } } });
+  session = { ...session!, selection: { ...claude, connection: 'removed' } };
   const api = await fresh();
   expect(await api.applyChannelSelection({ channel: 'web:a', model: 'sonnet' }))
+    .toMatchObject({ ok: true, model: 'sonnet', connection: null });
+  expect(await api.applyChannelSelection({ channel: 'web:a', connection: 'removed' }))
     .toMatchObject({ ok: false, reason: 'invalid-connection', allowed: ['subscription', 'api'] });
-  expect(await api.applyChannelSelection({ channel: 'web:a', model: 'sonnet', connection: 'api' }))
-    .toMatchObject({ ok: true, model: 'sonnet', connection: 'api' });
 });
 
 test('a PI pick never names a connection, requested or remembered: its provider is the connection', async () => {
@@ -212,7 +216,7 @@ test('a PI pick never names a connection, requested or remembered: its provider 
     .toMatchObject({ ok: true, provider: 'other', connection: null });
 });
 
-test('an injected inventory decides the legal connections and the default for a new model', async () => {
+test('an injected inventory decides which connections exist', async () => {
   const file = path.join(HOME, 'config/other-connections.json');
   upsertConnection({
     id: 'relay', backend: 'claude', label: 'Relay', baseUrl: 'https://relay.example.test',
@@ -220,10 +224,13 @@ test('an injected inventory decides the legal connections and the default for a 
   }, file);
   const inventory = createCredentialInventory({ file, claude: { claudeConfigDir: path.join(HOME, 'no-claude') } });
   const api = await fresh();
+  // `api` is not on that host: the carried choice is dropped and the run computes `relay`.
   expect(await api.applyChannelSelection({ channel: 'web:a', model: 'new', inventory }))
-    .toMatchObject({ ok: true, connection: 'relay' });
+    .toMatchObject({ ok: true, connection: null });
   expect(await api.applyChannelSelection({ channel: 'web:a', connection: 'api', inventory }))
     .toMatchObject({ ok: false, reason: 'invalid-connection', allowed: ['relay'] });
+  expect(await api.applyChannelSelection({ channel: 'web:a', connection: 'relay', inventory }))
+    .toMatchObject({ ok: true, connection: 'relay' });
 });
 
 test('a host with no Claude connection gives a new model the default (null) connection', async () => {

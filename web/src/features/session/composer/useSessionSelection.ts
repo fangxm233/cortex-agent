@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { EngineSelection } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { hasRoute, selectionForModel } from '@/lib/model-selection';
+import { defaultConnectionFor, hasRoute, selectionForModel } from '@/lib/model-selection';
 import { useToastOptional } from '@/design';
-import { useVocab } from '@/i18n';
+import { fmt, useVocab } from '@/i18n';
 import {
-  agentChange, buildAgentOptions, buildModeOptions, buildModelOptions, buildFavoriteOptions,
-  buildThinkingOptions, groupModelOptions, modeChange, selectionRootRows, thinkingChange,
+  agentChange, buildAgentOptions, buildConnectionOptions, buildModelOptions, buildFavoriteOptions,
+  buildThinkingOptions, connectionChange, groupModelOptions, selectionRootRows, thinkingChange,
   type ModelOption, type SelectionPane,
 } from '@/features/session/list/selection-menu';
 import {
@@ -96,14 +96,17 @@ function selectionOptions(data: ReturnType<typeof useSelectionData>, hasHistory:
   const catalog = data.catalogQuery.data ?? null;
   const agents = data.config?.agents ?? [];
   const thinkingOptions = buildThinkingOptions(catalog, effective);
-  const modeOptions = buildModeOptions(catalog, effective);
+  const fallback = defaultConnectionFor(catalog, effective);
+  const connectionDefault = fallback ? fmt(L.wbConnectionDefault, { connection: fallback }) : L.wbThinkingDefault;
+  const connectionOptions = buildConnectionOptions(catalog, effective, connectionDefault);
+  const copy = { model: L.wbModel, thinking: L.wbThinking, connection: L.wbConnection, default: L.wbThinkingDefault, connectionDefault };
   return {
     models, catalog, agents, effective, agentName, hasHistory,
-    favoriteOptions: buildFavoriteOptions(models, effective, { hasHistory }),
+    favoriteOptions: buildFavoriteOptions(models, effective, { hasHistory, catalog }),
     modelGroups: groupModelOptions(buildModelOptions(catalog, models, effective, { hasHistory }), effective.backend),
-    thinkingOptions, modeOptions, agentOptions: buildAgentOptions(agents, { agentName }),
-    rootRows: selectionRootRows(effective, { model: L.wbModel, thinking: L.wbThinking, mode: L.wbRoute, default: L.wbThinkingDefault },
-      { hasThinking: thinkingOptions.length > 1, hasModes: modeOptions.length > 0 }),
+    thinkingOptions, connectionOptions, agentOptions: buildAgentOptions(agents, { agentName }),
+    rootRows: selectionRootRows(effective, copy,
+      { hasThinking: thinkingOptions.length > 1, hasConnections: connectionOptions.length > 0 }),
     modelsReady: !data.catalogQuery.isLoading && !data.catalogQuery.data?.piPending,
     catalogLoading: data.catalogQuery.isLoading,
   };
@@ -115,9 +118,12 @@ function useModelActions(data: ReturnType<typeof useSelectionData>, mutations: R
   const pickModel = (option: ModelOption, onApplied?: () => void): void => {
     if (option.disabled || option.active) return;
     const pick = async () => {
-      const catalog = hasRoute(option.selection) ? data.catalogQuery.data : await client.fetchQuery(trpc.models.catalog.queryOptions({}));
-      const selection = selectionForModel({ backend: option.backend, provider: option.provider, model: option.id }, data.config, catalog);
-      if (hasRoute(selection)) apply({ selection }, onApplied);
+      // Only a Claude pick needs the catalog: it tells which connections serve the model.
+      const catalog = data.catalogQuery.data
+        ?? (option.backend === 'claude' ? await client.fetchQuery(trpc.models.catalog.queryOptions({})) : null);
+      const ref = { backend: option.backend, provider: option.provider, model: option.id };
+      const selection = selectionForModel(ref, data.config, catalog, data.effective);
+      if (hasRoute(selection, catalog)) apply({ selection }, onApplied);
     };
     void pick().catch(mutations.onError);
   };
@@ -140,7 +146,7 @@ export function useSessionSelection(input: SessionSelectionInput) {
     ...picker, ...options, ...actions, apply,
     pickAgent: (name: string | null) => apply(agentChange(options.agentOptions, data.agentName, name)),
     pickThinking: (level: string | null) => apply(thinkingChange(data.effective, level)),
-    pickMode: (mode: string) => apply(modeChange(data.effective, mode)),
+    pickConnection: (connection: string | null) => apply(connectionChange(data.effective, connection)),
   };
 }
 

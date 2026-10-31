@@ -37,13 +37,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** The endpoint this host reaches Anthropic through: the configured base URL when one is set
- *  (same URL every turn bills to), else the API directly. */
-function resolveBaseUrl(options: FetchAnthropicModelsOptions): string {
-  const env = options.env ?? process.env;
-  const configured = env.ANTHROPIC_BASE_URL?.trim();
-  return (configured || 'https://api.anthropic.com').replace(/\/+$/, '');
-}
+/** The Models API is asked on the official endpoint only: the credential it is asked with is the
+ *  subscription or the official-API key connection, never a relay's key (see resolveClaudeCredential). */
+const ANTHROPIC_API_URL = 'https://api.anthropic.com';
 
 /** The five levels the API marked supported, or null when the model carries no effort capability
  *  at all — absent means "the backend's whole ladder", which is the honest answer for a model the
@@ -83,7 +79,7 @@ export async function fetchAnthropicModels(
   const credential = resolveClaudeCredential(options) ?? await claudeKeychainCredential(options);
   if (!credential) throw new Error('no Anthropic credential available to the daemon');
   const doFetch = options.fetchImpl ?? fetch;
-  const url = `${resolveBaseUrl(options)}/v1/models?limit=${PAGE_LIMIT}`;
+  const url = `${ANTHROPIC_API_URL}/v1/models?limit=${PAGE_LIMIT}`;
   const response = await doFetch(url, {
     method: 'GET',
     headers: credential.headers,

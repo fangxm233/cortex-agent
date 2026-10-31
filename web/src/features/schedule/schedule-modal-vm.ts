@@ -28,6 +28,8 @@ export interface ScheduleModelOption {
   label: string;
   selection: EngineSelection;
   favorite: boolean;
+  /** Whether this host can run it now (a Claude model needs a connection that serves it). */
+  runnable: boolean;
 }
 
 /** Favorites render without the catalog; deduplicate by backend/provider/model, not model name. */
@@ -42,11 +44,13 @@ export function scheduleModelOptions(
       provider: route.provider, model })))];
   if (current) refs.push(current);
   const unique = new Map(refs.map((ref) => [modelKey(ref), ref]));
-  return [...unique].map(([value, ref]) => ({
-    value, label: `${modelLabel(ref)} · ${ref.provider ?? ref.backend}`,
-    selection: current && modelKey(current) === value ? current : selectionForModel(ref, config, catalog),
-    favorite: favorites.some((favorite) => modelKey(favorite) === value),
-  }));
+  return [...unique].map(([value, ref]) => {
+    const selection = current && modelKey(current) === value ? current : selectionForModel(ref, config, catalog, current);
+    return {
+      value, label: `${modelLabel(ref)} · ${ref.provider ?? ref.backend}`, selection,
+      favorite: favorites.some((favorite) => modelKey(favorite) === value), runnable: hasRoute(selection, catalog),
+    };
+  });
 }
 
 export function scheduleThinkingOptions(
@@ -61,7 +65,7 @@ export function scheduleThinkingOptions(
 
 export function scheduleModelPatch(options: ScheduleModelOption[], value: string): Partial<ScheduleForm> {
   const option = options.find((candidate) => candidate.value === value);
-  return option && hasRoute(option.selection) ? { selection: option.selection } : {};
+  return option?.runnable ? { selection: option.selection } : {};
 }
 
 export function scheduleThinkingPatch(form: ScheduleForm, value: string): Partial<ScheduleForm> {

@@ -28,7 +28,7 @@ import { handleCostSummary } from './query/cost.js';
 import { handlePlatformSettingsSet } from './mutate/platform-settings.js';
 import { handleConfigGet } from './query/config.js';
 import { handleAuthFlowState, handleAuthStatus } from './query/auth.js';
-import { handleCustomProvidersList } from './query/custom-providers.js';
+import { handleConnectionsList } from './query/connections.js';
 import { handleUsageSharingGet } from './query/usage-sharing.js';
 import { handleTelemetryInfo } from './query/telemetry.js';
 import { handleTelemetryReport } from './mutate/telemetry.js';
@@ -115,14 +115,11 @@ import {
 import {
   handleAuthCancelFlow,
   handleAuthLogout,
-  handleAuthSyncGateway,
+  handleAuthSyncModels,
   handleAuthRespondPrompt,
   handleAuthStartLogin,
 } from './mutate/auth.js';
-import {
-  handleCustomProviderRemove,
-  handleCustomProviderUpsert,
-} from './mutate/custom-providers.js';
+import { handleConnectionsRemove, handleConnectionsUpsert } from './mutate/connections.js';
 import { handleUsageSharingSet } from './mutate/usage-sharing.js';
 import { createSubscription } from './subscribe.js';
 import { AssistantSnapshots } from './assistant-snapshots.js';
@@ -163,7 +160,7 @@ export const queryHandlers = {
   'config.get': (deps, params) => handleConfigGet(deps, params),
   'auth.status': (deps, params) => handleAuthStatus(params, deps.getAuthStatus),
   'auth.flowState': (deps, params) => handleAuthFlowState(params, deps.authLogin?.getState),
-  'auth.customProviders': (deps, params) => handleCustomProvidersList(deps, params),
+  'connections.list': (deps, params) => handleConnectionsList(deps, params),
   'usageSharing.get': (deps, params) => handleUsageSharingGet(deps, params),
   'telemetry.info': (deps, params) => handleTelemetryInfo(deps, params),
   'models.catalog': (deps, params) => handleModelsCatalog(deps, params),
@@ -230,9 +227,9 @@ export const mutateHandlers = {
   'auth.respondPrompt': (deps, args) => handleAuthRespondPrompt(deps, args),
   'auth.cancelFlow': (deps, args) => handleAuthCancelFlow(deps, args),
   'auth.logout': (deps, args) => handleAuthLogout(deps, args),
-  'auth.syncGateway': (deps, args) => handleAuthSyncGateway(deps, args),
-  'auth.upsertCustomProvider': (deps, args) => handleCustomProviderUpsert(deps, args),
-  'auth.removeCustomProvider': (deps, args) => handleCustomProviderRemove(deps, args),
+  'auth.syncModels': (deps, args) => handleAuthSyncModels(deps, args),
+  'connections.upsert': (deps, args) => handleConnectionsUpsert(deps, args),
+  'connections.remove': (deps, args) => handleConnectionsRemove(deps, args),
   'usageSharing.set': (deps, args) => handleUsageSharingSet(deps, args),
   'telemetry.report': (deps, args, ctx) => handleTelemetryReport(deps, args, ctx),
   'hooks.create': (deps, args) => handleHooksCreate(deps, args),
@@ -272,7 +269,7 @@ type AuditArgs = Record<string, unknown>;
 /** Ops whose arguments carry secrets or personal data the audit event must not record. */
 const AUDIT_REDACTORS: Partial<Record<MutateOp, (args: AuditArgs) => unknown>> = {
   'auth.respondPrompt': ({ flowId }) => ({ flowId }),
-  'auth.upsertCustomProvider': ({ apiKey: _upstreamKey, ...safe }) => safe,
+  'connections.upsert': ({ key: _key, ...safe }) => safe,
   'usageSharing.set': ({ enabled }) => ({ enabled }),
   'telemetry.report': ({ kind }) => ({ kind }),
 };

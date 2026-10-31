@@ -1,6 +1,8 @@
 import { CachedScan } from '@core/cached-scan.js';
-import { scanPiAvailableModels, type PiDiscoveredModel } from '@core/gateway-generator.js';
 import { createLogger } from '@core/log.js';
+import { scanUserPiModels, type PiDiscoveredModel } from './model-scan.js';
+
+export type { PiDiscoveredModel } from './model-scan.js';
 
 const log = createLogger('pi-adapter');
 
@@ -32,6 +34,8 @@ export interface PIProviderDiscovery {
    */
   ensureModels(timeoutMs?: number): Promise<PiDiscoveredModel[]>;
   refresh(): void;
+  /** Rescan now and wait (bounded) for the result: for a caller that just changed PI's auth. */
+  rescan(timeoutMs?: number): Promise<PiDiscoveredModel[]>;
 }
 
 export interface PIProviderDiscoveryOptions {
@@ -48,7 +52,7 @@ export function createPIProviderDiscovery(
   // `core/cached-scan`; what stays here is what is PI-specific: the scan, the provider view, and
   // the (provider, model) identity two scans are deduplicated by.
   const cache = new CachedScan<PiDiscoveredModel>({
-    scan: options.scan ?? scanPiAvailableModels,
+    scan: options.scan ?? scanUserPiModels,
     now: options.now,
     cacheTtlMs: options.cacheTtlMs ?? PI_PROVIDER_CACHE_TTL_MS,
     retryMs: options.retryMs ?? PI_PROVIDER_RETRY_MS,
@@ -63,7 +67,17 @@ export function createPIProviderDiscovery(
     peekModels: () => cache.peek(),
     ensureModels: (timeoutMs: number = PI_PROVIDER_ENSURE_TIMEOUT_MS) => cache.ensure(timeoutMs),
     refresh: () => cache.refresh(),
+    rescan: (timeoutMs: number = PI_PROVIDER_ENSURE_TIMEOUT_MS) => cache.settle(timeoutMs),
   };
 }
 
-export const piProviderDiscovery = createPIProviderDiscovery();
+/** What the daemon's scan reads. PI's own home until the host wires the catalog its sessions run
+ *  with (`domain/runs/adapters`), so a process that never runs a PI session still gets a list. */
+let hostScan: ModelScan = scanUserPiModels;
+
+/** Point the shared scan at the host's PI catalog. The next scan uses it; refresh to apply now. */
+export function setPiModelScan(scan: ModelScan): void {
+  hostScan = scan;
+}
+
+export const piProviderDiscovery = createPIProviderDiscovery({ scan: () => hostScan() });

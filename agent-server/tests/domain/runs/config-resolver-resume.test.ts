@@ -7,6 +7,7 @@ import { modelsRepo } from '../../../src/store/models-repo.js';
 import { effectiveBackendSessionId, sessionStore } from '../../../src/store/session-registry-repo.js';
 import { resolveRunSelection } from '../../../src/domain/runs/config-resolver.js';
 import { conversationEngineRequest } from '../../../src/orchestration/conversation-request.js';
+import { seedClaudeKeyConnection } from '../../_seed-connections.js';
 
 vi.mock('../../../src/domain/agents/environments/index.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../../../src/domain/agents/environments/index.js')>(),
@@ -18,6 +19,7 @@ const pi: EngineSelection = { backend: 'pi', provider: 'openai', model: 'gpt', t
 const channel = 'web:resume-guard';
 
 beforeEach(() => {
+  seedClaudeKeyConnection('api');
   writeFileSync(path.join(process.env.CORTEX_HOME!, 'config/models.json'), JSON.stringify({ default: pi, favorites: [] }));
   modelsRepo.invalidate();
   setChannelSelection(channel, null);

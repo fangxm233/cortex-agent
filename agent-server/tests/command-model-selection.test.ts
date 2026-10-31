@@ -6,7 +6,7 @@ import { upsertConnection } from '../src/core/connections-file.js';
 import { modelsRepo } from '../src/store/models-repo.js';
 import { clearChannelSelection, getChannelSelection } from '../src/domain/agents/config.js';
 import { MockAdapter } from '../src/platform/testing.js';
-import { createModelHandler, handleModelCmd, handleModeCmd } from '../src/orchestration/routing/commands/mode.js';
+import { createModelHandler, handleConnectionCmd, handleModelCmd } from '../src/orchestration/routing/commands/mode.js';
 
 const selection = { backend: 'claude', provider: null, model: 'claude-sonnet-4-6', thinking: null, connection: null } as const;
 beforeEach(() => {
@@ -36,16 +36,18 @@ test('provider/model selection is materialized and reset returns the full defaul
   expect(getChannelSelection('model-cmd')).toEqual(selection);
 });
 
-test('mode accepts a stored connection and reports the current one', async () => {
+test('!connection sets a stored connection, reports it, refuses an unknown one and resets to the default', async () => {
   upsertConnection({
     id: 'api', backend: 'claude', label: 'API', authStyle: 'x-api-key', key: 'sk-test-fake', billing: 'metered',
   });
   const adapter = new MockAdapter();
-  await handleModeCmd('model-cmd', adapter, '!mode api');
+  await handleConnectionCmd('model-cmd', adapter, '!connection api');
   expect(getChannelSelection('model-cmd')?.connection).toBe('api');
-  await handleModeCmd('model-cmd', adapter, '!mode');
+  await handleConnectionCmd('model-cmd', adapter, '!connection');
   expect(adapter.posted.at(-1)?.content.text).toContain('api');
-  await handleModeCmd('model-cmd', adapter, '!mode missing');
+  await handleConnectionCmd('model-cmd', adapter, '!mode missing');
   expect(getChannelSelection('model-cmd')?.connection).toBe('api');
   expect(adapter.posted.at(-1)?.content.text).toContain('missing');
+  await handleConnectionCmd('model-cmd', adapter, '!connection reset');
+  expect(getChannelSelection('model-cmd')?.connection).toBeNull();
 });

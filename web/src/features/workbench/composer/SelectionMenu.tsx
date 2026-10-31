@@ -3,7 +3,7 @@ import { useVocab } from '@/i18n';
 import { useSettings } from '@/features/settings/useSettings';
 import { SelectionPane as PaneMotion } from '@/design/SelectionPane';
 import type {
-  ModeOption, ModelOption, SelectionPane, SelectionRootRow, ThinkingOption,
+  ConnectionOption, ModelOption, SelectionPane, SelectionRootRow, ThinkingOption,
 } from '@/features/session/list/selection-menu';
 import {
   Divider, MenuCard, MenuRow, Note, rowBackground, SectionTitle, type HoverProps,
@@ -13,7 +13,7 @@ import {
 import { groupModelOptions } from '@/features/session/list/selection-menu';
 import { matchesModelFilter, modelKey, modelLabel } from '@/lib/model-selection';
 
-// The engine menu. Model names, levels and modes are names, not code, so every row is in the UI
+// The engine menu. Model names, levels and connections are names, not code, so every row is in the UI
 // face: an ink label, its value muted on the right, and an ink tick on what runs now.
 
 function Caret({ back = false }: { back?: boolean }): JSX.Element {
@@ -108,7 +108,7 @@ export interface SelectionMenuProps {
   favorites: ModelOption[];
   modelGroups: Array<{ group: string; backend: string; options: ModelOption[] }>;
   thinking: ThinkingOption[];
-  modes: ModeOption[];
+  connections: ConnectionOption[];
   rootRows: SelectionRootRow[];
   modelsReady: boolean;
   pane: SelectionPane;
@@ -118,7 +118,7 @@ export interface SelectionMenuProps {
   onPickModel: (option: ModelOption) => void;
   onToggleFavorite: (option: ModelOption) => void;
   onPickThinking: (level: string | null) => void;
-  onPickMode: (mode: string) => void;
+  onPickConnection: (connection: string | null) => void;
 }
 
 function FavoriteRow({ option, onPick, hover, setHover }: { option: ModelOption; onPick: () => void } & HoverProps) {
@@ -209,11 +209,11 @@ function DetailPane({ props, shared }: { props: SelectionMenuProps; shared: Hove
   const L = useVocab();
   const thinking = props.pane === 'thinking';
   return <>
-    <BackRow title={thinking ? L.wbThinking : L.wbRoute} onBack={() => props.setPane('root')} {...shared} />
+    <BackRow title={thinking ? L.wbThinking : L.wbConnection} onBack={() => props.setPane('root')} {...shared} />
     {thinking ? props.thinking.map((option) => <MenuRow key={option.level ?? 'default'} id={`thinking:${option.level ?? 'default'}`}
       label={option.level ?? L.wbThinkingDefault} active={option.active} onPick={() => props.onPickThinking(option.level)} {...shared} />)
-      : props.modes.map((option) => <MenuRow key={option.mode} id={`mode:${option.mode}`} label={option.mode}
-        active={option.active} onPick={() => props.onPickMode(option.mode)} {...shared} />)}
+      : props.connections.map((option) => <MenuRow key={option.id ?? 'default'} id={`connection:${option.id ?? 'default'}`}
+        label={option.label} active={option.active} onPick={() => props.onPickConnection(option.id)} {...shared} />)}
   </>;
 }
 
@@ -224,7 +224,7 @@ export function SelectionMenu(props: SelectionMenuProps): JSX.Element {
     <PaneMotion pane={props.pane}>
       {props.pane === 'root' && <RootPane props={props} shared={shared} />}
       {props.pane === 'model' && <ModelPane props={props} shared={shared} />}
-      {(props.pane === 'thinking' || props.pane === 'mode') && <DetailPane props={props} shared={shared} />}
+      {(props.pane === 'thinking' || props.pane === 'connection') && <DetailPane props={props} shared={shared} />}
     </PaneMotion>
   </MenuCard>;
 }

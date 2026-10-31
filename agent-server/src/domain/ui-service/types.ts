@@ -98,12 +98,10 @@ export type {
   LoginPendingPrompt,
   LoginPromptOption,
 } from '@domain/auth/index.js';
-import type { CustomProviderStores, CustomProviderView } from '@domain/pi-providers/index.js';
-export type {
-  CustomProviderApi,
-  CustomProviderModelSpec,
-  CustomProviderView,
-} from '@domain/pi-providers/index.js';
+import type { ConnectionView } from '@domain/connections/index.js';
+import type { ConnectionEditorDeps } from '@domain/connections/editor.js';
+export type { ConnectionKind, ConnectionView } from '@domain/connections/index.js';
+export type { CustomProviderApi } from '@domain/pi-providers/index.js';
 import type { UsageSharingSettings } from '@domain/costs/aistatus-config.js';
 export type { UsageSharingSettings } from '@domain/costs/aistatus-config.js';
 import type { TelemetryInfo } from '@domain/telemetry/info.js';
@@ -164,16 +162,22 @@ export interface SessionsPendingInteraction {
 
 export type AuthLogoutReturn = AuthLogoutSuccess;
 
-export interface AuthSyncGatewayReturn {
+export interface AuthSyncModelsReturn {
   /** False when nothing was written (see `reason`); not an error. */
   configured: boolean;
-  endpoints: number;
+  /** How many routes (Claude, each PI provider) the host can reach. */
+  routes: number;
   defaultSet: boolean;
   favorites: ModelRef[];
   reason?: string;
 }
 
-export interface AuthRemoveCustomProviderReturn {
+export interface ConnectionsUpsertReturn {
+  /** The saved connection as the UI may show it: a key hint, never the key. */
+  connection: ConnectionView | null;
+}
+
+export interface ConnectionsRemoveReturn {
   removed: boolean;
 }
 
@@ -734,7 +738,8 @@ export interface ConfigBudget {
 export interface ConfigModels {
   default: EngineSelection | null;
   favorites: ModelRef[];
-  memory: Record<string, { thinking: string | null; connection: string | null }>;
+  /** Per model: the thinking level last picked for it. */
+  memory: Record<string, { thinking: string | null }>;
 }
 
 export interface ModelCatalogRoute {
@@ -756,6 +761,10 @@ export interface ModelCatalogRoute {
    *  never narrows what it cannot vouch for. Optional while clients and servers roll
    *  independently; an older server omits it and every model gets the backend's whole ladder. */
   modelThinking?: Record<string, string[]>;
+  /** Claude: the connections that serve a model, for each listed model not served by every
+   *  connection — a model a connection lists itself runs there. A model absent here may run on any
+   *  of `connections`. Optional for the same roll-skew reason as `modelThinking`. */
+  modelConnections?: Record<string, string[]>;
 }
 
 export interface ModelCatalogSnapshot {
@@ -1651,7 +1660,7 @@ export interface QueryReturnMap {
   'config.get': ConfigSnapshot;
   'auth.status': AuthStatusSnapshot;
   'auth.flowState': LoginFlowState | null;
-  'auth.customProviders': CustomProviderView[];
+  'connections.list': ConnectionView[];
   'usageSharing.get': UsageSharingSettings;
   'telemetry.info': TelemetryInfo;
   'models.catalog': ModelCatalogSnapshot;
@@ -1721,9 +1730,9 @@ export interface MutateReturnMap {
   'auth.respondPrompt': LoginFlowState;
   'auth.cancelFlow': LoginFlowState;
   'auth.logout': AuthLogoutReturn;
-  'auth.syncGateway': AuthSyncGatewayReturn;
-  'auth.upsertCustomProvider': CustomProviderView;
-  'auth.removeCustomProvider': AuthRemoveCustomProviderReturn;
+  'auth.syncModels': AuthSyncModelsReturn;
+  'connections.upsert': ConnectionsUpsertReturn;
+  'connections.remove': ConnectionsRemoveReturn;
   'usageSharing.set': UsageSharingSettings;
   'telemetry.report': { ok: true };
   'hooks.create': HooksCreateReturn;
@@ -1790,10 +1799,10 @@ export interface UiServiceDeps {
   getAuthStatus?: () => Promise<AuthStatusSnapshot>;
   authLogin?: AuthLoginService;
   logoutAccount?: (input: LogoutAccountInput) => Promise<AuthLogoutResult>;
-  /** Re-derives the model list and favorites; defaults to discovery-backed sync. */
-  syncGateway?: (options: { backends?: string[] }) => Promise<AuthSyncGatewayReturn>;
-  /** Files custom providers are read from and written to; defaults to the host's own two files. */
-  customProviderStores?: CustomProviderStores;
+  /** Seeds favorites and a missing default from the model catalog; defaults to the host's own. */
+  syncModels?: (options: { backends?: Array<'claude' | 'pi'> }) => Promise<AuthSyncModelsReturn>;
+  /** The connections file Settings edits; defaults to the host's own. */
+  connectionEditor?: ConnectionEditorDeps;
   /** Directory holding the aistatus `config.yaml`; defaults to `~/.aistatus`. */
   usageSharingDir?: string;
   projectStore: {

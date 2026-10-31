@@ -67,7 +67,6 @@ function openOpenAiSession(dir: string, credential: Record<string, unknown>): Re
   const adapter = new PIAdapter(
     makeFakeRuntimeFactory().factory,
     pathJoin(dir, 'sessions'),
-    { getProviders: () => ['openai'], refresh: () => {}, getModels: () => [], peekModels: () => [], ensureModels: async () => [] },
     { agentDir, catalog: () => catalog },
   );
   piPool(adapter).open(engineSpecFixture({

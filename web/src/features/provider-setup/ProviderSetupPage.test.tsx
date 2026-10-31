@@ -36,7 +36,7 @@ function pageFixture(defaultModel = '') {
   const select = vi.fn();
   const sharingSet = vi.fn();
   const sharing = { get: { query: vi.fn().mockResolvedValue({ enabled: false, name: '', org: '', email: '' }) }, set: { mutate: sharingSet } };
-  vi.mocked(useTRPCClient).mockReturnValue({ auth: { status: { query: status }, syncGateway: { mutate: sync } },
+  vi.mocked(useTRPCClient).mockReturnValue({ auth: { status: { query: status }, syncModels: { mutate: sync } },
     config: { get: { query: config } }, models: { catalog: { query: catalog }, setDefault: { mutate: select } }, usageSharing: sharing } as unknown as ReturnType<typeof useTRPCClient>);
   const invoke = vi.fn().mockResolvedValue(undefined);
   vi.stubGlobal('__TAURI__', { core: { invoke } });
@@ -186,7 +186,7 @@ it.each([
 });
 
 it('always offers warned skip, disables unready continuation and refreshes login success', async () => {
-  const sync = vi.fn().mockResolvedValue({ configured: false, reason: 'no-endpoints' });
+  const sync = vi.fn().mockResolvedValue({ configured: false, reason: 'no-routes' });
   const controller = new ProviderSetupController({
     status: async () => ({ accounts: [], piRuntime: { available: true, version: null, entry: null, error: null }, generatedAt: '' }),
     config: async () => ({ models: emptyModels }), catalog, sync, select: vi.fn(), claude: vi.fn(), install: vi.fn(), canInstall: () => false,

@@ -8,7 +8,7 @@ import type { CommandActionRouter } from '@orch/interactions/command-action-rout
 import { handleOrientCmd } from './orient.js';
 import { createScheduleHandler, type ScheduleCommandScheduler } from './schedule.js';
 import { handleCostCmd, handleBudgetCmd } from './cost.js';
-import { handleModeCmd, handleBackendCmd, handleThinkingCmd, createModelHandler, handleSkillsCmd, createAgentHandler } from './mode.js';
+import { handleConnectionCmd, handleBackendCmd, handleThinkingCmd, createModelHandler, handleSkillsCmd, createAgentHandler } from './mode.js';
 import { createStatusHandler, createHelpHandler } from './status.js';
 import { createCancelHandler } from './cancel.js';
 import { createCompactHandler, type CompactSessionByChannel } from './compact.js';
@@ -123,7 +123,8 @@ function createExactCommands(h: HandlerSet): Record<string, Handler> {
     '!newq': (ch, ad, _msg, anchor) => handleNewCmd(ch, ad, { skipHook: true }, anchor),
     '!cancel': (ch, ad, msg) => h.cancel(ch, ad, msg),
     '!compact': (ch) => h.compact(ch),
-    '!mode': (ch, ad) => handleModeCmd(ch, ad),
+    '!connection': (ch, ad) => handleConnectionCmd(ch, ad),
+    '!mode': (ch, ad) => handleConnectionCmd(ch, ad),
     '!skills': (ch, ad) => handleSkillsCmd(ch, ad),
     '!status': (ch, ad) => h.status(ch, ad),
     '!usage': (ch, ad, msg) => h.usage(ch, ad, msg),
@@ -146,7 +147,8 @@ function createPrefixCommands(h: HandlerSet): PrefixHandler[] {
     { prefix: '!backend', handler: handleBackendCmd },
     { prefix: '!model', handler: h.model },
     { prefix: '!thinking', handler: handleThinkingCmd },
-    { prefix: '!mode ', handler: handleModeCmd },
+    { prefix: '!connection ', handler: handleConnectionCmd },
+    { prefix: '!mode ', handler: handleConnectionCmd },
     { prefix: '!usage ', handler: h.usage },
     { prefix: '!cost', handler: handleCostCmd },
     { prefix: '!budget', handler: handleBudgetCmd },

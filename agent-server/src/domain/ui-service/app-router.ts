@@ -66,10 +66,10 @@ import {
   authRespondPromptInput,
   authCancelFlowInput,
   authLogoutInput,
-  authSyncGatewayInput,
-  authCustomProvidersInput,
-  authUpsertCustomProviderInput,
-  authRemoveCustomProviderInput,
+  authSyncModelsInput,
+  connectionsListInput,
+  connectionsUpsertInput,
+  connectionsRemoveInput,
   usageSharingGetInput,
   usageSharingSetInput,
   telemetryInfoInput,
@@ -342,12 +342,17 @@ function authRouter(service: UiService) {
     respondPrompt: makeMutation(service, 'auth.respondPrompt', authRespondPromptInput),
     cancelFlow: makeMutation(service, 'auth.cancelFlow', authCancelFlowInput),
     logout: makeMutation(service, 'auth.logout', authLogoutInput),
-    syncGateway: makeMutation(service, 'auth.syncGateway', authSyncGatewayInput),
-    // Self-hosted and proxied endpoints, which have no login flow: they are defined, edited and
-    // deleted rather than logged in and out of.
-    customProviders: makeQuery(service, 'auth.customProviders', authCustomProvidersInput),
-    upsertCustomProvider: makeMutation(service, 'auth.upsertCustomProvider', authUpsertCustomProviderInput),
-    removeCustomProvider: makeMutation(service, 'auth.removeCustomProvider', authRemoveCustomProviderInput),
+    syncModels: makeMutation(service, 'auth.syncModels', authSyncModelsInput),
+  });
+}
+
+// The connections Cortex stores itself — Claude keys and relays, PI base-URL overrides, custom PI
+// providers. They have no login flow: they are defined, edited and deleted.
+function connectionsRouter(service: UiService) {
+  return router({
+    list: makeQuery(service, 'connections.list', connectionsListInput),
+    upsert: makeMutation(service, 'connections.upsert', connectionsUpsertInput),
+    remove: makeMutation(service, 'connections.remove', connectionsRemoveInput),
   });
 }
 
@@ -472,6 +477,7 @@ export function createAppRouter(service: UiService) {
     config: configRouter(service),
     models: modelsRouter(service),
     auth: authRouter(service),
+    connections: connectionsRouter(service),
     usageSharing: usageSharingRouter(service),
     telemetry: telemetryRouter(service),
     hooks: hooksRouter(service),

@@ -1,7 +1,7 @@
 import { useEffect, type CSSProperties } from 'react';
 import { Button, IconButton, Select } from '@/design';
 import { fmt, useLang, useVocab } from '@/i18n';
-import { hasRoute, modelKey } from '@/lib/model-selection';
+import { modelKey } from '@/lib/model-selection';
 import {
   visibleFields,
   nextRunParts,
@@ -140,7 +140,7 @@ function ModelFields({ form, editableFields, onChange, modelOptions, thinkingOpt
       <div style={CELL_BOX}><Select data-schedule-select="model" density="bare" aria-label={L.scModel}
         value={form.selection ? modelKey(form.selection) : ''} placeholder={L.scChooseModel}
         disabled={!editableFields.selection} options={modelOptions.map((option) => ({
-          value: option.value, label: `${option.favorite ? '★ ' : ''}${option.label}`, disabled: !hasRoute(option.selection),
+          value: option.value, label: `${option.favorite ? '★ ' : ''}${option.label}`, disabled: !option.runnable,
         }))} onValueChange={(value) => onChange(scheduleModelPatch(modelOptions, value))}
         style={bareSelectStyle()} /></div>
     </div>

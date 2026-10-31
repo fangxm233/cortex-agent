@@ -1,4 +1,4 @@
-import { getDefaultSelection, getDefaultSelectionForBackend } from './models.js';
+import { backendStartingPoint, getDefaultSelection } from './models.js';
 import { loadAgentState, saveAgentState, type AgentState, type ModelMemory, type SelectionDefault } from './agent-state.js';
 import { copySelection, modelKey, type EngineSelection } from './engine-selection.js';
 import type { Backend } from '@core/types/agent-types.js';
@@ -41,12 +41,12 @@ export function getModelMemory(): ModelMemory {
 }
 
 export function rememberModelSelection(selection: EngineSelection): void {
-  const memory = { thinking: selection.thinking, connection: selection.connection };
+  const memory = { thinking: selection.thinking };
   commit({ ...agentState, modelMemory: withEntry(agentState.modelMemory, modelKey(selection), memory) });
 }
 
 export function defaultClaudeModel(): string {
-  try { return getDefaultSelectionForBackend('claude')?.model ?? 'opus'; }
+  try { return backendStartingPoint('claude')?.model ?? 'opus'; }
   catch { return 'opus'; }
 }
 

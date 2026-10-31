@@ -4,11 +4,11 @@ import { Icons } from '../../../core/icons.js';
 import { t } from '../../../core/i18n.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
 import { getChannelAgents, getDefaultAgent, setDefaultAgent, switchChannelAgent, clearChannelAgentSelection } from '@domain/agents/index.js';
-import { applyChannelSelection, type ApplySelectionResult } from '@domain/agents/model-selection.js';
-import { getDefaultSelection, getDefaultSelectionForBackend, listFavorites, resolveModelRef, selectionForModel } from '@domain/agents/models.js';
+import {
+  applyChannelSelection, resolveChannelSelection, resolveDaemonSelection, type ApplySelectionResult,
+} from '@domain/agents/model-selection.js';
+import { getDefaultSelection, listFavorites, resolveModelRef } from '@domain/agents/models.js';
 import { isValidThinkingLevel, type EngineSelection, type ModelRef } from '@domain/agents/engine-selection.js';
-import { resolveRunSelection } from '@domain/runs/config-resolver.js';
-import { routeName } from '@domain/connections/index.js';
 import type { Backend } from '@core/types/agent-types.js';
 import { listSkillGroups } from '@domain/plugins/catalog.js';
 import { conversationPluginDirs } from '@domain/plugins/conversation-skills.js';
@@ -25,12 +25,22 @@ function selectionText(selection: EngineSelection): string {
   return `${selection.backend} · ${selection.provider ? `${selection.provider}/` : ''}${selection.model} · ${selection.thinking ?? t('cmd.thinking.none')}${route}`;
 }
 
+const FAILURE_TEXT: Partial<Record<NonNullable<ApplySelectionResult['reason']>, (result: ApplySelectionResult, requested: Partial<EngineSelection>) => string>> = {
+  'cross-backend-live-session': (result, requested) => t('cmd.selection.crossBackendBlocked', {
+    name: requested.model ?? result.model, target: result.targetBackend ?? '', current: result.currentBackend ?? '',
+  }),
+  'invalid-connection': (result, requested) => t('cmd.connection.invalid', {
+    connection: requested.connection ?? '', connections: (result.allowed ?? []).join(', '),
+  }),
+  'no-model-for-backend': (_result, requested) => t('cmd.backend.noFavorite', { backend: requested.backend ?? '' }),
+  'invalid-thinking': (result, requested) => t('cmd.thinking.invalid', {
+    thinking: requested.thinking ?? '', backend: result.backend, levels: (result.allowed ?? []).join(', '),
+  }),
+};
+
 function selectionFailure(result: ApplySelectionResult, requested: Partial<EngineSelection>): string {
-  if (result.reason === 'cross-backend-live-session') {
-    return t('cmd.selection.crossBackendBlocked', { name: requested.model ?? result.model, target: result.targetBackend ?? '', current: result.currentBackend ?? '' });
-  }
-  if (result.reason === 'invalid-connection') return t('cmd.mode.invalid', { mode: requested.connection ?? '', routes: (result.allowed ?? []).join(', ') });
-  return t('cmd.error', { error: result.reason ?? '' });
+  const text = result.reason ? FAILURE_TEXT[result.reason] : undefined;
+  return text ? text(result, requested) : t('cmd.error', { error: result.reason ?? '' });
 }
 
 async function selectReply(channel: string, selection: Partial<EngineSelection>): Promise<string> {
@@ -40,47 +50,56 @@ async function selectReply(channel: string, selection: Partial<EngineSelection>)
     : `${Icons.error} ${selectionFailure(result, selection)}`;
 }
 
-export async function handleModeCmd(channel: string, adapter: PlatformAdapter, message = '!mode'): Promise<void> {
-  const connection = message.split(/\s+/).slice(1).join(' ').trim();
-  const text = connection
-    ? await selectReply(channel, { connection })
-    : t('cmd.mode.current', { mode: routeName(resolveRunSelection({ channel })) });
+function connectionText(current: EngineSelection): string {
+  if (current.backend === 'pi') return t('cmd.connection.piProvider', { provider: current.provider ?? '' });
+  return t('cmd.connection.current', { connection: current.connection ?? '—' });
+}
+
+/** `!connection [id|reset]`; `!mode` is the older name of the same command. */
+export async function handleConnectionCmd(channel: string, adapter: PlatformAdapter, message = '!connection'): Promise<void> {
+  const arg = message.split(/\s+/).slice(1).join(' ').trim();
+  const text = arg
+    ? await selectReply(channel, { connection: arg === 'reset' || arg === 'default' ? null : arg })
+    : connectionText(await resolveChannelSelection(channel));
   await adapter.postMessage(destination(channel), { text });
 }
 
 export async function handleBackendCmd(channel: string, adapter: PlatformAdapter, message: string): Promise<void> {
   const arg = message.split(/\s+/)[1];
-  const current = resolveRunSelection({ channel });
-  const target: Backend = arg === 'claude' || arg === 'pi' ? arg : (current.backend === 'claude' ? 'pi' : 'claude');
   if (arg && arg !== 'claude' && arg !== 'pi') {
     await adapter.postMessage(destination(channel), { text: `${Icons.error} ${t('cmd.backend.usage')}` });
     return;
   }
-  const selection = getDefaultSelectionForBackend(target);
-  const text = selection
-    ? await selectReply(channel, selection)
-    : `${Icons.error} ${t('cmd.backend.noFavorite', { backend: target })}`;
-  await adapter.postMessage(destination(channel), { text });
+  const current = await resolveChannelSelection(channel);
+  const target: Backend = arg === 'claude' || arg === 'pi' ? arg : (current.backend === 'claude' ? 'pi' : 'claude');
+  await adapter.postMessage(destination(channel), { text: await selectReply(channel, { backend: target }) });
 }
 
 export async function handleThinkingCmd(channel: string, adapter: PlatformAdapter, message: string): Promise<void> {
   const arg = message.split(/\s+/).slice(1).join(' ').trim();
-  const current = resolveRunSelection({ channel });
+  const current = await resolveChannelSelection(channel);
   if (!arg) {
     await adapter.postMessage(destination(channel), { text: t('cmd.thinking.current', { thinking: current.thinking ?? t('cmd.thinking.none') }) });
     return;
   }
   const clear = arg === 'reset' || arg === 'clear' || (arg === 'off' && !isValidThinkingLevel(current.backend, 'off'));
-  const result = await applyChannelSelection({ channel, thinking: clear ? null : arg, seedDefault: false });
+  const requested = { thinking: clear ? null : arg };
+  const result = await applyChannelSelection({ channel, ...requested, seedDefault: false });
   const text = result.ok
     ? `${Icons.ok} ${t('cmd.thinking.set', { thinking: result.thinking ?? t('cmd.thinking.none') })}`
-    : `${Icons.error} ${t('cmd.thinking.invalid', { thinking: arg, backend: result.backend, levels: (result.allowed ?? []).join(', ') })}`;
+    : `${Icons.error} ${selectionFailure(result, requested)}`;
   await adapter.postMessage(destination(channel), { text });
 }
 
-function modelStatusText(channel: string): string {
-  const current = t('cmd.model.current', { model: selectionText(resolveRunSelection({ channel })) });
-  const favorites = listFavorites().map(ref => `• ${selectionText(selectionForModel(ref))}`);
+/** A favorite as picking it would leave this channel: its remembered thinking, its connection. */
+function favoriteText(ref: ModelRef): string {
+  const resolution = resolveDaemonSelection({}, ref);
+  return selectionText(resolution.ok === true ? resolution.selection : { ...ref, thinking: null, connection: null });
+}
+
+async function modelStatusText(channel: string): Promise<string> {
+  const current = t('cmd.model.current', { model: selectionText(await resolveChannelSelection(channel)) });
+  const favorites = listFavorites().map(ref => `• ${favoriteText(ref)}`);
   return [current, ...favorites].join('\n');
 }
 
@@ -93,10 +112,10 @@ function modelButtons(channel: string): ActionElement[] {
 
 async function modelArgumentReply(channel: string, arg: string): Promise<string> {
   try {
-    const selection = arg === 'reset'
+    const requested: Partial<EngineSelection> = arg === 'reset'
       ? getDefaultSelection()
-      : selectionForModel(resolveModelRef(arg, resolveRunSelection({ channel }).backend));
-    return await selectReply(channel, selection);
+      : resolveModelRef(arg, (await resolveChannelSelection(channel)).backend);
+    return await selectReply(channel, requested);
   } catch (error) {
     return `${Icons.error} ${(error as Error).message}`;
   }
@@ -104,7 +123,7 @@ async function modelArgumentReply(channel: string, arg: string): Promise<string>
 
 export async function handleModelCmd(channel: string, adapter: PlatformAdapter, message: string): Promise<void> {
   const arg = message.split(/\s+/).slice(1).join(' ').trim();
-  const text = arg ? await modelArgumentReply(channel, arg) : modelStatusText(channel);
+  const text = arg ? await modelArgumentReply(channel, arg) : await modelStatusText(channel);
   const richBlocks = arg ? undefined : [
     { type: 'section' as const, text }, { type: 'actions' as const, elements: modelButtons(channel) },
   ];
@@ -116,7 +135,7 @@ async function pickFavorite(router: CommandActionRouter, ctx: ActionContext): Pr
   if (!adapter || !ctx.messageRef) return;
   try {
     const { ref, channel } = JSON.parse(ctx.value) as { ref: ModelRef; channel: string };
-    const text = await selectReply(channel, selectionForModel(ref));
+    const text = await selectReply(channel, ref);
     await adapter.updateMessage(ctx.messageRef, {
       text, richBlocks: [{ type: 'section', text }, { type: 'actions', elements: modelButtons(channel) }],
     });
@@ -131,7 +150,7 @@ export function createModelHandler(router?: CommandActionRouter) {
   });
   return async (channel: string, adapter: PlatformAdapter, message: string): Promise<CommandResult | void> => {
     if (message.trim() !== '!model' || !router) return handleModelCmd(channel, adapter, message);
-    const text = modelStatusText(channel);
+    const text = await modelStatusText(channel);
     return { text, richBlocks: [{ type: 'section', text }], actions: modelButtons(channel) };
   };
 }

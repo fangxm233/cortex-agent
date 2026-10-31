@@ -26,14 +26,29 @@ test('channel selections are independent, defensive and persist after reload', a
   expect(api.getChannelSelection('web:b')).toEqual(pi);
 });
 
-test('model memory is keyed by model identity and copies input and output', async () => {
+test('model memory is keyed by model identity, keeps only thinking, and copies input and output', async () => {
   const api = await fresh();
   api.rememberModelSelection(selection);
   const key = '["claude",null,"opus"]';
-  api.getModelMemory()[key].connection = 'not-persisted';
-  expect(api.getModelMemory()[key]).toEqual({ thinking: null, connection: 'api' });
+  api.getModelMemory()[key].thinking = 'not-persisted';
+  expect(api.getModelMemory()[key]).toEqual({ thinking: null });
   api.rememberModelSelection({ ...selection, thinking: 'high', connection: 'subscription' });
-  expect((await fresh()).getModelMemory()[key]).toEqual({ thinking: 'high', connection: 'subscription' });
+  expect((await fresh()).getModelMemory()[key]).toEqual({ thinking: 'high' });
+});
+
+test('older model memory that also carried a connection is read as thinking and written back without it', async () => {
+  writeFileSync(STATE, JSON.stringify({ modelMemory: {
+    '["claude",null,"opus"]': { thinking: 'low', connection: 'api' },
+    '["claude",null,"sonnet"]': { thinking: null, connection: 'removed' },
+  } }));
+  const api = await fresh();
+  expect(api.getModelMemory()).toEqual({ '["claude",null,"opus"]': { thinking: 'low' }, '["claude",null,"sonnet"]': { thinking: null } });
+  api.rememberModelSelection({ ...selection, model: 'haiku', thinking: 'high' });
+  expect(JSON.parse(readFileSync(STATE, 'utf8')).modelMemory).toEqual({
+    '["claude",null,"opus"]': { thinking: 'low' },
+    '["claude",null,"sonnet"]': { thinking: null },
+    '["claude",null,"haiku"]': { thinking: 'high' },
+  });
 });
 
 test('seed preserves agent during engine picks, clears agent independently and clears entirely on null', async () => {

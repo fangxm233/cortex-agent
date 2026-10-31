@@ -286,7 +286,7 @@ cortex auth status
 
 使用 `--answers <file>` 或 `--json` 时，init 检测凭据并报告状态，不会启动 Provider 登录或等待输入。省略 `backends` 时默认使用 PI；显式提供 `backends` 时保留所指定的后端选择与安装行为。即使尚未配置 Provider，这类运行也能完成。之后可用 `cortex auth login` 或**设置 → 账号**登录；`cortex auth login` 成功后也会配置默认模型与收藏。Slack 或飞书中也可通过 `!login` 远程登录，参见[后端：远程登录](./backends.md#remote-login)。
 
-非交互式模型选择可通过 `--answers` 的 `defaultChoice` 和 `favorites` 指定，每个选择都是包含 `mode` 与 `model` 的对象。显式 `defaultChoice` 会替换已保存的默认值，否则保留它；收藏合并并包含所选默认模型。按位置读取的 stdin 协议末尾有两行模型选择：第一行为默认模型的 `mode:model`，第二行为逗号分隔的收藏 `mode:model`。
+非交互式模型选择可通过 `--answers` 的 `defaultChoice` 和 `favorites` 指定，每个选择都是包含 `backend`、`provider`（仅 PI）与 `model` 的对象。显式 `defaultChoice` 会替换已保存的默认值，否则保留它；收藏合并并包含所选默认模型，尚无收藏的后端或 PI provider 会加入其推荐模型。按位置读取的 stdin 协议末尾有两行模型选择：第一行为默认模型的 `route:model`，第二行为逗号分隔的收藏 `route:model`，其中 route 是 `claude` 或 PI provider。
 
 ### 2.11 后端登录过期怎么办 {#211-when-the-backend-login-expires}
 

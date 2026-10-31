@@ -6,7 +6,9 @@ import { copySelection, validateEngineSelection, type EngineSelection } from './
 
 const STATE_FILE = path.join(STORE_DIR, 'agent-state.json');
 export type SelectionDefault = EngineSelection & { agentName?: string };
-export type ModelMemory = Record<string, { thinking: string | null; connection: string | null }>;
+/** Per model: the thinking level last picked for it. The connection is never remembered — it is
+ *  computed per run from what still exists (see resolve-selection.ts). */
+export type ModelMemory = Record<string, { thinking: string | null }>;
 
 export interface AgentState {
   channelSelections: Record<string, EngineSelection>;
@@ -34,12 +36,11 @@ function parseMap<T>(value: unknown, parse: (entry: unknown) => T | null): Recor
   return Object.fromEntries(entries.filter(([, entry]) => entry !== null));
 }
 
+/** Older entries also carried a connection; it is dropped here and so on the next write. */
 function parseMemory(value: unknown): ModelMemory[string] | null {
   const raw = record(value);
   const validThinking = raw.thinking === null || (typeof raw.thinking === 'string' && !!raw.thinking);
-  const validConnection = raw.connection === null || (typeof raw.connection === 'string' && !!raw.connection);
-  if (!validThinking || !validConnection) return null;
-  return { thinking: raw.thinking as string | null, connection: raw.connection as string | null };
+  return validThinking ? { thinking: raw.thinking as string | null } : null;
 }
 
 function parseString(value: unknown): string | null {

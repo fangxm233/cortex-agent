@@ -15,7 +15,7 @@ test.each([true, false])('adapter and session preserve the optional host snapsho
     return fake.factory(request, callbacks);
   };
   const root = process.env.CORTEX_HOME!;
-  const adapter = new PIAdapter(factory, join(root, 'catalog-sessions'), undefined, {
+  const adapter = new PIAdapter(factory, join(root, 'catalog-sessions'), {
     agentDir: join(root, 'catalog-agent'),
     ...(injected ? { getSubagentModelEnv: getter } : {}),
   });

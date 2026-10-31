@@ -1,6 +1,6 @@
 import type { ConfigAgentEntry, EngineSelection, SessionTranscript } from '@cortex-agent/ui-contract';
 import {
-  agentChange, agentRowSub, buildAgentOptions, groupModelOptions, modeChange,
+  agentChange, agentRowSub, buildAgentOptions, connectionChange, groupModelOptions,
   modelChange, selectionChipParts, thinkingChange,
   type ModelOption, type SelectionRootRow,
 } from '@/features/session/list/selection-menu';
@@ -124,7 +124,7 @@ export interface SelectionSheetRow {
 }
 
 export interface SelectionSheetSection {
-  key: 'favorites' | 'model' | 'thinking' | 'mode';
+  key: 'favorites' | 'model' | 'thinking' | 'connection';
   title: string;
   rows: SelectionSheetRow[];
 }
@@ -138,13 +138,13 @@ export interface SelectionSheetCopy {
   favorites: string;
   model: string;
   thinking: string;
-  mode: string;
+  connection: string;
   defaultThinking: string;
   crossBackend: string;
 }
 
 type SheetOptions = Pick<SessionSelection,
-  'effective' | 'favoriteOptions' | 'modelGroups' | 'thinkingOptions' | 'modeOptions' | 'rootRows'>;
+  'effective' | 'favoriteOptions' | 'modelGroups' | 'thinkingOptions' | 'connectionOptions' | 'rootRows'>;
 
 function modelRow(
   option: ModelOption, current: EngineSelection, copy: SelectionSheetCopy, favorite: boolean,
@@ -170,14 +170,14 @@ function detailSections(input: SheetOptions, copy: SelectionSheetCopy): Selectio
       sub: null, current: option.active, change: thinkingChange(input.effective, option.level),
     })),
   };
-  const mode: SelectionSheetSection = {
-    key: 'mode', title: copy.mode,
-    rows: input.modeOptions.map((option) => ({
-      id: `mode:${option.mode}`, label: option.mode, sub: null,
-      current: option.active, change: modeChange(input.effective, option.mode),
+  const connection: SelectionSheetSection = {
+    key: 'connection', title: copy.connection,
+    rows: input.connectionOptions.map((option) => ({
+      id: `connection:${option.id ?? 'default'}`, label: option.label, sub: null,
+      current: option.active, change: connectionChange(input.effective, option.id),
     })),
   };
-  return [thinking, mode].filter((section) => section.rows.length > 0);
+  return [thinking, connection].filter((section) => section.rows.length > 0);
 }
 
 /** Hook-computed options keep desktop and mobile selection policy identical. Favorites need no catalog. */

@@ -1,10 +1,11 @@
-import { subagentModelEnv } from '../../agent-adapter/claude/spawn-args.js';
+import { setSubagentModelSource, subagentModelEnv } from '../../agent-adapter/claude/spawn-args.js';
+import { modelCatalog, routeFor } from '../models/catalog.js';
 import { ClaudeAdapter } from '../../agent-adapter/claude/adapter.js';
 import { PIAdapter } from '../../agent-adapter/pi/adapter.js';
 import { ensureAuthVisible } from '../../agent-adapter/pi/agent-dir.js';
 import { buildPiCatalog } from '../connections/pi-catalog.js';
 import { PI_AGENT_DIR, PI_SESSIONS_DIR } from '../../agent-adapter/pi/defaults.js';
-import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
+import { setPiModelScan } from '../../agent-adapter/pi/discovery.js';
 import { handleRateLimitEvent } from '../costs/rate-limit-throttle.js';
 import { usageStore } from '../costs/usage-store.js';
 import { openBundledMcpServer } from '../mcp/bundled-server.js';
@@ -23,7 +24,7 @@ import type {
 // store and a throttle, and ClaudeAdapter drops the CLI's rate-limit lines. That is the intended
 // behaviour off the daemon path, and this file is the only place the daemon path is assembled.
 
-const PI_ADAPTER = new PIAdapter(undefined, PI_SESSIONS_DIR, piProviderDiscovery, {
+const PI_ADAPTER = new PIAdapter(undefined, PI_SESSIONS_DIR, {
   agentDir: PI_AGENT_DIR,
   prepareAgentDir: (agentDir) => ensureAuthVisible({ agentDir }),
   catalog: () => buildPiCatalog(),
@@ -44,6 +45,19 @@ const PI_ADAPTER = new PIAdapter(undefined, PI_SESSIONS_DIR, piProviderDiscovery
     // what "null" means to `agent_stop`. The tool stays registered either way.
     stopBackgroundSubagent: (id) => (piBackground.stop ? piBackground.stop(id) : Promise.resolve(null)),
   },
+});
+
+// The daemon's PI model list is what its sessions can run: connections included, keys installed.
+setPiModelScan(() => PI_ADAPTER.scanModels());
+
+// Subagents are offered what the model catalog knows, read warm on every spawn.
+setSubagentModelSource(() => {
+  const snapshot = modelCatalog.peek();
+  return {
+    pi: snapshot.routes.filter((route) => route.backend === 'pi')
+      .flatMap((route) => route.models.map((id) => ({ provider: route.provider!, id }))),
+    claude: routeFor(snapshot, { backend: 'claude', provider: null })?.models ?? [],
+  };
 });
 
 const piBackground: {

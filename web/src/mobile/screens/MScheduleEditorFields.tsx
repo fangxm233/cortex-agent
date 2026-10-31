@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { useVocab } from '@/i18n';
-import { hasRoute, modelKey } from '@/lib/model-selection';
+import { modelKey } from '@/lib/model-selection';
 import { MBackChevron, MC, MSelect } from '@/mobile/ui/kit';
 import {
   DAY_OPTIONS,
@@ -167,7 +167,7 @@ function ModelField({ copy, form, editableFields, modelOptions, onChange }: Fiel
         value={form.selection ? modelKey(form.selection) : ''} disabled={!editableFields.selection}
         onValueChange={value => onChange(scheduleModelPatch(modelOptions, value))}
         options={[{ value: '', label: copy.scChooseModel, disabled: true }, ...modelOptions.map(option => ({
-          value: option.value, label: `${option.favorite ? '★ ' : ''}${option.label}`, disabled: !hasRoute(option.selection),
+          value: option.value, label: `${option.favorite ? '★ ' : ''}${option.label}`, disabled: !option.runnable,
         }))]} />
     </label>
   );

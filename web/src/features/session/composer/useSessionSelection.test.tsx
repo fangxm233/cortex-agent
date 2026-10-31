@@ -57,7 +57,7 @@ beforeEach(() => {
 });
 
 describe('shared selection controller', () => {
-  it('resolves an uncached favorite through the actual first endpoint route before sending a full selection', async () => {
+  it('fetches the catalog for an uncached Claude pick and keeps the connection where it serves the model', async () => {
     harness.catalog = null;
     const sonnet = { backend: 'claude' as const, provider: null, model: 'claude-sonnet' };
     (harness.config as ConfigSnapshot).models.favorites = [current, sonnet];
@@ -65,12 +65,12 @@ describe('shared selection controller', () => {
     expect(value.favoriteOptions).toHaveLength(2);
     await act(async () => value.pickFavorite(value.favoriteOptions[1]!));
     expect(harness.fetch).toHaveBeenCalledOnce();
-    expect(harness.writes).toHaveBeenCalledWith('selection', { sessionId: 's1', selection: { ...sonnet, thinking: null, connection: 'api' } });
+    expect(harness.writes).toHaveBeenCalledWith('selection', { sessionId: 's1', selection: { ...sonnet, thinking: null, connection: 'subscription' } });
     act(() => tree.unmount());
   });
-  it('uses remembered thinking and mode without requiring the catalog', async () => {
+  it('uses remembered thinking for a PI pick without requiring the catalog', async () => {
     harness.catalog = null;
-    (harness.config as ConfigSnapshot).models.memory[modelKey(other)] = { thinking: 'high', connection: null };
+    (harness.config as ConfigSnapshot).models.memory[modelKey(other)] = { thinking: 'high' };
     const tree = mount();
     await act(async () => value.pickFavorite(value.favoriteOptions[1]!));
     expect(harness.fetch).not.toHaveBeenCalled();

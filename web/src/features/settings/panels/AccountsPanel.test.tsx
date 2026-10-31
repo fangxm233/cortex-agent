@@ -8,7 +8,7 @@ const harness = vi.hoisted(() => ({
   logoutCalls: [] as unknown[],
   invalidations: [] as unknown[],
   syncCalls: [] as unknown[],
-  syncResult: { configured: true, endpoints: 2, defaultSet: false, favorites: [] } as Record<string, unknown>,
+  syncResult: { configured: true, routes: 2, defaultSet: false, favorites: [] } as Record<string, unknown>,
   toasts: [] as unknown[],
 }));
 
@@ -62,10 +62,12 @@ vi.mock('@/lib/trpc', () => {
     auth: {
       status: query('auth.status'),
       logout: mutation('auth.logout'),
-      customProviders: query('auth.customProviders'),
-      upsertCustomProvider: mutation('auth.upsertCustomProvider'),
-      removeCustomProvider: mutation('auth.removeCustomProvider'),
-      syncGateway: mutation('auth.syncGateway'),
+      syncModels: mutation('auth.syncModels'),
+    },
+    connections: {
+      list: query('connections.list'),
+      upsert: mutation('connections.upsert'),
+      remove: mutation('connections.remove'),
     },
     config: {
       get: query('config.get'),
@@ -78,12 +80,12 @@ vi.mock('@/lib/trpc', () => {
 
 vi.mock('@tanstack/react-query', async importOriginal => ({
   ...await importOriginal<typeof import('@tanstack/react-query')>(),
-  useQuery: (options: any) => (options?.__kind === 'auth.customProviders'
+  useQuery: (options: any) => (options?.__kind === 'connections.list'
     ? { data: [], isLoading: false, isError: false, error: null }
     : { data: status, isLoading: false, isError: false, error: null }),
   useMutation: (options: any) => ({
     mutate: (variables: unknown, call?: { onSuccess?: (...args: unknown[]) => void }) => {
-      if (options.__kind === 'auth.syncGateway') {
+      if (options.__kind === 'auth.syncModels') {
         harness.syncCalls.push(variables);
         options.onSuccess?.(harness.syncResult, variables);
         return;
@@ -121,7 +123,7 @@ beforeEach(() => {
   harness.invalidations = [];
   harness.syncCalls = [];
   harness.toasts = [];
-  harness.syncResult = { configured: true, endpoints: 2, defaultSet: false, favorites: [] };
+  harness.syncResult = { configured: true, routes: 2, defaultSet: false, favorites: [] };
 });
 
 function visibleText(renderer: ReactTestRenderer): string {
@@ -167,7 +169,7 @@ describe('desktop accounts settings', () => {
 
     expect(harness.logoutCalls).toEqual([{ backend: 'pi', provider: 'openrouter', authType: 'oauth' }]);
     expect(harness.invalidations).toEqual([
-      { __kind: 'auth.status' }, { __kind: 'config.get' }, { __kind: 'models.catalog' },
+      { __kind: 'auth.status' }, { __kind: 'connections.list' }, { __kind: 'config.get' }, { __kind: 'models.catalog' },
     ]);
     expect(harness.toasts).toEqual([{ title: 'Logged out of OpenRouter', tone: 'done' }]);
   });

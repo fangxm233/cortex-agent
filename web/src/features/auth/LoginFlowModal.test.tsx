@@ -58,7 +58,12 @@ vi.mock('@/lib/trpc', () => {
   };
   return {
     useTRPCClient: () => harness.client,
-    useTRPC: () => ({ auth: { status: query('auth.status'), flowState: query('auth.flowState') }, config: { get: query('config.get') }, models: { catalog: query('models.catalog') } }),
+    useTRPC: () => ({
+      auth: { status: query('auth.status'), flowState: query('auth.flowState') },
+      connections: { list: query('connections.list') },
+      config: { get: query('config.get') },
+      models: { catalog: query('models.catalog') },
+    }),
     trpcErrorCode: (error: any) => error?.data?.code ?? null,
   };
 });
@@ -387,7 +392,7 @@ describe('LoginFlowModal', () => {
     expect(find(renderer, { 'data-action': 'auth-retry' })).toBeTruthy();
   });
 
-  it('refreshes accounts, config and the model catalog once when the login is done', async () => {
+  it('refreshes accounts, connections, config and the model catalog once when the login is done', async () => {
     const onDone = vi.fn();
     harness.onRespond = () => snapshot(2, { step: 'done', outcome: { provider: 'deepseek', authType: 'api_key', expiresAt: null } });
     const renderer = mount({ onDone });
@@ -398,7 +403,7 @@ describe('LoginFlowModal', () => {
 
     expect(flowStep(renderer)).toBe('done');
     expect(text(renderer)).not.toContain('sk-test');
-    expect(harness.invalidations.map(entry => entry.__kind).sort()).toEqual(['auth.status', 'config.get', 'models.catalog']);
+    expect(harness.invalidations.map(entry => entry.__kind).sort()).toEqual(['auth.status', 'config.get', 'connections.list', 'models.catalog']);
     expect(onDone).toHaveBeenCalledTimes(1);
     expect(harness.pollCalls).toHaveLength(0);
   });

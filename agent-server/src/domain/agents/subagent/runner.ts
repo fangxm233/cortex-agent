@@ -9,7 +9,7 @@ import { parseModelSpec, selectChildModel, type ModelSpec } from '@core/agents/s
 import { noticesFor } from '../../../agent-adapter/pi/child-events.js';
 import { getPiEngineAdapter } from '../../runs/adapters.js';
 import { type AgentRole } from '@core/agents/roles.js';
-import { getDefaultSelectionForBackend } from '../models.js';
+import { resolveDaemonSelection } from '../model-selection.js';
 import type { EngineSelection } from '../engine-selection.js';
 import { startRun } from '../../runs/service.js';
 import { engines } from '../../runs/engines.js';
@@ -90,11 +90,7 @@ async function runPiSubagent(request: SubagentRunRequest): Promise<SubagentResul
     import('../../../agent-adapter/pi/child-runner.js'),
     import('../../../agent-adapter/pi/tool-shims.js'),
   ]);
-  // The parent's own model is a fallback only from a PI parent: a Claude model id means nothing to
-  // PI. What is selected here is what the child resolves.
-  const model = selectChildModel(
-    request.task, request.role, request.parent.backend === 'pi' ? request.parent : null,
-  );
+  const model = piChildModel(request);
   const adapter = getPiEngineAdapter();
   try {
     adapter.ensureCatalog();
@@ -117,6 +113,21 @@ async function runPiSubagent(request: SubagentRunRequest): Promise<SubagentResul
   });
 }
 
+/**
+ * A PI child's model: the task's or role's spec as written (PI resolves it), else a PI parent's own
+ * model. A Claude parent's model means nothing to PI, so its child without a spec starts where a
+ * switch to PI would: the PI default, else the first PI favorite.
+ */
+function piChildModel(request: SubagentRunRequest): ModelSpec {
+  const piParent = request.parent.backend === 'pi' ? request.parent : null;
+  const named = selectChildModel(request.task, request.role, piParent);
+  if (named.model) return named;
+  const resolution = resolveDaemonSelection({}, { backend: 'pi' });
+  if (resolution.ok === false) return {};
+  const { provider, model } = resolution.selection;
+  return { model, ...(provider ? { provider } : {}) };
+}
+
 /** A nested PI session emits PI-shaped records; translate them with PI's own notice builder, the
  *  same one the in-process shim uses, so a cross-backend child renders identically to a native one. */
 function piForwarder(request: SubagentRunRequest): ChildEventForwarder | undefined {
@@ -137,31 +148,29 @@ function piForwarder(request: SubagentRunRequest): ChildEventForwarder | undefin
 
 // ─── claude child ─────────────────────────────────────────────────
 
-/** A cross-backend child must use a Claude route, never the PI parent's route. */
-function claudeDefaultSelection(): EngineSelection {
-  const selection = getDefaultSelectionForBackend('claude');
-  if (!selection) throw new Error('A claude subagent needs a Claude default or favorite; favorite a Claude model first.');
-  return selection;
+/** The Claude parent's own selection, when there is one to fall back to. */
+function claudeParentSelection(parent: SubagentParentContext): EngineSelection | null {
+  if (parent.backend !== 'claude' || !parent.model) return null;
+  return { backend: 'claude', provider: null, model: parent.model, thinking: null, connection: parent.connection ?? null };
 }
 
 /**
  * The child model comes from the task or role, then the parent's own model when that parent is
- * Claude, and finally the configured Claude-backend default. The connection follows the Claude
- * parent when there is one; a cross-backend child uses that Claude default's. The child remains a
- * one-shot run.
+ * Claude, and finally the configured Claude default. The connection follows the Claude parent while
+ * it serves the child's model; otherwise it is computed for that model. The child remains a
+ * one-shot run, with no thinking level unless the spec names one.
  */
 function claudeChildConfig(request: SubagentRunRequest, spec: ModelSpec): EngineSelection {
-  const sameBackend = request.parent.backend === 'claude';
-  let fallback: EngineSelection | null = null;
-  const claudeDefault = (): EngineSelection => fallback ??= claudeDefaultSelection();
-  const connection = sameBackend ? request.parent.connection : claudeDefault().connection;
-  return {
-    model: spec.model ?? (sameBackend ? request.parent.model : null) ?? claudeDefault().model,
-    backend: 'claude',
-    connection: connection ?? null,
-    provider: null,
+  const parent = claudeParentSelection(request.parent);
+  const resolution = resolveDaemonSelection({ request: parent }, {
+    ...(parent ? {} : { backend: 'claude' as const }),
+    ...(spec.model ? { model: spec.model } : {}),
     thinking: spec.thinking ?? null,
-  };
+  });
+  if (resolution.ok === false) {
+    throw new Error(`A claude subagent cannot run (${resolution.reason}); favorite a Claude model or fix its thinking level.`);
+  }
+  return resolution.effective;
 }
 
 /**

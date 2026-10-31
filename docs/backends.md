@@ -393,8 +393,17 @@ logged into, and it is managed from the same three surfaces as everything else:
 | Surface | Entry |
 |---|---|
 | CLI | `cortex auth provider list \| add \| remove` |
-| Web (desktop and mobile) | **Settings → Accounts → Custom providers** |
+| Web (desktop and mobile) | **Settings → Accounts → Connections** |
 | Slack / Feishu | `!login custom [list \| add <name> <api> <url> <model…> \| remove <name>]` |
+
+On the web, **Connections** lists every connection Cortex stores: Claude
+endpoints (API keys and relays), base-URL overrides of PI's built-in providers,
+and custom providers. Each row shows a hint of its key, never the key. **New
+connection** picks one of the three kinds; names cannot be changed afterwards.
+The Claude `api` row and the API key slot in the Claude Code section are the
+same record, so an edit or deletion in one shows in the other. Deleting a Claude
+connection moves sessions that used it to the default connection; deleting an
+override sends the provider's requests back to its own endpoint and login.
 
 A definition needs four things: a name, the request protocol the endpoint
 speaks (`anthropic-messages`, `openai-completions`, `openai-responses`, or
@@ -431,7 +440,7 @@ backend, otherwise the first favorite on that backend with its remembered
 settings. If neither exists, favorite a model there first. A conversation with
 history cannot change backend; start a new session for that.
 
-## Per-session model, thinking level and connection
+## Per-session model, thinking level and connection {#per-session-model-thinking-level-and-route}
 
 The Web and mobile composer's engine picker lists favorite models at its root,
 showing each model and its remembered thinking level, grouped by backend and
@@ -442,25 +451,30 @@ The execution environment is a separate choice; see
 [configuration.md](./configuration.md#choosing-an-environment-per-conversation).
 
 A selection is saved on the session. Choosing a model restores that model's
-remembered thinking and connection; without a memory, thinking is null and a
-Claude model runs on the default connection. User changes update the model's memory. A fresh Web
-conversation starts from the last selected engine on this host.
+remembered thinking (null without a memory); user changes update that memory.
+A fresh Web conversation starts from the last selected engine on this host.
 
 A conversation with history cannot change backend. The picker disables models
 on the other backend; a new draft can choose either backend.
 
-**Connection** is the credential and endpoint a Claude session runs on:
-`subscription` for Claude Code's own login, or the id of a key connection:
-`api` for a saved Anthropic API key, or the id given to a relay (see
-[Connections](./configuration.md#configconnectionsjson)). The default is the
-subscription when Claude Code is logged in, otherwise the first stored Claude
-connection. The picker offers the host's Claude connections, and hides the
-choice when there is only one. Claude Code and PI's built-in `anthropic`
-provider are separate entries in the catalog: PI's provider runs on PI's own
-Anthropic credentials. When both are signed in, each keeps its own models,
-favorites, quota and rate limits. The model catalog supplies each endpoint's
-backend, provider, connections, and models. Thinking levels use the backend's range, narrowed
-to the model's own levels where PI reports them.
+**Connection** applies to Claude Code only: which of this host's Claude
+connections a conversation runs on — the subscription, an API key, or a relay
+or local endpoint added in **Settings → Accounts**. The picker shows the
+connection row only when more than one connection can run the current model. Its
+**Default** row names no connection: each run then uses the default connection
+(the subscription when signed in) if it serves the model, otherwise the first
+connection that does. A connection with its own model list serves only those
+models. Picking another model keeps the chosen connection while it serves that
+model. A chosen connection that is later removed falls back to the default
+instead of failing the conversation. PI has no connection row: its provider is
+the connection. Claude Code and PI's built-in `anthropic` provider are separate
+entries: PI's provider runs on PI's own Anthropic credentials, and when both are
+signed in each keeps its own models, favorites, quota and rate limits.
+
+The model catalog lists each backend's and PI provider's models: Claude's from
+the Anthropic Models API plus the models connections list themselves, PI's from
+its own scan, custom providers included. Thinking levels use the model's own
+levels where the source reports them, otherwise the backend's range.
 
 **Settings → Models** manages the default model and the favorites list. Platform
 channels use the same selection rules through these commands:
@@ -473,7 +487,7 @@ channels use the same selection rules through these commands:
 | `!model reset` | Restores the complete configured default selection |
 | `!thinking [level]` | Shows or sets the reasoning level |
 | `!thinking reset` | Sets thinking to null, using the backend default |
-| `!mode [connection]` | Shows or sets the channel's Claude connection, validated against the host's Claude connections |
+| `!connection [id\|reset]` | Shows or sets the Claude connection; `reset` returns to the default. `!mode` is an alias |
 
 ## Thinking level
 

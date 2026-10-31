@@ -22,7 +22,7 @@ test('complete selections, null thinking, billing route, memory and agent seed s
   const state = {
     ...empty, defaultAgent: 'main', channelAgents: { 'web:a': 'creative' },
     channelSelections: { 'web:a': selection },
-    modelMemory: { '["claude",null,"opus"]': { thinking: null, connection: 'api' } },
+    modelMemory: { '["claude",null,"opus"]': { thinking: null } },
     selectionDefault: { ...selection, agentName: 'creative' },
   };
   saveAgentState(state);
@@ -44,12 +44,13 @@ test('malformed state is ignored; valid independent entries survive', async () =
   writeFileSync(STATE, JSON.stringify({
     channelSelections: { good: selection, bad: { model: 'opus' }, invalid: { ...selection, thinking: 'off' } },
     channelAgents: { good: 'creative', bad: 3, empty: '' }, defaultAgent: 5,
-    modelMemory: { good: { thinking: null, connection: 'api' }, bad: { thinking: null, connection: 5 } },
+    // Older entries carried a connection: it is dropped, and only a bad thinking value rejects one.
+    modelMemory: { good: { thinking: null, connection: 'api' }, bad: { thinking: 5 } },
     selectionDefault: { model: 'incomplete', agentName: 'creative' },
   }));
   assert.deepEqual(loadAgentState(), {
     ...empty, channelSelections: { good: selection }, channelAgents: { good: 'creative' },
-    modelMemory: { good: { thinking: null, connection: 'api' } },
+    modelMemory: { good: { thinking: null } },
   });
 });
 

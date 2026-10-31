@@ -7,9 +7,11 @@ import {
   modelKey, validateModelRef, validateEngineSelection,
   type EngineSelection, type ModelRef, type ModelsFile,
 } from '@domain/agents/engine-selection.js';
-import { credentialInventory, type CredentialInventory } from '@domain/connections/inventory.js';
+import type { CredentialInventory } from '@domain/connections/inventory.js';
+import type { CatalogSnapshot } from '@domain/models/catalog.js';
 import { modelsRepo, modelsWriteLock } from '@store/models-repo.js';
-import { selectionForModel } from '@domain/agents/models.js';
+import { resolveDaemonSelection } from '@domain/agents/model-selection.js';
+import { resolveSelection } from '@domain/agents/resolve-selection.js';
 import { getModelMemory, rememberModelSelection } from '@domain/agents/config.js';
 import { modelsFavoriteInput, modelsSetDefaultInput, modelsSetThinkingInput } from '../input-schemas.js';
 import type { UiServiceDeps, Result, ModelsMutationReturn, MutateArgs } from '../types.js';
@@ -76,30 +78,53 @@ export async function removeFavorite(configDir: string, args: MutateArgs<'models
   });
 }
 
-/** A default naming a Claude connection must name one that exists. */
-function validateDefault(selection: EngineSelection, inventory: CredentialInventory): void {
-  validateEngineSelection(selection);
-  if (selection.connection !== null && !inventory.findClaude(selection.connection)) {
-    throw invalid(`Unknown connection '${selection.connection}'`);
-  }
+/** What a settings write is checked against; the daemon's own by default. */
+export interface ModelsMutationContext {
+  inventory?: CredentialInventory;
+  catalog?: () => CatalogSnapshot;
+}
+
+function resolutionError(reason: string, allowed?: readonly string[]): Error {
+  return invalid(allowed?.length ? `${reason} (allowed: ${allowed.join(', ')})` : reason);
+}
+
+/** The new default, completed and checked like any other pick against the file's current default:
+ *  a thinking level the model does not accept, or a newly named connection that does not exist, is
+ *  refused. */
+function resolveDefault(
+  selection: EngineSelection, current: EngineSelection | null, context: ModelsMutationContext,
+): EngineSelection {
+  const resolution = resolveSelection({
+    ...context,
+    request: current,
+    defaults: { selection: () => current, forBackend: () => null },
+    memory: getModelMemory,
+  }, selection);
+  if (resolution.ok === false) throw resolutionError(resolution.reason, resolution.allowed);
+  return resolution.selection;
+}
+
+function sameDefault(current: EngineSelection | undefined, next: EngineSelection): boolean {
+  return !!current && modelKey(current) === modelKey(next)
+    && current.thinking === next.thinking && current.connection === next.connection;
 }
 
 export async function setDefaultModel(
   configDir: string,
   args: MutateArgs<'models.setDefault'>,
-  inventory: CredentialInventory = credentialInventory,
+  context: ModelsMutationContext = {},
 ): Promise<boolean> {
-  const { selection } = validate(() => modelsSetDefaultInput.parse(args));
-  validate(() => validateDefault(selection, inventory));
+  const parsed = validate(() => modelsSetDefaultInput.parse(args)).selection;
+  validate(() => validateEngineSelection(parsed));
   return modelsWriteLock.run(async () => {
     const file = path.join(configDir, 'models.json');
     const exists = await fs.stat(file).then(() => true, (error) => {
       if (error.code === 'ENOENT') return false;
       throw error;
     });
-    const raw = await readModelsFile(configDir, selection);
-    if (exists && raw.default && modelKey(raw.default) === modelKey(selection)
-      && raw.default.thinking === selection.thinking && raw.default.connection === selection.connection) return false;
+    const raw = await readModelsFile(configDir, parsed);
+    const selection = resolveDefault(parsed, exists ? raw.default ?? null : null, context);
+    if (exists && sameDefault(raw.default, selection)) return false;
     await writeModelsFile(configDir, { ...raw, default: selection });
     rememberModelSelection(selection);
     return true;
@@ -109,17 +134,17 @@ export async function setDefaultModel(
 export async function setModelThinking(
   configDir: string,
   args: MutateArgs<'models.setThinking'>,
-  resolveSelection: (ref: ModelRef) => EngineSelection = selectionForModel,
+  context: ModelsMutationContext = {},
 ): Promise<boolean> {
   const { ref, thinking } = validate(() => modelsSetThinkingInput.parse(args));
   validate(() => validateModelRef(ref));
   return modelsWriteLock.run(async () => {
     const raw = await readModelsFile(configDir);
     if (!raw.favorites.some(entry => modelKey(entry) === modelKey(ref))) throw invalid('Model is not a favorite');
-    const selection = validate(() => ({ ...resolveSelection(ref), thinking }));
-    validate(() => validateEngineSelection(selection));
+    const resolution = resolveDaemonSelection({ ...context, request: { ...ref, thinking: null, connection: null } }, { thinking });
+    if (resolution.ok === false) throw resolutionError(resolution.reason, resolution.allowed);
     if (getModelMemory()[modelKey(ref)]?.thinking === thinking) return false;
-    rememberModelSelection(selection);
+    rememberModelSelection(resolution.selection);
     return true;
   });
 }

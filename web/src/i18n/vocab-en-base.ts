@@ -104,7 +104,9 @@ export const enBase = {
   wbModelCrossBackend: 'Start a new conversation to change backend.',
   wbModel: 'Model',
   wbThinking: 'Thinking',
-  wbRoute: 'Route',
+  // The Claude connection a conversation runs on (the subscription, an API key, a relay).
+  wbConnection: 'Connection',
+  wbConnectionDefault: 'Default ({connection})',
   // The environment axis: which agent template a conversation runs in (prompt, tools, skills).
   wbAgent: 'Agent',
   wbAgentDefault: 'Default',

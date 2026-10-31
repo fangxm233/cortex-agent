@@ -5,7 +5,7 @@ import { setProcessLogPolicy } from '@core/log.js';
 import { getAuthStatus, type AuthStatusSnapshot } from '@domain/auth/auth-status.js';
 import { authLoginService, type AuthLoginService } from '@domain/auth/login-service.js';
 import type { LoginFlowState, StartLoginFlowInput } from '@domain/auth/login-flow.js';
-import { syncGatewayFromBackends, type GatewaySyncResult } from '@domain/auth/gateway-sync.js';
+import { seedModelsFromCatalog, type ModelSeedResult } from '@domain/models/seed.js';
 import { createLoginTerminal, ensureClaudeForLogin, type LoginTerminal } from './auth-login-terminal.js';
 
 export interface LoginCliDeps {
@@ -14,7 +14,7 @@ export interface LoginCliDeps {
   ui: LoginTerminal;
   service: AuthLoginService;
   ensureClaude: () => Promise<boolean>;
-  sync: (backend: string) => Promise<GatewaySyncResult>;
+  sync: (backend: 'claude' | 'pi') => Promise<ModelSeedResult>;
 }
 type Options = Partial<Pick<StartLoginFlowInput, 'backend' | 'provider' | 'authType'>>;
 export class LoginCliError extends Error {
@@ -114,8 +114,8 @@ async function login(options: Options, deps: LoginCliDeps): Promise<CliResult> {
 export function defaultLoginDeps(): LoginCliDeps {
   const ui = createLoginTerminal();
   return { tty: !!process.stdin.isTTY && !!process.stderr.isTTY, readStatus: getAuthStatus, ui, service: authLoginService, ensureClaude: () => ensureClaudeForLogin(ui), sync: async backend => {
-    const result = await syncGatewayFromBackends({ backends: [backend] });
-    return { ...result, reason: result.reason && result.reason !== 'no-endpoints' ? 'sync-failed' : result.reason };
+    const result = await seedModelsFromCatalog({ backends: [backend] });
+    return { ...result, reason: result.reason && result.reason !== 'no-routes' ? 'sync-failed' : result.reason };
   } };
 }
 export async function runAuthLoginCli(args: string[], deps = defaultLoginDeps()): Promise<CliResult> {

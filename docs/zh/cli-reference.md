@@ -39,16 +39,16 @@ cortex <command> [options]
 - `--answers <file>` — 从 JSON 文档读取回答，不进行交互提问。省略的字段使用默认值；`{}` 创建使用 PI 的单机安装，若未检测到凭据，仍需登录 Provider。桌面安装器使用此选项。显式 `backends` 数组保留指定的后端选择与安装语义（`claude`、`pi` 或两者）；显式空数组保留回退到 Claude 的行为。
 - `--json` — 在 stdout 输出按行分隔的进度事件，并将面向人的输出改到 stderr。最后一条事件报告 home 目录、版本、客户端 token 与本地 Web UI 地址。
 
-模型答案采用以下结构（所选组合须属于检测到的模型）：
+模型答案采用以下结构（所选模型须是本机能运行的）：
 
 ```json
 {
-  "defaultChoice": { "mode": "openai-codex", "model": "gpt-6.1-sol" },
-  "favorites": [{ "mode": "openai-codex", "model": "gpt-6.1-sol" }]
+  "defaultChoice": { "backend": "pi", "provider": "openai-codex", "model": "gpt-6.1-sol" },
+  "favorites": [{ "backend": "claude", "model": "claude-opus-5" }]
 }
 ```
 
-显式 `defaultChoice` 会替换保存的默认值，否则保留它。收藏合并并包含所选默认模型。按位置读取的 stdin 协议以两行模型选择结束：默认模型的 `mode:model`，以及逗号分隔的收藏 `mode:model`。
+显式 `defaultChoice` 会替换保存的默认值，否则保留它。收藏合并并包含所选默认模型；尚无收藏的后端或 PI provider 也会加入其推荐模型。旧格式 `{ "mode": …, "model": … }` 仍可读取。按位置读取的 stdin 协议以两行模型选择结束：默认模型的 `route:model`，以及逗号分隔的收藏 `route:model`，其中 route 是 `claude` 或 PI provider。
 
 **`cortex ui enable [--port <n>] [--home <path>] [--json]`**
 

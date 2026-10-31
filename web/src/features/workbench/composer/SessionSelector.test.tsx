@@ -60,6 +60,8 @@ import { selectionChipParts } from '@/features/session/list/selection-menu';
 const current: EngineSelection = { backend: 'claude', provider: null, model: 'claude-opus-5', thinking: 'high', connection: 'subscription' };
 const sonnet: EngineSelection = { ...current, model: 'claude-sonnet-5', thinking: 'low', connection: 'api' };
 const pi: EngineSelection = { backend: 'pi', provider: 'deepseek', model: 'deepseek-v4-flash', thinking: 'xhigh', connection: null };
+/** Picking sonnet from opus: its remembered thinking, and the conversation's connection, which serves it. */
+const SONNET_PICK: EngineSelection = { ...sonnet, connection: current.connection };
 const catalog: ModelCatalogSnapshot = {
   routes: [
     { endpoint: 'anthropic', backend: 'claude', provider: null, connections: ['subscription', 'api'],
@@ -104,7 +106,7 @@ function row(renderer: ReactTestRenderer, id: string): ReactTestInstance {
 async function pick(renderer: ReactTestRenderer, id: string): Promise<void> {
   const pane = id.split(':')[0];
   open(renderer, pane === 'agent' ? 'agent' : 'selection');
-  if (['model', 'thinking', 'mode'].includes(pane)) drill(renderer, pane);
+  if (['model', 'thinking', 'connection'].includes(pane)) drill(renderer, pane);
   await act(async () => { row(renderer, id).props.onClick({ stopPropagation: vi.fn() }); });
 }
 function star(renderer: ReactTestRenderer, model: string): ReactTestInstance {
@@ -126,8 +128,8 @@ beforeEach(() => {
     default: current,
     favorites: [current, sonnet, pi].map(({ backend, provider, model }) => ({ backend, provider, model })),
     memory: {
-      [modelKey(sonnet)]: { thinking: 'low', connection: 'api' },
-      [modelKey(pi)]: { thinking: 'xhigh', connection: null },
+      [modelKey(sonnet)]: { thinking: 'low' },
+      [modelKey(pi)]: { thinking: 'xhigh' },
     },
   };
   vi.stubGlobal('window', new EventTarget());
@@ -138,22 +140,22 @@ afterEach(() => {
 });
 
 describe('concrete engine picks', () => {
-  it('renders favorites and applies remembered thinking/route before the catalog loads', async () => {
+  it('renders favorites before the catalog loads and fetches it for a Claude pick', async () => {
     harness.catalog = undefined;
     const renderer = mount();
     open(renderer);
     expect(row(renderer, `favorite:${modelKey(sonnet)}`).findAllByType('span').flatMap((node) => node.children)).toContain('low');
     open(renderer);
     await pick(renderer, `favorite:${modelKey(sonnet)}`);
-    assertEngineWrite(sonnet);
-    expect(harness.fetchQuery).not.toHaveBeenCalled();
+    assertEngineWrite(SONNET_PICK);
+    expect(harness.fetchQuery).toHaveBeenCalledOnce();
     expect(renderer.root.findAllByProps({ 'data-menu': 'selection' })).toHaveLength(0);
   });
 
-  it('sends a complete remembered selection for a catalog model, not a partial patch', async () => {
+  it('sends a complete selection for a catalog model, not a partial patch', async () => {
     const renderer = mount();
     await pick(renderer, `model:${modelKey(sonnet)}`);
-    assertEngineWrite(sonnet);
+    assertEngineWrite(SONNET_PICK);
     expect(renderer.root.findByProps({ 'data-menu': 'selection' }).props['data-selection-level']).toBe('root');
   });
 
@@ -196,14 +198,19 @@ describe('concrete engine picks', () => {
     assertEngineWrite({ ...current, thinking: null });
   });
 
-  it('sends a route change as a complete selection', async () => {
-    await pick(mount(), 'mode:api');
+  it('sends a connection change as a complete selection', async () => {
+    await pick(mount(), 'connection:api');
     assertEngineWrite({ ...current, connection: 'api' });
+  });
+
+  it('returns the connection to the default with an explicit null', async () => {
+    await pick(mount(), 'connection:default');
+    assertEngineWrite({ ...current, connection: null });
   });
 });
 
 describe('catalog resolution before applying favorites', () => {
-  it('waits for the catalog and uses its first route rather than guessing', async () => {
+  it('waits for the catalog before a Claude pick, keeping the connection where it serves the model', async () => {
     harness.catalog = undefined;
     harness.models.memory = {};
     let resolve!: (value: ModelCatalogSnapshot) => void;
@@ -213,7 +220,7 @@ describe('catalog resolution before applying favorites', () => {
     expect(harness.fetchQuery).toHaveBeenCalledWith({ __kind: 'models.catalog' });
     expect(harness.setSelection).not.toHaveBeenCalled();
     await act(async () => resolve({ ...catalog, routes: [{ ...catalog.routes[0], connections: ['api', 'subscription'] }] }));
-    assertEngineWrite({ ...sonnet, thinking: null, connection: 'api' });
+    assertEngineWrite({ ...sonnet, thinking: null, connection: 'subscription' });
   });
 
   it('does not submit an incomplete selection if the model route remains unavailable', async () => {
@@ -261,7 +268,7 @@ describe('model favorites and presentation', () => {
       typeof node.props['data-selection-row'] === 'string'
       && /:follow|selection:clear/.test(node.props['data-selection-row']));
     expect(forbiddenRows()).toHaveLength(0);
-    for (const pane of ['model', 'thinking', 'mode']) {
+    for (const pane of ['model', 'thinking', 'connection']) {
       drill(renderer, pane);
       expect(forbiddenRows()).toHaveLength(0);
       press(renderer.root.findByProps({ 'data-selection-back': 'true' }));
@@ -352,7 +359,7 @@ describe('chip and menu faces', () => {
     const scan = (): string => JSON.stringify(renderer.toJSON());
     open(renderer);
     expect(scan()).not.toMatch(/Plex|uppercase/);
-    for (const pane of ['model', 'thinking', 'mode']) {
+    for (const pane of ['model', 'thinking', 'connection']) {
       drill(renderer, pane);
       expect(scan()).not.toMatch(/Plex|uppercase/);
       press(renderer.root.findByProps({ 'data-selection-back': 'true' }));
@@ -365,7 +372,7 @@ describe('chip and menu faces', () => {
 });
 
 describe('menu navigation', () => {
-  it.each(['model', 'thinking', 'mode'])('animates entering and leaving %s, not the first open', (pane) => {
+  it.each(['model', 'thinking', 'connection'])('animates entering and leaving %s, not the first open', (pane) => {
     const renderer = mount();
     open(renderer);
     const content = () => renderer.root.findByProps({ className: 'selection-pane' });
