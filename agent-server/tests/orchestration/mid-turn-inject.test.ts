@@ -41,8 +41,11 @@ interface FakeRun {
   injectedTexts: string[];
   injectedMessages: any[];
   backgroundTranscriptOwned: boolean;
+  status: string;
   steer(msg: any, injectionId?: string): Promise<'folded' | 'queued' | 'refused'>;
-  subscribe(observer: { onEvent(event: any): void | Promise<void> }): () => void;
+  subscribe(observer: RunObserverLike): () => void;
+  /** The run ends with `status`, closing its observers the way `AgentRun.finishTerminal` does. */
+  close(status: string): Promise<void>;
   deliver(text: string, foldedIntoTurn: boolean): Promise<void>;
   undeliver(text: string): Promise<void>;
   backgroundAssistantText(text: string, model?: unknown, subagent?: unknown): Promise<void>;
@@ -52,12 +55,14 @@ interface FakeRun {
   backgroundResult(result: unknown): Promise<void>;
 }
 
+interface RunObserverLike { onEvent(event: any): void | Promise<void>; onClose?(): void | Promise<void> }
+
 /** A run whose `steer()` records the message and whose event stream the test drives directly. */
 function fakeRun(opts: { accepts?: boolean; backend?: string } = {}): FakeRun {
   const backend = opts.backend ?? 'claude';
   const injectedTexts: string[] = [];
   const injectedMessages: any[] = [];
-  const observers = new Set<{ onEvent(event: any): void | Promise<void> }>();
+  const observers = new Set<RunObserverLike>();
   const pending: Array<{ id: string; text: string }> = [];
   const emit = async (event: any): Promise<void> => {
     for (const observer of [...observers]) await observer.onEvent(event);
@@ -67,11 +72,16 @@ function fakeRun(opts: { accepts?: boolean; backend?: string } = {}): FakeRun {
     if (index === -1) return undefined;
     return pending.splice(index, 1)[0];
   };
-  return {
+  const run: FakeRun = {
     backend,
     injectedTexts,
     injectedMessages,
     backgroundTranscriptOwned: false,
+    status: 'running',
+    close: async (status) => {
+      run.status = status;
+      for (const observer of [...observers]) await observer.onClose?.();
+    },
     steer: async (msg, injectionId) => {
       const id = injectionId ?? 'unknown';
       pending.push({ id, text: msg.text });
@@ -113,6 +123,7 @@ function fakeRun(opts: { accepts?: boolean; backend?: string } = {}): FakeRun {
     backgroundContextUsage: (usage) => emit({ type: 'context_usage', ...usage, phase: 'background' }),
     backgroundResult: (result) => emit({ type: 'background_result', result }),
   };
+  return run;
 }
 
 interface Recorder {
@@ -128,6 +139,7 @@ interface Recorder {
   marked: string[];
   unmarked: string[];
   contexts: any[];
+  unsent: any[];
 }
 
 function recorder(overrides: Partial<MidTurnInjectDeps> = {}, run?: FakeRun): Recorder {
@@ -156,6 +168,7 @@ function recorder(overrides: Partial<MidTurnInjectDeps> = {}, run?: FakeRun): Re
   const marked: string[] = [];
   const unmarked: string[] = [];
   const contexts: any[] = [];
+  const unsent: any[] = [];
   let clock = 0;
   let pendingId = 0;
   const now = () => `2026-07-25T00:00:0${clock++}.000Z`;
@@ -176,6 +189,8 @@ function recorder(overrides: Partial<MidTurnInjectDeps> = {}, run?: FakeRun): Re
       ledger.push({ channel: record.channel, sessionId: record.sessionId, text: record.text, messageId: record.messageId });
       return { committedTs };
     },
+    setAsideUnsent: async () => true,
+    publishUnsent: (ev) => unsent.push(ev),
     createPendingId: () => `pin-${++pendingId}`,
     markPending: async (record) => { marked.push(record.messageId); },
     unmarkPending: async (record) => { unmarked.push(record.messageId); },
@@ -190,7 +205,7 @@ function recorder(overrides: Partial<MidTurnInjectDeps> = {}, run?: FakeRun): Re
     },
     ...overrides,
   };
-  return { deps, history, published, delivered, status, ledger, persisted, track, streamed, marked, unmarked, contexts };
+  return { deps, history, published, delivered, status, ledger, persisted, track, streamed, marked, unmarked, contexts, unsent };
 }
 
 const baseCtx = {
@@ -716,19 +731,105 @@ test('a message the backend never consumed is committed when the injection windo
   }
 });
 
-test('an adapter undelivered ack commits and releases exactly once', async () => {
+test('an adapter undelivered ack keeps the message unsent, exactly once', async () => {
   const run = fakeRun({ backend: 'pi' });
   const r = recorder({}, run);
   await tryInjectIntoLiveTurn(r.deps, baseCtx);
+  const pendingTs = r.published[0].ts;
 
   await run.undeliver('skip the rest');
   await run.undeliver('skip the rest');
+
+  assert.deepEqual(r.history, [], 'the model never read it, so the conversation does not hold it');
+  assert.deepEqual(r.ledger, []);
+  assert.deepEqual(r.delivered, []);
+  assert.deepEqual(r.unsent, [{ sessionId: SESSION, channel: CHANNEL, pendingId: 'pin-1', messageTs: pendingTs }]);
+  assert.deepEqual(r.unmarked, ['web_1'], 'the platform marker comes off once');
+  assert.deepEqual(r.track, [+1, -1], 'the busy gate is released once');
+});
+
+// --- A run that ends before the model read its message ---
+
+test('a stopped run leaves its unread message unsent instead of committing it', async () => {
+  vi.useFakeTimers();
+  try {
+    const run = fakeRun();
+    const r = recorder({ maxWaitMs: 5000 }, run);
+    await tryInjectIntoLiveTurn(r.deps, baseCtx);
+
+    await run.close('cancelled');
+    await vi.advanceTimersByTimeAsync(5001);
+
+    assert.deepEqual(r.history, [], 'the wait cap does not commit it afterwards either');
+    assert.deepEqual(r.delivered, []);
+    assert.deepEqual(r.unsent.map((ev) => ev.pendingId), ['pin-1']);
+    assert.deepEqual(r.track, [+1, -1]);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('a run that ends any other way leaves its unread message to the wait cap', async () => {
+  vi.useFakeTimers();
+  try {
+    const run = fakeRun();
+    const r = recorder({ maxWaitMs: 5000 }, run);
+    await tryInjectIntoLiveTurn(r.deps, baseCtx);
+
+    // A failed turn can leave a live process that still reads the message later.
+    await run.close('failed');
+    assert.deepEqual(r.unsent, []);
+    assert.deepEqual(r.track, [+1], 'still waiting');
+
+    await vi.advanceTimersByTimeAsync(5001);
+    assert.deepEqual(r.history.map((h) => h.text), ['skip the rest']);
+    assert.deepEqual(r.track, [+1, -1]);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('a read message still awaiting its reply is released when its run is stopped', async () => {
+  const run = fakeRun();
+  const r = recorder({}, run);
+  await tryInjectIntoLiveTurn(r.deps, baseCtx);
+  await run.deliver('skip the rest', false);
+
+  await run.close('cancelled');
+
+  assert.deepEqual(r.history.map((h) => h.text), ['skip the rest'], 'it was read, so it stays committed');
+  assert.deepEqual(r.unsent, []);
+  assert.deepEqual(r.track, [+1, -1], 'the reply it waited on will not come');
+});
+
+test('stopping one run leaves another run\'s unread message alone', async () => {
+  const first = fakeRun();
+  const r = recorder({}, first);
+  await tryInjectIntoLiveTurn(r.deps, baseCtx);
+  const second = fakeRun();
+  runRegistry.remove(REGISTRY_KEY);
+  runRegistry.register({
+    channel: CHANNEL, executionId: null, registryKey: REGISTRY_KEY, kind: 'local',
+    kill: () => true, backend: second.backend, run: second as any, trackSessionId: SESSION,
+  });
+  await tryInjectIntoLiveTurn(r.deps, { ...baseCtx, text: 'wiring please', messageId: 'web_2' });
+
+  await second.close('cancelled');
+
+  assert.deepEqual(r.unsent.map((ev) => ev.pendingId), ['pin-2']);
+  assert.deepEqual(r.track, [+1, +1, -1]);
+});
+
+test('a message whose record cannot be kept unsent is committed rather than lost', async () => {
+  const run = fakeRun();
+  const r = recorder({ setAsideUnsent: async () => false }, run);
+  await tryInjectIntoLiveTurn(r.deps, baseCtx);
+
+  await run.close('cancelled');
 
   assert.deepEqual(r.history.map((h) => h.text), ['skip the rest']);
-  assert.equal(r.ledger.length, 1, 'the sealed message takes one ledger turn');
-  assert.equal(r.delivered.length, 1, 'pending UI row is committed once');
-  assert.deepEqual(r.unmarked, ['web_1'], 'undelivered commit removes the marker once');
-  assert.deepEqual(r.track, [+1, -1], 'undelivered seal cannot leak or double-release the gate');
+  assert.deepEqual(r.unsent, []);
+  assert.deepEqual(r.track, [+1, -1]);
 });
 
 test('a spontaneous turn ending with an injection still outstanding commits it too', async () => {

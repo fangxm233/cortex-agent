@@ -21,6 +21,9 @@ export interface PendingInjectionRecord {
    *  without it the full text would flash as a user bubble until the commit re-keyed the row. */
   systemOrigin?: SystemTurnOrigin;
   createdAt: string;
+  /** Set when the run it went into ended without the model reading it. It then waits for the user
+   *  to resend it or take it back to edit, and is never committed on its own. */
+  unsentAt?: string;
 }
 
 interface PendingInjectionData {
@@ -55,6 +58,25 @@ export class PendingInjectionRepo {
     await this.repo.mutate((data) => {
       data.records[record.id] = cloneRecord(record);
       return { next: data, result: undefined };
+    });
+  }
+
+  async markUnsent(id: string, at: string): Promise<boolean> {
+    return this.repo.mutate((data) => {
+      const record = data.records[id];
+      if (!record) return { next: data, result: false };
+      record.unsentAt = at;
+      return { next: data, result: true };
+    });
+  }
+
+  /** Remove an unsent record of `sessionId` and hand it back; null when another caller took it first. */
+  async takeUnsent(sessionId: string, id: string): Promise<PendingInjectionRecord | null> {
+    return this.repo.mutate((data) => {
+      const record = data.records[id];
+      if (!record?.unsentAt || record.sessionId !== sessionId) return { next: data, result: null };
+      delete data.records[id];
+      return { next: data, result: cloneRecord(record) };
     });
   }
 

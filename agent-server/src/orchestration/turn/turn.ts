@@ -30,7 +30,7 @@ import {
 } from '../status-helpers.js';
 import { publishAskUserRequested } from '../routing/hook-bridge.js';
 import {
-  publishSessionMessage, publishSessionMessageDelivered,
+  publishSessionMessage, publishSessionMessageDelivered, publishSessionMessageUnsent,
   publishSessionStatus, publishSessionTurn, publishSessionTurnCompleted,
 } from '../session-events.js';
 import { createTranscriptSink, recordHistory } from '../transcript-sink.js';
@@ -737,6 +737,8 @@ export function buildInjectDeps(sessionId: string | null, adapter: PlatformAdapt
     publishStatus: publishSessionStatus,
     persistPending: (record) => pendingInjectionRepo.add(record),
     commitPending: (record, position) => commitPendingInjection(record, undefined, position),
+    setAsideUnsent: (record) => pendingInjectionRepo.markUnsent(record.id, new Date().toISOString()),
+    publishUnsent: publishSessionMessageUnsent,
     markPending: (record) => adapter.markQueued({ conduit: record.channel, messageId: record.messageId }),
     unmarkPending: (record) => adapter.unmarkQueued({ conduit: record.channel, messageId: record.messageId }),
     track: trackPendingTask,

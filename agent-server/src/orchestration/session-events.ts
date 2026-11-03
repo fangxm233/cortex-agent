@@ -179,6 +179,18 @@ export function publishSessionMessageDelivered(p: { sessionId: string; channel: 
   });
 }
 
+/** Emit a `session.message.unsent` event: a pending message's run was stopped before the model read
+ *  it. Published by the injection ledger. No-op when no bus is wired. */
+export function publishSessionMessageUnsent(p: { sessionId: string; channel: string; pendingId: string; messageTs: string }): void {
+  orchestrationBus()?.publish({
+    type: 'session.message.unsent',
+    sessionId: p.sessionId,
+    channel: p.channel,
+    pendingId: p.pendingId,
+    messageTs: p.messageTs,
+  });
+}
+
 /** Emit the REAL agent-turn count of a session's in-flight turn (S4 chat composer). Published by the
  *  agent-runner on each `turn_progress` (and the terminal `turn_complete`) during an interactive turn,
  *  so the Web composer shows the live agent turn count that grows as the agent works — not the count of

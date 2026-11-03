@@ -143,3 +143,11 @@ test('a commit with a delivery position records the anchor on the new ledger tur
   await commitPendingInjection(record('pin-2'), r.deps);
   assert.deepEqual(anchors, [{ file: '/t/sess-1.jsonl', before: 'u-9' }, null]);
 });
+
+test('startup recovery leaves unsent records for the user to resend or edit', async () => {
+  const unsent = { ...record('pin-unsent'), unsentAt: '2026-07-26T00:00:05.000Z' };
+  const r = recorder({ records: [record('pin-active'), unsent] });
+  assert.equal(await recoverPendingInjections(r.deps), 1);
+  assert.deepEqual(r.removed, ['pin-active']);
+  assert.deepEqual(r.appended.map((row) => row.sourceId), ['pin-active']);
+});

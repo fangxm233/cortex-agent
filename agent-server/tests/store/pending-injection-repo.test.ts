@@ -81,3 +81,20 @@ test('returned records are copies, not mutable references into the repo cache', 
   assert.equal((await repo.listAll())[0].selection!.thinking, 'high');
   assert.equal((await repo.listAll())[0].text, 'message pin-copy');
 });
+
+test('an unsent record is taken once, only by its own session', async () => {
+  const repo = new PendingInjectionRepo(file('unsent'));
+  await repo.add(record('pin-u1'));
+  await repo.add(record('pin-u2'));
+  assert.equal(await repo.takeUnsent('sess-1', 'pin-u1'), null, 'a still-pending record cannot be taken');
+
+  assert.equal(await repo.markUnsent('pin-u1', '2026-07-26T00:01:00.000Z'), true);
+  assert.equal(await repo.markUnsent('pin-missing', '2026-07-26T00:01:00.000Z'), false);
+  assert.equal(await repo.takeUnsent('sess-2', 'pin-u1'), null, 'another session cannot take it');
+
+  const taken = await repo.takeUnsent('sess-1', 'pin-u1');
+  assert.equal(taken?.text, 'message pin-u1');
+  assert.equal(taken?.unsentAt, '2026-07-26T00:01:00.000Z');
+  assert.equal(await repo.takeUnsent('sess-1', 'pin-u1'), null, 'a second click finds it gone');
+  assert.deepEqual((await repo.listAll()).map((r) => r.id), ['pin-u2']);
+});

@@ -141,7 +141,7 @@ export async function tryInjectIntoLiveTurn(
   // Subscribe first so the ack cannot race the ledger's phase-one registration, then persist the
   // provisional row. The run keeps the message in its own pending list until the ack arrives.
   ensureInjectionObserver(deps, ctx.channel, ctx.sessionId, target.run);
-  await beginInjection(deps, record);
+  await beginInjection(deps, record, target.run);
   return true;
 }
 

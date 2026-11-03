@@ -56,6 +56,11 @@ export type CortexEvent =
   // ts, which is what a transcript refetch returns — clients re-key the row to it so the live row
   // and the fetched row resolve to one.
   | { type: 'session.message.delivered'; ts: string; sessionId: string; channel: string; pendingId: string; messageTs: string; committedTs: string }
+  // The run a pending message went into was stopped before the model read it. The row stays where it
+  // is, marked unsent, until the user resends it or takes it back to edit — which publishes
+  // `session.message.withdrawn` so every client drops the row.
+  | { type: 'session.message.unsent';  ts: string; sessionId: string; channel: string; pendingId: string; messageTs: string }
+  | { type: 'session.message.withdrawn'; ts: string; sessionId: string; channel: string; pendingId: string }
   // Message edit + rewind: the session transcript changed shape (turns ≥ turnIndex rolled back).
   // Content-free hint — live clients drop buffered live tails and refetch the transcript.
   | { type: 'session.rewound';        ts: string; sessionId: string; channel: string; turnIndex: number }

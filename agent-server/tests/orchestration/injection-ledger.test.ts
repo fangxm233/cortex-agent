@@ -87,6 +87,8 @@ function ledgerDeps(transcript: Partial<TranscriptSinkDeps>, streamed: string[] 
     publishStatus: () => {},
     persistPending: async () => {},
     commitPending: async () => ({ committedTs: 'T' }),
+    setAsideUnsent: async () => true,
+    publishUnsent: () => {},
     track: () => {},
     now: () => 'T',
     captureDebug: true,

@@ -34,6 +34,10 @@ export interface InjectionLedgerDeps {
   persistPending: (record: PendingInjectionRecord) => Promise<void>;
   /** `position`: where the backend wrote the message in its transcript, when its ack said. */
   commitPending: (record: PendingInjectionRecord, position?: TranscriptPosition) => Promise<{ committedTs: string }>;
+  /** Keep a message the model never read as unsent, for the user to resend or edit. False when its
+   *  durable record is gone, which leaves committing it as the only way to keep it. */
+  setAsideUnsent: (record: PendingInjectionRecord) => Promise<boolean>;
+  publishUnsent: (ev: { sessionId: string; channel: string; pendingId: string; messageTs: string }) => void;
   markPending?: (record: PendingInjectionRecord) => Promise<void>;
   unmarkPending?: (record: PendingInjectionRecord) => Promise<void>;
   track: (delta: number) => void;
@@ -49,9 +53,14 @@ function defaultMaxWaitMs(): number {
   return getSettings().injectWaitMaxS * 1000;
 }
 
+/** The run an injection was steered into; it is also the key its ledger subscription is kept under.
+ *  Absent in tests that drive the ledger without one. */
+type InjectRun = Partial<Pick<AgentRun, 'backgroundTranscriptOwned' | 'status'>>;
+
 /** An injected message written to the backend but not yet read by the model. */
 interface PendingInjection {
   record: PendingInjectionRecord;
+  run?: InjectRun;
   /** Write-time ts — the key the pending row is showing under on every connected client. */
   ts: string;
   /** Persisted + published gate. Early backend acks wait here so event order stays pending→delivered. */
@@ -62,14 +71,17 @@ interface PendingInjection {
   position?: TranscriptPosition;
   mark: () => void;
   release: () => Promise<void>;
+  /** The model never read it and never will: keep it as an unsent row instead of committing it. */
+  unsend: () => Promise<void>;
   isReleased: () => boolean;
 }
 
 /** Per-channel bookkeeping for messages injected into the live turn but not yet replied to. */
 interface ChannelInjectState {
+  /** Injections the backend has not acked yet. */
   pending: PendingInjection[];
-  /** Every busy-gate release still outstanding on this channel (each single-fire). */
-  releases: Set<() => Promise<void>>;
+  /** Every injection still holding its busy gate on this channel, acked or not. */
+  live: Set<PendingInjection>;
   /** True once the spontaneous turn has been marked running, so we publish that edge only once. */
   continuationRunning: boolean;
   /** One run-event subscription per run injected into, driving phase two while this channel has
@@ -83,7 +95,7 @@ const channelStates = new Map<string, ChannelInjectState>();
 function stateFor(channel: string): ChannelInjectState {
   let s = channelStates.get(channel);
   if (!s) {
-    s = { pending: [], releases: new Set(), continuationRunning: false, subscriptions: new Map() };
+    s = { pending: [], live: new Set(), continuationRunning: false, subscriptions: new Map() };
     channelStates.set(channel, s);
   }
   return s;
@@ -91,7 +103,7 @@ function stateFor(channel: string): ChannelInjectState {
 
 function disposeIfIdle(channel: string): void {
   const s = channelStates.get(channel);
-  if (s && s.pending.length === 0 && s.releases.size === 0) {
+  if (s && s.pending.length === 0 && s.live.size === 0) {
     for (const unsubscribe of s.subscriptions.values()) unsubscribe();
     channelStates.delete(channel);
   }
@@ -112,6 +124,7 @@ class PendingLifecycle implements PendingInjection {
     readonly record: PendingInjectionRecord,
     private readonly deps: InjectionLedgerDeps,
     private readonly state: ChannelInjectState,
+    readonly run?: InjectRun,
   ) {
     this.ts = record.createdAt;
     this.active = new Promise<void>((resolve) => { this.activeResolve = resolve; });
@@ -171,12 +184,46 @@ class PendingLifecycle implements PendingInjection {
   };
 
   private async releaseOnce(): Promise<void> {
-    this.state.releases.delete(this.release);
-    const index = this.state.pending.findIndex((entry) => entry.record.id === this.record.id);
-    if (index !== -1) this.state.pending.splice(index, 1);
+    this.detach();
     await this.commit();
     this.deps.track(-1);
     disposeIfIdle(this.record.channel);
+  }
+
+  /** Shares the release's single-fire slot: an entry ends either committed or unsent, never both. */
+  unsend = (): Promise<void> => {
+    if (!this.releasePromise) this.releasePromise = this.unsendOnce();
+    return this.releasePromise;
+  };
+
+  private async unsendOnce(): Promise<void> {
+    this.detach();
+    await this.active;
+    const setAside = !this.commitPromise && await this.setAside();
+    if (!setAside) await this.commit();
+    this.deps.track(-1);
+    disposeIfIdle(this.record.channel);
+  }
+
+  private async setAside(): Promise<boolean> {
+    try {
+      if (!(await this.deps.setAsideUnsent(this.record))) return false;
+    } catch (error) {
+      log.error(`Failed to keep unsent injection ${this.record.id}: ${(error as Error).message}`);
+      return false;
+    }
+    this.clearMarker();
+    this.deps.publishUnsent({
+      sessionId: this.record.sessionId, channel: this.record.channel,
+      pendingId: this.record.id, messageTs: this.ts,
+    });
+    return true;
+  }
+
+  private detach(): void {
+    this.state.live.delete(this);
+    const index = this.state.pending.indexOf(this);
+    if (index !== -1) this.state.pending.splice(index, 1);
   }
 }
 
@@ -227,12 +274,13 @@ async function persistAndSurface(
 export async function beginInjection(
   deps: InjectionLedgerDeps,
   record: PendingInjectionRecord,
+  run?: InjectRun,
 ): Promise<void> {
   const state = stateFor(record.channel);
-  const entry = new PendingLifecycle(record, deps, state);
+  const entry = new PendingLifecycle(record, deps, state, run);
   deps.track(+1);
   state.pending.push(entry);
-  state.releases.add(entry.release);
+  state.live.add(entry);
   await persistAndSurface(deps, entry);
   armReleaseCap(deps, entry);
 }
@@ -255,7 +303,7 @@ async function handleDelivered(
 async function handleUndelivered(channel: string, injectionId: string): Promise<void> {
   const state = channelStates.get(channel);
   if (!state) return;
-  await state.pending.find((entry) => entry.record.id === injectionId)?.release();
+  await state.pending.find((entry) => entry.record.id === injectionId)?.unsend();
 }
 
 async function handleContinuationResult(
@@ -263,12 +311,31 @@ async function handleContinuationResult(
   state: ChannelInjectState,
   sessionId: string,
   channel: string,
+  run: InjectRun | undefined,
 ): Promise<void> {
   state.continuationRunning = false;
   deps.publishStatus({ sessionId, channel, running: false });
-  await Promise.all([...state.releases].map((release) => release()));
-  state.pending = [];
+  const ended = [...state.live].filter((entry) => entry.run === run);
+  await Promise.all(ended.map((entry) => entry.release()));
   disposeIfIdle(channel);
+}
+
+/**
+ * The run is over. A cancelled run took its backend process with it — Stop, an edit's rewind and
+ * shutdown all kill it — so whatever that process had not read yet is lost to the model and becomes
+ * an unsent row. A run that ended any other way may leave a live process that still reads it later,
+ * so those stay pending under the wait cap. Read messages need nothing more from the run.
+ */
+async function handleRunClosed(channel: string, run: InjectRun | undefined): Promise<void> {
+  const state = channelStates.get(channel);
+  if (!state) return;
+  const cancelled = run?.status === 'cancelled';
+  const ended = [...state.live].filter((entry) => entry.run === run);
+  const settle = (entry: PendingInjection): Promise<void> | undefined => {
+    if (!state.pending.includes(entry)) return entry.release();
+    return cancelled ? entry.unsend() : undefined;
+  };
+  await Promise.all(ended.map(settle));
 }
 
 interface ContinuationWriter {
@@ -314,7 +381,7 @@ export function createInjectionObserver(
   sessionId: string,
   /** The run whose background rows a hold may already own — see `AgentRun.backgroundTranscriptOwned`.
    *  Absent (tests, or an injection with no live run) means the ledger is the only writer. */
-  run?: Pick<AgentRun, 'backgroundTranscriptOwned'>,
+  run?: InjectRun,
 ): RunObserver {
   const writer: ContinuationWriter = {
     deps, sessionId, channel,
@@ -336,12 +403,13 @@ export function createInjectionObserver(
         case 'injection_rejected':
           return handleUndelivered(channel, event.injectionId);
         case 'background_result':
-          return handleContinuationResult(deps, stateFor(channel), sessionId, channel);
+          return handleContinuationResult(deps, stateFor(channel), sessionId, channel, run);
         default:
           if (!isBackgroundRowEvent(event) || !ownsRows()) return;
           return writeContinuationRow(writer, event);
       }
     },
+    onClose: () => handleRunClosed(channel, run),
   };
 }
 

@@ -157,6 +157,8 @@ export async function recoverPendingInjections(
   const records = await deps.pendingRepo.listAll();
   let recovered = 0;
   for (const record of records) {
+    // An unsent message is the user's to resend or edit; a restart does not decide for them.
+    if (record.unsentAt) continue;
     try {
       await commitPendingInjection(record, deps);
       recovered++;
