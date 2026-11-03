@@ -1,5 +1,6 @@
 import { fmt, type Vocab } from '@/i18n';
 import type { ToolCall } from '@/features/session/composer/chat-content';
+import { plainLine } from './team-rows';
 
 // A tool run as one step in words. The step is the agent's own `description` of its latest call
 // ("Find usages of toolRunText"); a call without one is made readable from its kind and input —
@@ -77,6 +78,16 @@ export function runLead(calls: ToolCall[], live: boolean): ToolCall | undefined 
     if (!calls[i].thinking) return calls[i];
   }
   return calls[calls.length - 1];
+}
+
+/** What a thought is on now: its latest line with words, as plain text; empty before it has any. */
+export function thoughtNow(text: string): string {
+  const lines = text.split(/\r?\n/);
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = plainLine(lines[i]);
+    if (line) return line;
+  }
+  return '';
 }
 
 /** One step in words: the call's own description, else the call made readable — "Editing

@@ -172,11 +172,21 @@ describe('ToolCallsRow as the live step', () => {
   it('is the step under way, and the last call once the run is over', () => {
     let renderer!: ReactTestRenderer;
     act(() => { renderer = create(<LangProvider><ToolCallsRow calls={live} sessionId="s1" live /></LangProvider>); });
-    expect(line(renderer)).toEqual(['Thinking']);
+    expect(line(renderer)).toEqual(['Thinking', 'so the parser…']);
     act(() => renderer.update(<LangProvider><ToolCallsRow calls={live.slice(0, 2)} sessionId="s1" live /></LangProvider>));
     expect(line(renderer)).toEqual(['Reading parser.ts']);
     act(() => renderer.update(<LangProvider><ToolCallsRow calls={live} sessionId="s1" /></LangProvider>));
     expect(line(renderer)).toEqual(['Read parser.ts']);
+    act(() => renderer.unmount());
+  });
+
+  it('follows the thought under way to its latest line', () => {
+    const thinking = (input: string): ToolCall[] => [...live.slice(0, 2), { kind: 'thinking', input, thinking: true, preview: true }];
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = create(<LangProvider><ToolCallsRow calls={thinking('   ')} sessionId="s1" live /></LangProvider>); });
+    expect(line(renderer)).toEqual(['Thinking']);
+    act(() => renderer.update(<LangProvider><ToolCallsRow calls={thinking('**Plan**\n\nCheck `parse()` first\n\n')} sessionId="s1" live /></LangProvider>));
+    expect(line(renderer)).toEqual(['Thinking', 'Check parse() first']);
     act(() => renderer.unmount());
   });
 

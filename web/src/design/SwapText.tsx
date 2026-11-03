@@ -4,8 +4,8 @@ import { motionAllowed } from './Collapse';
 // One line that rolls to its next content instead of jumping: the old line slides up and fades while
 // the new one rises into its place, clipped to the line. For a status line whose content changes
 // while the reader watches it — a tool run taking in its next call or thought. `swapKey` names the
-// content: a re-render under the same key does not roll, and the leaving line is the content as it
-// was when its key arrived. Without a DOM or with reduced motion it swaps in one step.
+// content: a re-render under the same key updates the line in place without rolling, and the leaving
+// line is the content as it was last shown. Without a DOM or with reduced motion it swaps in one step.
 
 const SWAP_MS = 240;
 const EASE = 'cubic-bezier(.2,.8,.2,1)';
@@ -35,19 +35,21 @@ function roll(enter: HTMLElement | null, exit: HTMLElement | null, done: () => v
 }
 
 export function SwapText({ swapKey, children, style }: { swapKey: string; children: ReactNode; style?: CSSProperties }): JSX.Element {
-  const [shown, setShown] = useState<Shown>({ key: swapKey, content: children });
+  const [shownKey, setShownKey] = useState(swapKey);
   const [leaving, setLeaving] = useState<Shown | null>(null);
-  if (shown.key !== swapKey) {
-    setShown({ key: swapKey, content: children });
-    setLeaving(motionAllowed() ? shown : null);
+  const last = useRef<ReactNode>(children);
+  if (shownKey !== swapKey) {
+    setShownKey(swapKey);
+    setLeaving(motionAllowed() ? { key: shownKey, content: last.current } : null);
   }
   const enterRef = useRef<HTMLSpanElement>(null);
   const exitRef = useRef<HTMLSpanElement>(null);
 
+  useLayoutEffect(() => { last.current = children; });
   useLayoutEffect(() => {
     if (leaving === null) return;
     return roll(enterRef.current, exitRef.current, () => setLeaving(null));
-  }, [leaving, shown.key]);
+  }, [leaving, shownKey]);
 
   return (
     <span data-swap-text="" style={{ ...boxStyle, ...style }}>
