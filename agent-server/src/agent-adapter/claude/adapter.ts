@@ -160,7 +160,7 @@ function createContextUsageTracker(
     modelName,
     resolveClaudeCompactWindow(cwd, {
       pinned: !!options.pinnedEnv,
-      userConfigDir: options.pinnedEnv?.CLAUDE_CONFIG_DIR,
+      userConfigDir: options.pinnedEnv ? options.pinnedEnv.CLAUDE_CONFIG_DIR : options.configDir,
     }),
   );
 }

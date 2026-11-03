@@ -347,6 +347,10 @@ export interface ClaudeRouteInputs {
   anthropicBaseUrl?: string;
   routeEnv?: Record<string, string>;
   unsetEnv?: string[];
+  /** The connection the route was resolved for, and an account's own config dir. Two accounts
+   *  differ in nothing else: neither carries a credential variable. */
+  connection?: string;
+  configDir?: string;
 }
 
 /** 8 hex of sha256: enough to tell two credentials apart, not enough to walk back to either. A
@@ -389,7 +393,12 @@ export function claudeRouteIdentity(route: ClaudeRouteInputs): string {
   const credentials = ROUTE_CREDENTIAL_KEYS.map(
     (key) => `${key}=${routeToken(routeEnvValue(key, route), credentialFingerprint)}`,
   );
-  return [endpoint, ...credentials].join(' ');
+  // Appended only when set, so a route that names neither keeps its existing identity.
+  const account = [
+    ...(route.connection ? [`connection:${route.connection}`] : []),
+    ...(route.configDir ? [`config:${route.configDir}`] : []),
+  ];
+  return [endpoint, ...credentials, ...account].join(' ');
 }
 
 function cortexContextEnv(context?: CortexContextEnv): Record<string, string | null | undefined> {
@@ -417,11 +426,11 @@ const MAX_SUBAGENT_PI_MODELS = 64;
 /** The same bound on the Anthropic side: an env var, not a manifest. */
 const MAX_SUBAGENT_CLAUDE_MODELS = 64;
 
-/** What only a host spawn gets; a pinned trial keeps its exact environment. Cortex's own config
- *  dir replaces any inherited CLAUDE_CONFIG_DIR, and Cortex's context cap reaches the CLI as its
- *  own window override, which beats every settings file. */
-function applyHostClaudeEnv(env: NodeJS.ProcessEnv): void {
-  env.CLAUDE_CONFIG_DIR = CLAUDE_CONFIG_HOME;
+/** What only a host spawn gets; a pinned trial keeps its exact environment. The route's config dir
+ *  (an account's own, else Cortex's) replaces any inherited CLAUDE_CONFIG_DIR, and Cortex's context
+ *  cap reaches the CLI as its own window override, which beats every settings file. */
+function applyHostClaudeEnv(env: NodeJS.ProcessEnv, configDir?: string): void {
+  env.CLAUDE_CONFIG_DIR = configDir ?? CLAUDE_CONFIG_HOME;
   const cap = getSettings().maxContextTokens;
   if (cap !== null) env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = String(cap);
 }
@@ -485,6 +494,7 @@ export function buildClaudeEnv(
   context?: CortexContextEnv,
   pinnedEnv?: NodeJS.ProcessEnv,
   unsetEnv?: string[],
+  configDir?: string,
 ): NodeJS.ProcessEnv {
   // Allowlist-first for a pinned trial: the child starts from the exact trial environment and
   // inherits nothing from the host, so no denylist can leak a host credential or platform
@@ -498,7 +508,7 @@ export function buildClaudeEnv(
   setIfPresent(env, 'CORTEX_CALLBACK_SOURCE', callbackSource);
   setIfPresent(env, 'CORTEX_SCHEDULE_TASK_ID', scheduleTaskId);
   setIfPresent(env, 'ANTHROPIC_BASE_URL', anthropicBaseUrl);
-  if (!pinnedEnv) applyHostClaudeEnv(env);
+  if (!pinnedEnv) applyHostClaudeEnv(env, configDir);
   applySubagentModelEnv(env);
   applyEnvOverrides(env, routeEnv, unsetEnv);
   applyCortexContextEnv(env, context);

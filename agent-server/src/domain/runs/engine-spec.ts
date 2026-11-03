@@ -219,6 +219,7 @@ export function buildEngineSpec(
     route: {
       anthropicBaseUrl: route?.baseUrl,
       connection: route?.connection,
+      ...(route?.configDir ? { claudeConfigDir: route.configDir } : {}),
     },
     flags: policy.flags,
     context: {
