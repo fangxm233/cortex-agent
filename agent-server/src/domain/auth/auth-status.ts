@@ -5,8 +5,10 @@
 import {
   claudeOwnsOAuthCredential, readClaudeAccountIdentity, readClaudeStore, type ClaudeSubscriptionSource,
 } from '@core/claude-credentials.js';
-import type { ClaudeAccountConnection } from '@core/connections-file.js';
+import type { ClaudeAccountConnection, PiAccountConnection } from '@core/connections-file.js';
 import { claudeAccountDir } from '../connections/claude-account-dir.js';
+import { piAccountRows } from './pi-account-status.js';
+import { providerCapabilities } from './pi-providers.js';
 import type { Backend } from '../../agent-adapter/types.js';
 import { piAuthPath } from '../../agent-adapter/pi/defaults.js';
 import { resolveConfiguredDefaultRun } from '../runs/config-resolver.js';
@@ -87,6 +89,8 @@ export function preferredAuthType(
   const account = snapshot.accounts.find(item => (
     item.backend === backend && item.provider === provider && (item.connection ?? null) === connection
   ));
+  // An account signs in again the way it signed in first.
+  if (connection !== null && account?.authType) return account.authType;
   if (account?.capabilities.includes('oauth')) return 'oauth';
   return account?.capabilities.includes('api_key') ? 'api_key' : null;
 }
@@ -106,6 +110,8 @@ export interface GetAuthStatusOptions {
   inventory?: ClaudeStatusInventory;
   /** Where Claude account config dirs live. */
   claudeAccountsDir?: string;
+  /** Where PI account agent dirs live. */
+  piAccountsDir?: string;
   /** The connection the default Claude selection runs on. */
   getDefaultClaudeConnection?: () => string;
   getActiveBackend?: () => Backend;
@@ -289,17 +295,10 @@ function buildClaudeAccountRow(
 }
 
 function claudeAccountRows(options: GetAuthStatusOptions, nowMs: number, inUse: boolean): AuthAccountStatus[] {
-  const accounts = claudeInventory(options).accounts?.() ?? [];
+  const accounts = statusInventory(options).accounts?.() ?? [];
   return accounts
     .filter((account): account is ClaudeAccountConnection => account.backend === 'claude')
     .map(account => buildClaudeAccountRow(account, options, nowMs, inUse));
-}
-
-function providerCapabilities(provider: PiProvider): AuthType[] {
-  const capabilities: AuthType[] = [];
-  if (typeof provider.auth.apiKey?.login === 'function') capabilities.push('api_key');
-  if (typeof provider.auth.oauth?.login === 'function') capabilities.push('oauth');
-  return capabilities;
 }
 
 function piAccountFromCredential(
@@ -476,7 +475,24 @@ function appendPiAccounts(
   }
 }
 
-function claudeInventory(options: GetAuthStatusOptions): ClaudeStatusInventory {
+/** One row per PI account, after the providers' default rows. */
+function piAccountStatusRows(
+  options: GetAuthStatusOptions,
+  pi: Extract<PiRuntimeLoadResult, { available: true }>,
+  nowMs: number,
+  inUse: Set<string>,
+): AuthAccountStatus[] {
+  const accounts = (statusInventory(options).accounts?.() ?? [])
+    .filter((account): account is PiAccountConnection => account.backend === 'pi');
+  return piAccountRows(accounts, {
+    providers: pi.runtime.getProviders(), readStored: pi.readStoredCredential,
+    credentialStatus: (credential) => storedPiCredential(credential, nowMs),
+    capabilities: providerCapabilities, inUse: (provider) => inUse.has(provider),
+    accountsDir: options.piAccountsDir,
+  });
+}
+
+function statusInventory(options: GetAuthStatusOptions): ClaudeStatusInventory {
   if (options.inventory) return options.inventory;
   return options.claudeConfigDir || options.claudeAccountsDir
     ? createCredentialInventory({
@@ -486,7 +502,7 @@ function claudeInventory(options: GetAuthStatusOptions): ClaudeStatusInventory {
 }
 
 function claudeSlots(options: GetAuthStatusOptions): ClaudeSlots {
-  const inventory = claudeInventory(options);
+  const inventory = statusInventory(options);
   return {
     apiKey: inventory.findClaude(API_KEY_CONNECTION) !== null,
     subscription: inventory.claudeSubscriptionSource(),
@@ -506,6 +522,9 @@ export async function getAuthStatus(options: GetAuthStatusOptions = {}): Promise
     now.getTime(), usage.claude,
   );
   const accounts = [claude, ...claudeAccountRows(options, now.getTime(), usage.claude)];
-  if (pi.available) appendPiAccounts(accounts, pi, authPath, now.getTime(), usage.pi);
+  if (pi.available) {
+    appendPiAccounts(accounts, pi, authPath, now.getTime(), usage.pi);
+    accounts.push(...piAccountStatusRows(options, pi, now.getTime(), usage.pi));
+  }
   return { generatedAt: now.toISOString(), accounts, piRuntime: piRuntimeSnapshot(pi) };
 }

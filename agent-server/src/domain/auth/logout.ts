@@ -10,6 +10,7 @@ import {
   savedClaudeSecrets,
 } from './anthropic-env.js';
 import { claudeAccountDir } from '../connections/claude-account-dir.js';
+import { piAccountAuthPath } from '../connections/pi-account-dir.js';
 import { logoutClaudeAuth } from './cc-auth-cli.js';
 import {
   getAuthStatus,
@@ -225,6 +226,14 @@ function storedPiSecrets(
   }
 }
 
+/** A PI account signs out of its own auth.json; the status read before it stays the daemon's. */
+function piAccountDependencies(
+  connection: string | null,
+  dependencies: LogoutAccountDependencies,
+): LogoutAccountDependencies {
+  return connection ? { ...dependencies, piAuthPath: piAccountAuthPath(connection) } : dependencies;
+}
+
 async function logoutPi(
   input: LogoutAccountInput,
   dependencies: LogoutAccountDependencies,
@@ -254,6 +263,6 @@ export async function logoutAccount(
   const credential = selectedCredential(snapshot, target);
   if (!credential?.manageable) return failed(input, 'not_manageable');
   return input.backend === 'pi'
-    ? logoutPi(input, dependencies)
+    ? logoutPi(input, piAccountDependencies(target.connection, dependencies))
     : logoutClaude(target, credential, dependencies);
 }

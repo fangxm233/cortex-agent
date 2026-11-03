@@ -50,7 +50,7 @@ export const providersEn = {
 
   'account.issue.label-required': 'An account needs a name.',
   'account.issue.provider-required': 'Choose the provider the account signs in to.',
-  'account.issue.not-supported': 'This provider cannot add another account yet.',
+  'account.issue.not-supported': 'This provider cannot sign in that way.',
   'account.issue.not-found': 'No such account.',
   'account.issue.write-failed': 'Writing the connections file failed.',
   'account.issue.login-failed': 'The login could not start.',
@@ -105,7 +105,7 @@ export const providersZh: Record<keyof typeof providersEn, string> = {
 
   'account.issue.label-required': '账号必须填写名称。',
   'account.issue.provider-required': '请选择账号要登录的 provider。',
-  'account.issue.not-supported': '这个 provider 暂时不能添加更多账号。',
+  'account.issue.not-supported': '这个 provider 不支持这种登录方式。',
   'account.issue.not-found': '没有这个账号。',
   'account.issue.write-failed': '写入连接文件失败。',
   'account.issue.login-failed': '无法开始登录。',

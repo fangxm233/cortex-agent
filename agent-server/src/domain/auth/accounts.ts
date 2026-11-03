@@ -4,13 +4,16 @@
 // deletes its directory and its entry.
 
 import { createLogger } from '@core/log.js';
+import type { AccountConnection } from '@core/connections-file.js';
 import {
-  confirmAccount, createPendingAccount, ensureClaudeAccountDir, findAccount, pendingAccounts,
-  removeAccountEntry, removeClaudeAccountDir, type AccountIssue, type AccountRef,
+  confirmAccount, createPendingAccount, ensureClaudeAccountDir, ensurePiAccountDir, findAccount, pendingAccounts,
+  piAccountAuthType, removeAccountEntry, removeClaudeAccountDir, removePiAccountDir, type AccountIssue, type AccountRef,
 } from '../connections/index.js';
+import type { AuthType } from './auth-status.js';
 import { hasActiveFlow, type LoginFlowState } from './login-flow.js';
 import { authLoginService, type AuthLoginService } from './login-service.js';
 import { logoutAccount, type AuthLogoutResult, type LogoutAccountInput } from './logout.js';
+import { loadPiProviders, type PiProviderInfo } from './pi-providers.js';
 
 const log = createLogger('accounts');
 
@@ -21,6 +24,9 @@ export interface AddAccountInput {
   label: string;
   /** PI only: the provider the account signs in to. */
   provider?: string;
+  /** PI only: how the first login signs in; absent, OAuth where the provider offers it, else an
+   *  API key. A Claude account always signs in with OAuth. */
+  authType?: AuthType;
 }
 
 /** An account as the add and remove results name it; never a credential. */
@@ -44,6 +50,8 @@ export type RemoveAccountResult =
 
 export interface AccountLifecycleDeps {
   login?: AuthLoginService;
+  /** The providers PI knows: their names are no account's id, and they say how each signs in. */
+  piProviders?: () => Promise<PiProviderInfo[]>;
   logout?: (input: LogoutAccountInput) => Promise<AuthLogoutResult>;
   /** After an account is gone, so state filed under it (usage, throttle) can follow. */
   onRemoved?: (account: AccountSummary) => Promise<void> | void;
@@ -53,10 +61,16 @@ function providerOf(backend: 'claude' | 'pi', provider: string | undefined): str
   return backend === 'claude' ? CLAUDE_PROVIDER : provider ?? '';
 }
 
+/** Where each backend keeps an account's own directory. */
+const ACCOUNT_DIRS = {
+  claude: { ensure: ensureClaudeAccountDir, remove: removeClaudeAccountDir },
+  pi: { ensure: ensurePiAccountDir, remove: removePiAccountDir },
+} as const;
+
 /** Delete an account's directory and entry; never throws, since it runs on a failed login. */
 function discard(ref: AccountRef): void {
   try {
-    if (ref.backend === 'claude') removeClaudeAccountDir(ref.id);
+    ACCOUNT_DIRS[ref.backend].remove(ref.id);
     removeAccountEntry(ref);
   } catch (error) {
     log.warn(`Discarding account '${ref.id}' failed: ${(error as Error).message}`);
@@ -72,10 +86,12 @@ function discardAbandoned(backend: 'claude' | 'pi'): void {
   }
 }
 
-async function startFirstLogin(account: AccountSummary, login: AuthLoginService): Promise<LoginFlowState> {
+async function startFirstLogin(
+  account: AccountSummary, authType: AuthType, login: AuthLoginService,
+): Promise<LoginFlowState> {
   const ref: AccountRef = { backend: account.backend, id: account.id };
   return login.start({
-    backend: account.backend, provider: account.provider, connection: account.id, authType: 'oauth',
+    backend: account.backend, provider: account.provider, connection: account.id, authType,
     channel: null, sessionId: null,
   }, {
     onSuccess: () => confirmAccount(ref),
@@ -83,17 +99,38 @@ async function startFirstLogin(account: AccountSummary, login: AuthLoginService)
   });
 }
 
-/** Register an account and start its first login. Claude only for now. */
+/** How a new account signs in: OAuth for Claude; for PI the type asked for, else OAuth where the
+ *  provider offers it, else an API key. */
+function firstAuthType(input: AddAccountInput, providers: PiProviderInfo[]): AuthType {
+  if (input.backend === 'claude') return 'oauth';
+  if (input.authType) return input.authType;
+  const offered = providers.find((provider) => provider.id === input.provider?.trim())?.capabilities ?? [];
+  return offered.includes('oauth') ? 'oauth' : 'api_key';
+}
+
+async function piProvidersFor(input: AddAccountInput, deps: AccountLifecycleDeps): Promise<PiProviderInfo[]> {
+  return input.backend === 'pi' ? (deps.piProviders ?? loadPiProviders)() : [];
+}
+
+/** A provider PI knows that cannot sign in the way asked; an unknown one is left to its login. */
+function unsupportedAuth(input: AddAccountInput, providers: PiProviderInfo[]): boolean {
+  const known = providers.find((provider) => provider.id === input.provider?.trim());
+  return !!known && !known.capabilities.includes(firstAuthType(input, providers));
+}
+
+/** Register an account and start its first login. A PI account's id is never a provider's name. */
 export async function addAccount(input: AddAccountInput, deps: AccountLifecycleDeps = {}): Promise<AddAccountResult> {
-  if (input.backend !== 'claude') return { ok: false, errors: ['not-supported'] };
   discardAbandoned(input.backend);
-  const created = createPendingAccount(input);
+  const providers = await piProvidersFor(input, deps);
+  if (unsupportedAuth(input, providers)) return { ok: false, errors: ['not-supported'] };
+  const created = createPendingAccount(input, { reservedIds: providers.map((provider) => provider.id) });
   if (created.ok === false) return { ok: false, errors: created.errors };
   const { id, label } = created.account;
   const account: AccountSummary = { id, backend: input.backend, provider: providerOf(input.backend, input.provider), label };
   try {
-    ensureClaudeAccountDir(id);
-    return { ok: true, account, flow: await startFirstLogin(account, deps.login ?? authLoginService) };
+    ACCOUNT_DIRS[input.backend].ensure(id);
+    const flow = await startFirstLogin(account, firstAuthType(input, providers), deps.login ?? authLoginService);
+    return { ok: true, account, flow };
   } catch (error) {
     log.warn(`Starting the login for account '${id}' failed: ${(error as Error).message}`);
     discard(created.account);
@@ -101,11 +138,16 @@ export async function addAccount(input: AddAccountInput, deps: AccountLifecycleD
   }
 }
 
+/** The credential type an account holds: Claude's is always an OAuth login. */
+function heldAuthType(stored: AccountConnection): AuthType {
+  return stored.backend === 'pi' ? piAccountAuthType(stored) ?? 'api_key' : 'oauth';
+}
+
 /** Sign out where a login exists; a failure is logged and the removal goes on, since the account's
  *  credential leaves with its directory either way. */
-async function signOut(account: AccountSummary, deps: AccountLifecycleDeps): Promise<boolean> {
+async function signOut(account: AccountSummary, authType: AuthType, deps: AccountLifecycleDeps): Promise<boolean> {
   const result = await (deps.logout ?? logoutAccount)({
-    backend: account.backend, provider: account.provider, connection: account.id, authType: 'oauth',
+    backend: account.backend, provider: account.provider, connection: account.id, authType,
   });
   if (result.ok === false && result.error.code !== 'not_manageable') {
     log.warn(`Signing out account '${account.id}' failed: ${result.error.message}`);
@@ -120,9 +162,9 @@ export async function removeAccount(ref: AccountRef, deps: AccountLifecycleDeps 
     id: stored.id, backend: stored.backend, label: stored.label,
     provider: stored.backend === 'claude' ? CLAUDE_PROVIDER : stored.provider,
   };
-  const loggedOut = stored.pending ? false : await signOut(account, deps);
+  const loggedOut = stored.pending ? false : await signOut(account, heldAuthType(stored), deps);
   try {
-    if (ref.backend === 'claude') removeClaudeAccountDir(ref.id);
+    ACCOUNT_DIRS[ref.backend].remove(ref.id);
     removeAccountEntry(ref);
   } catch (error) {
     log.warn(`Removing account '${ref.id}' failed: ${(error as Error).message}`);

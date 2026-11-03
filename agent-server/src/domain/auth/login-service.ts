@@ -2,6 +2,9 @@ import { accountIdOf } from '@core/connections-file.js';
 import { t } from '@core/i18n.js';
 import { ensureClaudeAccountDir } from '../connections/claude-account-dir.js';
 import { findAccount } from '../connections/accounts.js';
+import { ensurePiAccountDir } from '../connections/pi-account-dir.js';
+import { piAuthPath } from '../../agent-adapter/pi/defaults.js';
+import type { AuthType } from './auth-status.js';
 import { loginClaudeApiKey } from './cc-login.js';
 import { loginClaudeSubscription } from './cc-subscription.js';
 import {
@@ -87,6 +90,8 @@ export interface AuthLoginServiceDependencies {
   claudeAccountConsumerFactory?: (connection: string) => LoginFlowConsumer;
   piConsumerFactory?: (provider: string) => LoginFlowConsumer;
   piOAuthConsumerFactory?: (provider: string) => LoginFlowConsumer;
+  /** The login of one PI account: its provider and id, and the credential type to sign in with. */
+  piAccountConsumerFactory?: (provider: string, connection: string, authType: AuthType) => LoginFlowConsumer;
 }
 
 /** An account signs in to its own config dir; Cortex's own subscription and API key are not
@@ -126,6 +131,26 @@ function selectClaudeConsumer(
     : dependencies.claudeConsumer ?? loginClaudeApiKey;
 }
 
+/** A PI account signs in to its own agent dir's auth.json, with either credential type. */
+function piAccountConsumer(provider: string, connection: string, authType: AuthType): LoginFlowConsumer {
+  const account = { authPath: piAuthPath(ensurePiAccountDir(connection)), connection };
+  return authType === 'oauth'
+    ? createPiOAuthLoginConsumer(provider, account)
+    : createPiApiKeyLoginConsumer(provider, account);
+}
+
+function selectPiAccountConsumer(
+  input: StartLoginFlowInput,
+  connection: string,
+  dependencies: AuthLoginServiceDependencies,
+): LoginFlowConsumer {
+  const account = findAccount({ backend: 'pi', id: connection });
+  if (account?.backend !== 'pi' || account.provider !== input.provider) {
+    throw new LoginFlowError('account_not_found', t('account.issue.not-found'));
+  }
+  return (dependencies.piAccountConsumerFactory ?? piAccountConsumer)(input.provider, connection, input.authType);
+}
+
 function selectPiConsumer(
   input: StartLoginFlowInput,
   dependencies: AuthLoginServiceDependencies,
@@ -133,7 +158,8 @@ function selectPiConsumer(
   if (!input.provider.trim()) {
     throw new LoginFlowError('provider_not_found', 'A provider is required.');
   }
-  if (accountOf(input)) throw new LoginFlowError('account_not_supported', t('account.issue.not-supported'));
+  const account = accountOf(input);
+  if (account) return selectPiAccountConsumer(input, account, dependencies);
   const factory = input.authType === 'oauth'
     ? dependencies.piOAuthConsumerFactory ?? createPiOAuthLoginConsumer
     : dependencies.piConsumerFactory ?? createPiApiKeyLoginConsumer;
