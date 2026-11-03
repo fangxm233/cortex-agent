@@ -507,7 +507,9 @@ on the other backend; a new draft can choose either backend.
 **Connection** applies to Claude Code only: which of this host's Claude
 connections a conversation runs on — the subscription, a named
 [account](#accounts), an API key, or a relay or local endpoint added in
-**Settings → Accounts**. Accounts appear by their label. The picker shows the
+**Settings → Accounts**. Accounts appear by their label, and the subscription
+by the email it is signed in as (**Claude subscription** when that is unknown).
+The picker shows the
 connection row only when more than one connection can run the current model. Its
 **Default** row names no connection: each run then uses the default connection
 (the subscription when signed in) if it serves the model, otherwise the first
