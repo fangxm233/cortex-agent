@@ -31,7 +31,9 @@ test('removed backend, missing selection fields and unsafe connections are rejec
   expect(() => validateEngineSelection({ model: 'opus' })).toThrow();
   expect(() => validateEngineSelection({ ...claude, connection: '../api' })).toThrow(/connection/);
   expect(() => validateEngineSelection({ ...claude, connection: null })).not.toThrow();
-  expect(() => validateEngineSelection({ ...pi, connection: 'deepseek' })).toThrow(/connection/);
+  // A PI selection may name one of its provider's accounts; which ones exist is resolution's call.
+  expect(() => validateEngineSelection({ ...pi, connection: 'deepseek-work' })).not.toThrow();
+  expect(() => validateEngineSelection({ ...pi, connection: '../x' })).toThrow(/connection/);
 });
 
 test('model keys separate backend and provider, without delimiter collisions', () => {

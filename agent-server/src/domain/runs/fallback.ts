@@ -28,9 +28,8 @@ export function attemptAuthType(
 
 /** The account a selection runs on; null for a provider's default login. */
 export function attemptAccount(selection: Pick<EngineSelection, 'backend' | 'provider' | 'connection'>): string | null {
-  if (selection.backend !== 'claude') return null;
   const route = routeName(selection);
-  return findAccount({ backend: 'claude', id: route }) ? route : null;
+  return findAccount({ backend: selection.backend, id: route }) ? route : null;
 }
 
 export function attemptProviderOrNull(selection: EngineSelection): string | null {

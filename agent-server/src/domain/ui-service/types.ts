@@ -770,8 +770,9 @@ export interface ModelCatalogRoute {
   backend: Backend;
   /** PI `--provider`; null for claude. */
   provider: string | null;
-  /** Claude: the connections a selection may name, the default first. PI: always empty — the
-   *  provider is the connection. */
+  /** The connections a selection may name, the default first. Claude: its connections. PI: the
+   *  provider itself (its default login, stored as `connection: null`), then the provider's
+   *  signed-in accounts. */
   connections: string[];
   /** Selectable model ids. Empty means "known route, unknown models" — free text, not an error. */
   models: string[];

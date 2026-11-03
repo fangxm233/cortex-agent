@@ -16,15 +16,30 @@ export const CHATGPT_SIGN_IN_COMPAT: Readonly<Record<string, boolean>> = Object.
   supportsLongCacheRetention: false,
 });
 
-/** Providers whose auth.json credential is an OAuth login; empty when the file is missing or unreadable. */
-export function readOAuthProviders(authPath: string): Set<string> {
+type StoredAuthType = 'api_key' | 'oauth';
+
+/** Each provider's credential type in an auth.json; empty when the file is missing or unreadable. */
+function storedAuthTypes(authPath: string): Map<string, StoredAuthType> {
   let data: unknown;
   try {
     data = JSON.parse(readFileSync(authPath, 'utf8'));
   } catch {
-    return new Set();
+    return new Map();
   }
-  if (!data || typeof data !== 'object') return new Set();
-  const entries = Object.entries(data as Record<string, { type?: unknown } | null>);
-  return new Set(entries.filter(([, credential]) => credential?.type === 'oauth').map(([name]) => name));
+  if (!data || typeof data !== 'object') return new Map();
+  const types = new Map<string, StoredAuthType>();
+  for (const [name, credential] of Object.entries(data as Record<string, { type?: unknown } | null>)) {
+    if (credential?.type === 'oauth' || credential?.type === 'api_key') types.set(name, credential.type);
+  }
+  return types;
+}
+
+/** Providers whose auth.json credential is an OAuth login; empty when the file is missing or unreadable. */
+export function readOAuthProviders(authPath: string): Set<string> {
+  return new Set([...storedAuthTypes(authPath)].filter(([, type]) => type === 'oauth').map(([name]) => name));
+}
+
+/** The type of the credential an auth.json stores for one provider; null when it stores none. */
+export function storedAuthType(authPath: string, provider: string): StoredAuthType | null {
+  return storedAuthTypes(authPath).get(provider) ?? null;
 }

@@ -58,6 +58,14 @@ describe('selectionForModel', () => {
     expect(selectionForModel(pi, { models }, catalog, current).connection).toBeNull();
   });
 
+  it('keeps a PI account across models of its provider, never on another provider', () => {
+    const accounts = { ...catalog, routes: [catalog.routes[0], { ...catalog.routes[1], connections: ['deepseek', 'deepseek-work'] }] };
+    const current = { ...pi, model: 'deepseek-v4-pro', thinking: null, connection: 'deepseek-work' };
+    expect(selectionForModel(pi, { models }, accounts, current).connection).toBe('deepseek-work');
+    expect(selectionForModel({ ...pi, provider: 'other' }, { models }, accounts, current).connection).toBeNull();
+    expect(selectionForModel(pi, { models }, catalog, current).connection).toBeNull();
+  });
+
   it.each([null, undefined])('does not guess a route without memory or catalog (%s)', (config) => {
     expect(selectionForModel(claude, config)).toEqual({ ...claude, thinking: null, connection: null });
     expect(selectionForModel(pi, config)).toEqual({ ...pi, thinking: null, connection: null });
@@ -77,8 +85,16 @@ describe('serving and default connections', () => {
   it('serves a listed model only on its own connections, every other on all of them', () => {
     expect(servingConnections(local, { ...claude, model: 'qwen-coder' })).toEqual(['qwen']);
     expect(servingConnections(local, claude)).toEqual(['subscription', 'api', 'qwen']);
-    expect(servingConnections(local, pi)).toEqual([]);
     expect(servingConnections(null, claude)).toEqual([]);
+  });
+
+  it('serves a PI model on the provider\'s default login, then on each of its accounts', () => {
+    const accounts = { ...catalog, routes: [catalog.routes[0], { ...catalog.routes[1], connections: ['deepseek', 'deepseek-work'] }] };
+    expect(servingConnections(accounts, pi)).toEqual(['deepseek', 'deepseek-work']);
+    expect(defaultConnectionFor(accounts, pi)).toBe('deepseek');
+    // An older server lists no PI connections; a provider the catalog lacks still has its login.
+    expect(servingConnections(local, pi)).toEqual(['deepseek']);
+    expect(servingConnections(null, pi)).toEqual(['deepseek']);
   });
 
   it('runs on the default connection when it serves the model, else the first that does', () => {
