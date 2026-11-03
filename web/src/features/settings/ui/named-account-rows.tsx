@@ -97,7 +97,7 @@ function NamedAccountActions({ group, account, handlers, confirm }: {
     <span style={ACTIONS_STYLE}>
       <LoginAction account={account} target={target} handlers={handlers} />
       {canLogout ? (
-        <SLinkAction tone="danger" {...targetAttrs('logout', target)} disabled={handlers.disabled}
+        <SLinkAction tone="muted" {...targetAttrs('logout', target)} disabled={handlers.disabled}
           onClick={() => confirm.arm(target, 'logout')}>{L.accountsLogout}</SLinkAction>
       ) : null}
       {handlers.onRemove ? (

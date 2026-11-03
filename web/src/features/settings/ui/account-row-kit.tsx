@@ -80,6 +80,12 @@ export function quietExpiry(health: CredentialHealth, expiresAt: string | null, 
 
 export type ConfirmAction = 'logout' | 'remove';
 
+// Only a delete reads as danger; a logout's question stays in the ink.
+const CONFIRM_TONES: Record<ConfirmAction, { text: string; border: string }> = {
+  remove: { text: 'var(--proto-danger)', border: 'var(--proto-danger-bg)' },
+  logout: { text: 'var(--proto-ink)', border: 'var(--proto-line-3)' },
+};
+
 function confirmKey(target: AccountActionTarget, action: ConfirmAction): string {
   return [action, target.backend, target.provider, target.connection ?? '', target.authType].join(':');
 }
@@ -102,15 +108,16 @@ export function ConfirmStrip({ action, target, message, confirmLabel, disabled, 
   disabled?: boolean; onConfirm: () => void; onCancel: () => void;
 }) {
   const L = useVocab();
+  const tone = CONFIRM_TONES[action];
   return (
     <span data-logout-confirm role="group" style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, minWidth: 0, marginLeft: 'auto' }}>
-      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-danger)', overflowWrap: 'anywhere' }}>{message}</span>
+      <span style={{ fontSize: 12, fontWeight: 600, color: tone.text, overflowWrap: 'anywhere' }}>{message}</span>
       {/* The two answers wrap as one unit, never apart. */}
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flex: 'none', marginLeft: 'auto' }}>
         <button type="button" {...targetAttrs(`${action}-confirm`, target)} disabled={disabled} onClick={onConfirm}
           style={{
             fontFamily: 'inherit', fontSize: 12, fontWeight: 600, padding: '3px 9px', borderRadius: 7,
-            border: '1px solid var(--proto-danger-bg)', color: 'var(--proto-danger)',
+            border: `1px solid ${tone.border}`, color: tone.text,
             background: 'var(--material-control-bg)', cursor: 'pointer', whiteSpace: 'nowrap',
           }}>
           {confirmLabel}

@@ -98,7 +98,7 @@ function ManageActions(props: ManageProps) {
       : <SLinkAction key={`login:${type}`} tone="muted" {...attrs}>{text}</SLinkAction>;
   });
   const logouts = props.handlers.onLogout ? props.logoutTypes.map(type => (
-    <SLinkAction key={`logout:${type}`} tone="danger" data-auth-action="logout" data-backend={props.backend}
+    <SLinkAction key={`logout:${type}`} tone="muted" data-auth-action="logout" data-backend={props.backend}
       data-provider={props.provider} data-auth-type={type} disabled={props.handlers.disabled}
       onClick={() => props.confirm.arm(target(type))}>
       {props.logoutTypes.length > 1
