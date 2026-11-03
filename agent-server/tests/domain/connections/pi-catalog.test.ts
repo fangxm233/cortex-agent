@@ -30,6 +30,14 @@ beforeEach(() => {
 afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
 
 describe('buildPiCatalog', () => {
+  it('writes no key for an account\'s own provider into the account\'s catalog', () => {
+    const catalog = buildPiCatalog({ file: file(), userModelsPath: userModels(), accountProvider: 'deepseek' });
+    expect(catalog.providers.deepseek).toEqual({ baseUrl: 'https://deepseek-relay.example.com' });
+    expect(catalog.runtimeKeys).toEqual({ local: 'fake-local-key' });
+    expect(buildPiCatalog({ file: file(), userModelsPath: userModels(), accountProvider: 'mine' }).providers.mine)
+      .not.toHaveProperty('apiKey');
+  });
+
   it('writes only what connections change, over the user\'s own catalog minus gateway-era entries', () => {
     const catalog = buildPiCatalog({ file: file(), userModelsPath: userModels() });
     expect(Object.keys(catalog.providers).sort()).toEqual(['deepseek', 'local', 'mine', 'openai']);

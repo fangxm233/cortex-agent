@@ -5,7 +5,10 @@ import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import { modelKey, selectionForModel } from '@/lib/model-selection';
-import { buildModelFacts, catalogModels, defaultModelOptions } from '@/features/settings/vm/models-panel-vm';
+import { useConnectionNames } from '@/lib/useConnectionNames';
+import {
+  buildModelFacts, catalogModels, defaultConnectionControl, defaultModelOptions,
+} from '@/features/settings/vm/models-panel-vm';
 
 function useModelWrites() {
   const trpc = useTRPC();
@@ -67,7 +70,13 @@ function useModelActions(resources: ReturnType<typeof useModelsResources>, optio
       await writes.setDefault.mutateAsync({ selection });
     });
   };
-  return { pending, setDefault,
+  /** Pins the default model to one connection; null follows the default connection. */
+  const setDefaultConnection = (connection: string | null) => {
+    const current = config.data?.models.default;
+    if (!current || (current.connection ?? null) === connection) return;
+    run(() => writes.setDefault.mutateAsync({ selection: { ...current, connection } }));
+  };
+  return { pending, setDefault, setDefaultConnection,
     setThinking: (ref: ModelRef, thinking: string | null) => run(() => writes.setThinking.mutateAsync({ ref, thinking })),
     add: (ref: ModelRef) => run(() => writes.add.mutateAsync({ ...ref, provider: ref.provider ?? undefined })),
     remove: (ref: ModelRef) => run(() => writes.remove.mutateAsync({ ...ref, provider: ref.provider ?? undefined })),
@@ -75,14 +84,19 @@ function useModelActions(resources: ReturnType<typeof useModelsResources>, optio
 }
 
 export function useModelsController(initialSnapshot?: ConfigSnapshot) {
+  const L = useVocab();
   const resources = useModelsResources(initialSnapshot);
   const { config, catalog, catalogOpen, setCatalogOpen } = resources;
   const snapshot = config.data;
   const facts = snapshot ? buildModelFacts(snapshot) : [];
   const options = snapshot ? defaultModelOptions(snapshot, catalog.data ?? null) : [];
   const actions = useModelActions(resources, options);
+  const names = useConnectionNames(L.wbConnectionSubscription)[snapshot?.models.default?.backend ?? 'claude'];
   return {
     snapshot, facts, options, loading: config.isLoading, error: config.error,
+    connectionControl: snapshot ? defaultConnectionControl(snapshot, catalog.data ?? null, names, {
+      withConnection: L.wbConnectionDefault, plain: L.wbThinkingDefault,
+    }) : null,
     catalog: catalog.error ? null : catalog.data ?? null,
     catalogOpen, setCatalogOpen, catalogModels: catalogModels(catalog.data ?? null),
     catalogPending: catalog.isLoading || !!catalog.data?.piPending, catalogError: catalog.error,

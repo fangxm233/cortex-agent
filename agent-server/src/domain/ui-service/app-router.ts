@@ -68,6 +68,8 @@ import {
   authCancelFlowInput,
   authLogoutInput,
   authSyncModelsInput,
+  authAddAccountInput,
+  authRemoveAccountInput,
   connectionsListInput,
   connectionsUpsertInput,
   connectionsRemoveInput,
@@ -345,6 +347,8 @@ function authRouter(service: UiService) {
     cancelFlow: makeMutation(service, 'auth.cancelFlow', authCancelFlowInput),
     logout: makeMutation(service, 'auth.logout', authLogoutInput),
     syncModels: makeMutation(service, 'auth.syncModels', authSyncModelsInput),
+    addAccount: makeMutation(service, 'auth.addAccount', authAddAccountInput),
+    removeAccount: makeMutation(service, 'auth.removeAccount', authRemoveAccountInput),
   });
 }
 

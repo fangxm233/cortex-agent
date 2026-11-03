@@ -174,7 +174,7 @@ test('persists usage under source provider and displayName even when the reading
   const records: any[] = [];
   await reportCodexQuota(
     { ...READING, provider: 'openai-codex' },
-    { provider: 'my-codex', displayName: 'My Codex', mode: 'api' },
+    { provider: 'my-codex', displayName: 'My Codex', mode: 'my-codex' },
     {
       submit: async () => {},
       usageStore: { update: async (record) => { records.push(record); } },
@@ -185,12 +185,28 @@ test('persists usage under source provider and displayName even when the reading
   assert.deepEqual(records, [{
     provider: 'my-codex',
     displayName: 'My Codex',
-    modes: ['api'],
+    modes: ['my-codex'],
     windows: READING.windows,
     observedAt: 1_786_000_000,
     freshness: 'stale',
     billing: 'subscription',
   }]);
+});
+
+test('an account\'s reading lands on the account\'s own row and throttle route', async () => {
+  const records: any[] = [];
+  const submitted: any[] = [];
+  const source = resolveQuotaSource({ provider: 'openai-codex', connection: 'codex-lab' });
+  await reportCodexQuota(READING, source, {
+    submit: async (_info, from) => { submitted.push(from); },
+    usageStore: { update: async (record) => { records.push(record); } },
+    now: () => 1_786_000_000_999,
+  });
+  assert.equal(records[0].route, 'codex-lab');
+  assert.deepEqual(records[0].modes, ['codex-lab']);
+  assert.ok(submitted.every((from) => from.provider === 'openai-codex' && from.mode === 'codex-lab'));
+  const own = resolveQuotaSource({ provider: 'openai-codex', connection: undefined });
+  assert.equal(own.mode, 'openai-codex');
 });
 
 test('persists every below-threshold window across restart with its observation time', async () => {

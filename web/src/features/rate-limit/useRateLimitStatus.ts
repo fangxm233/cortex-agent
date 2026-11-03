@@ -4,7 +4,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { useLiveConnection, useLiveEvents } from '@/features/live/LiveEventsProvider';
 import { RATE_LIMIT_LIVE_EVENTS } from '@/features/live/live-events';
-import { buildRateLimitView, type RateLimitView } from './rate-limit-vm';
+import { accountLimitNames, buildRateLimitView, type RateLimitView } from './rate-limit-vm';
 
 function currentEpochSeconds(): number {
   return Math.floor(Date.now() / 1000);
@@ -28,6 +28,8 @@ export function useRateLimitStatus(): RateLimitView | null {
   }, [reconnectEpoch]);
 
   const active = (query.data?.providers.length ?? 0) > 0;
+  // A limited named account reads by its label; the list is only needed while something is limited.
+  const connections = useQuery(trpc.connections.list.queryOptions({}, { enabled: active }));
   useEffect(() => {
     if (!active) return;
     setNowSec(currentEpochSeconds());
@@ -35,5 +37,5 @@ export function useRateLimitStatus(): RateLimitView | null {
     return () => window.clearInterval(timer);
   }, [active]);
 
-  return buildRateLimitView(query.data, nowSec, lang);
+  return buildRateLimitView(query.data, nowSec, lang, accountLimitNames(connections.data));
 }

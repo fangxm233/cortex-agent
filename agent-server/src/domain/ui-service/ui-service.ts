@@ -113,8 +113,10 @@ import {
   handleSystemSkipUpdate,
 } from './mutate/system.js';
 import {
+  handleAuthAddAccount,
   handleAuthCancelFlow,
   handleAuthLogout,
+  handleAuthRemoveAccount,
   handleAuthSyncModels,
   handleAuthRespondPrompt,
   handleAuthStartLogin,
@@ -229,6 +231,8 @@ export const mutateHandlers = {
   'auth.cancelFlow': (deps, args) => handleAuthCancelFlow(deps, args),
   'auth.logout': (deps, args) => handleAuthLogout(deps, args),
   'auth.syncModels': (deps, args) => handleAuthSyncModels(deps, args),
+  'auth.addAccount': (deps, args) => handleAuthAddAccount(deps, args),
+  'auth.removeAccount': (deps, args) => handleAuthRemoveAccount(deps, args),
   'connections.upsert': (deps, args) => handleConnectionsUpsert(deps, args),
   'connections.remove': (deps, args) => handleConnectionsRemove(deps, args),
   'usageSharing.set': (deps, args) => handleUsageSharingSet(deps, args),

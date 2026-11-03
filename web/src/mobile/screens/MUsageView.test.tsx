@@ -69,7 +69,7 @@ function view(overrides: Partial<Parameters<typeof MUsageView>[0]> = {}) {
       policyControlsState="ready"
       isPolicySaving={() => false}
       getPolicyError={() => null}
-      reset={{ redeem: () => {}, provider: null, isRedeeming: false, status: null, error: null }}
+      reset={{ redeem: () => {}, provider: null, connection: null, isRedeeming: false, status: null, error: null }}
       onBack={() => {}}
       onRefresh={() => {}}
       onSavePolicy={() => {}}
@@ -188,7 +188,7 @@ describe('MUsageView banked resets', () => {
     const redeem = vi.fn();
     const renderer = create(view({
       view: buildUsageView(withResets, policies, NOW, 'en'),
-      reset: { redeem, provider: null, isRedeeming: false, status: null, error: null },
+      reset: { redeem, provider: null, connection: null, isRedeeming: false, status: null, error: null },
     }));
     expect(JSON.stringify(renderer.toJSON())).toContain('Banked resets 1 · next expires in 2d');
 
@@ -200,14 +200,14 @@ describe('MUsageView banked resets', () => {
 
     act(() => block(renderer, 'openai-codex').findByProps({ 'data-usage-reset-use': true }).props.onClick());
     act(() => renderer.root.findByProps({ 'data-usage-reset-confirm-action': true }).props.onClick());
-    expect(redeem).toHaveBeenCalledWith('openai-codex');
+    expect(redeem).toHaveBeenCalledWith('openai-codex', null);
   });
 
   it('confirms a Claude reset with the windows it clears and the current use', () => {
     const redeem = vi.fn();
     const renderer = create(view({
       view: buildUsageView(withResets, policies, NOW, 'en'),
-      reset: { redeem, provider: null, isRedeeming: false, status: null, error: null },
+      reset: { redeem, provider: null, connection: null, isRedeeming: false, status: null, error: null },
     }));
 
     act(() => block(renderer, 'anthropic').findByProps({ 'data-usage-reset-use': true }).props.onClick());
@@ -215,7 +215,7 @@ describe('MUsageView banked resets', () => {
     expect(text).toContain('Clears the 5 hours limits for the whole account, claude.ai and every other device included.');
     expect(text).toContain('Not at a limit right now: 5 hours 54%.');
     act(() => renderer.root.findByProps({ 'data-usage-reset-confirm-action': true }).props.onClick());
-    expect(redeem).toHaveBeenCalledWith('anthropic');
+    expect(redeem).toHaveBeenCalledWith('anthropic', null);
   });
 
   it('shows the outcome on its own card and offers no reset without one', () => {
@@ -224,7 +224,7 @@ describe('MUsageView banked resets', () => {
       : record));
     const renderer = create(view({
       view: buildUsageView(spent, policies, NOW, 'en'),
-      reset: { redeem: vi.fn(), provider: 'openai-codex', isRedeeming: false, status: 'reset', error: null },
+      reset: { redeem: vi.fn(), provider: 'openai-codex', connection: null, isRedeeming: false, status: 'reset', error: null },
     }));
 
     expect(block(renderer, 'openai-codex').findAllByProps({ 'data-usage-reset-use': true })).toHaveLength(0);
@@ -236,7 +236,7 @@ describe('MUsageView banked resets', () => {
   it('disables every reset button while one is being spent', () => {
     const renderer = create(view({
       view: buildUsageView(withResets, policies, NOW, 'en'),
-      reset: { redeem: vi.fn(), provider: 'anthropic', isRedeeming: true, status: null, error: null },
+      reset: { redeem: vi.fn(), provider: 'anthropic', connection: null, isRedeeming: true, status: null, error: null },
     }));
 
     const claude = block(renderer, 'anthropic').findByProps({ 'data-usage-reset-use': true });

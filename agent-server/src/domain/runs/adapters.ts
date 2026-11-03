@@ -2,9 +2,12 @@ import { setSubagentModelSource, subagentModelEnv } from '../../agent-adapter/cl
 import { modelCatalog, routeFor } from '../models/catalog.js';
 import { ClaudeAdapter } from '../../agent-adapter/claude/adapter.js';
 import { PIAdapter } from '../../agent-adapter/pi/adapter.js';
+import { createLogger } from '@core/log.js';
 import { buildPiCatalog } from '../connections/pi-catalog.js';
+import { credentialInventory } from '../connections/inventory.js';
+import { ensurePiAccountDir, piAccountOfDir } from '../connections/pi-account-dir.js';
 import { PI_AGENT_DIR, PI_SESSIONS_DIR } from '../../agent-adapter/pi/defaults.js';
-import { setPiModelScan } from '../../agent-adapter/pi/discovery.js';
+import { setPiModelScan, type PiDiscoveredModel } from '../../agent-adapter/pi/discovery.js';
 import { handleRateLimitEvent } from '../costs/rate-limit-throttle.js';
 import { usageStore } from '../costs/usage-store.js';
 import { openBundledMcpServer } from '../mcp/bundled-server.js';
@@ -23,9 +26,12 @@ import type {
 // store and a throttle, and ClaudeAdapter drops the CLI's rate-limit lines. That is the intended
 // behaviour off the daemon path, and this file is the only place the daemon path is assembled.
 
+const log = createLogger('run-adapters');
+
 const PI_ADAPTER = new PIAdapter(undefined, PI_SESSIONS_DIR, {
   agentDir: PI_AGENT_DIR,
-  catalog: () => buildPiCatalog(),
+  // An account's agent dir gets the same catalog, minus any key for the account's own provider.
+  catalog: (agentDir) => buildPiCatalog({ accountProvider: piAccountOfDir(agentDir)?.provider }),
   usageStore,
   submitRateLimit: handleRateLimitEvent,
   openBundledMcpServer,
@@ -45,8 +51,21 @@ const PI_ADAPTER = new PIAdapter(undefined, PI_SESSIONS_DIR, {
   },
 });
 
-// The daemon's PI model list is what its sessions can run: connections included, keys installed.
-setPiModelScan(() => PI_ADAPTER.scanModels());
+/** The daemon's PI model list is what its sessions can run: connections included, keys installed,
+ *  over its own agent dir and each signed-in account's. An account whose scan fails adds nothing. */
+async function scanPiModels(): Promise<PiDiscoveredModel[]> {
+  const accounts = credentialInventory.piAccounts();
+  const [own, ...scans] = await Promise.all([
+    PI_ADAPTER.scanModels(),
+    ...accounts.map((account) => PI_ADAPTER.scanModels(ensurePiAccountDir(account.id)).catch((error: unknown) => {
+      log.warn(`PI model scan of account '${account.id}' failed: ${(error as Error).message}`);
+      return [];
+    })),
+  ]);
+  return [own!, ...scans].flat();
+}
+
+setPiModelScan(scanPiModels);
 
 // Subagents are offered what the model catalog knows, read warm on every spawn.
 setSubagentModelSource(() => {

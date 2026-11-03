@@ -81,8 +81,8 @@ export interface DoctorDeps {
   getAuthStatus(): Promise<AuthStatusSnapshot>;
   /** Backend and connection used by an unconfigured channel; null when unreadable. */
   defaultSelection(): DefaultSelectionInfo | null;
-  /** Ids of the stored Claude key connections. */
-  claudeKeyConnections(): string[];
+  /** Ids of the stored Claude connections a run can use: key connections and signed-in accounts. */
+  claudeConnections(): string[];
 }
 
 export interface DefaultSelectionInfo {
@@ -207,25 +207,25 @@ function pushEnvAndTokenChecks(
     : { id: 'auth-tokens', label: 'Auth tokens', status: 'fail', detail: `missing: ${missing.join(', ')}`, hint: 'run `cortex doctor --fix` to generate', fixable: true });
 }
 
-/** The stored connection the default Claude selection runs on; null for the subscription, PI, or
- *  an unreadable default. */
+/** The stored connection (key or account) the default Claude selection runs on; null for the
+ *  subscription, PI, or an unreadable default. */
 function defaultClaudeKeyConnection(deps: DoctorDeps): string | null {
   const selection = deps.defaultSelection();
   if (selection?.backend !== 'claude' || !selection.connection) return null;
   return selection.connection === SUBSCRIPTION_CONNECTION ? null : selection.connection;
 }
 
-/** A default on an existing key connection needs no Claude login. */
+/** A default on an existing key connection or signed-in account needs no default Claude login. */
 function keyConnectionBacked(deps: DoctorDeps): boolean {
   const id = defaultClaudeKeyConnection(deps);
-  return id !== null && deps.claudeKeyConnections().includes(id);
+  return id !== null && deps.claudeConnections().includes(id);
 }
 
 function pushClaudeConnectionCheck(checks: CheckResult[], deps: DoctorDeps): void {
   const id = defaultClaudeKeyConnection(deps);
   if (id === null) {
     checks.push({ id: 'claude-connection', label: 'Claude connection', status: 'skip', detail: 'default does not use a key connection' });
-  } else if (deps.claudeKeyConnections().includes(id)) {
+  } else if (deps.claudeConnections().includes(id)) {
     checks.push({ id: 'claude-connection', label: 'Claude connection', status: 'pass', detail: `${id} configured` });
   } else {
     checks.push({ id: 'claude-connection', label: 'Claude connection', status: 'warn', detail: `${id} is not configured`, hint: 'add the connection in Settings or pick another model' });
@@ -286,6 +286,7 @@ async function checkPiRuntime(deps: DoctorDeps): Promise<CheckResult> {
 
 function keyConnectionCovered(account: AuthAccountStatus, connectionBacked: boolean): boolean {
   return connectionBacked
+    && (account.connection ?? null) === null
     && account.backend === 'claude'
     && account.provider === 'anthropic'
     && account.state === 'logged-out';
@@ -518,8 +519,8 @@ export function createDefaultDoctorDeps(): DoctorDeps {
     loadPiRuntime: () => loadInstalledPiRuntime(),
     getAuthStatus: () => readAuthStatus(),
     defaultSelection: readDefaultSelection,
-    claudeKeyConnections: () => credentialInventory.claudeConnections()
-      .filter((view) => view.kind === 'key').map((view) => view.id),
+    claudeConnections: () => credentialInventory.claudeConnections()
+      .filter((view) => view.kind === 'key' || view.kind === 'account').map((view) => view.id),
   };
 }
 

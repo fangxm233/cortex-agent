@@ -289,7 +289,8 @@ test('PI logout admission uses the manageable field without a second source poli
   const snapshot: AuthStatusSnapshot = {
     generatedAt: new Date(0).toISOString(),
     accounts: [{
-      backend: 'pi', provider: 'deepseek', label: 'DeepSeek', capabilities: ['api_key'],
+      backend: 'pi', provider: 'deepseek', connection: null, isDefault: true, identity: null,
+      label: 'DeepSeek', capabilities: ['api_key'],
       authType: 'api_key', state: 'logged-in', source: 'delegated', expiresAt: null,
       refreshExpiresAt: null, inUse: true, credentials: [{
         authType: 'api_key', state: 'logged-in', source: 'delegated', expiresAt: null,
@@ -326,7 +327,8 @@ test('PI logout removes a stored key even while an environment key is the active
   const snapshot: AuthStatusSnapshot = {
     generatedAt: new Date(0).toISOString(),
     accounts: [{
-      backend: 'pi', provider: 'openrouter', label: 'OpenRouter', capabilities: ['api_key'],
+      backend: 'pi', provider: 'openrouter', connection: null, isDefault: true, identity: null,
+      label: 'OpenRouter', capabilities: ['api_key'],
       authType: 'api_key', state: 'logged-in', source: 'env', expiresAt: null,
       refreshExpiresAt: null, inUse: true,
       credentials: [credential('env', false), credential('stored', true)],

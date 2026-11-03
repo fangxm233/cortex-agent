@@ -14,6 +14,8 @@ export const MONTH_WINDOW_MS = 30 * DAY_MS;
 export const LEDGER_WINDOW_MS = 90 * DAY_MS;
 
 export type BillingOf = (ref: SelectionRef) => ConnectionBilling;
+/** The account a connection is, or null when it is not one. */
+export type AccountOf = (ref: SelectionRef) => string | null;
 
 export interface SpendFigures {
   today: number;
@@ -24,6 +26,8 @@ export interface SpendFigures {
 export interface LedgerSpendRow {
   provider: string;
   billing: UsageBilling;
+  /** The account the row's traffic ran on; absent for the provider's default login. */
+  route?: string;
   /** Connections that carried this row's traffic in the last 30 days. */
   connections: string[];
   /** Metered rows only: a subscription's cost is an imputed API price, not a bill. */
@@ -35,11 +39,13 @@ interface Attribution {
   /** Null: a row filed before connections existed, whose connection is unknown. */
   connection: string | null;
   billing: UsageBilling;
+  route: string | null;
 }
 
 interface Accumulator {
   provider: string;
   billing: UsageBilling;
+  route: string | null;
   spend: SpendFigures | null;
   connectionSet: Set<string>;
   /** Only traffic in the last 30 days makes a row; older spend just adds to its 90-day total. */
@@ -56,30 +62,38 @@ function claudeConnection(entry: CostEntry): string | null {
   return entry.connection ?? (entry.mode === 'plan' ? SUBSCRIPTION_CONNECTION : null);
 }
 
-function memoBilling(billingOf: BillingOf): BillingOf {
-  const cache = new Map<string, ConnectionBilling>();
+function memo<T>(lookup: (ref: SelectionRef) => T): (ref: SelectionRef) => T {
+  const cache = new Map<string, T>();
   return (ref) => {
     const key = `${ref.backend}\u0000${ref.provider ?? ''}\u0000${ref.connection ?? ''}`;
-    let billing = cache.get(key);
-    if (billing === undefined) {
-      billing = billingOf(ref);
-      cache.set(key, billing);
-    }
-    return billing;
+    if (!cache.has(key)) cache.set(key, lookup(ref));
+    return cache.get(key)!;
   };
 }
 
-/** A PI provider is its own connection, and bills as its credential does. */
-function attribute(entry: CostEntry, billingOf: BillingOf): Attribution | null {
-  if ((entry.backend || 'claude') === 'pi') {
-    const provider = entry.provider;
-    if (!provider) return null;
-    return { provider, connection: provider, billing: usageBilling(billingOf({ backend: 'pi', provider, connection: null })) };
-  }
+interface Lookups {
+  billingOf: BillingOf;
+  accountOf: AccountOf;
+}
+
+/** A PI provider's default login is the provider itself; an account of it runs on a route of its
+ *  own. Each bills as its credential does. */
+function piAttribution(entry: CostEntry, lookups: Lookups): Attribution | null {
+  const provider = entry.provider;
+  if (!provider) return null;
+  const named = entry.connection && entry.connection !== provider ? entry.connection : null;
+  const route = named === null ? null : lookups.accountOf({ backend: 'pi', provider, connection: named });
+  const billing = usageBilling(lookups.billingOf({ backend: 'pi', provider, connection: route }));
+  return { provider, connection: route ?? provider, billing, route };
+}
+
+function attribute(entry: CostEntry, lookups: Lookups): Attribution | null {
+  if ((entry.backend || 'claude') === 'pi') return piAttribution(entry, lookups);
   const connection = claudeConnection(entry);
-  const billing = connection === null
-    ? 'api' : usageBilling(billingOf({ backend: 'claude', provider: null, connection }));
-  return { provider: entry.provider || 'anthropic', connection, billing };
+  const ref = { backend: 'claude' as const, provider: null, connection };
+  const billing = connection === null ? 'api' : usageBilling(lookups.billingOf(ref));
+  const route = connection === null ? null : lookups.accountOf(ref);
+  return { provider: entry.provider || 'anthropic', connection, billing, route };
 }
 
 interface Windows {
@@ -98,12 +112,12 @@ function windowsAt(now: Date): Windows {
   };
 }
 
-function accumulator(rows: Map<string, Accumulator>, { provider, billing }: Attribution): Accumulator {
-  const key = `${provider}\u0000${billing}`;
+function accumulator(rows: Map<string, Accumulator>, { provider, billing, route }: Attribution): Accumulator {
+  const key = `${provider}\u0000${billing}\u0000${route ?? ''}`;
   let row = rows.get(key);
   if (!row) {
     row = {
-      provider, billing, connectionSet: new Set(), recent: false,
+      provider, billing, route, connectionSet: new Set(), recent: false,
       spend: billing === 'api' ? { today: 0, month: 0, all: 0 } : null,
     };
     rows.set(key, row);
@@ -132,18 +146,24 @@ function settle(row: Accumulator): LedgerSpendRow {
   const spend = row.spend && {
     today: roundCost(row.spend.today), month: roundCost(row.spend.month), all: roundCost(row.spend.all),
   };
-  return { provider: row.provider, billing: row.billing, connections: [...row.connectionSet].sort(), spend };
+  return {
+    provider: row.provider, billing: row.billing, ...(row.route ? { route: row.route } : {}),
+    connections: [...row.connectionSet].sort(), spend,
+  };
 }
 
-/** Rows for every (provider, billing) with traffic in the last 30 days, from the ledger's last 90. */
-export function ledgerSpend(entries: readonly CostEntry[], billingOf: BillingOf, now: Date): LedgerSpendRow[] {
+/** Rows for every (provider, billing, account) with traffic in the last 30 days, from the ledger's
+ *  last 90. */
+export function ledgerSpend(
+  entries: readonly CostEntry[], billingOf: BillingOf, now: Date, accountOf: AccountOf = () => null,
+): LedgerSpendRow[] {
   const windows = windowsAt(now);
-  const billing = memoBilling(billingOf);
+  const lookups: Lookups = { billingOf: memo(billingOf), accountOf: memo(accountOf) };
   const rows = new Map<string, Accumulator>();
   for (const entry of entries) {
     const at = Date.parse(entry.timestamp);
     if (!(at >= windows.ledgerStart)) continue;
-    const attribution = attribute(entry, billing);
+    const attribution = attribute(entry, lookups);
     if (attribution) addEntry(accumulator(rows, attribution), entry, at, windows, attribution.connection);
   }
   return [...rows.values()].filter((row) => row.recent).map(settle);

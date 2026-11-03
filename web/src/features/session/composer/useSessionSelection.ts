@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { EngineSelection } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { defaultConnectionFor, hasRoute, selectionForModel } from '@/lib/model-selection';
+import { hasRoute, selectionForModel } from '@/lib/model-selection';
+import { useConnectionNames } from '@/lib/useConnectionNames';
 import { useToastOptional } from '@/design';
-import { fmt, useVocab } from '@/i18n';
+import { useVocab } from '@/i18n';
 import {
   agentChange, buildAgentOptions, buildConnectionOptions, buildModelOptions, buildFavoriteOptions,
-  buildThinkingOptions, connectionChange, groupModelOptions, selectionRootRows, thinkingChange,
+  buildThinkingOptions, defaultConnectionLabel, connectionChange, groupModelOptions, selectionRootRows, thinkingChange,
   type ModelOption, type SelectionPane,
 } from '@/features/session/list/selection-menu';
 import {
@@ -79,15 +80,19 @@ function useApplySelection(input: SessionSelectionInput, mutations: ReturnType<t
 
 const EMPTY_ENGINE: EngineSelection = { backend: 'claude', provider: null, model: '', thinking: null, connection: null };
 
-function useSelectionData(input: SessionSelectionInput, open: boolean) {
+function useSelectionData(input: SessionSelectionInput, open: boolean, L: ReturnType<typeof useVocab>) {
   const trpc = useTRPC();
   const config = useQuery(trpc.config.get.queryOptions({}));
   const catalogQuery = useQuery(trpc.models.catalog.queryOptions({}, { enabled: open }));
+  const names = useConnectionNames(L.wbConnectionSubscription, open);
   const transition = resolveTransitionSelection(input.currentSelection, input.pendingCreatedSession, input.sessionId);
   const selection = input.isDraft ? input.draftSelection.selection : transition;
   const agentName = (input.isDraft ? input.draftSelection.agentName
     : resolveTransitionAgent(input.currentAgent, input.pendingCreatedSession, input.sessionId)) ?? null;
-  return { config: config.data, catalogQuery, effective: selection ?? config.data?.models.default ?? EMPTY_ENGINE, agentName };
+  return {
+    config: config.data, catalogQuery, names,
+    effective: selection ?? config.data?.models.default ?? EMPTY_ENGINE, agentName,
+  };
 }
 
 function selectionOptions(data: ReturnType<typeof useSelectionData>, hasHistory: boolean, L: ReturnType<typeof useVocab>) {
@@ -96,17 +101,20 @@ function selectionOptions(data: ReturnType<typeof useSelectionData>, hasHistory:
   const catalog = data.catalogQuery.data ?? null;
   const agents = data.config?.agents ?? [];
   const thinkingOptions = buildThinkingOptions(catalog, effective);
-  const fallback = defaultConnectionFor(catalog, effective);
-  const connectionDefault = fallback ? fmt(L.wbConnectionDefault, { connection: fallback }) : L.wbThinkingDefault;
-  const connectionOptions = buildConnectionOptions(catalog, effective, connectionDefault);
+  const names = data.names[effective.backend];
+  const connectionDefault = defaultConnectionLabel(catalog, effective, names, {
+    withConnection: L.wbConnectionDefault, plain: L.wbThinkingDefault,
+  });
+  const connectionOptions = buildConnectionOptions(catalog, effective, connectionDefault, names);
   const copy = { model: L.wbModel, thinking: L.wbThinking, connection: L.wbConnection, default: L.wbThinkingDefault, connectionDefault };
   return {
     models, catalog, agents, effective, agentName, hasHistory,
     favoriteOptions: buildFavoriteOptions(models, effective, { hasHistory, catalog }),
     modelGroups: groupModelOptions(buildModelOptions(catalog, models, effective, { hasHistory }), effective.backend),
     thinkingOptions, connectionOptions, agentOptions: buildAgentOptions(agents, { agentName }),
-    rootRows: selectionRootRows(effective, copy,
-      { hasThinking: thinkingOptions.length > 1, hasConnections: connectionOptions.length > 0 }),
+    rootRows: selectionRootRows(effective, copy, {
+      hasThinking: thinkingOptions.length > 1, hasConnections: connectionOptions.length > 0, connectionNames: names,
+    }),
     modelsReady: !data.catalogQuery.isLoading && !data.catalogQuery.data?.piPending,
     catalogLoading: data.catalogQuery.isLoading,
   };
@@ -137,7 +145,7 @@ function useModelActions(data: ReturnType<typeof useSelectionData>, mutations: R
 export function useSessionSelection(input: SessionSelectionInput) {
   const L = useVocab();
   const picker = usePickerState();
-  const data = useSelectionData(input, picker.open);
+  const data = useSelectionData(input, picker.open, L);
   const mutations = useSelectionMutations();
   const apply = useApplySelection(input, mutations);
   const options = selectionOptions(data, !input.isDraft && input.hasHistory, L);

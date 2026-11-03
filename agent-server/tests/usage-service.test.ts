@@ -233,7 +233,7 @@ describe('UsageService active Codex account reads', () => {
       windows, observedAt: Math.floor(NOW.getTime() / 1000), freshness: 'live', billing: 'subscription',
       resetCredits: RESETS,
     });
-    assert.deepEqual(releaseThrottle.mock.calls, [['openai-codex', windows]]);
+    assert.deepEqual(releaseThrottle.mock.calls, [['openai-codex', windows, 'openai-codex']]);
   });
 
   test('a failed account read degrades to the observed row with a note and keeps known reset credits', async () => {
@@ -314,7 +314,7 @@ describe('UsageService active Claude account reads', () => {
       resetCredits: RESETS,
     });
     assert.equal(anthropicRow(await service.getStatus())?.freshness, 'live');
-    assert.deepEqual(releaseThrottle.mock.calls, [['anthropic', windows]]);
+    assert.deepEqual(releaseThrottle.mock.calls, [['anthropic', windows, 'subscription']]);
   });
 
   test('a reading creates the row without traffic or history; model-scoped windows stay internal', async () => {

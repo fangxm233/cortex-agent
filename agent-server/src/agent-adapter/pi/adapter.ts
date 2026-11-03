@@ -61,10 +61,11 @@ function staleCodexUsage(record: ProviderUsage): ProviderUsage {
 export interface PIAdapterHooks {
   /** PI agent dir (auth.json, models.json) for every session this instance creates. */
   agentDir?: string;
-  /** The provider catalog sessions run with: base-URL overrides and user-defined providers, with
-   *  their keys. Injected, never defaulted: the host's connections and PI home are exactly the
-   *  ambient reach a trial must not have. Left unset, the agent dir's catalog is not touched. */
-  catalog?: () => PiProviderCatalog;
+  /** The provider catalog sessions over an agent dir run with: base-URL overrides and user-defined
+   *  providers, with their keys. Injected, never defaulted: the host's connections and PI home are
+   *  exactly the ambient reach a trial must not have. Left unset, the agent dir's catalog is not
+   *  touched. */
+  catalog?: (agentDir: string) => PiProviderCatalog;
   /** Daemon-owned push usage cache. Trials omit it and observe only a cold state. */
   usageStore?: Pick<UsageStore, 'get' | 'update'>;
   /** Host throttle entry point for Codex quota windows read off provider responses. Injected
@@ -90,7 +91,7 @@ export class PIAdapter implements EngineAdapter {
   /** Injected PI home, or undefined when the caller left it to the daemon default. */
   private readonly configuredAgentDir: string | undefined;
   /** Injected catalog source, or undefined when this instance writes no catalog. */
-  private readonly catalog: (() => PiProviderCatalog) | undefined;
+  private readonly catalog: ((agentDir: string) => PiProviderCatalog) | undefined;
   private readonly usageStore: Pick<UsageStore, 'get' | 'update'> | undefined;
   private readonly submitRateLimit: SubmitRateLimit | undefined;
   private readonly subagent: PiSubagentBridge | undefined;
@@ -117,7 +118,8 @@ export class PIAdapter implements EngineAdapter {
 
   async getUsage(scope: AgentUsageScope): Promise<ProviderUsage[] | null> {
     if (scope.provider !== CODEX_PROVIDER || !scope.mode) return null;
-    const cached = await this.usageStore?.get(CODEX_PROVIDER) ?? null;
+    // The default login's row: an account's readings land on rows of their own.
+    const cached = await this.usageStore?.get(CODEX_PROVIDER, 'subscription') ?? null;
     return [cached ? staleCodexUsage(cached) : neverCodexUsage(scope.mode)];
   }
 
@@ -133,7 +135,7 @@ export class PIAdapter implements EngineAdapter {
   private writeCatalog(agentDir: string): void {
     if (!this.catalog) return;
     try {
-      writeProviderCatalog(this.catalog(), {
+      writeProviderCatalog(this.catalog(agentDir), {
         agentDir, oauthProviders: readOAuthProviders(piAuthPath(agentDir)),
       });
     } catch (error) {
@@ -146,9 +148,14 @@ export class PIAdapter implements EngineAdapter {
     this.writeCatalog(agentDir);
   }
 
-  /** The PI agent dir this adapter routes and authenticates through. */
+  /** The PI agent dir this adapter routes and authenticates through by default. */
   get agentDir(): string {
     return this.configuredAgentDir ?? PI_AGENT_DIR;
+  }
+
+  /** A spec on an account runs over that account's agent dir; any other over the adapter's own. */
+  private agentDirFor(spec: EngineSpec): string {
+    return spec.route.piAgentDir ?? this.agentDir;
   }
 
   /**
@@ -158,22 +165,23 @@ export class PIAdapter implements EngineAdapter {
    * side effect of {@link prepareRequest} — so a `pi` child delegated from a `claude` parent would
    * find no catalog in this daemon's lifetime.
    */
-  ensureCatalog(): void {
-    this.syncAgentDir(this.agentDir);
+  ensureCatalog(agentDir: string = this.agentDir): void {
+    this.syncAgentDir(agentDir);
   }
 
-  /** The models sessions of this adapter can run: the catalog brought up to date, then scanned
+  /** The models sessions over an agent dir can run: the catalog brought up to date, then scanned
    *  through the same credential store, models.json and runtime keys a session uses. */
-  scanModels(): Promise<PiDiscoveredModel[]> {
-    this.ensureCatalog();
-    return scanAgentDirModels(this.agentDir);
+  scanModels(agentDir: string = this.agentDir): Promise<PiDiscoveredModel[]> {
+    this.ensureCatalog(agentDir);
+    return scanAgentDirModels(agentDir);
   }
 
   /** The one construction of a `PiSessionRequest`; `specIdentity` and `prepareRequest` both come
    *  through here so the identity the pool compares can never drift from the request `open` builds. */
   private buildRequest(spec: EngineSpec, sessionPath: string | null): PiSessionRequest {
     return buildSessionRequest(spec, {
-      agentDir: this.agentDir,
+      agentDir: this.agentDirFor(spec),
+      homeAgentDir: this.agentDir,
       sessionDir: this.sessionDir,
       sessionPath,
       cwd: resolveSpawnCwd(spec.cwd),
@@ -189,7 +197,7 @@ export class PIAdapter implements EngineAdapter {
   }
 
   private prepareRequest(spec: EngineSpec): PiSessionRequest {
-    const agentDir = this.agentDir;
+    const agentDir = this.agentDirFor(spec);
     mkdirSync(this.sessionDir, { recursive: true });
     const sessionPath = this.resolveSpawnSessionPath(spec, this.sessionDir);
     this.syncAgentDir(agentDir);

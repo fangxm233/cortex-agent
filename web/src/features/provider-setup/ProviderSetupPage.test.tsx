@@ -25,7 +25,7 @@ const initialConnection = { serverUrl: 'http://127.0.0.1:3004', token: 'fixture-
 const emptyModels: ConfigModels = { default: null, favorites: [], memory: {} };
 const catalog = async () => ({ routes: [], piPending: false });
 function pageFixture(defaultModel = '') {
-  const status = vi.fn().mockResolvedValue({ accounts: [{ backend: 'pi', provider: 'openai', label: 'OpenAI',
+  const status = vi.fn().mockResolvedValue({ accounts: [{ backend: 'pi', provider: 'openai', label: 'OpenAI', connection: null, isDefault: true, identity: null,
     state: 'logged-in', capabilities: ['oauth'], credentials: [] }], piRuntime: { available: true } });
   const ref = { backend: 'pi', provider: 'openai', model: 'fixture-model' } as const;
   const config = vi.fn().mockResolvedValue({ models: {
@@ -203,7 +203,7 @@ it('always offers warned skip, disables unready continuation and refreshes login
 });
 it('opens the login target for the tapped provider row', async () => {
   const accounts = ['anthropic', 'openai-codex', 'openai', 'deepseek', 'custom-provider'].map(provider => ({
-    backend: 'pi', provider, label: provider, capabilities: ['api_key'], authType: null,
+    backend: 'pi', provider, label: provider, connection: null, isDefault: true, identity: null, capabilities: ['api_key'], authType: null,
     state: 'logged-out', source: null, expiresAt: null, refreshExpiresAt: null, inUse: false, credentials: [],
   } as AuthAccountStatus));
   const controller = new ProviderSetupController({

@@ -47,6 +47,13 @@ export const providersEn = {
   'provider.issue.key-required': 'A Claude connection needs an API key.',
   'provider.issue.not-found': 'No such connection.',
   'provider.issue.write-failed': 'Writing the connections file failed.',
+
+  'account.issue.label-required': 'An account needs a name.',
+  'account.issue.provider-required': 'Choose the provider the account signs in to.',
+  'account.issue.not-supported': 'This provider cannot sign in that way.',
+  'account.issue.not-found': 'No such account.',
+  'account.issue.write-failed': 'Writing the connections file failed.',
+  'account.issue.login-failed': 'The login could not start.',
 };
 
 export const providersZh: Record<keyof typeof providersEn, string> = {
@@ -95,4 +102,11 @@ export const providersZh: Record<keyof typeof providersEn, string> = {
   'provider.issue.key-required': 'Claude 连接必须填写 API key。',
   'provider.issue.not-found': '没有这个连接。',
   'provider.issue.write-failed': '写入连接文件失败。',
+
+  'account.issue.label-required': '账号必须填写名称。',
+  'account.issue.provider-required': '请选择账号要登录的 provider。',
+  'account.issue.not-supported': '这个 provider 不支持这种登录方式。',
+  'account.issue.not-found': '没有这个账号。',
+  'account.issue.write-failed': '写入连接文件失败。',
+  'account.issue.login-failed': '无法开始登录。',
 };

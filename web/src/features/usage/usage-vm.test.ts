@@ -277,7 +277,7 @@ describe('banked resets', () => {
     }], null, NOW, 'en');
 
     expect(vm.providers[0].resets).toEqual({
-      provider: 'openai-codex', available: 2, nextExpiresAt: NOW + 29 * 86400 + 3 * 3600, nextExpiresIn: '29d 3h',
+      provider: 'openai-codex', connection: null, available: 2, nextExpiresAt: NOW + 29 * 86400 + 3 * 3600, nextExpiresIn: '29d 3h',
       confirm: CODEX_CONFIRM,
     });
   });
@@ -285,7 +285,7 @@ describe('banked resets', () => {
   it('falls back to the reported count when the credit list is unknown, and is absent without reset info', () => {
     const counted = buildUsageView([{ ...codex, resetCredits: { availableCount: 1, credits: [] } }], null, NOW, 'en');
     expect(counted.providers[0].resets).toEqual({
-      provider: 'openai-codex', available: 1, nextExpiresAt: null, nextExpiresIn: null, confirm: CODEX_CONFIRM,
+      provider: 'openai-codex', connection: null, available: 1, nextExpiresAt: null, nextExpiresIn: null, confirm: CODEX_CONFIRM,
     });
     expect(buildUsageView([codex], null, NOW, 'en').providers[0].resets).toBeNull();
   });
@@ -320,6 +320,34 @@ describe('banked resets', () => {
     expect(vm.providers[0].resets?.confirm).toEqual([
       '将清空整个账号的 用量 限额，claude.ai 与其他所有设备一并生效，且无法撤销。',
     ]);
+  });
+
+  it('keeps a row per account and spends a reset on the row\'s own account', () => {
+    const own = { ...claude, billing: 'subscription' as const };
+    const school = {
+      ...own, route: 'school', label: 'School', displayName: 'Anthropic (School)',
+      resetCredits: { availableCount: 1, credits: [] },
+    };
+    const vm = buildUsageView([school, own], null, NOW, 'en');
+    expect(vm.providers.map((row) => [row.key, row.displayName])).toEqual([
+      ['anthropic::subscription', 'Anthropic'],
+      ['anthropic::subscription::school', 'Anthropic (School)'],
+    ]);
+    expect(vm.providers[1].resets).toMatchObject({ provider: 'anthropic', connection: 'school' });
+  });
+
+  it('keeps a row per PI account: a Codex account spends its own resets, a metered account shows its spend', () => {
+    const lab = {
+      ...codex, billing: 'subscription' as const, route: 'codex-lab', label: 'Lab', displayName: 'OpenAI Codex (Lab)',
+      resetCredits: { availableCount: 1, credits: [] },
+    };
+    const work = { ...status[2], billing: 'api' as const, route: 'ds-work', label: 'Work', displayName: 'DeepSeek (Work)' };
+    const vm = buildUsageView([lab, { ...codex, billing: 'subscription' as const }, work, status[2]], null, NOW, 'en');
+    const rows = Object.fromEntries(vm.providers.map((row) => [row.displayName, row]));
+    expect(Object.keys(rows).sort()).toEqual(['DeepSeek', 'DeepSeek (Work)', 'OpenAI Codex', 'OpenAI Codex (Lab)']);
+    expect(rows['OpenAI Codex (Lab)'].resets).toMatchObject({ provider: 'openai-codex', connection: 'codex-lab', available: 1 });
+    expect(rows['OpenAI Codex'].resets).toBeNull();
+    expect(rows['DeepSeek (Work)'].key).not.toBe(rows.DeepSeek.key);
   });
 
   it('offers no reset to spend on a metered row', () => {

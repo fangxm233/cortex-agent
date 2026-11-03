@@ -26,7 +26,7 @@ function piAccount(
 ): AuthAccountStatus {
   const current = credentials[0] ?? null;
   return {
-    backend: 'pi', provider, label: provider.toUpperCase(), capabilities,
+    backend: 'pi', provider, label: provider.toUpperCase(), connection: null, isDefault: true, identity: null, capabilities,
     authType: current?.authType ?? null, state: current?.state ?? 'logged-out', source: current?.source ?? null,
     expiresAt: current?.expiresAt ?? null, refreshExpiresAt: null, inUse: false, credentials,
     detail: 'sentinel-account-fragment', ...overrides,
@@ -36,7 +36,7 @@ function piAccount(
 function claude(credentials: AuthCredentialStatus[], overrides: Partial<AuthAccountStatus> = {}): AuthAccountStatus {
   const current = credentials[0] ?? null;
   return {
-    backend: 'claude', provider: 'anthropic', label: 'Anthropic', capabilities: ['api_key', 'oauth'],
+    backend: 'claude', provider: 'anthropic', label: 'Anthropic', connection: null, isDefault: true, identity: null, capabilities: ['api_key', 'oauth'],
     authType: current?.authType ?? null, state: current?.state ?? 'logged-out', source: current?.source ?? null,
     expiresAt: current?.expiresAt ?? null, refreshExpiresAt: null, inUse: true, credentials, ...overrides,
   };
@@ -144,5 +144,47 @@ describe('account copy helpers', () => {
     expect(expiryText('2031-03-10T12:00:00.000Z', now, 'en', en)).toBe('expires Mar 10 2031');
     expect(expiryText('2029-12-01T00:00:00.000Z', now, 'en', en)).toBe('Expired');
     expect(expiryText(null, now, 'en', en)).toBeNull();
+  });
+});
+
+describe('named accounts', () => {
+  const identity = { email: 'me@school.edu', organization: 'School', plan: 'claude_team' };
+
+  function claudeAccount(connection: string, label: string, overrides: Partial<AuthAccountStatus> = {}): AuthAccountStatus {
+    return claude([credential('oauth', 'credentials.json', true)], {
+      connection, isDefault: false, label, identity, capabilities: ['oauth'], authType: 'oauth', inUse: false, ...overrides,
+    });
+  }
+
+  it('lists Claude accounts under the default login, never as their own group', () => {
+    const vm = buildAccountsVm(snapshot([
+      claude([credential('oauth', 'credentials.json', true)], { authType: 'oauth', identity: { email: 'me@home.com', organization: null, plan: 'claude_max' } }),
+      claudeAccount('school', 'School'),
+      claudeAccount('lab', 'Lab', { state: 'logged-out', authType: null, credentials: [], identity: null }),
+    ]));
+
+    expect(vm.claude?.identity).toBe('me@home.com · claude_max');
+    expect(vm.claude?.addTypes).toEqual(['oauth']);
+    expect(vm.claude?.accounts).toEqual([
+      expect.objectContaining({ connection: 'school', label: 'School', identity: 'me@school.edu · claude_team', connected: true, loginType: 'oauth', canLogout: true }),
+      expect.objectContaining({ connection: 'lab', label: 'Lab', identity: null, connected: false, loginType: 'oauth', canLogout: false }),
+    ]);
+  });
+
+  it('groups PI accounts under their provider and keeps a provider with only accounts connected', () => {
+    const vm = buildAccountsVm(snapshot([
+      piAccount('openai-codex', ['oauth'], [credential('oauth', 'stored', true)]),
+      piAccount('openai-codex', ['oauth'], [credential('oauth', 'stored', true)], { connection: 'codex-lab', isDefault: false, label: 'Lab ChatGPT' }),
+      piAccount('deepseek', ['api_key'], []),
+      piAccount('deepseek', ['api_key'], [credential('api_key', 'stored', true)], { connection: 'ds-work', isDefault: false, label: 'Work' }),
+      piAccount('groq', ['api_key'], []),
+    ]));
+
+    expect(vm.connected.map(item => [item.provider, item.connected, item.accounts.map(account => account.connection)])).toEqual([
+      ['deepseek', false, ['ds-work']],
+      ['openai-codex', true, ['codex-lab']],
+    ]);
+    expect(vm.connected[0].addTypes).toEqual(['api_key']);
+    expect(vm.available.map(item => item.provider)).toEqual(['groq']);
   });
 });

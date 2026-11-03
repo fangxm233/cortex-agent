@@ -107,6 +107,8 @@ export const enBase = {
   // The Claude connection a conversation runs on (the subscription, an API key, a relay).
   wbConnection: 'Connection',
   wbConnectionDefault: 'Default ({connection})',
+  // Claude's default login in a connection list, when the email it is signed in as is unknown.
+  wbConnectionSubscription: 'Claude subscription',
   // The environment axis: which agent template a conversation runs in (prompt, tools, skills).
   wbAgent: 'Agent',
   wbAgentDefault: 'Default',

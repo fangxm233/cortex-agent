@@ -30,6 +30,7 @@ export function rateLimitedResult(route: string, provider: string): AgentResult 
   return {
     sessionId: null, total_cost_usd: null, num_turns: null,
     rateLimited: true, rateLimitMessage: `Connection ${route} is rate-limited`, rateLimitProvider: provider,
+    rateLimitRoute: route,
     planFilePath: null, enteredPlanMode: false, exitedPlanMode: false, finalOutput: null,
   };
 }

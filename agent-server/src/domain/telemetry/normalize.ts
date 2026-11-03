@@ -5,7 +5,7 @@ import { ANTHROPIC_MODELS } from '@core/anthropic-models.js';
 import { loadPiSdk } from '@core/pi-sdk.js';
 import { readCustomProviderEntries } from '../../agent-adapter/pi/custom-catalog.js';
 import { USER_PI_MODELS_PATH } from '../../agent-adapter/pi/agent-dir.js';
-import { isPiCustomConnection, readConnections } from '@core/connections-file.js';
+import { isPiCustomConnection, piProviderConnections, readConnections } from '@core/connections-file.js';
 import { TELEMETRY_CUSTOM, TELEMETRY_MCP_OTHER, TELEMETRY_OTHER } from './schema.js';
 
 /**
@@ -83,8 +83,8 @@ interface CatalogModel { provider: string; id: string }
 function customProviderApis(modelsPath: string): Map<string, string> {
   const entries = readCustomProviderEntries(modelsPath);
   const apis = new Map(Object.entries(entries).map(([name, entry]) => [name, String(entry.api)]));
-  for (const connection of readConnections()) {
-    if (connection.backend === 'pi' && isPiCustomConnection(connection)) apis.set(connection.provider, connection.api);
+  for (const connection of piProviderConnections(readConnections())) {
+    if (isPiCustomConnection(connection)) apis.set(connection.provider, connection.api);
   }
   return apis;
 }

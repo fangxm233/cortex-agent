@@ -5,7 +5,7 @@
 // is the caller's.
 
 import {
-  CONNECTION_ID_RE, LEGACY_SUBSCRIPTION_MODE, SUBSCRIPTION_CONNECTION, connectionKey,
+  CONNECTION_ID_RE, LEGACY_SUBSCRIPTION_MODE, SUBSCRIPTION_CONNECTION, claudeKeyConnections, connectionKey,
   type ClaudeAuthStyle, type ClaudeKeyConnection, type PiCustomConnection, type PiModelDefinition,
   type StoredConnection,
 } from '@core/connections-file.js';
@@ -186,9 +186,9 @@ function attachClaudeModels(plan: ConnectionsPlan): void {
     .filter((entry): entry is PiCustomConnection => entry.backend === 'pi' && 'api' in entry)
     .filter((entry) => entry.api === 'anthropic-messages')
     .map((entry) => [entry.id, entry.models.map((model) => model.id)]));
-  for (const connection of plan.connections) {
-    const models = connection.backend === 'claude' ? customs.get(connection.id) : undefined;
-    if (connection.backend === 'claude' && models?.length) connection.models = models;
+  for (const connection of claudeKeyConnections(plan.connections)) {
+    const models = customs.get(connection.id);
+    if (models?.length) connection.models = models;
   }
 }
 
@@ -196,7 +196,7 @@ function attachClaudeModels(plan: ConnectionsPlan): void {
  *  ever applied with that key (or with none). */
 function retiredDotenvKeys(sources: LegacySources, plan: ConnectionsPlan): string[] {
   const key = text(sources.dotenv.ANTHROPIC_API_KEY);
-  const held = !key || plan.connections.some((entry) => entry.backend === 'claude' && entry.key === key);
+  const held = !key || claudeKeyConnections(plan.connections).some((entry) => entry.key === key);
   if (!held) return [];
   return ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL'].filter((name) => name in sources.dotenv);
 }

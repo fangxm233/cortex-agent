@@ -4,9 +4,12 @@
 // closed and no Claude run has started for ten minutes, one tiny request through Claude Code opens
 // the next window, so it closes five hours from now instead of five hours from whenever work
 // resumes. Claude Code refreshes its login on the way, which keeps the account usage readable.
+// Each subscription login (the default and every signed-in account) has its own window and is
+// watched separately.
 
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
+import { accountIdOf } from '@core/connections-file.js';
 import { createLogger } from '@core/log.js';
 import { runRegistry } from '@core/run-registry.js';
 import { getSettings } from '@core/settings.js';
@@ -42,7 +45,8 @@ export interface WarmupState {
 
 export interface WarmupDeps {
   enabled(): boolean;
-  /** The Claude subscription connection a warm-up runs on; null when there is none. */
+  /** The Claude subscription login a warm-up runs on (`subscription` or an account); null when
+   *  there is none. */
   connection(): string | null;
   windowEnd(): Promise<WindowEnd>;
   claudeRunning(): boolean;
@@ -93,7 +97,7 @@ async function warmUp(state: WarmupState, deps: WarmupDeps, connection: string):
     return false;
   }
   state.lastActivity = deps.now();
-  log.info('Claude five-hour window warmed up');
+  log.info(`Claude five-hour window warmed up (${connection})`);
   await deps.collectUsage().catch((error) => log.warn(`usage refresh failed: ${(error as Error).message}`));
   return true;
 }
@@ -111,37 +115,81 @@ export async function tickWindowWarmup(state: WarmupState, deps: WarmupDeps = pr
   return warmUp(state, deps, connection);
 }
 
+/** One pass over several subscription logins, each with its own state; a login no longer
+ *  listed drops its state. */
+export async function tickAllWindowWarmups(
+  states: Map<string, WarmupState>,
+  connections: string[],
+  depsFor: (connection: string) => WarmupDeps,
+): Promise<void> {
+  for (const id of [...states.keys()]) if (!connections.includes(id)) states.delete(id);
+  for (const connection of connections) {
+    const state = states.get(connection) ?? newWarmupState();
+    states.set(connection, state);
+    await tickWindowWarmup(state, depsFor(connection));
+  }
+}
+
 // --- Production wiring ---
 
-/** The launch a subscription turn would get: same config dir, route and credentials. It runs
- *  in a scratch directory so no project instructions ride along. */
+/** The launch a turn on this connection would get: same config dir, route and credentials. It
+ *  runs in a scratch directory so no project instructions ride along. */
 export function warmupLaunch(connection: string): WindowWarmupLaunch {
   const route = resolveClaudeRoute(connection);
   const { sets, unsets } = routeEnvFields(route);
   const env = buildClaudeEnv(
-    WARMUP_CHANNEL, randomUUID(), null, null, route.baseUrl, sets, undefined, undefined, unsets,
+    WARMUP_CHANNEL, randomUUID(), null, null, route.baseUrl, sets, undefined, undefined, unsets, route.configDir,
   );
   return { command: 'claude', env, cwd: tmpdir() };
 }
 
+/** A Claude run signed in as this account; `null` is the default login (and key connections). */
+function claudeRunningAs(account: string | null): boolean {
+  return runRegistry.getAll().some((run) => run.backend === 'claude' && (run.account ?? null) === account);
+}
+
+/** Warm-up deps for one subscription login: the default `subscription` or a signed-in account. */
+export function connectionWarmupDeps(connection: string): WarmupDeps {
+  const account = accountIdOf(connection);
+  return {
+    enabled: () => getSettings().claudeWindowWarmupEnabled,
+    connection: () => connection,
+    windowEnd: async () => fiveHourEnd(await usageStore.get('anthropic', 'subscription', account ?? undefined)),
+    claudeRunning: () => claudeRunningAs(account),
+    warm: (target) => runWindowWarmup(warmupLaunch(target)),
+    collectUsage: () => usageService.collect(),
+    now: () => Date.now(),
+  };
+}
+
 export const productionWarmupDeps: WarmupDeps = {
-  enabled: () => getSettings().claudeWindowWarmupEnabled,
+  ...connectionWarmupDeps(SUBSCRIPTION_CONNECTION),
   connection: () => (credentialInventory.findClaude(SUBSCRIPTION_CONNECTION) ? SUBSCRIPTION_CONNECTION : null),
-  windowEnd: async () => fiveHourEnd(await usageStore.get('anthropic', 'subscription')),
-  claudeRunning: () => runRegistry.getAll().some((run) => run.backend === 'claude'),
-  warm: (connection) => runWindowWarmup(warmupLaunch(connection)),
-  collectUsage: () => usageService.collect(),
-  now: () => Date.now(),
 };
 
-const loopState = newWarmupState();
+/** The subscription logins a warm-up can open a window for: the default, then each account. */
+function warmupConnections(): string[] {
+  return credentialInventory.claudeConnections()
+    .filter((view) => view.kind === 'subscription' || view.kind === 'account')
+    .map((view) => view.id);
+}
+
+const loopStates = new Map<string, WarmupState>();
 let timer: NodeJS.Timeout | null = null;
 let running = false;
+
+async function tickProductionWarmups(): Promise<void> {
+  if (!getSettings().claudeWindowWarmupEnabled) {
+    for (const state of loopStates.values()) state.watchingSince = null;
+    return;
+  }
+  await tickAllWindowWarmups(loopStates, warmupConnections(), connectionWarmupDeps);
+}
 
 function arm(): void {
   timer = setTimeout(async () => {
     timer = null;
-    await tickWindowWarmup(loopState).catch((error) => log.error(`tick: ${(error as Error).message}`));
+    await tickProductionWarmups().catch((error) => log.error(`tick: ${(error as Error).message}`));
     if (running) arm();
   }, WARMUP_TICK_MS);
   timer.unref?.();

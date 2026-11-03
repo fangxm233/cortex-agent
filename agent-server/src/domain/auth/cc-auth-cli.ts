@@ -43,6 +43,8 @@ export type ClaudeAuthSpawn = (
 ) => ChildProcessWithoutNullStreams;
 
 export interface ClaudeAuthCliDependencies {
+  /** The config dir the command acts on: an account's own, else Cortex's. */
+  configDir?: string;
   executable?: string;
   spawn?: ClaudeAuthSpawn;
   timeoutMs?: number;
@@ -76,9 +78,13 @@ function withDetail(message: string, detail: string): string {
   return detail ? `${message.replace(/\.$/, '')}: ${detail}` : message;
 }
 
-/** Login, status and logout act on Cortex's own Claude config dir, never an inherited one. */
-export function buildClaudeAuthEnv(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { BROWSER: 'true', CLAUDE_CONFIG_DIR: CLAUDE_CONFIG_HOME };
+/** Login, status and logout act on Cortex's own Claude config dir or an account's, never an
+ *  inherited one. */
+export function buildClaudeAuthEnv(
+  source: NodeJS.ProcessEnv = process.env,
+  configDir: string = CLAUDE_CONFIG_HOME,
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { BROWSER: 'true', CLAUDE_CONFIG_DIR: configDir };
   for (const key of AUTH_ENV_ALLOWLIST) {
     if (source[key] !== undefined) env[key] = source[key];
   }
@@ -91,7 +97,7 @@ function spawnAuth(
 ): ChildProcessWithoutNullStreams {
   const spawn = dependencies.spawn ?? nodeSpawn;
   return spawn(dependencies.executable ?? 'claude', args, {
-    env: buildClaudeAuthEnv(dependencies.env),
+    env: buildClaudeAuthEnv(dependencies.env, dependencies.configDir),
     stdio: ['pipe', 'pipe', 'pipe'],
   });
 }

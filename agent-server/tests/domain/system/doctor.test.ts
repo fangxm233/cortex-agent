@@ -43,7 +43,7 @@ function healthyPiRuntime(login: unknown = async () => ({ type: 'api_key' })) {
 
 function authAccount(over: Partial<AuthAccountStatus> = {}): AuthAccountStatus {
   return {
-    backend: 'claude', provider: 'anthropic', label: 'Anthropic',
+    backend: 'claude', provider: 'anthropic', connection: null, isDefault: true, identity: null, label: 'Anthropic',
     capabilities: ['api_key', 'oauth'], authType: 'api_key', state: 'logged-in',
     source: 'env', expiresAt: null, refreshExpiresAt: null, inUse: true,
     credentials: [], ...over,
@@ -89,7 +89,7 @@ function baseDeps(over: Partial<DoctorDeps> = {}): DoctorDeps {
     loadPiRuntime: async () => healthyPiRuntime(),
     getAuthStatus: async () => authSnapshot(),
     defaultSelection: () => ({ backend: 'claude', connection: 'api' }),
-    claudeKeyConnections: () => ['api'],
+    claudeConnections: () => ['api'],
     ...over,
   };
 }
@@ -158,7 +158,7 @@ describe('runDiagnostics — auth tokens', () => {
 
 describe('runDiagnostics — Claude connection', () => {
   it('warns (not fail) when the default names a key connection that is not configured', async () => {
-    const report = await runDiagnostics(baseDeps({ claudeKeyConnections: () => [] }));
+    const report = await runDiagnostics(baseDeps({ claudeConnections: () => [] }));
     const check = byId(report)['claude-connection'];
     assert.equal(check.status, 'warn');
     assert.match(check.detail, /api/);
@@ -278,11 +278,24 @@ describe('runDiagnostics — backend authentication', () => {
     assert.equal(report.counts.warn, 0);
   });
 
+  it('passes when the default runs on a signed-in Claude account and the default login is out', async () => {
+    const checks = byId(await runDiagnostics(baseDeps({
+      defaultSelection: () => ({ backend: 'claude', connection: 'school' }),
+      claudeConnections: () => ['api', 'school'],
+      getAuthStatus: async () => authSnapshot([
+        authAccount({ authType: null, state: 'logged-out', source: null }),
+        authAccount({ connection: 'school', isDefault: false, label: 'School', authType: 'oauth', inUse: true }),
+      ]),
+    })));
+    assert.equal(checks['claude-connection'].status, 'pass');
+    assert.equal(checks['backend-auth'].status, 'pass');
+  });
+
   it('does not credit a key connection when the default runs on the subscription or names a missing one', async () => {
     const loggedOut = async () => authSnapshot([authAccount({ authType: null, state: 'logged-out', source: null })]);
     for (const over of [
       { defaultSelection: () => ({ backend: 'claude' as const, connection: 'subscription' }) },
-      { claudeKeyConnections: () => [] },
+      { claudeConnections: () => [] },
     ]) {
       const checks = byId(await runDiagnostics(baseDeps({ ...over, getAuthStatus: loggedOut })));
       assert.equal(checks['backend-auth'].status, 'warn');

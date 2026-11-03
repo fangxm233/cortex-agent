@@ -114,6 +114,8 @@ vi.mock('@/lib/trpc', () => ({
         resolveUnsent: mutation('sessions.resolveUnsent'),
       },
       config: { get: query('config.get') },
+      connections: { list: query('connections.list') },
+      auth: { status: query('auth.status') },
       models: { catalog: query('models.catalog'), favorites: { add: mutation('models.favorites.add'), remove: mutation('models.favorites.remove') } },
       schedules: { list: query('schedules.list') },
       // The composer's activity strip asks what this session is waiting on.

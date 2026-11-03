@@ -8,7 +8,7 @@ export interface EngineSelection {
   thinking: string | null;
   /**
    * Claude: the connection the run uses — `subscription` or a stored connection's id; null runs on
-   * the default connection. PI: always null, because the provider is the connection.
+   * the default connection. PI: one of the provider's accounts, or null for its default login.
    */
   connection: string | null;
 }
@@ -57,13 +57,11 @@ function validateConnection(selection: EngineSelection): void {
   const { backend, connection } = selection;
   if (connection === null) return;
   if (connection === undefined) throw new Error('Invalid connection: a selection must name one, or null for the default');
-  if (backend === 'pi') throw new Error('Invalid connection: a PI selection names no connection');
   if (typeof connection !== 'string' || !SAFE_NAME.test(connection)) throw new Error('Invalid connection');
 }
 
 /** Copy only the public selection fields, never retired or foreign configuration. */
 export function copySelection(selection: EngineSelection): EngineSelection {
   const { backend, provider, model, thinking } = selection;
-  const connection = backend === 'claude' ? selection.connection ?? null : null;
-  return { backend, provider, model, thinking, connection };
+  return { backend, provider, model, thinking, connection: selection.connection ?? null };
 }

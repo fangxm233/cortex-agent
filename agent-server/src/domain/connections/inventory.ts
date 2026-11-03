@@ -3,18 +3,21 @@
 // secret-free; the routing modules beside it are the only readers of the keys themselves.
 
 import {
-  claudeSubscriptionLogin, type ClaudeCredentialDeps, type ClaudeSubscriptionSource,
+  claudeOwnsOAuthCredential, claudeSubscriptionLogin, type ClaudeCredentialDeps, type ClaudeSubscriptionSource,
 } from '@core/claude-credentials.js';
 import {
-  CONNECTIONS_FILE, SUBSCRIPTION_CONNECTION, isPiCustomConnection, maskKey, readConnections,
-  type ClaudeAuthStyle, type ClaudeKeyConnection, type ConnectionBilling, type PiConnection,
-  type StoredConnection,
+  CONNECTIONS_FILE, SUBSCRIPTION_CONNECTION, isAccountConnection, isPiCustomConnection,
+  maskKey, piProviderConnections, readConnections,
+  type AccountConnection, type ClaudeAccountConnection, type ClaudeAuthStyle, type ClaudeKeyConnection,
+  type ConnectionBilling, type PiAccountConnection, type PiConnection,
 } from '@core/connections-file.js';
 import type { Backend } from '@core/types/agent-types.js';
 import { readOAuthProviders } from '../../agent-adapter/pi/chatgpt-signin.js';
 import { piAuthPath } from '../../agent-adapter/pi/defaults.js';
+import { claudeAccountDir } from './claude-account-dir.js';
+import { piAccountAuthType } from './pi-account-dir.js';
 
-export type ConnectionKind = 'subscription' | 'key' | 'override' | 'custom';
+export type ConnectionKind = 'subscription' | 'key' | 'override' | 'custom' | 'account';
 
 /** A connection as the UI, logs and every non-routing caller see it. Never carries a key. */
 export interface ConnectionView {
@@ -41,6 +44,10 @@ export interface InventoryDeps {
   claude?: ClaudeCredentialDeps;
   /** PI's credential store; its OAuth logins are subscriptions. */
   piAuthPath?: string;
+  /** Where Claude account config dirs live. */
+  claudeAccountsDir?: string;
+  /** Where PI account agent dirs live. */
+  piAccountsDir?: string;
 }
 
 export interface SelectionRef {
@@ -65,6 +72,14 @@ function claudeKeyView(connection: ClaudeKeyConnection): ConnectionView {
   };
 }
 
+/** An account bills as Claude's subscription does; it is listed only while it is signed in. */
+function claudeAccountView(connection: ClaudeAccountConnection): ConnectionView {
+  return {
+    id: connection.id, backend: 'claude', provider: null, kind: 'account', label: connection.label,
+    baseUrl: null, billing: 'subscription', authenticated: true, keyHint: null, models: null,
+  };
+}
+
 function piView(connection: PiConnection): ConnectionView {
   const custom = isPiCustomConnection(connection);
   return {
@@ -76,17 +91,40 @@ function piView(connection: PiConnection): ConnectionView {
   };
 }
 
-function viewOf(connection: StoredConnection): ConnectionView {
-  return connection.backend === 'claude' ? claudeKeyView(connection) : piView(connection);
+
+/** A PI account bills as the credential it signed in with: an OAuth login is a subscription, an
+ *  API key metered. Listed only while it is signed in. */
+function piAccountView(account: PiAccountConnection, authType: 'api_key' | 'oauth'): ConnectionView {
+  return {
+    id: account.id, backend: 'pi', provider: account.provider, kind: 'account', label: account.label,
+    baseUrl: null, billing: piAccountBilling(account.provider, authType), authenticated: true,
+    keyHint: null, models: null,
+  };
+}
+
+function piAccountViews(deps: InventoryDeps, accounts: AccountConnection[]): ConnectionView[] {
+  const views: ConnectionView[] = [];
+  for (const account of accounts) {
+    if (account.backend !== 'pi') continue;
+    const authType = piAccountAuthType(account, { accountsDir: deps.piAccountsDir });
+    if (authType) views.push(piAccountView(account, authType));
+  }
+  return views;
 }
 
 export interface CredentialInventory {
-  /** Every connection: Claude's subscription first when present, then the file in order. */
+  /** Every connection: Claude's subscription first when present, then the file in order, PI's
+   *  signed-in accounts last. */
   list(): ConnectionView[];
   claudeConnections(): ConnectionView[];
   piConnections(): ConnectionView[];
   findClaude(id: string): ConnectionView | null;
   findPi(provider: string): ConnectionView | null;
+  /** The signed-in PI accounts, of one provider when given, in file order. */
+  piAccounts(provider?: string): ConnectionView[];
+  /** Every account in file order, signed in or not; one whose first login is still running is not
+   *  an account yet. */
+  accounts(): AccountConnection[];
   /** Whether any Claude connection exists. */
   hasClaude(): boolean;
   /** Which credential Claude's subscription runs on; null when it is not signed in. */
@@ -97,37 +135,59 @@ export interface CredentialInventory {
   billingOf(ref: SelectionRef): ConnectionBilling;
 }
 
+/** Claude's subscription first when signed in, then the file's key connections and signed-in
+ *  accounts in file order. */
+function claudeViews(deps: InventoryDeps): ConnectionView[] {
+  const claudeDeps = deps.claude ?? {};
+  const signedIn = (account: ClaudeAccountConnection): boolean => claudeOwnsOAuthCredential({
+    ...claudeDeps, claudeConfigDir: claudeAccountDir(account.id, { accountsDir: deps.claudeAccountsDir }),
+  });
+  const views: ConnectionView[] = claudeSubscriptionLogin(claudeDeps) ? [subscriptionView()] : [];
+  for (const entry of readConnections(deps.file ?? CONNECTIONS_FILE)) {
+    if (entry.backend !== 'claude') continue;
+    if (!isAccountConnection(entry)) views.push(claudeKeyView(entry));
+    else if (!entry.pending && signedIn(entry)) views.push(claudeAccountView(entry));
+  }
+  return views;
+}
+
 export function createCredentialInventory(deps: InventoryDeps = {}): CredentialInventory {
   const claudeDeps = deps.claude ?? {};
-  const stored = (): StoredConnection[] => readConnections(deps.file ?? CONNECTIONS_FILE);
+  const stored = () => readConnections(deps.file ?? CONNECTIONS_FILE);
   const subscriptionSource = (): ClaudeSubscriptionSource | null => claudeSubscriptionLogin(claudeDeps)?.source ?? null;
-  const claudeConnections = (): ConnectionView[] => [
-    ...(subscriptionSource() ? [subscriptionView()] : []),
-    ...stored().filter((entry) => entry.backend === 'claude').map(viewOf),
-  ];
-  const piConnections = (): ConnectionView[] => stored().filter((entry) => entry.backend === 'pi').map(viewOf);
+  const claudeConnections = (): ConnectionView[] => claudeViews(deps);
+  const piConnections = (): ConnectionView[] => piProviderConnections(stored()).map(piView);
+  const accounts = (): AccountConnection[] => stored()
+    .filter((entry): entry is AccountConnection => isAccountConnection(entry) && !entry.pending);
   const findClaude = (id: string): ConnectionView | null => claudeConnections().find((view) => view.id === id) ?? null;
   const findPi = (provider: string): ConnectionView | null => piConnections().find((view) => view.provider === provider) ?? null;
   const piOAuth = (): Set<string> => readOAuthProviders(deps.piAuthPath ?? piAuthPath());
+  const piAccounts = (provider?: string): ConnectionView[] => piAccountViews(deps, accounts())
+    .filter((view) => provider === undefined || view.provider === provider);
   return {
-    list: () => [...claudeConnections(), ...piConnections()],
+    list: () => [...claudeConnections(), ...piConnections(), ...piAccounts()],
     claudeConnections,
     piConnections,
     findClaude,
     findPi,
+    piAccounts,
+    accounts,
     hasClaude: () => claudeConnections().length > 0,
     claudeSubscriptionSource: subscriptionSource,
     defaultClaudeConnection: () => claudeConnections()[0]?.id ?? null,
     billingOf: (ref) => (ref.backend === 'claude'
-      ? claudeBilling(ref.connection, claudeConnections())
-      : piBilling(ref.provider, findPi, piOAuth)),
+      ? claudeBilling(ref.connection, claudeConnections(), accounts())
+      : piAccounts(ref.provider ?? undefined).find((view) => view.id === ref.connection)?.billing
+        ?? piBilling(ref.provider, findPi, piOAuth)),
   };
 }
 
-/** A selection naming no connection runs on the default one (see defaultClaudeConnection). */
-function claudeBilling(connection: string | null, views: ConnectionView[]): ConnectionBilling {
+/** A selection naming no connection runs on the default one (see defaultClaudeConnection). An
+ *  account is a subscription whether or not it is signed in right now. */
+function claudeBilling(connection: string | null, views: ConnectionView[], accounts: AccountConnection[]): ConnectionBilling {
   const id = connection ?? views[0]?.id ?? SUBSCRIPTION_CONNECTION;
   if (id === SUBSCRIPTION_CONNECTION) return 'subscription';
+  if (accounts.some((account) => account.backend === 'claude' && account.id === id)) return 'subscription';
   return views.find((view) => view.id === id)?.billing ?? 'metered';
 }
 
@@ -137,6 +197,10 @@ function claudeBilling(connection: string | null, views: ConnectionView[]): Conn
 const SUBSCRIPTION_ONLY_PI_PROVIDERS: ReadonlySet<string> = new Set([
   'openai-codex', 'google-gemini-cli', 'google-antigravity',
 ]);
+
+function piAccountBilling(provider: string, authType: 'api_key' | 'oauth'): ConnectionBilling {
+  return SUBSCRIPTION_ONLY_PI_PROVIDERS.has(provider) || authType === 'oauth' ? 'subscription' : 'metered';
+}
 
 /** A PI provider whose Cortex connection carries a key is metered: that key is what PI sends.
  *  Otherwise — no connection, or one that only moves the endpoint — PI sends its own credential:

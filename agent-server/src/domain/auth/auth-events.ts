@@ -14,8 +14,8 @@ const pendingRecovery = new Set<string>();
 type AuthBackend = 'claude' | 'pi';
 type AuthType = 'oauth' | 'api_key' | null;
 
-function pairKey(backend: AuthBackend, provider: string): string {
-  return `${backend}:${provider}`;
+function pairKey(backend: AuthBackend, provider: string, connection?: string | null): string {
+  return connection ? `${backend}:${provider}:${connection}` : `${backend}:${provider}`;
 }
 
 export function classifyAuthError(message: string): AuthErrorKind | null {
@@ -33,20 +33,23 @@ export function initAuthEvents(bus: EventBus | null): void {
 export function publishAuthRequired(input: {
   backend: AuthBackend;
   provider: string;
+  /** The account that failed; absent or null is the provider's default login. */
+  connection?: string | null;
   authType: AuthType;
   kind: AuthErrorKind;
   channel: string | null;
   sessionId: string | null;
 }): void {
   if (!eventBus) return;
-  pendingRecovery.add(pairKey(input.backend, input.provider));
+  pendingRecovery.add(pairKey(input.backend, input.provider, input.connection));
   eventBus.publish({ type: 'auth.required', ...input });
 }
 
 export function publishAuthRecovered(input: {
   backend: AuthBackend;
   provider: string;
+  connection?: string | null;
 }): void {
-  if (!eventBus || !pendingRecovery.delete(pairKey(input.backend, input.provider))) return;
+  if (!eventBus || !pendingRecovery.delete(pairKey(input.backend, input.provider, input.connection))) return;
   eventBus.publish({ type: 'auth.recovered', ...input });
 }

@@ -70,7 +70,7 @@ PI 在 Cortex 服务器进程内运行。引擎（`@earendil-works/pi-coding-age
 
 **缓存预热。** Cortex 在主会话和子智能体会话中都关闭 PI 的自动 prompt-cache 预热。provider 的普通提示缓存仍可使用；Cortex 不会额外发起用量不在其费用统计之内的预热请求。这是运行时覆盖，不会改动终端 PI 的设置。
 
-**凭据。** PI 的 provider 凭据由 Cortex 管理——聊天里的 `!login pi`，或网页端的**设置 → 账号**——并保存在 PI 自己的认证文件 `~/.pi/agent/auth.json` 中。Cortex 的会话直接用这份文件认证，PI 在会话中刷新的 token 因此写回所有读取方都能看到的地方；Cortex 还从 `~/.pi/agent/models.json` 读取用户自定义的 provider。因此同时装有终端 `pi` CLI 的安装与 Cortex 共用同一份凭据和同一份 provider catalog。Cortex 自己的[连接](./configuration.md#configconnectionsjson)叠加在其上：agent 目录的 `models.json` 还会写入被连接覆盖了 base URL 的内置 provider 和自定义 provider，并带上各自的密钥，对这些 provider 而言它们优先于 PI 自己的凭据。其余内置 provider 用 PI 自己的凭据直接连接各自的厂商。
+**凭据。** PI 的 provider 凭据由 Cortex 管理——聊天里的 `!login pi`，或网页端的**设置 → 账号**——并保存在 PI 自己的认证文件 `~/.pi/agent/auth.json` 中；具名的 PI [账号](#accounts)有自己的认证文件 `$CORTEX_HOME/data/pi-accounts/<id>/auth.json`。Cortex 的会话直接用这份文件认证，PI 在会话中刷新的 token 因此写回所有读取方都能看到的地方；Cortex 还从 `~/.pi/agent/models.json` 读取用户自定义的 provider。因此同时装有终端 `pi` CLI 的安装与 Cortex 共用同一份凭据和同一份 provider catalog。Cortex 自己的[连接](./configuration.md#configconnectionsjson)叠加在其上：agent 目录的 `models.json` 还会写入被连接覆盖了 base URL 的内置 provider 和自定义 provider，并带上各自的密钥，对这些 provider 而言它们优先于 PI 自己的凭据。其余内置 provider 用 PI 自己的凭据直接连接各自的厂商。
 
 PI transcript 的保留基于文件系统。活跃的 PI 后端 session id 在保留扫描中受保护，而 `$CORTEX_HOME/logs/sessions-pi/` 下的孤立 transcript bundle 只有在超过保留截止线后仍无引用、且经过第二轮确认扫描后才会删除。
 
@@ -110,9 +110,9 @@ PI provider 名称与 Cortex 后端名称相互独立。特别地，`openai-code
 
 | 渠道 | 入口 | 交互方式 |
 |---|---|---|
-| Slack | 发送 `!login`、`!login cc` 或 `!login pi [provider]` | 选择器和 secret 输入在 Slack modal 中打开；授权链接发送到频道。 |
-| 飞书 | 发送 `!login`、`!login cc` 或 `!login pi [provider]` | 选择器和 secret 输入使用内联卡片表单；授权链接发送到聊天。 |
-| Web（桌面与移动端） | 桌面端：打开**设置 → 账号**。移动端：点击**设置 → 账号**，进入 `/m/settings/accounts`。 | 账号分区展示 Claude Code 凭据与全部 PI provider，并提供状态及登录/登出操作，登录打开同一套选择器式流程。 |
+| Slack | 发送 `!login`、`!login cc [账号]` 或 `!login pi [provider [账号]]` | 选择器和 secret 输入在 Slack modal 中打开；授权链接发送到频道。 |
+| 飞书 | 发送 `!login`、`!login cc [账号]` 或 `!login pi [provider [账号]]` | 选择器和 secret 输入使用内联卡片表单；授权链接发送到聊天。 |
+| Web（桌面与移动端） | 桌面端：打开**设置 → 账号**。移动端：点击**设置 → 账号**，进入 `/m/settings/accounts`。 | 账号分区展示 Claude Code 凭据与全部 PI provider，各自带上它们的[账号](#accounts)、状态及登录/登出操作，登录打开同一套选择器式流程。 |
 
 聊天命令形式如下：
 
@@ -120,22 +120,24 @@ PI provider 名称与 Cortex 后端名称相互独立。特别地，`openai-code
 !login
 !login status
 !login cc
+!login cc <账号>
 !login pi
 !login pi <provider>
+!login pi <provider> <账号>
 !login custom
 ```
 
 `!login custom` 管理没有登录流程的自建端点；见下文[自定义 provider](#custom-providers)。
 
-无参数的 `!login` 与 `!login status` 都显示认证状态总览。`!login cc` 选择 Claude Code。`!login pi` 打开 PI provider 选择器；附带 provider 时跳过该选择器。provider 支持多种认证类型时，认证类型同样在交互中选择。不要在命令后追加 `oauth`、API key、授权码或 provider 专用的 OAuth 参数。
+无参数的 `!login` 与 `!login status` 都显示认证状态总览，每个账号一行。`!login cc` 选择 Claude Code。`!login pi` 打开 PI provider 选择器；附带 provider 时跳过该选择器。末尾再加账号 id 或名称时，重新登录的是这个[账号](#accounts)，而不是默认登录。provider 支持多种认证类型时，认证类型同样在交互中选择。不要在命令后追加 `oauth`、API key、授权码或 provider 专用的 OAuth 参数。
 
-同一后端/provider 组合同时最多只有一个进行中的登录。发起登录会取消该组合尚未结束的登录，无论它由哪个渠道发起；除非那次登录已在保存提交的凭据，此时新的发起会被拒绝，直到它结束。登录失败时，先显示 Cortex 的提示，再附上 provider 自身原因的第一行。
+同一个账号同时最多只有一个进行中的登录。发起登录会取消该账号尚未结束的登录，无论它由哪个渠道发起；除非那次登录已在保存提交的凭据，此时新的发起会被拒绝，直到它结束。登录失败时，先显示 Cortex 的提示，再附上 provider 自身原因的第一行。
 
 只有当已安装 PI provider 的 `provider.auth.oauth.login` 是函数时，才提供 OAuth。清单从已安装的 PI 运行时中发现，因此只支持 API key 的 provider 不会显示无法使用的 OAuth 选项。Claude Code 同样通过选择器提供 API key 与订阅两种选项。
 
 对于 Claude Code 订阅，Cortex 针对自己的 Claude 配置目录启动 `claude auth login --claudeai`，把命令输出的授权 URL 发送到发起渠道，并把返回的 code 写入该命令的标准输入。OAuth 交换和凭据持久化由 Claude Code 负责。只有在清空认证相关环境变量后执行的 `claude auth status --json` 报告 `loggedIn: true` 时，Cortex 才把流程标记为完成；它从不读取或保存最终的 token。订阅登出同样交给 `claude auth logout`，并验证登出后的状态。Claude Code 未登录期间，环境变量或 `config/.env` 里旧版由 Cortex 管理的订阅 token 就是订阅实际使用的凭据：账号把它显示为当前凭据、状态未知，可以删除。Claude 一旦拥有凭据，这个 token 就不再使用。
 
-运行中的后端报告认证过期时，Cortex 会发送一张点名 provider 的卡片，提供一键重新登录，并预填失败的那种认证方式：对 Claude Code，运行使用 `api` 连接时是 API key，否则是订阅。该登录进行中时，按钮会重新打开它；登录失败、被取消或过期后，按钮会发起一次新的登录。每日过期扫描检查使用中的账号，并对即将过期、已过期或缺失的凭据发送同一种可操作提醒。若某个 provider 在提醒窗口内已被运行时通知报告过，每日扫描会跳过它，因此定时预警不会重复你刚收到的通知。反方向是有意为之：运行时失败总会通知，即使每日扫描之前已对该 provider 预警过，因为会话中的失败正是你那一刻最需要的消息。
+运行中的后端报告认证过期时，Cortex 会发送一张点名 provider 和账号的卡片，提供该账号的一键重新登录，并预填失败的那种认证方式：对 Claude Code，运行使用 `api` 连接时是 API key，否则是订阅。该登录进行中时，按钮会重新打开它；登录失败、被取消或过期后，按钮会发起一次新的登录。每日过期扫描检查使用中的账号，并对即将过期、已过期或缺失的凭据发送同一种可操作提醒。若某个 provider 在提醒窗口内已被运行时通知报告过，每日扫描会跳过它，因此定时预警不会重复你刚收到的通知。反方向是有意为之：运行时失败总会通知，即使每日扫描之前已对该 provider 预警过，因为会话中的失败正是你那一刻最需要的消息。
 
 在主机上做只读状态检查，可运行：
 
@@ -145,6 +147,22 @@ cortex auth status --json
 ```
 
 文本形式是简洁总览；`--json` 返回完整的归一化状态快照。两者都不包含凭据。精确命令契约参见 [CLI 参考](./cli-reference.md#cortex)。
+
+## 账号 {#accounts}
+
+一个 provider 可以登录多个账号——例如个人的 Claude Max 订阅加上学校或团队的订阅，或者 PI 上的第二个 ChatGPT 套餐、第二把 DeepSeek key。Cortex 为 provider 保存的那个登录是它的**默认账号**；其余每个账号都是**具名账号**，名称由你来取。
+
+**添加账号。** 在 **设置 → 账号** 中，Claude Code 分组底部或已连接的 PI provider 下方的 **+ 添加账号** 先让你填名称，再打开常规的登录对话框。PI provider 同时支持 API key 和 OAuth 时，会先让你选一种。Cortex 由名称生成账号 id（`School Team` 生成 `school-team`），聊天命令和 `config/connections.json` 用的都是这个 id。id 在同一个后端内唯一，PI 账号的 id 不会是任何 PI provider 的名字。首次登录成功后账号才存在：首次登录失败或被取消时不会留下任何东西。账号只在网页端添加；聊天里只能重新登录已有的账号。
+
+**管理账号。** 每个账号一行，显示名称、已登录账号的邮箱和套餐以及登录状态，提供 **重新登录**、**登出** 和 **删除**。provider 有了具名账号之后，它的默认登录会带上 **默认** 标记。登出的账号仍保留在列表里，可以之后再登录；删除账号需要先确认，删除时会先登出再移除。选了已登出或已删除账号的会话、定时任务和默认设置，改用默认账号运行。在聊天中，`!login status` 列出所有账号及其 id，`!login cc <账号>` 和 `!login pi <provider> <账号>` 按 id 或名称重新登录某个账号，`!connection <id>` 把频道切到这个账号。
+
+**选择账号。** 账号就是一个[连接](#per-session-model-thinking-level-and-route)：输入框的 **连接** 行按名称列出账号，**设置 → 模型** 也可以把默认模型固定到某个账号。换账号时会在该账号的登录上启动新的 Claude Code 进程或 PI 会话。所有 Claude 账号共用同一份 transcript，所以对话会从原处继续；在新账号上的第一轮会重新写入 prompt cache。
+
+**账号里有什么。** 具名 Claude 账号的登录保存在它自己的 Claude Code 配置目录里。PI 账号的登录保存在它自己的认证文件里，其余设置都沿用它的 provider，包括 provider 连接设置的 base URL，但不用连接的 key：provider 前面若有中转，中转收到的是账号自己的 key。
+
+**各自的额度。** 每个账号都有自己的用量行、额度读数、储备重置和限流窗口；按量计费的 PI 账号，花费也单独一行，例如 **DeepSeek (Work)**。一个账号达到限额时，只暂停跑在它上面的工作。
+
+**限流时换账号。** 打开 **限流时自动切换账号**（**设置 → 高级**，即 [`accountFailover`](./configuration.md#configsettingsjson) 设置，默认关闭）后，对话所用的登录被限流时不再等待，而是换到同一 provider 的另一个登录上运行：默认登录或其他账号，要求计费方式相同、能运行当前模型、自身没有被限流。因限流结束的一轮会马上在这个登录上续跑。对话第一次换登录时，Web 聊天会说明换到了哪个登录；对话保存的选择不变，原登录恢复后自动换回。key 连接不参与切换，订阅不会换成 API key；已经换过一次的一轮再次被限流时，等它所在的登录重置。所有候选都被限流时，和关闭这个设置时一样等待。
 
 ## 自定义 provider {#custom-providers}
 
@@ -180,11 +198,11 @@ Web 和移动端输入框的引擎选择器在根层列出收藏模型，显示�
 
 有历史的对话不能切换后端。选择器会禁用另一后端的模型；新草稿可以任选后端。
 
-**连接**只用于 Claude Code：对话使用本机哪一个 Claude 连接——订阅、API key，或在 **设置 → 账号** 中添加的中转或本地端点。只有当前模型有多于一个连接可用时，选择器才显示连接行。其中 **默认** 一项不指定连接：每次运行时，默认连接（已登录订阅时即订阅）能运行该模型就用它，否则用第一个能运行的连接。自带模型列表的连接只运行列表里的模型。换模型时，已选的连接若能运行新模型就保留。已选连接之后被删除时，回退到默认连接，对话不会因此失败。PI 没有连接行：provider 本身就是连接。Claude Code 与 PI 内置的 `anthropic` provider 是两条独立的条目：PI 的 provider 使用 PI 自己的 Anthropic 凭据，两者都登录时，各自的模型、收藏、额度和限流互不混用。
+**连接**是对话使用本机的哪一个登录或端点。对 Claude Code 来说，是订阅、具名[账号](#accounts)、API key，或在 **设置 → 账号** 中添加的中转或本地端点。账号按名称显示，订阅按它登录的 email 显示（拿不到时显示 **Claude 订阅**）。只有当前模型有多于一个连接可用时，选择器才显示连接行。其中 **默认** 一项不指定连接：每次运行时，默认连接（已登录订阅时即订阅）能运行该模型就用它，否则用第一个能运行的连接。自带模型列表的连接只运行列表里的模型。换模型时，已选的连接若能运行新模型就保留。已选连接之后被删除、或所选账号已登出时，回退到默认连接，对话不会因此失败。对 PI 来说，provider 本身就是连接：provider 有了已登录的具名账号后才显示连接行，列出 **默认**（provider 自己的登录）和这些账号。换成其他 provider 的模型时回到默认。Claude Code 与 PI 内置的 `anthropic` provider 是两条独立的条目：PI 的 provider 使用 PI 自己的 Anthropic 凭据，两者都登录时，各自的模型、收藏、额度和限流互不混用。
 
 模型目录列出各后端与 PI provider 的模型：Claude 的来自 Anthropic Models API 加上各连接自带的模型列表，PI 的来自它自己的扫描，含自定义 provider。思考档位优先取来源报告的模型自身档位，否则取后端的值域。
 
-**设置 → 模型** 管理默认模型与收藏列表。平台频道通过以下命令使用同样的选择规则：
+**设置 → 模型** 管理默认模型与收藏列表。默认模型有多于一个连接可用时，这里也能设置默认模型使用的连接。平台频道通过以下命令使用同样的选择规则：
 
 | 命令 | 作用 |
 |---|---|
@@ -194,7 +212,7 @@ Web 和移动端输入框的引擎选择器在根层列出收藏模型，显示�
 | `!model reset` | 恢复完整的配置默认选择 |
 | `!thinking [level]` | 查看或设置思考档位 |
 | `!thinking reset` | 将 thinking 设为 null，使用后端默认值 |
-| `!connection [id\|reset]` | 查看或设置 Claude 连接；`reset` 回到默认连接。`!mode` 为别名 |
+| `!connection [id\|reset]` | 按 id 查看或设置 Claude 连接或账号；`reset` 回到默认连接。`!mode` 为别名 |
 
 ## 思考档位 {#thinking-level}
 
@@ -202,7 +220,7 @@ Web 和移动端输入框的引擎选择器在根层列出收藏模型，显示�
 
 ## 用量限流与自动恢复 {#usage-limit-throttling-and-auto-resume}
 
-Cortex 按 provider 跟踪滚动用量窗口。provider 标识是不透明字符串，因此限流器可以跟踪任意数量的 provider，无需固定的 provider 枚举。每个 provider 保有自己的窗口类型和重置时间。限流门禁作用于 provider 及其流量所走的连接，不会阻塞恰好使用同名连接的另一个 provider。
+Cortex 按 provider 和账号跟踪滚动用量窗口。provider 标识是不透明字符串，因此限流器可以跟踪任意数量的 provider，无需固定的 provider 枚举。provider 的每个账号——默认登录、具名[账号](#accounts)或 key 连接——各自保有窗口类型和重置时间，因此一个账号达到限额时，只暂停跑在它上面的工作，也不会阻塞恰好使用同名连接的另一个 provider。provider 服务本身故障时，它的所有账号一起暂停。限流状态里每个受限的账号一行，清除某一行只解除这个账号。
 
 这套策略在 [`config/settings.json`](./configuration.md#configsettingsjson) 中以 `providerRateLimits` 配置，它是一个以 provider id 为键的对象。每个 provider 可以有一个由 `{ type, label?, enabled, threshold? }` 条目组成的 `windows` 数组，因此 5 小时、weekly、含超额 weekly、Codex 主/次窗口以及带标签的模型窗口都能独立配置。`threshold` 是大于 `0` 且不超过 `1` 的比率；省略时，weekly 窗口（`seven_day`、`seven_day_overage_included`）使用 `0.95`，其他所有窗口（包括 `five_hour`）使用 `0.90`。精确窗口策略优先于可见且可清除的旧版 provider 回退。桌面端和移动端的用量页面编辑这些行；只统计花费的 provider 不显示额度控件。
 
@@ -224,16 +242,16 @@ Cortex 按 provider 跟踪滚动用量窗口。provider 标识是不透明字符
 
 每次用量采集——内置的 provider 用量作业、打开用量页面，或点击 **刷新**——都会直接读取两个订阅账号：
 
-- **OpenAI Codex**，以 ChatGPT 套餐登录。读数填入 Codex 订阅行的主窗口与次窗口。读取失败时，该行保留上次从 Codex 响应头观测到的窗口，并附上相应说明。
-- **Claude**，通过 `claude login` 登录。读数填入 Anthropic 订阅行的 5 小时与 7 天窗口，以及账号按单个模型计的周额度，显示为带模型名的一行，例如 **7 天（Fable）**。这个模型窗口就是 Claude Code 上报的 `seven_day_overage_included`，所以它的阈值控件就是该窗口限流所用的策略。Cortex 使用 Claude Code 保存的访问令牌，且无法刷新它，因此令牌过期、使用 API key 或未登录时，该行保留上次读到的窗口；读取失败时同样保留，并附上说明。账号只向当前版本的 Claude Code 客户端提供重置，因此这些请求以本机安装的 `claude` CLI 版本标识自己。
+- **OpenAI Codex**，以 ChatGPT 套餐登录。每个 Codex 账号用自己的登录单独读取，各有一行；具名账号的行显示为 **OpenAI Codex (<名称>)**。读数填入该账号订阅行的主窗口与次窗口。读取失败时，该行保留上次从 Codex 响应头观测到的窗口，并附上相应说明。
+- **Claude**，通过 `claude login` 登录。每个 Claude 账号分别读取、各占一行；具名账号的行显示为 **Anthropic (<名称>)**。读数填入该账号订阅行的 5 小时与 7 天窗口，以及账号按单个模型计的周额度，显示为带模型名的一行，例如 **7 天（Fable）**。这个模型窗口就是 Claude Code 上报的 `seven_day_overage_included`，所以它的阈值控件就是该窗口限流所用的策略。Cortex 使用 Claude Code 保存的访问令牌，且无法刷新它，因此令牌过期、使用 API key 或未登录时，该行保留上次读到的窗口；读取失败时同样保留，并附上说明。账号只向当前版本的 Claude Code 客户端提供重置，因此这些请求以本机安装的 `claude` CLI 版本标识自己。
 
-每个用量行对应一个 provider 的一种计费方式。行来自 Cortex 自己的费用记录（`data/costs.jsonl`）：近 30 天内有流量的 provider，按其流量的每种计费方式各得一行，承载这些流量的连接列在名称旁。连接的花费按量计费，除非它跑在订阅上——Claude 自己的登录，或以 OAuth 登录的 PI provider。带密钥的 PI 连接按量计费；只改 provider base URL 的连接沿用 PI 自身登录的计费方式。未指定连接的 Claude 选择，记在本次运行实际使用的连接下。按量计费的行显示今日、近 30 天和近 90 天的花费，90 天即费用记录的保留时长；订阅行只显示额度，不显示花费。
+每个用量行对应一个 provider 的一种计费方式，具名账号另有自己的行。行来自 Cortex 自己的费用记录（`data/costs.jsonl`）：近 30 天内有流量的 provider，按其流量的每种计费方式各得一行，承载这些流量的连接列在名称旁。连接的花费按量计费，除非它跑在订阅上——Claude 自己的登录，或以 OAuth 登录的 PI provider。带密钥的 PI 连接按量计费；只改 provider base URL 的连接沿用 PI 自身登录的计费方式。未指定连接的 Claude 选择，记在本次运行实际使用的连接下。按量计费的行显示今日、近 30 天和近 90 天的花费，90 天即费用记录的保留时长；订阅行只显示额度，不显示花费。
 
-在 **设置 → 账号** 中登出某个订阅后，该 provider 的订阅行会从用量页面移除；按量计费的行保留。通过 Cortex 重新登录该账号，或在登出之后收到新的额度读数时，该行重新出现——在 Cortex 之外完成的登录会在下一次采集时以这种方式显示。
+在 **设置 → 账号** 中登出某个订阅后，该账号的订阅行会从用量页面移除；按量计费的行保留。通过 Cortex 重新登录该账号，或在登出之后收到新的额度读数时，该行重新出现——在 Cortex 之外完成的登录会在下一次采集时以这种方式显示。
 
 每次读数还会列出账号的储备重置：可用数量，以及最早一个的过期时间。账号读数从不开启限流，但会解除该 provider 已回落到阈值以下的限流窗口，因此在其他设备上使用的重置同样会放行 Cortex 暂停的工作。
 
-储备重置作用于整个账号、所有设备，且无法撤销。Codex 重置恢复 Codex 用量窗口，在发放约 30 天后过期。Claude 重置清空其授予项列出的窗口——通常是 5 小时、7 天与含超额 7 天限额——对 claude.ai 及其他所有 Claude 客户端同样生效。Cortex 从不自行使用重置。在桌面端与移动端用量页面的 Codex 与 Anthropic 卡片上，有可用重置时会显示 **重置**，并先请求确认；Claude 的确认会列出该重置将清空的窗口，并在账号未达限额时显示这些窗口的当前用量。Cortex 使用账号下一个提供的重置，否则使用最早过期的那一个。在聊天中，`!usage` 显示同样的数量与过期时间，并带有 **重置 Codex** 或 **重置 Claude** 按钮，点击后在线程中发出确认提示；账号持有重置时，Codex 或 Claude 限流通知会在 **立即恢复** 旁带上该按钮。重置后，Cortex 清除该 provider 的限流、恢复它暂停的工作，并在几秒内反复读取用量，直到账号显示被清空的窗口已恢复。账号拒绝时——没有可重置的内容、重置已被使用、处于冷却期，或账号当前无法使用重置——不会消耗重置，Cortex 会说明属于哪种情况。
+储备重置作用于整个账号、所有设备，且无法撤销。Codex 重置恢复 Codex 用量窗口，在发放约 30 天后过期。Claude 重置清空其授予项列出的窗口——通常是 5 小时、7 天与含超额 7 天限额——对 claude.ai 及其他所有 Claude 客户端同样生效。Cortex 从不自行使用重置。在桌面端与移动端用量页面的 Codex 与 Anthropic 卡片上，有可用重置时会显示 **重置**，用的是这张卡片所属账号的重置，并先请求确认；Claude 的确认会列出该重置将清空的窗口，并在账号未达限额时显示这些窗口的当前用量。Cortex 使用账号下一个提供的重置，否则使用最早过期的那一个。在聊天中，`!usage` 显示同样的数量与过期时间，并带有 **重置 Codex** 或 **重置 Claude** 按钮，点击后在线程中发出确认提示；账号持有重置时，Codex 或 Claude 限流通知会在 **立即恢复** 旁带上该按钮。重置后，Cortex 清除该 provider 的限流、恢复它暂停的工作，并在几秒内反复读取用量，直到账号显示被清空的窗口已恢复。账号拒绝时——没有可重置的内容、重置已被使用、处于冷却期，或账号当前无法使用重置——不会消耗重置，Cortex 会说明属于哪种情况。
 
 ## 费用报告 {#cost-reporting}
 

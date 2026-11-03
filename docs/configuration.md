@@ -39,7 +39,9 @@ $CORTEX_HOME/
 │   ├── conversation-history/     # Per-session transcript/history JSONL
 │   ├── archive/                  # Terminal execution records older than a week
 │   ├── claude/                   # Cortex's own Claude Code config dir (CLAUDE_CONFIG_DIR)
-│   └── pi/                       # Cortex's PI agent dir
+│   ├── claude-accounts/          # One Claude Code config dir per named account
+│   ├── pi/                       # Cortex's PI agent dir
+│   └── pi-accounts/              # One PI agent dir per named PI account
 ├── .claude/
 │   └── settings.json             # Cortex-scaffolded Claude Code project settings
 ├── hooks/                        # Your hook scripts (.mjs)
@@ -340,10 +342,14 @@ which show a masked hint at most. Cortex runs no proxy: each Claude Code or PI
 process calls its provider directly, with the credential its connection
 supplies.
 
-Two kinds of credential are not in this file. Claude Code's subscription is the
+Logins are not in this file. Claude Code's subscription is the
 login in [Cortex's Claude Code config directory](#claude-code-config-directory);
-it is the connection `subscription` whenever that login exists. PI's own logins
-and API keys stay in PI's credential store, `~/.pi/agent/auth.json`.
+it is the connection `subscription` whenever that login exists. A named Claude
+[account](./backends.md#accounts) has an entry here that holds only its id and
+label; its login lives in its own config directory. PI's own logins
+and API keys stay in PI's credential store, `~/.pi/agent/auth.json`; a named PI
+account's entry holds its id, provider and label, and its login lives in its
+own agent directory.
 
 ```json
 {
@@ -354,8 +360,10 @@ and API keys stay in PI's credential store, `~/.pi/agent/auth.json`.
     { "id": "relay", "backend": "claude", "label": "Team relay",
       "baseUrl": "https://relay.example.com", "authStyle": "bearer",
       "key": "...", "billing": "metered" },
+    { "id": "school-team", "backend": "claude", "type": "account", "label": "School Team" },
     { "id": "deepseek", "backend": "pi", "provider": "deepseek",
       "baseUrl": "https://proxy.example.com/deepseek", "key": "..." },
+    { "id": "work", "backend": "pi", "type": "account", "provider": "deepseek", "label": "Work" },
     { "id": "my-vllm", "backend": "pi", "provider": "my-vllm",
       "api": "openai-completions", "baseUrl": "http://127.0.0.1:8100/v1",
       "models": [{ "id": "Model-27B" }] }
@@ -366,11 +374,16 @@ and API keys stay in PI's credential store, `~/.pi/agent/auth.json`.
 | Kind | Fields | Effect |
 |---|---|---|
 | Claude key connection | `id`, `backend: "claude"`, `key`; optional `label` (default: the id), `baseUrl`, `authStyle` (`x-api-key`, the default, or `bearer`), `billing` (`metered`, the default, or `subscription`), `models` | A Claude Code run on it gets `ANTHROPIC_BASE_URL` when `baseUrl` is set (the official Anthropic API otherwise) and the key in `ANTHROPIC_API_KEY` (`x-api-key`) or `ANTHROPIC_AUTH_TOKEN` (`bearer`). `models` adds the models the endpoint serves to the Claude model list |
+| Claude account | `id`, `backend: "claude"`, `type: "account"`, `label` | A second Claude Code subscription. A run on it clears the same three variables as `subscription` and sets `CLAUDE_CONFIG_DIR` to the account's directory, `data/claude-accounts/<id>/`. Billed as a subscription |
 | PI base-URL override | `backend: "pi"`, `provider` (a PI built-in provider), `baseUrl`; optional `key`, `label` | PI calls that built-in provider at `baseUrl`. The key, when set, takes precedence over PI's own credential for the provider |
 | PI custom provider | as an override, plus `api` (the request protocol) and `models` (PI model definitions); optional `headers`, `compat` | Defines a provider PI does not ship; see [Custom providers](./backends.md#custom-providers) |
+| PI account | `id`, `backend: "pi"`, `type: "account"`, `provider`, `label` | A second login for a PI provider. A run on it uses the account's agent directory, `data/pi-accounts/<id>/`, whose `auth.json` holds the login; the provider's override still applies, without its key. Billed as a subscription when it signs in with OAuth or the provider only has subscriptions, otherwise metered |
 
-Ids match `^[a-zA-Z0-9_-]+$`, and `subscription` is reserved. A PI connection's
-id is its provider name, so a provider has at most one connection. An invalid
+Ids match `^[a-zA-Z0-9_-]+$`, and `subscription` is reserved; a Claude
+account cannot be named `api` either. A PI connection's
+id is its provider name, so a provider has at most one connection besides its
+accounts, and a PI account's id is never a provider name. Account ids are unique
+within a backend: a Claude account and a PI account may share one. An invalid
 or duplicate entry is skipped with a warning.
 
 **Routing.** A Claude Code run takes its environment from its selection's
@@ -378,15 +391,20 @@ connection. On `subscription`, Cortex clears `ANTHROPIC_BASE_URL`,
 `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN`, so Claude Code uses its own
 login. A selection that names no connection runs on the default: the
 subscription when Claude Code is logged in, otherwise the first Claude
-connection in the file. A selection naming a connection that does not exist
-fails instead of running on another account. Each PI session gets a
+connection in the file. Choosing a connection that does not exist is refused;
+a saved selection whose connection is later removed, or whose account is
+logged out, runs on the default. Each PI session gets a
 `models.json` that adds the overridden built-in providers and the custom
 providers, with their keys, to the providers defined in
 `~/.pi/agent/models.json`; every other PI built-in provider connects to its
-vendor with PI's own credentials. The file is read at each spawn, so a change
+vendor with PI's own credentials. A session on a PI account runs in the
+account's agent directory: the same providers, minus the key of the account's
+own provider, and the account's login. The file is read at each spawn, so a change
 needs no restart.
 
-**Where entries come from.** Saving an Anthropic API key — **Settings →
+**Where entries come from.** Accounts are added, logged in and deleted in
+**Settings → Accounts** (see [Accounts](./backends.md#accounts)); the
+Connections list does not show them and its editor refuses their ids. Saving an Anthropic API key — **Settings →
 Accounts**, `!login cc`, or `cortex auth login` — stores it as the `api`
 connection, on the official API unless that entry already names a `baseUrl`;
 removing the key removes the connection. **Settings → Accounts → Connections**
@@ -394,8 +412,8 @@ lists every entry with a masked key hint and adds, edits or deletes any of the
 three kinds. `cortex auth provider` and `!login custom` manage custom providers.
 A Claude connection's `label` and `billing` are set by editing the file; one
 added in Settings uses its id as the label and `metered` billing.
-`!connection [id|reset]` (alias `!mode`) shows or sets a channel's Claude
-connection.
+`!connection [id|reset]` (alias `!mode`) shows or sets a channel's
+connection or account.
 
 ## models.json
 
@@ -431,7 +449,7 @@ unstar models. For backend details, see [backends.md](./backends.md).
 | `default.provider` | string or null | yes | `null` for Claude; an explicit provider id for PI, such as `openai-codex`, `deepseek`, or a [custom provider](./backends.md#custom-providers) |
 | `default.model` | string | yes | Non-empty model identifier, as the backend names it |
 | `default.thinking` | string or null | yes | Backend-native reasoning level; `null` uses the backend's default |
-| `default.connection` | string or null | yes | Claude: a connection id (`subscription`, or a Claude connection in [`connections.json`](#configconnectionsjson) such as `api` or a relay) or `null` to use the default connection each run. PI: always `null` |
+| `default.connection` | string or null | yes | Claude: a connection id (`subscription`, or a Claude connection in [`connections.json`](#configconnectionsjson) such as `api` or a relay) or `null` to use the default connection each run. PI: the id of one of the provider's [accounts](./backends.md#accounts), or `null` for the provider's own login |
 | `favorites` | object[] | yes | Ordered model references, each with `backend`, `provider`, and `model`. Each model identity occurs at most once |
 
 Favorites store model identities, not thinking levels or connections. The default
@@ -740,6 +758,7 @@ Unknown keys are ignored.
 | `showToolCalls` | boolean | `false` | Post a compact line for each tool call in Slack and Feishu replies, merging consecutive calls to the same tool. Also on **Settings → Platform** | `CORTEX_SHOW_TOOL_CALLS` |
 | `statusNewqButton` | boolean | `false` | Show the "New (quiet)" button on status messages (`=!newq`, which skips the pre-close hook) | `CORTEX_STATUS_NEWQ_BUTTON` |
 | `autoResume` | boolean | `true` | When a usage-limit window resets, automatically continue the conversations the limit interrupted, injecting a note to pick up where they left off. Set to `false` to leave interrupted work paused for manual continuation | `CORTEX_AUTO_RESUME` |
+| `accountFailover` | boolean | `false` | While the login a conversation runs on is rate-limited, runs it on another signed-in login of the same provider: the provider's default login or one of its accounts, billed the same way (a subscription never moves to an API key), able to run the model, and not rate-limited itself. Key connections are never used. A run that ends on a rate limit continues at once on such a login; the web chat says which login it moved to the first time it moves. The session keeps its own selection and goes back to its login once that login recovers. The first reply after a switch is sent without the prompt cache, so it costs more. `autoResume` is separate: it waits for the same login's limit to reset. Also on **Settings → Advanced** | — |
 | `providerRateLimits` | object | `{}` | Per-provider, per-quota-window throttle policy. Provider entries contain a `windows` array of `{ type, label?, enabled, threshold? }`; `threshold` is a ratio greater than `0` and at most `1` | — |
 | `showThinking` | boolean | `true` | Capture model-provided thinking for Web and mobile chat. Disable to stop capturing new thinking; saved rows remain visible. Claude requests a thinking summary; PI displays the text the provider returns | `CORTEX_SHOW_THINKING` |
 | `streamDeltas` | boolean | `true` | Stream assistant text and captured thinking token by token. Disable to deliver only complete blocks | `CORTEX_STREAM_DELTAS` |
@@ -774,7 +793,7 @@ Unknown keys are ignored.
 
 The Web workbench writes a subset of these from **Settings → Notifications**
 (`turnNotify`, `autoResume`, `notifyCompaction`), **Settings → Advanced**
-(`disableUserContext`, `teamEnabled`, `claudeWindowWarmupEnabled`, `cacheKeepWarmHours`,
+(`disableUserContext`, `teamEnabled`, `accountFailover`, `claudeWindowWarmupEnabled`, `cacheKeepWarmHours`,
 `coldResumeClearToolResults`, `maxContextTokens`, `piCompactReserveTokens`,
 `serverUpdateDisable`, `serverAutoUpdate`,
 `sessionRetentionDays`, `memoryIndexRegenEnabled`, `memoryIndexRegenIntervalMs`,
@@ -969,6 +988,16 @@ with `!login cc` in chat, or with `cortex auth login --backend claude` (see
 [Remote login](./backends.md#remote-login)). On macOS the CLI keeps the login in
 the keychain item `Claude Code-credentials-<first 8 hex of sha256(config dir)>`.
 
+**Named accounts.** Each named Claude [account](./backends.md#accounts) runs
+Claude Code with `CLAUDE_CONFIG_DIR=$CORTEX_HOME/data/claude-accounts/<id>`.
+Only the account's login is its own there: `.credentials.json`, `.claude.json`
+(the signed-in account and its model access) and `backups/`. Every other entry
+links back to `data/claude` — `projects/`, `settings.json`, plugins and the
+rest — so all accounts write one transcript store and a session resumes on any
+of them. Cortex restores the links before each start: symbolic links on Linux
+and macOS; on Windows, directory junctions, and a fresh copy of `settings.json`
+where a file link is not allowed. Deleting the account removes its directory.
+
 **`settings.json`.** The user settings file belongs to Cortex. When it does not
 exist, the server creates it at startup from the `model`, `effortLevel`,
 `modelSettings`, `autoCompactWindow`, `autoMemoryEnabled`, `env` and `attribution` keys of
@@ -1143,6 +1172,9 @@ polling mode as it uses with filesystem events.
 | `schedules.json` | Schedules | `$CORTEX_HOME/data/schedules.json` |
 | `boards.json` | Board registry | `$CORTEX_HOME/data/boards.json` |
 | `provider-state.json` | Provider usage, throttle windows, resume queue | `$CORTEX_HOME/data/provider-state.json` |
+| `claude/` | Cortex's Claude Code config directory: transcripts, settings, plugins, the default login | `$CORTEX_HOME/data/claude/` |
+| `claude-accounts/` | One Claude Code config directory per named account, holding its login | `$CORTEX_HOME/data/claude-accounts/<id>/` |
+| `pi-accounts/` | One PI agent directory per named PI account: its `auth.json`, and the model catalog and settings Cortex writes for it | `$CORTEX_HOME/data/pi-accounts/<id>/` |
 | `waitpoints.json` | Waitpoints | `$CORTEX_HOME/data/waitpoints.json` |
 | `board.css` | Optional stylesheet for every board | `$CORTEX_HOME/config/board.css` |
 | `session-registry.jsonl` | Append-only session registry journal | `$CORTEX_HOME/data/session-registry.jsonl` |

@@ -10,6 +10,10 @@ export const PI_TEAM_WORKER_ENV = 'CORTEX_PI_TEAM_WORKER';
 /** A clean session's workspace, read by the in-process `agent` tool: its children work there too. */
 export const PI_CLEAN_WORKSPACE_ENV = 'CORTEX_PI_CLEAN_WORKSPACE';
 
+/** Set on a session over an account's agent dir: the adapter's own agent dir, where a `pi` child
+ *  on another provider runs, since the account signs in to its own provider only. */
+export const PI_HOME_AGENT_DIR_ENV = 'CORTEX_PI_HOME_AGENT_DIR';
+
 export interface PIEnvOptions {
   sessionId?: string | null;
   channel?: string | null;
@@ -20,6 +24,8 @@ export interface PIEnvOptions {
   unsetEnv?: string[] | null;
   context?: CortexContextEnv;
   piAgentDir: string;
+  /** The adapter's own agent dir, when the session runs over another (an account's). */
+  piHomeAgentDir?: string;
   allowedTools?: string | null;
   /** Resolved MCP composition; the bridge derives its server set from it. */
   mcpComposition?: McpComposition;
@@ -47,7 +53,7 @@ const RESET_CONTEXT_KEYS = [
   'CORTEX_WEBHOOK_BENCHMARK_ONLY',
   'CORTEX_PI_ALLOWED_TOOLS', 'CORTEX_PI_SUBAGENT',
   PI_MCP_COMPOSITION_ENV, PI_INTERACTION_BRIDGE_ENV, PI_TEAM_LEAD_ENV, PI_TEAM_WORKER_ENV,
-  PI_CLEAN_WORKSPACE_ENV, MCP_TOOL_ALLOWLIST_ENV,
+  PI_CLEAN_WORKSPACE_ENV, PI_HOME_AGENT_DIR_ENV, MCP_TOOL_ALLOWLIST_ENV,
 ] as const;
 
 function setOptional(env: NodeJS.ProcessEnv, key: string, value: unknown): void {
@@ -81,6 +87,7 @@ export function buildPiEnv(
   // After the merge: deletion is the only way to express "absent", since '' is a legal value here.
   for (const key of options.unsetEnv ?? []) delete env[key];
   env.PI_CODING_AGENT_DIR = options.piAgentDir;
+  if (options.piHomeAgentDir && options.piHomeAgentDir !== options.piAgentDir) env[PI_HOME_AGENT_DIR_ENV] = options.piHomeAgentDir;
   env.CORTEX_BACKEND = 'pi';
   if (options.channel) {
     env.SLACK_CHANNEL = options.channel;
@@ -137,6 +144,8 @@ export interface PiSessionRequest {
 
 export interface SessionRequestInputs {
   agentDir: string;
+  /** The adapter's own agent dir; differs from `agentDir` for a session on an account. */
+  homeAgentDir?: string;
   sessionDir: string;
   sessionPath: string | null;
   cwd: string;
@@ -190,6 +199,7 @@ export function buildSessionRequest(
     unsetEnv: spec.env.unsets,
     context: spec.env.context,
     piAgentDir: inputs.agentDir,
+    piHomeAgentDir: inputs.homeAgentDir,
     allowedTools: allowedToolLabels(spec),
     mcpComposition: composition,
     mcpToolAllowlist: spec.mcp.allowlist,

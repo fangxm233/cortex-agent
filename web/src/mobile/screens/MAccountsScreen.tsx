@@ -35,8 +35,8 @@ export function MAccountsScreen() {
           ? <MSettingsPage title={L.accountsTitle} onBack={() => mobileHeaderBack(navigate, '/m/settings')}>
               <div style={{ color: MC.fail }}>{L.accountsLoadFailed}</div></MSettingsPage>
           : <MAccountsView vm={vm} filter={filter} onFilter={setFilter} onBack={() => mobileHeaderBack(navigate, '/m/settings')}
-              onLogin={openLogin} onLogout={accounts.logout}
-              actionsDisabled={accounts.logoutPending}
+              onLogin={openLogin} onLogout={accounts.logout} onRemove={accounts.remove}
+              actionsDisabled={accounts.logoutPending || accounts.removePending}
               onRescan={accounts.syncModels} rescanning={accounts.syncPending}
               connections={{
                 rows: connections.rows, confirmingDelete: connections.confirmingDelete,

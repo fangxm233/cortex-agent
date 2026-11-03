@@ -1,19 +1,28 @@
 import { t } from '@core/i18n.js';
 import { createLogger } from '@core/log.js';
+import { clearThrottle } from '@domain/costs/rate-limit-throttle.js';
+import { throttleKey } from '@domain/costs/throttle-key.js';
 import { usageService } from '@domain/costs/usage-service.js';
 import { seedModelsFromCatalog } from '@domain/models/seed.js';
 import {
+  addAccount,
   authLoginService,
   bindAuthNoticeFlow,
   isLoginFlowError,
   logoutAccount,
+  removeAccount,
   resolveAuthNoticeFlow,
   resumableNoticeFlow,
+  type AccountSummary,
+  type AddAccountIssue,
   type AuthLoginService,
   type LoginFlowState,
+  type RemoveAccountIssue,
 } from '@domain/auth/index.js';
 import type {
+  AuthAddAccountReturn,
   AuthLogoutReturn,
+  AuthRemoveAccountReturn,
   AuthSyncModelsReturn,
   Result,
   UiServiceDeps,
@@ -120,12 +129,48 @@ export async function handleAuthLogout(
   const result = await (deps.logoutAccount ?? logoutAccount)(args);
   if (result.ok === true) {
     if (args.authType === 'oauth') {
-      await usageService.signOut(args.provider)
+      await usageService.signOut(args.provider, args.connection)
         .catch((error: unknown) => log.warn(`hiding ${args.provider} subscription usage failed:`, error));
     }
     return { ok: true, data: result };
   }
   return { ok: false, code: result.error.code, message: result.error.message };
+}
+
+/** A missing account is a client error, a failed write or login start is ours, anything else a
+ *  draft to fix. */
+function accountFailure(errors: Array<AddAccountIssue | RemoveAccountIssue>): Result<never> {
+  const internal = errors.includes('write-failed') || errors.includes('login-failed');
+  const code = errors.includes('not-found') ? 'not-found' : internal ? 'internal' : 'invalid-args';
+  const message = errors.map(issue => t(`account.issue.${issue}` as Parameters<typeof t>[0])).join(' ');
+  return { ok: false, code, message };
+}
+
+/** A removed account's usage rows and throttle go with it. */
+async function forgetAccountState(account: AccountSummary): Promise<void> {
+  await usageService.signOut(account.provider, account.id)
+    .catch((error: unknown) => log.warn(`hiding usage of account ${account.id} failed:`, error));
+  await clearThrottle(throttleKey(account.provider, account.id))
+    .catch((error: unknown) => log.warn(`clearing the throttle of account ${account.id} failed:`, error));
+}
+
+export async function handleAuthAddAccount(
+  deps: UiServiceDeps,
+  args: MutateArgs<'auth.addAccount'>,
+): Promise<Result<AuthAddAccountReturn>> {
+  const result = await addAccount(args, { login: serviceFor(deps), ...deps.accounts });
+  if (result.ok === false) return accountFailure(result.errors);
+  return { ok: true, data: { account: result.account, flow: result.flow } };
+}
+
+export async function handleAuthRemoveAccount(
+  deps: UiServiceDeps,
+  args: MutateArgs<'auth.removeAccount'>,
+): Promise<Result<AuthRemoveAccountReturn>> {
+  const logout = deps.logoutAccount ?? logoutAccount;
+  const result = await removeAccount(args, { logout, onRemoved: forgetAccountState, ...deps.accounts });
+  if (result.ok === false) return accountFailure(result.errors);
+  return { ok: true, data: { account: result.account, loggedOut: result.loggedOut } };
 }
 
 /**

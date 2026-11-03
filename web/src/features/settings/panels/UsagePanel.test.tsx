@@ -441,6 +441,22 @@ describe('desktop Settings Usage panel banked resets', () => {
     act(() => renderer.unmount());
   });
 
+  it('spends a reset on the named account whose row it sits on', () => {
+    const claude = withResets.find((record) => record.provider === 'anthropic')!;
+    currentUsage = [...withResets, {
+      ...claude, billing: 'subscription', route: 'school', label: 'School', displayName: 'Anthropic (School)',
+    }];
+    const renderer = mount();
+    const school = resetBlock(renderer, 'anthropic:school');
+    act(() => school.findByProps({ 'data-usage-reset-use': true }).props.onClick());
+    act(() => resetBlock(renderer, 'anthropic:school').findByProps({ 'data-usage-reset-confirm-action': true }).props.onClick());
+
+    expect(harness.mutations.filter((entry) => entry.kind === 'system.redeemUsageReset')).toEqual([
+      { kind: 'system.redeemUsageReset', args: { provider: 'anthropic', connection: 'school' } },
+    ]);
+    act(() => renderer.unmount());
+  });
+
   it('confirms a Claude reset with its account-wide scope and spends it on the Claude account', () => {
     currentUsage = withResets;
     const renderer = mount();

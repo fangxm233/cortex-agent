@@ -85,6 +85,8 @@ export interface LoginFlowState {
   revision: number;
   backend: 'claude' | 'pi';
   provider: string | null;
+  /** The account the flow signs in; null is the provider's default login. */
+  connection: string | null;
   authType: AuthType | null;
   step: LoginFlowStep;
   pendingPrompt: LoginPendingPrompt | null;
@@ -126,6 +128,8 @@ export interface AuthInteraction {
 export interface StartLoginFlowInput {
   backend: 'claude' | 'pi';
   provider: string;
+  /** An account connection id; absent or null signs in the provider's default login. */
+  connection?: string | null;
   authType: AuthType;
   channel: string | null;
   sessionId: string | null;
@@ -155,8 +159,15 @@ const TERMINAL_STEPS = new Set<LoginFlowStep>(['done', 'failed', 'cancelled']);
 const flows = new Map<string, InternalFlow>();
 const activePairs = new Map<string, string>();
 
-function pairKey(input: Pick<StartLoginFlowInput, 'backend' | 'provider'>): string {
-  return `${input.backend}\u0000${input.provider}`;
+function pairKey(input: Pick<StartLoginFlowInput, 'backend' | 'provider' | 'connection'>): string {
+  return `${input.backend}\u0000${input.provider}\u0000${input.connection ?? ''}`;
+}
+
+/** Whether a login for this backend, provider and account is still running. */
+export function hasActiveFlow(input: Pick<StartLoginFlowInput, 'backend' | 'provider' | 'connection'>): boolean {
+  const flowId = activePairs.get(pairKey(input));
+  const flow = flowId ? getInternalFlow(flowId) : null;
+  return !!flow && !isTerminal(flow);
 }
 
 function abortError(message: string): Error {
@@ -316,6 +327,8 @@ function canSettleConsumer(flow: InternalFlow): boolean {
 export interface LoginSuccessEvent {
   backend: 'claude' | 'pi';
   provider: string;
+  /** The account signed in; null is the provider's default login. */
+  connection: string | null;
   authType: AuthType;
 }
 
@@ -354,6 +367,7 @@ function settleConsumerSuccess(flow: InternalFlow, outcome: LoginOutcome): void 
   notifyLoginSuccess({
     backend: flow.state.backend,
     provider: outcome.provider || flow.state.provider || '',
+    connection: flow.state.connection,
     authType: outcome.authType,
   });
 }
@@ -428,7 +442,8 @@ function createFlow(input: StartLoginFlowInput): InternalFlow {
   const now = Date.now();
   const flowId = randomUUID();
   const state: LoginFlowState = {
-    flowId, revision: 0, backend: input.backend, provider: input.provider, authType: input.authType,
+    flowId, revision: 0, backend: input.backend, provider: input.provider,
+    connection: input.connection ?? null, authType: input.authType,
     step: 'running', pendingPrompt: null, notice: null,
     channel: input.channel, sessionId: input.sessionId,
     createdAt: new Date(now).toISOString(), expiresAt: new Date(now + LOGIN_FLOW_TTL_MS).toISOString(),

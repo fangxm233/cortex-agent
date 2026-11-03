@@ -3,7 +3,7 @@ import { mutateFileAtomically } from '@core/atomic-write.js';
 import { CONFIG_DIR } from '@core/paths.js';
 import { claudeSubscriptionLogin, credentialValue } from '@core/claude-credentials.js';
 import {
-  readConnections, removeConnection, upsertConnection, type ClaudeKeyConnection,
+  claudeKeyConnections, readConnections, removeConnection, upsertConnection, type ClaudeKeyConnection,
 } from '@core/connections-file.js';
 
 const ENV_FILE = path.join(CONFIG_DIR, '.env');
@@ -12,8 +12,7 @@ const ENV_FILE = path.join(CONFIG_DIR, '.env');
 export const API_KEY_CONNECTION = 'api';
 
 function apiKeyConnection(): ClaudeKeyConnection | null {
-  const found = readConnections().find((entry) => entry.backend === 'claude' && entry.id === API_KEY_CONNECTION);
-  return found?.backend === 'claude' ? found : null;
+  return claudeKeyConnections(readConnections()).find((entry) => entry.id === API_KEY_CONNECTION) ?? null;
 }
 
 /** The secrets behind the Accounts surfaces' Claude slots — the `api` connection's key and a

@@ -6,6 +6,7 @@ import { formatDuration } from '@core/format-duration.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import { isProcessAlive, readPidFile } from '@core/singleton-lock.js';
 import { getThrottleState } from '@domain/costs/rate-limit-throttle.js';
+import { throttleKey } from '@domain/costs/throttle-key.js';
 import { getResumeCountsByProvider } from '@domain/costs/resume-registry.js';
 import { usageService } from '@domain/costs/usage-service.js';
 import { listSystemNotices, NOTICE_HISTORY_CAP } from '@domain/system/notice-history.js';
@@ -126,12 +127,18 @@ export async function handleSystemRateLimitStatus(
   _params: QueryParams<'system.rateLimitStatus'>,
 ): Promise<SystemRateLimitStatus> {
   const waiting = getResumeCountsByProvider();
-  const providers = getThrottleState().providers.map((provider) => ({
-    provider: provider.provider,
-    displayName: provider.displayName,
-    waitingSessions: waiting[provider.provider]?.sessions ?? 0,
-    windows: provider.windows.map((window) => ({ ...window })),
-  }));
+  const providers = getThrottleState().providers.map((provider) => {
+    const key = throttleKey(provider.provider, provider.route);
+    return {
+      provider: provider.provider,
+      ...(provider.route ? { route: provider.route } : {}),
+      key,
+      displayName: provider.displayName,
+      // A session queued before routes were recorded waits on every route of its provider.
+      waitingSessions: (waiting[key]?.sessions ?? 0) + (provider.route ? waiting[provider.provider]?.sessions ?? 0 : 0),
+      windows: provider.windows.map((window) => ({ ...window })),
+    };
+  });
   return { providers };
 }
 

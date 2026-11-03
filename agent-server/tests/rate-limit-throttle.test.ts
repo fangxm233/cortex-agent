@@ -206,9 +206,10 @@ test('initRateLimitThrottle recovers active throttle on restart', async (t) => {
 
   // Throttle should be restored with modes
   assert.equal(mod.isThrottled(), true);
-  const provider = mod.getThrottleState().providers[0];
-  assert.equal(provider.windows[0].resetsAt, futureReset);
-  assert.deepEqual(provider.modes, ['api', 'plan']);
+  // Stored before routes: one entry for both routes, now split into one entry per route.
+  const providers = mod.getThrottleState().providers;
+  assert.equal(providers[0].windows[0].resetsAt, futureReset);
+  assert.deepEqual(providers.map((p: any) => [p.route, p.modes]), [['api', ['api']], ['plan', ['plan']]]);
   assert.ok(mod.isProviderModeRateLimited('anthropic', 'plan'));
   assert.ok(mod.isProviderModeRateLimited('anthropic', 'api'));
 });
@@ -376,7 +377,7 @@ test('pending failed real activation keeps the committed view and timer', async 
   await vi.advanceTimersByTimeAsync(6_001);
   assert.equal(mod.getThrottleState().providers.length, 0);
   assert.equal(saved, null);
-  assert.deepEqual(cleared, [['provider-a']]);
+  assert.deepEqual(cleared, [['provider-a::plan']]);
 });
 
 test('pending failed expiry retains the committed view and retries without publishing ready', async (t) => {
@@ -424,7 +425,7 @@ test('pending failed expiry retains the committed view and retries without publi
   assert.deepEqual([saveCalls, saved], [3, null]);
   assert.equal(mod.getThrottleState().providers.length, 0);
   assert.deepEqual([cleared, changes, adapter.posted.length],
-    [[['provider-a']], 2, activationNotices + 1]);
+    [[['provider-a::api']], 2, activationNotices + 1]);
 });
 
 test('stale queued expiry cannot bypass the persistence retry delay', async (t) => {
@@ -470,7 +471,7 @@ test('stale queued expiry cannot bypass the persistence retry delay', async (t) 
   assert.ok(saveTimes[3] - saveTimes[2] >= 5_000);
   assert.deepEqual(mod.getThrottleState().providers.map((p) => p.provider), ['provider-b']);
   assert.deepEqual(saved.providers.map((p: any) => p.provider), ['provider-b']);
-  assert.deepEqual(cleared, [['provider-a']]);
+  assert.deepEqual(cleared, [['provider-a::api']]);
 });
 
 test('expires providers independently and reports each provider as soon as it clears', async (t) => {
@@ -502,11 +503,11 @@ test('expires providers independently and reports each provider as soon as it cl
   assert.deepEqual(midway.providers.map((p: any) => p.provider), ['provider-b']);
   assert.equal(mod.isProviderModeRateLimited('provider-a', 'shared'), false);
   assert.equal(mod.isProviderModeRateLimited('provider-b', 'shared'), true);
-  assert.deepEqual(cleared, [['provider-a']]);
+  assert.deepEqual(cleared, [['provider-a::shared']]);
 
   await vi.advanceTimersByTimeAsync(60_000);
   assert.equal((mod.getThrottleState() as any).providers.length, 0);
-  assert.deepEqual(cleared, [['provider-a'], ['provider-b']]);
+  assert.deepEqual(cleared, [['provider-a::shared'], ['provider-b::shared']]);
   assert.ok(changes >= 4, 'activation + each provider expiry should publish changes');
 });
 
@@ -537,7 +538,7 @@ test('does not report a provider ready until all of its window types clear', asy
   assert.equal((mod.getThrottleState() as any).providers[0].windows.length, 1);
 
   await vi.advanceTimersByTimeAsync(60_000);
-  assert.deepEqual(cleared, [['provider-a']]);
+  assert.deepEqual(cleared, [['provider-a::shared']]);
 });
 
 test('provider-aware mode gates do not collide when providers share a mode name', async (t) => {
@@ -769,7 +770,7 @@ test('clearThrottle removes one provider and resumes only it', async (t) => {
   assert.deepEqual(result.cleared[0].types, ['five_hour']);
   assert.equal(mod.isProviderRateLimited('provider-a'), false);
   assert.equal(mod.isProviderRateLimited('provider-b'), true);
-  assert.deepEqual(cleared, [['provider-a']]);
+  assert.deepEqual(cleared, [['provider-a::api']]);
 });
 
 test('clearThrottle without provider clears every provider', async (t) => {
@@ -780,7 +781,7 @@ test('clearThrottle without provider clears every provider', async (t) => {
 
   assert.deepEqual(result.cleared.map((c: any) => c.provider).sort(), ['provider-a', 'provider-b']);
   assert.equal(mod.isThrottled(), false);
-  assert.deepEqual(cleared, [['provider-a', 'provider-b']]);
+  assert.deepEqual(cleared, [['provider-a::api', 'provider-b::api']]);
 });
 
 test('clearThrottle clears an outage window and persists empty state', async (t) => {
@@ -825,7 +826,7 @@ test('clearThrottle cancels the pending resume timer', async (t) => {
   // Advance past the original window reset — the timer must have been cancelled.
   await vi.advanceTimersByTimeAsync(600_000);
 
-  assert.deepEqual(cleared, [['provider-a']]);
+  assert.deepEqual(cleared, [['provider-a::api']]);
   assert.equal(mod.isThrottled(), false);
 });
 
@@ -842,7 +843,7 @@ test('activation notice carries a resume-now button with the provider value', as
   const notice = adapter.posted.find((post: any) => post.content.text.includes('throttle activated'));
   assert.ok(notice, 'activation notice posted');
   assert.deepEqual(notice.actions, [
-    { type: 'button', text: 'Resume now', actionId: 'rate-limit:clear', value: 'provider-a', style: 'primary' },
+    { type: 'button', text: 'Resume now', actionId: 'rate-limit:clear', value: 'provider-a::api', style: 'primary' },
   ]);
 });
 
@@ -895,7 +896,7 @@ test('a fresh reading below threshold releases the quota throttle and resumes wo
   assert.equal(await mod.releaseRecoveredQuota('openai-codex', [{ type: 'codex_primary', utilization: 0 }]), true);
   assert.equal(mod.isProviderRateLimited('openai-codex'), false);
   assert.equal(persistence.getSaved(), null);
-  assert.deepEqual(resumed, [['openai-codex']]);
+  assert.deepEqual(resumed, [['openai-codex::openai-codex']]);
   assert.ok(adapter.posted.some((post: any) => post.content.text.includes('OpenAI Codex rate limit throttle cleared')));
 });
 

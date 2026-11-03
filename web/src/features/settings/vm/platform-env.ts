@@ -46,6 +46,7 @@ export function parseWholeNumber(input: string): number | null {
 export const WRITABLE_BOOLEAN_SETTING_KEYS = [
   'turnNotify',
   'autoResume',
+  'accountFailover',
   'notifyCompaction',
   'eventLog',
   'diskMonitor',
@@ -83,7 +84,7 @@ export interface SettingToggleDescriptor {
 
 export const NOTIFY_SETTINGS: SettingToggleDescriptor[] = [
   { setting: 'turnNotify', titleKey: 'stNotifyTurnTitle', descKey: 'stNotifyTurnDesc' },
-  { setting: 'autoResume', titleKey: 'stNotifyResumeTitle' },
+  { setting: 'autoResume', titleKey: 'stNotifyResumeTitle', descKey: 'stNotifyResumeDesc' },
   { setting: 'notifyCompaction', titleKey: 'stNotifyCompactionTitle' },
 ];
 

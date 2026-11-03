@@ -29,6 +29,7 @@ function flowState(
   return {
     flowId: `flow-${input.backend}-${input.provider}`,
     revision: 1,
+    connection: null,
     backend: input.backend,
     provider: input.provider,
     authType: input.authType,

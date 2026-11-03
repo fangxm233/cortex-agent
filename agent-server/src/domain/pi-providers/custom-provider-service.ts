@@ -1,6 +1,6 @@
 import { createLogger } from '@core/log.js';
 import {
-  CONNECTIONS_FILE, isPiCustomConnection, readConnections, removeConnection, upsertConnection,
+  CONNECTIONS_FILE, isPiCustomConnection, piProviderConnections, readConnections, removeConnection, upsertConnection,
   type PiCustomConnection, type PiModelDefinition,
 } from '@core/connections-file.js';
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
@@ -73,8 +73,8 @@ function viewOf(connection: PiCustomConnection): CustomProviderView {
 }
 
 function customConnections(stores: CustomProviderStores): PiCustomConnection[] {
-  return readConnections(stores.connectionsPath)
-    .filter((entry): entry is PiCustomConnection => entry.backend === 'pi' && isPiCustomConnection(entry));
+  return piProviderConnections(readConnections(stores.connectionsPath))
+    .filter((entry): entry is PiCustomConnection => isPiCustomConnection(entry));
 }
 
 function findCustom(stores: CustomProviderStores, name: string): PiCustomConnection | null {

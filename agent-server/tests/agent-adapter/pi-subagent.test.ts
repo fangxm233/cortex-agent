@@ -121,7 +121,7 @@ function parentEnv(agentDir: string): NodeJS.ProcessEnv {
 
 function createHarness(
   role: { model?: string; tools?: string } = {},
-  options: { attributed?: boolean; env?: NodeJS.ProcessEnv } = {},
+  options: { attributed?: boolean; env?: NodeJS.ProcessEnv; deps?: Partial<SubagentToolDeps> } = {},
 ): Harness {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-subagent-'));
   const agentDir = path.join(root, 'pi');
@@ -158,6 +158,7 @@ function createHarness(
     parentEnv: { ...parentEnv(agentDir), ...options.env },
     onUsage: (report) => { usageReports.push(report); },
     ...(options.attributed === false ? {} : { onEvent: (notice) => { notices.push(notice); } }),
+    ...options.deps,
   };
 
   return {
@@ -951,6 +952,29 @@ test('a PI task naming a missing file is refused before any child session starts
       /file not found/,
     );
     assert.equal(harness.calls.length, 0);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test('on an account, a child on the session\'s provider keeps the account; one on another provider does not', async () => {
+  const home = path.join(os.tmpdir(), 'cortex-home-agent-dir');
+  const harness = createHarness({}, { deps: { homeAgentDir: home, account: 'deepseek-work' } });
+  try {
+    const parent = context(harness.root, { id: 'deepseek-v4', provider: 'deepseek' });
+    const same = harness.tool.execute('tool-1', singleParams({ model: 'deepseek-v4-flash' }), undefined, undefined, parent);
+    await waitForPrompts(harness, 1);
+    assert.equal(harness.calls[0].agentDir, harness.agentDir);
+    harness.sessions[0].finish('same', { input: 1, output: 1, cost: { total: 0.01 } }, { provider: 'deepseek', model: 'deepseek-v4-flash' });
+    await same;
+    assert.equal(harness.usageReports[0].connection, 'deepseek-work');
+
+    const other = harness.tool.execute('tool-2', singleParams({ model: 'openai-codex/gpt-5' }), undefined, undefined, parent);
+    await waitForPrompts(harness, 2);
+    assert.equal(harness.calls[1].agentDir, home);
+    harness.sessions[1].finish('other', { input: 1, output: 1, cost: { total: 0.01 } }, { provider: 'openai-codex', model: 'gpt-5' });
+    await other;
+    assert.equal(harness.usageReports[1].connection, undefined);
   } finally {
     harness.cleanup();
   }

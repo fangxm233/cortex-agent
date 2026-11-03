@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { test, vi } from 'vitest';
 import { EventBus } from '../../src/events/event-bus.js';
-import { CONNECTIONS_FILE, readConnections } from '../../src/core/connections-file.js';
+import { CONNECTIONS_FILE, claudeKeyConnections, readConnections } from '../../src/core/connections-file.js';
 import {
   initAuthEvents,
   publishAuthRequired,
@@ -29,8 +29,7 @@ interface AuthFixture {
 
 /** The `api` connection's key as config/connections.json holds it. */
 function storedApiKey(): string | undefined {
-  const api = readConnections().find(entry => entry.backend === 'claude' && entry.id === 'api');
-  return api?.backend === 'claude' ? api.key : undefined;
+  return claudeKeyConnections(readConnections()).find(entry => entry.id === 'api')?.key;
 }
 
 interface CleanupContext {

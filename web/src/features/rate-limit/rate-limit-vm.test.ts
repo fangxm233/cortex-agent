@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SystemRateLimitStatus } from '@cortex-agent/ui-contract';
-import { buildRateLimitView } from './rate-limit-vm';
+import { accountLimitNames, buildRateLimitView } from './rate-limit-vm';
 
 type RawProvider = SystemRateLimitStatus['providers'][number];
 
@@ -39,7 +39,7 @@ describe('buildRateLimitView', () => {
       ],
     }, NOW, 'en');
 
-    expect(vm?.label).toBe('2 providers limited · first 42m');
+    expect(vm?.label).toBe('2 connections limited · first 42m');
   });
 
   it('retains distinct reset times and deterministically orders providers and windows', () => {
@@ -66,5 +66,32 @@ describe('buildRateLimitView', () => {
     expect(buildRateLimitView(raw(1), NOW, 'en')?.providers[0].waitingLabel).toBe('1 session waiting');
     expect(buildRateLimitView(raw(3), NOW, 'en')?.providers[0].waitingLabel).toBe('3 sessions waiting');
     expect(buildRateLimitView(raw(2), NOW, 'zh')?.providers[0].waitingLabel).toBe('2 个会话等待恢复');
+  });
+
+  it('keeps a row per account, names a named account by its label, and keys each row for its own clear', () => {
+    const vm = buildRateLimitView({
+      providers: [
+        { ...provider({ provider: 'anthropic', displayName: 'Anthropic', windows: [window('five_hour', 600)] }), route: 'school', key: 'anthropic::school' },
+        { ...provider({ provider: 'anthropic', displayName: 'Anthropic', windows: [window('five_hour', 300)] }), route: 'subscription', key: 'anthropic::subscription' },
+        provider({ provider: 'openai-codex', displayName: 'OpenAI Codex', windows: [window('outage', 300)] }),
+      ],
+    }, NOW, 'en', accountLimitNames([
+      { id: 'school', backend: 'claude', provider: null, kind: 'account', label: 'School' },
+      // The same id on the other backend is another account.
+      { id: 'school', backend: 'pi', provider: 'openai', kind: 'account', label: 'Other school' },
+    ] as never));
+
+    expect(vm?.providers.map((row) => [row.key, row.displayName])).toEqual([
+      ['anthropic::subscription', 'Anthropic'],
+      ['anthropic::school', 'Anthropic (School)'],
+      ['openai-codex', 'OpenAI Codex'],
+    ]);
+    const codex = buildRateLimitView({ providers: [
+      { ...provider({ provider: 'openai-codex', displayName: 'OpenAI Codex', windows: [window('five_hour', 300)] }), route: 'codex-lab', key: 'openai-codex::codex-lab' },
+      { ...provider({ provider: 'openai-codex', displayName: 'OpenAI Codex', windows: [window('five_hour', 300)] }), route: 'openai-codex', key: 'openai-codex' },
+    ] }, NOW, 'en', accountLimitNames([{ id: 'codex-lab', backend: 'pi', provider: 'openai-codex', kind: 'account', label: 'Lab' }] as never));
+    expect(codex?.providers.map((row) => row.displayName)).toEqual(['OpenAI Codex', 'OpenAI Codex (Lab)']);
+    // Two accounts of one provider are two limited connections.
+    expect(vm?.label).toBe('3 connections limited · first 5m');
   });
 });

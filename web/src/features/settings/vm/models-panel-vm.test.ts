@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { ConfigSnapshot, ModelCatalogSnapshot, ModelRef } from '@cortex-agent/ui-contract';
-import { buildModelFacts, catalogModels, defaultModelOptions, favoriteThinkingControl, modelOptionLabel, thinkingFromValue } from './models-panel-vm';
+import {
+  buildModelFacts, catalogModels, defaultConnectionControl, defaultModelOptions, favoriteThinkingControl, modelOptionLabel,
+  thinkingFromValue,
+} from './models-panel-vm';
 import { modelKey } from '@/lib/model-selection';
 
 const ref: ModelRef = { backend: 'pi', provider: 'deepseek', model: 'flash' };
@@ -72,5 +75,43 @@ describe('model settings derivations', () => {
     const config = { ...snapshot, models: { ...snapshot.models, favorites: [] } };
     expect(defaultModelOptions(config, null)).toEqual([snapshot.models.default]);
     expect(defaultModelOptions(snapshot, catalog)).toHaveLength(3);
+  });
+});
+
+describe('default connection', () => {
+  const opus = { backend: 'claude' as const, provider: null, model: 'opus' };
+  const accounts: ModelCatalogSnapshot = { piPending: false, routes: [
+    { backend: 'claude', provider: null, endpoint: 'anthropic', connections: ['subscription', 'school'], models: ['opus'], source: 'builtin' },
+  ] };
+  const onDefault = { models: { default: { ...opus, thinking: null, connection: null }, favorites: [], memory: {} } } as unknown as ConfigSnapshot;
+
+  it('offers the connections serving the default model, accounts by their label', () => {
+    const control = defaultConnectionControl(onDefault, accounts, { school: 'School' }, { withConnection: 'Default ({connection})', plain: 'Default' });
+    expect(control).toEqual({
+      value: '',
+      options: [
+        { value: '', label: 'Default (subscription)' },
+        { value: 'subscription', label: 'subscription' },
+        { value: 'school', label: 'School' },
+      ],
+    });
+    const pinned = { models: { ...onDefault.models, default: { ...opus, thinking: null, connection: 'school' } } } as ConfigSnapshot;
+    expect(defaultConnectionControl(pinned, accounts, {}, { withConnection: 'Default ({connection})', plain: 'Default' })?.value).toBe('school');
+  });
+
+  it('offers a PI default model\'s accounts beside a plain Default', () => {
+    const flash = { backend: 'pi' as const, provider: 'deepseek', model: 'flash' };
+    const pi: ModelCatalogSnapshot = { piPending: false, routes: [
+      { backend: 'pi', provider: 'deepseek', endpoint: 'deepseek', connections: ['deepseek', 'ds-work'], models: ['flash'], source: 'pi' },
+    ] };
+    const config = { models: { default: { ...flash, thinking: null, connection: null }, favorites: [], memory: {} } } as unknown as ConfigSnapshot;
+    expect(defaultConnectionControl(config, pi, { 'ds-work': 'Work' }, { withConnection: 'Default ({connection})', plain: 'Default' }))
+      .toEqual({ value: '', options: [{ value: '', label: 'Default' }, { value: 'ds-work', label: 'Work' }] });
+  });
+
+  it('offers nothing when one connection or none serves the default model', () => {
+    expect(defaultConnectionControl(onDefault, catalog, {}, { withConnection: 'Default ({connection})', plain: 'Default' })).toBeNull();
+    expect(defaultConnectionControl(snapshot, accounts, {}, { withConnection: 'Default ({connection})', plain: 'Default' })).toBeNull();
+    expect(defaultConnectionControl(onDefault, null, {}, { withConnection: 'Default ({connection})', plain: 'Default' })).toBeNull();
   });
 });

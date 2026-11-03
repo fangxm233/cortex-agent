@@ -18,8 +18,19 @@ function claudeView(id: string, models: string[] | null = null): ConnectionView 
   };
 }
 
-/** The host: a subscription, an API key, and a local endpoint that serves its own model. */
-const HOST = [claudeView('subscription'), claudeView('api'), claudeView('qwen-ksu', ['qwen-coder'])];
+function piAccountView(id: string, provider: string): ConnectionView {
+  return {
+    id, backend: 'pi', provider, kind: 'account', label: id, baseUrl: null, billing: 'metered',
+    authenticated: true, keyHint: null, models: null,
+  };
+}
+
+/** The host: a subscription, an API key, a local endpoint that serves its own model, and a second
+ *  DeepSeek account. */
+const HOST = [
+  claudeView('subscription'), claudeView('api'), claudeView('qwen-ksu', ['qwen-coder']),
+  piAccountView('deepseek-work', 'deepseek'),
+];
 
 function inventoryOf(views: ConnectionView[]): CredentialInventory {
   const claude = views.filter((view) => view.backend === 'claude');
@@ -29,6 +40,9 @@ function inventoryOf(views: ConnectionView[]): CredentialInventory {
     piConnections: () => [],
     findClaude: (id) => claude.find((view) => view.id === id) ?? null,
     findPi: () => null,
+    piAccounts: (provider) => views.filter((view) => view.kind === 'account' && view.backend === 'pi'
+      && (provider === undefined || view.provider === provider)),
+    accounts: () => [],
     hasClaude: () => claude.length > 0,
     claudeSubscriptionSource: () => (claude.some((view) => view.id === 'subscription') ? 'claude-store' : null),
     defaultClaudeConnection: () => claude[0]?.id ?? null,
@@ -203,9 +217,34 @@ const CASES: Case[] = [
     expect: { connection: null, effectiveConnection: null },
   },
   {
-    name: 'PI: the provider is the connection, whatever the request says',
+    name: 'PI: a connection that is not one of the provider\'s accounts is refused',
     layers: { session: { ...PI_V4, thinking: null, connection: null } }, partial: { connection: 'api' },
-    expect: { backend: 'pi', connection: null, effectiveConnection: null },
+    expect: { reason: 'invalid-connection', allowed: ['deepseek', 'deepseek-work'] },
+  },
+  {
+    name: 'PI: naming one of the provider\'s accounts runs on it',
+    layers: { session: { ...PI_V4, thinking: null, connection: null } }, partial: { connection: 'deepseek-work' },
+    expect: { backend: 'pi', connection: 'deepseek-work', effectiveConnection: 'deepseek-work' },
+  },
+  {
+    name: 'PI: naming the provider itself is its default login, stored as null',
+    layers: { session: { ...PI_V4, thinking: null, connection: 'deepseek-work' } }, partial: { connection: 'deepseek' },
+    expect: { connection: null, effectiveConnection: null },
+  },
+  {
+    name: 'PI: the account carries over to another model of the same provider',
+    layers: { session: { ...PI_V4, thinking: null, connection: 'deepseek-work' } }, partial: { model: 'v4-chat' },
+    expect: { model: 'v4-chat', connection: 'deepseek-work' },
+  },
+  {
+    name: 'PI: an account no longer signed in falls back to the default login without an error',
+    layers: { session: { ...PI_V4, thinking: null, connection: 'deepseek-old' } },
+    expect: { connection: null, effectiveConnection: null },
+  },
+  {
+    name: 'PI: another provider does not inherit the account',
+    layers: { session: { ...PI_V4, thinking: null, connection: 'deepseek-work' } }, partial: { provider: 'openai', model: 'gpt-5' },
+    expect: { provider: 'openai', connection: null },
   },
   // ── Identity ─────────────────────────────────────────────────────────────
   { name: 'Claude takes no provider', partial: { provider: 'deepseek' }, expect: { reason: 'provider-not-supported' } },
@@ -241,6 +280,7 @@ test('routeName files a Claude selection naming no connection under the one its 
   expect(routeName(OPUS, context)).toBe('subscription');
   expect(routeName({ ...OPUS, connection: 'api' }, context)).toBe('api');
   expect(routeName({ ...PI_V4, connection: null }, context)).toBe('deepseek');
+  expect(routeName({ ...PI_V4, connection: 'deepseek-work' }, context)).toBe('deepseek-work');
   expect(routeName(OPUS, { inventory: inventoryOf([]), catalog: catalogOf([]) })).toBe('subscription');
 });
 

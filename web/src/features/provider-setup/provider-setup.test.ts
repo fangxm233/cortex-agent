@@ -5,7 +5,7 @@ import { modelKey } from '@/lib/model-selection';
 import { en, zh } from '@/i18n';
 
 const account = (patch: Partial<AuthAccountStatus> = {}): AuthAccountStatus => ({
-  backend: 'pi', provider: 'openai', label: 'OpenAI', state: 'logged-in',
+  backend: 'pi', provider: 'openai', label: 'OpenAI', connection: null, isDefault: true, identity: null, state: 'logged-in',
   capabilities: ['oauth', 'api_key'], authType: 'oauth', source: 'local',
   expiresAt: null, refreshExpiresAt: null, inUse: false, credentials: [], ...patch,
 });

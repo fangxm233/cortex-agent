@@ -55,7 +55,7 @@ export async function handleSystemRedeemUsageReset(
   redeem: typeof redeemUsageReset = redeemUsageReset,
 ): Promise<Result<SystemRedeemUsageResetReturn>> {
   try {
-    return { ok: true, data: await redeem(args.provider, args.creditId) };
+    return { ok: true, data: await redeem(args.provider, args.creditId, {}, args.connection) };
   } catch (error) {
     return {
       ok: false,

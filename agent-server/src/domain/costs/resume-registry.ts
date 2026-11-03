@@ -1,4 +1,5 @@
 import { createLogger } from '@core/log.js';
+import { throttleKeyBlocked } from './throttle-key.js';
 
 const log = createLogger('resume-registry');
 
@@ -14,6 +15,9 @@ export interface ResumeEntry {
   userMessage: string;
   recordedAt: number;
   trackSessionId?: string | null;
+  /** Account failover: the conversation continues at once on another login, whether or not
+   *  auto-resume is on. */
+  failover?: boolean;
 }
 
 export interface ProviderResumeCounts {
@@ -48,7 +52,7 @@ function fireChange(): void {
 }
 
 function entryIsReady(entry: ResumeEntry, active: Set<string>): boolean {
-  return entry.provider ? !active.has(entry.provider) : active.size === 0;
+  return entry.provider ? !throttleKeyBlocked(entry.provider, active) : active.size === 0;
 }
 
 function takeReadyFrom(map: Map<string, ResumeEntry>, active: Set<string>): ResumeEntry[] {
@@ -91,6 +95,18 @@ function recordResume(entry: ResumeEntry): void {
   _direct.set(entry.channel, entry);
   persist();
   fireChange();
+}
+
+/** Put back an entry a dispatch could not start yet, without announcing a change: the next
+ *  settled run wakes the dispatcher again. */
+function requeueResume(entry: ResumeEntry): void {
+  if (_direct.has(entry.channel)) return;
+  _direct.set(entry.channel, entry);
+  persist();
+}
+
+function hasFailoverResume(): boolean {
+  return [..._direct.values()].some((entry) => entry.failover === true);
 }
 
 /** Drop the queued resumes of deleted sessions. */
@@ -153,6 +169,8 @@ function _testReset(): void {
 export {
   initResumeRegistry,
   recordResume,
+  requeueResume,
+  hasFailoverResume,
   removeDirectResume,
   removeDirectResumesForSessions,
   takeReadyResumes,

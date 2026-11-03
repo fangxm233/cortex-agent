@@ -1,3 +1,10 @@
+import { accountIdOf } from '@core/connections-file.js';
+import { t } from '@core/i18n.js';
+import { ensureClaudeAccountDir } from '../connections/claude-account-dir.js';
+import { findAccount } from '../connections/accounts.js';
+import { ensurePiAccountDir } from '../connections/pi-account-dir.js';
+import { piAuthPath } from '../../agent-adapter/pi/defaults.js';
+import type { AuthType } from './auth-status.js';
 import { loginClaudeApiKey } from './cc-login.js';
 import { loginClaudeSubscription } from './cc-subscription.js';
 import {
@@ -13,9 +20,18 @@ import {
 import { createPiApiKeyLoginConsumer } from './pi-login.js';
 import { createPiOAuthLoginConsumer } from './pi-oauth.js';
 
+/** Observes how a flow's login ends, before the flow itself settles. A throwing hook is logged by
+ *  nobody: hooks own their errors. */
+export interface LoginFlowHooks {
+  onSuccess?: () => void | Promise<void>;
+  /** A failure, a cancel, or an expiry. */
+  onFailure?: () => void | Promise<void>;
+}
+
 export interface AuthLoginService {
-  /** Starts a fresh flow; an unfinished one for the same backend and provider is cancelled. */
-  start(input: StartLoginFlowInput): Promise<LoginFlowState>;
+  /** Starts a fresh flow; an unfinished one for the same backend, provider and account is
+   *  cancelled. */
+  start(input: StartLoginFlowInput, hooks?: LoginFlowHooks): Promise<LoginFlowState>;
   getState(flowId: string): LoginFlowState | null;
   respond(flowId: string, value: string, promptId?: number): Promise<LoginFlowState>;
   cancel(flowId: string): Promise<LoginFlowState>;
@@ -70,8 +86,35 @@ export interface AuthLoginServiceDependencies {
   cancelFlow?: typeof cancelFlow;
   claudeConsumer?: LoginFlowConsumer;
   claudeOAuthConsumer?: LoginFlowConsumer;
+  /** The login of one Claude account; given its id. */
+  claudeAccountConsumerFactory?: (connection: string) => LoginFlowConsumer;
   piConsumerFactory?: (provider: string) => LoginFlowConsumer;
   piOAuthConsumerFactory?: (provider: string) => LoginFlowConsumer;
+  /** The login of one PI account: its provider and id, and the credential type to sign in with. */
+  piAccountConsumerFactory?: (provider: string, connection: string, authType: AuthType) => LoginFlowConsumer;
+}
+
+/** An account signs in to its own config dir; Cortex's own subscription and API key are not
+ *  accounts. */
+function accountOf(input: StartLoginFlowInput): string | null {
+  return accountIdOf(input.connection);
+}
+
+function claudeAccountConsumer(connection: string): LoginFlowConsumer {
+  return interaction => loginClaudeSubscription(interaction, {
+    account: { id: connection, configDir: ensureClaudeAccountDir(connection) },
+  });
+}
+
+function selectClaudeAccountConsumer(
+  input: StartLoginFlowInput,
+  connection: string,
+  dependencies: AuthLoginServiceDependencies,
+): LoginFlowConsumer {
+  if (input.authType !== 'oauth' || !findAccount({ backend: 'claude', id: connection })) {
+    throw new LoginFlowError('account_not_found', t('account.issue.not-found'));
+  }
+  return (dependencies.claudeAccountConsumerFactory ?? claudeAccountConsumer)(connection);
 }
 
 function selectClaudeConsumer(
@@ -81,9 +124,31 @@ function selectClaudeConsumer(
   if (input.provider !== 'anthropic') {
     throw new LoginFlowError('provider_not_found', 'Claude provider must be anthropic.');
   }
+  const account = accountOf(input);
+  if (account) return selectClaudeAccountConsumer(input, account, dependencies);
   return input.authType === 'oauth'
     ? dependencies.claudeOAuthConsumer ?? loginClaudeSubscription
     : dependencies.claudeConsumer ?? loginClaudeApiKey;
+}
+
+/** A PI account signs in to its own agent dir's auth.json, with either credential type. */
+function piAccountConsumer(provider: string, connection: string, authType: AuthType): LoginFlowConsumer {
+  const account = { authPath: piAuthPath(ensurePiAccountDir(connection)), connection };
+  return authType === 'oauth'
+    ? createPiOAuthLoginConsumer(provider, account)
+    : createPiApiKeyLoginConsumer(provider, account);
+}
+
+function selectPiAccountConsumer(
+  input: StartLoginFlowInput,
+  connection: string,
+  dependencies: AuthLoginServiceDependencies,
+): LoginFlowConsumer {
+  const account = findAccount({ backend: 'pi', id: connection });
+  if (account?.backend !== 'pi' || account.provider !== input.provider) {
+    throw new LoginFlowError('account_not_found', t('account.issue.not-found'));
+  }
+  return (dependencies.piAccountConsumerFactory ?? piAccountConsumer)(input.provider, connection, input.authType);
 }
 
 function selectPiConsumer(
@@ -93,6 +158,8 @@ function selectPiConsumer(
   if (!input.provider.trim()) {
     throw new LoginFlowError('provider_not_found', 'A provider is required.');
   }
+  const account = accountOf(input);
+  if (account) return selectPiAccountConsumer(input, account, dependencies);
   const factory = input.authType === 'oauth'
     ? dependencies.piOAuthConsumerFactory ?? createPiOAuthLoginConsumer
     : dependencies.piConsumerFactory ?? createPiApiKeyLoginConsumer;
@@ -108,12 +175,28 @@ function selectConsumer(
     : selectPiConsumer(input, dependencies);
 }
 
+function withHooks(consumer: LoginFlowConsumer, hooks: LoginFlowHooks | undefined): LoginFlowConsumer {
+  if (!hooks) return consumer;
+  return async interaction => {
+    let outcome: Awaited<ReturnType<LoginFlowConsumer>>;
+    try {
+      outcome = await consumer(interaction);
+    } catch (error) {
+      await hooks.onFailure?.();
+      throw error;
+    }
+    await hooks.onSuccess?.();
+    return outcome;
+  };
+}
+
 export function createAuthLoginService(
   dependencies: AuthLoginServiceDependencies = {},
 ): AuthLoginService {
   return {
-    async start(input) {
-      return (dependencies.startFlow ?? startFlow)(input, selectConsumer(input, dependencies));
+    async start(input, hooks) {
+      const consumer = withHooks(selectConsumer(input, dependencies), hooks);
+      return (dependencies.startFlow ?? startFlow)(input, consumer);
     },
     getState: flowId => (dependencies.getFlowState ?? getFlowState)(flowId),
     respond: (flowId, value, promptId) => (

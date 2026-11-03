@@ -100,7 +100,7 @@ function recordAttemptCost(
     project: input.request.context.project || 'general',
     trigger: costTrigger(input.request.context.trigger, continuation),
     cost_usd: event.cost_usd, backend: input.attempt.backend,
-    connection: spawnRouteName(input.attempt, input.route), source: 'estimate',
+    connection: event.connection ?? spawnRouteName(input.attempt, input.route), source: 'estimate',
     input_tokens: event.input_tokens, output_tokens: event.output_tokens,
     prompt_tokens: event.prompt_tokens === undefined ? event.tokens_in : event.prompt_tokens,
     cache_read_tokens: event.cache_read_tokens,

@@ -4,8 +4,10 @@
 
 import { claudeSubscriptionLogin, type ClaudeCredentialDeps } from '@core/claude-credentials.js';
 import {
-  CONNECTIONS_FILE, SUBSCRIPTION_CONNECTION, readConnections, type ClaudeKeyConnection,
+  CONNECTIONS_FILE, SUBSCRIPTION_CONNECTION, claudeKeyConnections, readConnections, type ClaudeKeyConnection,
 } from '@core/connections-file.js';
+import { findAccount } from './accounts.js';
+import { ensureClaudeAccountDir, type ClaudeAccountDirDeps } from './claude-account-dir.js';
 import { createCredentialInventory } from './inventory.js';
 
 /** Every credential variable a route decides; whichever one it does not set, it deletes. */
@@ -21,11 +23,14 @@ export interface ClaudeRoute {
   sets: Partial<Record<CredentialVar, string>>;
   /** Credential variables to delete, so nothing inherited can shadow the route. */
   unsets: CredentialVar[];
+  /** CLAUDE_CONFIG_DIR for an account route: the account's own dir. Absent: Cortex's own. */
+  configDir?: string;
 }
 
 export interface ClaudeRouteDeps {
   file?: string;
   claude?: ClaudeCredentialDeps;
+  accountDir?: ClaudeAccountDirDeps;
 }
 
 function withUnsets(route: Omit<ClaudeRoute, 'unsets'>): ClaudeRoute {
@@ -52,9 +57,13 @@ function keyRoute(connection: ClaudeKeyConnection): ClaudeRoute {
   });
 }
 
+/** An account signs in from its own config dir, so no credential variable may reach the child. */
+function accountRoute(id: string, deps: ClaudeRouteDeps): ClaudeRoute {
+  return withUnsets({ connection: id, sets: {}, configDir: ensureClaudeAccountDir(id, deps.accountDir) });
+}
+
 function storedClaudeConnection(id: string, file: string): ClaudeKeyConnection | null {
-  const found = readConnections(file).find((entry) => entry.backend === 'claude' && entry.id === id);
-  return found?.backend === 'claude' ? found : null;
+  return claudeKeyConnections(readConnections(file)).find((entry) => entry.id === id) ?? null;
 }
 
 /**
@@ -67,10 +76,12 @@ export function resolveClaudeRoute(connection: string | null, deps: ClaudeRouteD
   const file = deps.file ?? CONNECTIONS_FILE;
   const claudeDeps = deps.claude ?? {};
   const id = connection
-    ?? createCredentialInventory({ file, claude: claudeDeps }).defaultClaudeConnection()
+    ?? createCredentialInventory({ file, claude: claudeDeps, claudeAccountsDir: deps.accountDir?.accountsDir })
+      .defaultClaudeConnection()
     ?? SUBSCRIPTION_CONNECTION;
   if (id === SUBSCRIPTION_CONNECTION) return subscriptionRoute(claudeDeps);
   const stored = storedClaudeConnection(id, file);
-  if (!stored) throw new Error(`Claude connection '${id}' is not configured`);
-  return keyRoute(stored);
+  if (stored) return keyRoute(stored);
+  if (findAccount({ backend: 'claude', id }, file)) return accountRoute(id, deps);
+  throw new Error(`Claude connection '${id}' is not configured`);
 }

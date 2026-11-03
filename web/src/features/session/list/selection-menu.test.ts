@@ -3,7 +3,7 @@ import type { ConfigAgentEntry, ConfigModels, EngineSelection, ModelCatalogSnaps
 import { modelKey } from '@/lib/model-selection';
 import {
   agentChange, agentChipParts, agentRowSub, buildAgentOptions, buildFavoriteOptions,
-  buildConnectionOptions, buildModelOptions, buildThinkingOptions, connectionChange, groupModelOptions,
+  buildConnectionOptions, buildModelOptions, buildThinkingOptions, connectionChange, defaultConnectionLabel, groupModelOptions,
   hasAgentChoice, modelChange, selectionChipParts, selectionRootRows, thinkingChange,
 } from './selection-menu';
 
@@ -129,6 +129,38 @@ describe('thinking and connection options', () => {
       connections: ['subscription', 'api', 'qwen'], modelConnections: { 'qwen-coder': ['qwen'] } }] };
     expect(buildConnectionOptions(local, { ...current, model: 'qwen-coder' }, 'Default')).toEqual([]);
     expect(buildConnectionOptions(local, current, 'Default').map((option) => option.id)).toEqual([null, 'subscription', 'api', 'qwen']);
+  });
+
+  it('names an account by its label, in the options and on the root row', () => {
+    const accounts = { ...catalog, routes: [{ ...catalog.routes[0], connections: ['subscription', 'api', 'school'] }] };
+    const names = { school: 'School' };
+    const onSchool = { ...current, connection: 'school' };
+    expect(buildConnectionOptions(accounts, onSchool, 'Default', names).map((option) => [option.id, option.label, option.active]))
+      .toEqual([[null, 'Default', false], ['subscription', 'subscription', false], ['api', 'api', false], ['school', 'School', true]]);
+    const copy = { model: 'Model', thinking: 'Thinking', connection: 'Connection' };
+    expect(selectionRootRows(onSchool, copy, { hasThinking: false, hasConnections: true, connectionNames: names })[1].value)
+      .toBe('School');
+  });
+
+  it('offers a PI provider\'s accounts beside its default login, which reads as Default and is stored as none', () => {
+    const accounts = { ...catalog, routes: catalog.routes.map((route) => (route.provider === 'deepseek'
+      ? { ...route, connections: ['deepseek', 'ds-work'] } : route)) };
+    const names = { 'ds-work': 'Work' };
+    const rows = (selection: EngineSelection) => buildConnectionOptions(accounts, selection, 'Default', names)
+      .map((option) => [option.id, option.label, option.active]);
+    expect(rows(pi)).toEqual([[null, 'Default', true], ['ds-work', 'Work', false]]);
+    expect(rows({ ...pi, connection: 'deepseek' })).toEqual([[null, 'Default', true], ['ds-work', 'Work', false]]);
+    expect(rows({ ...pi, connection: 'ds-work' })).toEqual([[null, 'Default', false], ['ds-work', 'Work', true]]);
+    expect(buildConnectionOptions(accounts, { ...pi, provider: 'other' }, 'Default', names)).toEqual([]);
+  });
+
+  it('names the connection the Default row runs on for Claude, and nothing more for PI', () => {
+    const copy = { withConnection: 'Default ({connection})', plain: 'Default' };
+    const accounts = { ...catalog, routes: catalog.routes.map((route) => (route.provider === 'deepseek'
+      ? { ...route, connections: ['deepseek', 'ds-work'] } : route)) };
+    expect(defaultConnectionLabel(accounts, current, { subscription: 'me@home.com' }, copy)).toBe('Default (me@home.com)');
+    expect(defaultConnectionLabel(accounts, pi, {}, copy)).toBe('Default');
+    expect(defaultConnectionLabel(null, current, {}, copy)).toBe('Default');
   });
 });
 

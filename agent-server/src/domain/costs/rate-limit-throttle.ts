@@ -5,12 +5,14 @@ import { createLogger } from '@core/log.js';
 import { AsyncMutex } from '@core/async-mutex.js';
 import { Icons } from '../../core/icons.js';
 import { t, getLocale } from '@core/i18n.js';
+import { SUBSCRIPTION_CONNECTION } from '@core/connections-file.js';
+import { parseThrottleKey, throttleKey } from './throttle-key.js';
 
 const log = createLogger('rate-limit-throttle');
 
 /** Interactive action id used on rate-limit notices ("Resume now" button). Handlers are
  *  registered by the composition root via adapter.onAction; the button value carries the
- *  provider key (empty = all providers). */
+ *  throttle key — `provider::route`, or a bare provider for all its routes (empty = all). */
 export const RATE_LIMIT_CLEAR_ACTION_ID = 'rate-limit:clear';
 
 const TYPE_THRESHOLDS: Record<string, number> = {
@@ -38,8 +40,11 @@ export interface RateLimitWindowState {
   activatedAt: number;
 }
 
+/** One throttled route of a provider — an account or other connection — keyed `provider::route`.
+ *  Without a route (an outage) it covers every route of the provider. `modes` is for display. */
 export interface ProviderThrottleState {
   provider: string;
+  route?: string;
   displayName: string;
   modes: string[];
   windows: RateLimitWindowState[];
@@ -56,6 +61,7 @@ export interface ThrottlePersistence {
 
 export interface ClearedThrottleProvider {
   provider: string;
+  route?: string;
   displayName: string;
   /** Window types cleared (e.g. five_hour / outage). */
   types: string[];
@@ -95,19 +101,29 @@ function cloneProvider(provider: ProviderThrottleState): ProviderThrottleState {
   };
 }
 
+function entryKey(state: Pick<ProviderThrottleState, 'provider' | 'route'>): string {
+  return throttleKey(state.provider, state.route);
+}
+
+/** A notice names the route unless it is the provider's own default login. */
+function noticeName(state: Pick<ProviderThrottleState, 'provider' | 'route' | 'displayName'>): string {
+  const own = !state.route || state.route === SUBSCRIPTION_CONNECTION || state.route === state.provider;
+  return own ? state.displayName : `${state.displayName} (${state.route})`;
+}
+
 function snapshot(
   providers: ReadonlyMap<string, ProviderThrottleState> = _providers,
 ): ProviderThrottleState[] {
-  return [...providers.values()].map(cloneProvider).sort((a, b) => a.provider.localeCompare(b.provider));
+  return [...providers.values()].map(cloneProvider).sort((a, b) => entryKey(a).localeCompare(entryKey(b)));
 }
 
 function cloneProviders(): Map<string, ProviderThrottleState> {
-  return new Map(snapshot().map((provider) => [provider.provider, provider]));
+  return new Map(snapshot().map((provider) => [entryKey(provider), provider]));
 }
 
 function publishProviders(providers: ReadonlyMap<string, ProviderThrottleState>): void {
   _providers.clear();
-  for (const provider of providers.values()) _providers.set(provider.provider, provider);
+  for (const provider of providers.values()) _providers.set(entryKey(provider), provider);
 }
 
 function allWindows(providers: ReadonlyMap<string, ProviderThrottleState> = _providers): RateLimitWindowState[] {
@@ -224,6 +240,7 @@ function normalizeProvider(raw: ProviderThrottleState): ProviderThrottleState | 
   if (windows.length === 0) return null;
   return {
     provider: raw.provider,
+    ...(typeof raw.route === 'string' && raw.route ? { route: raw.route } : {}),
     displayName: raw.displayName || raw.provider,
     modes: Array.isArray(raw.modes) ? uniqueSorted(raw.modes.filter(Boolean)) : [],
     windows: windows.map((window) => ({
@@ -236,9 +253,25 @@ function normalizeProvider(raw: ProviderThrottleState): ProviderThrottleState | 
   };
 }
 
+/** An entry stored before routes held every route the provider was limited on in `modes`, with one
+ *  shared set of windows. Each route gets its own entry with the quota windows; an outage stays on
+ *  a route-less entry, which covers every route. */
+function splitLegacyEntry(entry: ProviderThrottleState): ProviderThrottleState[] {
+  if (entry?.route || !Array.isArray(entry?.modes) || entry.modes.length === 0 || !Array.isArray(entry.windows)) {
+    return [entry];
+  }
+  const outage = entry.windows.filter((window) => window?.type === OUTAGE_WINDOW_TYPE);
+  const quota = entry.windows.filter((window) => window?.type !== OUTAGE_WINDOW_TYPE);
+  const routed = quota.length === 0 ? [] : entry.modes.filter(Boolean).map((mode) => ({
+    ...entry, route: mode, modes: [mode], windows: quota.map((window) => ({ ...window })),
+  }));
+  return outage.length > 0 ? [{ ...entry, modes: [], windows: outage }, ...routed] : routed;
+}
+
 function normalizePersisted(raw: RateLimitThrottleState): ProviderThrottleState[] {
   if (!Array.isArray(raw.providers)) return [];
-  return raw.providers.map(normalizeProvider).filter((provider): provider is ProviderThrottleState => provider !== null);
+  return raw.providers.flatMap(splitLegacyEntry).map(normalizeProvider)
+    .filter((provider): provider is ProviderThrottleState => provider !== null);
 }
 
 function windowExpiryMs(window: RateLimitWindowState): number {
@@ -253,7 +286,7 @@ function windowIsActive(window: RateLimitWindowState, now = Date.now()): boolean
 function loadActiveProviders(raw: RateLimitThrottleState): void {
   for (const provider of normalizePersisted(raw)) {
     const windows = provider.windows.filter((window) => windowIsActive(window));
-    if (windows.length > 0) _providers.set(provider.provider, { ...provider, windows });
+    if (windows.length > 0) _providers.set(entryKey(provider), { ...provider, windows });
   }
 }
 
@@ -296,7 +329,7 @@ function pruneExpired(
     provider.windows = provider.windows.filter((window) => windowIsActive(window, now));
     if (provider.windows.length > 0) continue;
     providers.delete(key);
-    cleared.push({ provider: key, displayName: provider.displayName, expiredTypes });
+    cleared.push({ provider: key, displayName: noticeName(provider), expiredTypes });
   }
   return cleared;
 }
@@ -439,11 +472,13 @@ async function extraNoticeActions(provider: string): Promise<ActionElement[]> {
   }
 }
 
-async function notifyQuotaActivation(info: RateLimitInfo, source: RateLimitSource, isNewProvider: boolean): Promise<void> {
+async function notifyQuotaActivation(
+  info: RateLimitInfo, source: RateLimitSource, state: ProviderThrottleState, isNewProvider: boolean,
+): Promise<void> {
   log.info(`Throttle updated: provider=${source.provider}, type=${info.rateLimitType}, utilization=${info.utilization}, mode=${source.mode ?? '(none)'}`);
   if (!isNewProvider) return;
-  const actions = [...clearAction(source.provider), ...await extraNoticeActions(source.provider)];
-  sendDM(`${Icons.warning} ${t('notice.rateLimit.activated', { provider: source.displayName, type: info.rateLimitType, pct: (info.utilization! * 100).toFixed(0), at: formatResetTime(info.resetsAt!), remaining: formatRemaining(info.resetsAt!) })}`, t('notice.rateLimit.title'), actions);
+  const actions = [...clearAction(entryKey(state)), ...await extraNoticeActions(source.provider)];
+  sendDM(`${Icons.warning} ${t('notice.rateLimit.activated', { provider: noticeName(state), type: info.rateLimitType, pct: (info.utilization! * 100).toFixed(0), at: formatResetTime(info.resetsAt!), remaining: formatRemaining(info.resetsAt!) })}`, t('notice.rateLimit.title'), actions);
 }
 
 async function handleRateLimitEventLocked(info: RateLimitInfo, rawSource?: string | RateLimitSource): Promise<void> {
@@ -451,11 +486,15 @@ async function handleRateLimitEventLocked(info: RateLimitInfo, rawSource?: strin
   const source = normalizeSource(rawSource);
   if (!shouldActivateQuota(info, source)) return;
   const candidate = cloneProviders();
-  let provider = candidate.get(source.provider);
+  const key = throttleKey(source.provider, source.mode);
+  let provider = candidate.get(key);
   const isNewProvider = !provider;
   if (!provider) {
-    provider = { provider: source.provider, displayName: source.displayName, modes: [], windows: [] };
-    candidate.set(source.provider, provider);
+    provider = {
+      provider: source.provider, ...(source.mode ? { route: source.mode } : {}),
+      displayName: source.displayName, modes: [], windows: [],
+    };
+    candidate.set(key, provider);
   }
   const modeAdded = !!source.mode && !provider.modes.includes(source.mode);
   if (modeAdded) provider.modes.push(source.mode!);
@@ -468,55 +507,62 @@ async function handleRateLimitEventLocked(info: RateLimitInfo, rawSource?: strin
   publishProviders(candidate);
   scheduleResumeTimer();
   fireChange();
-  await notifyQuotaActivation(info, source, isNewProvider);
+  await notifyQuotaActivation(info, source, provider, isNewProvider);
 }
 
 async function handleRateLimitEvent(info: RateLimitInfo, rawSource?: string | RateLimitSource): Promise<void> {
   await _mutationMutex.run(() => handleRateLimitEventLocked(info, rawSource));
 }
 
-async function clearThrottleLocked(provider?: string | null): Promise<ClearThrottleResult> {
+/** A `provider::route` key names one entry; a bare provider names every entry of it. */
+function clearTargets(candidate: Map<string, ProviderThrottleState>, target?: string | null): string[] {
+  if (!target) return [...candidate.keys()];
+  if (candidate.has(target)) return [target];
+  if (parseThrottleKey(target).route) return [];
+  return [...candidate.entries()].filter(([, state]) => state.provider === target).map(([key]) => key);
+}
+
+function clearedEntry(state: ProviderThrottleState): ClearedThrottleProvider {
+  return {
+    provider: state.provider,
+    ...(state.route ? { route: state.route } : {}),
+    displayName: noticeName(state),
+    types: state.windows.map((w) => w.type),
+    resetsAt: state.windows.reduce((max, w) => Math.max(max, w.resetsAt), 0),
+  };
+}
+
+async function clearThrottleLocked(target?: string | null): Promise<ClearThrottleResult> {
   if (!_persistence) return { cleared: [] };
   const candidate = cloneProviders();
-  const targets = provider
-    ? (candidate.has(provider) ? [provider] : [])
-    : [...candidate.keys()];
+  const targets = clearTargets(candidate, target);
   if (targets.length === 0) return { cleared: [] };
 
-  const cleared: ClearedThrottleProvider[] = [];
-  for (const key of targets) {
-    const state = candidate.get(key)!;
-    const resetsAt = state.windows.reduce((max, w) => Math.max(max, w.resetsAt), 0);
-    cleared.push({
-      provider: key,
-      displayName: state.displayName,
-      types: state.windows.map((w) => w.type),
-      resetsAt,
-    });
-    candidate.delete(key);
-  }
+  const cleared = targets.map((key) => clearedEntry(candidate.get(key)!));
+  for (const key of targets) candidate.delete(key);
 
   await persist(candidate);
   publishProviders(candidate);
   scheduleResumeTimer();
   fireChange();
-  fireResume(cleared.map((c) => c.provider));
+  fireResume(targets);
   for (const item of cleared) {
     const names = item.types.join(', ');
-    log.info(`Throttle manually cleared: provider=${item.provider}, types=${names}`);
+    log.info(`Throttle manually cleared: provider=${item.provider}, route=${item.route ?? '(all)'}, types=${names}`);
     sendDM(`${Icons.ok} ${t('notice.rateLimit.clearedManually', { provider: item.displayName })}`);
   }
   return { cleared };
 }
 
-/** Manually lift an active rate-limit (or outage) throttle early, for one provider or all.
+/** Manually lift an active rate-limit (or outage) throttle early: one `provider::route` entry, every
+ *  entry of a bare provider, or all.
  *  Walks the same recovery path as a natural window expiry: persists the cleared state,
  *  re-schedules the resume timer, notifies the UI, and fires onResume so paused work is
  *  dispatched immediately. Idempotent — no active window yields an empty result and no notices.
  *  If the provider is actually still rate-limited, the next API call's rate-limit event
  *  re-activates the throttle automatically. */
-async function clearThrottle(provider?: string | null): Promise<ClearThrottleResult> {
-  return _mutationMutex.run(() => clearThrottleLocked(provider));
+async function clearThrottle(target?: string | null): Promise<ClearThrottleResult> {
+  return _mutationMutex.run(() => clearThrottleLocked(target));
 }
 
 export interface QuotaReading {
@@ -544,28 +590,39 @@ async function commitRelease(
   scheduleResumeTimer();
   fireChange();
   if (!released) return;
-  log.info(`Throttle released by a fresh quota reading: provider=${released.provider}`);
-  sendDM(`${Icons.ok} ${t('notice.rateLimit.cleared', { provider: released.displayName })}`);
-  fireResume([released.provider]);
+  log.info(`Throttle released by a fresh quota reading: provider=${released.provider}, route=${released.route ?? '(none)'}`);
+  sendDM(`${Icons.ok} ${t('notice.rateLimit.cleared', { provider: noticeName(released) })}`);
+  fireResume([entryKey(released)]);
 }
 
-async function releaseRecoveredQuotaLocked(provider: string, readings: QuotaReading[]): Promise<boolean> {
+/** The entries one reading speaks for: its route's, or — named by provider alone — every route's. */
+function releaseTargets(candidate: Map<string, ProviderThrottleState>, provider: string, route?: string): string[] {
+  if (route) return candidate.has(throttleKey(provider, route)) ? [throttleKey(provider, route)] : [];
+  return [...candidate.entries()].filter(([, state]) => state.provider === provider).map(([key]) => key);
+}
+
+async function releaseRecoveredQuotaLocked(provider: string, readings: QuotaReading[], route?: string): Promise<boolean> {
+  if (!_persistence) return false;
   const candidate = cloneProviders();
-  const state = candidate.get(provider);
-  if (!_persistence || !state) return false;
-  const kept = state.windows.filter((window) => !windowRecovered(provider, window, readings));
-  if (kept.length === state.windows.length) return false;
-  if (kept.length > 0) state.windows = kept;
-  else candidate.delete(provider);
-  await commitRelease(candidate, kept.length === 0 ? state : null);
-  return true;
+  let changed = false;
+  for (const key of releaseTargets(candidate, provider, route)) {
+    const state = candidate.get(key)!;
+    const kept = state.windows.filter((window) => !windowRecovered(provider, window, readings));
+    if (kept.length === state.windows.length) continue;
+    if (kept.length > 0) state.windows = kept;
+    else candidate.delete(key);
+    await commitRelease(candidate, kept.length === 0 ? state : null);
+    changed = true;
+  }
+  return changed;
 }
 
 /** Lift quota windows a fresh account reading shows are no longer exhausted — e.g. after a reset
- *  spent on another device — instead of waiting out the reset time recorded at activation.
- *  Never activates a throttle; outage windows are untouched. Returns whether anything changed. */
-async function releaseRecoveredQuota(provider: string, readings: QuotaReading[]): Promise<boolean> {
-  return _mutationMutex.run(() => releaseRecoveredQuotaLocked(provider, readings));
+ *  spent on another device — instead of waiting out the reset time recorded at activation. The
+ *  reading is one account's, so only that route's entry is touched. Never activates a throttle;
+ *  outage windows are untouched. Returns whether anything changed. */
+async function releaseRecoveredQuota(provider: string, readings: QuotaReading[], route?: string): Promise<boolean> {
+  return _mutationMutex.run(() => releaseRecoveredQuotaLocked(provider, readings, route));
 }
 
 /** Extra buttons for a provider's throttle notice, after "Resume now". */
@@ -577,21 +634,27 @@ function isThrottled(): boolean {
   return _providers.size > 0;
 }
 
-function isProviderRateLimited(provider: string | null | undefined): boolean {
+function entriesOf(provider: string): ProviderThrottleState[] {
+  return [..._providers.values()].filter((state) => state.provider === provider);
+}
+
+/** With a route: that route's entry, or the provider's route-less one. Without: any entry of the
+ *  provider. Without either: any entry at all. */
+function isProviderRateLimited(provider: string | null | undefined, route?: string | null): boolean {
   if (!provider) return _providers.size > 0;
-  return _providers.has(provider);
+  if (route) return _providers.has(throttleKey(provider, route)) || _providers.has(provider);
+  return entriesOf(provider).length > 0;
 }
 
 function isProviderUsageRateLimited(provider: string | null | undefined): boolean {
-  const states = provider ? [_providers.get(provider)] : [..._providers.values()];
-  return states.some((state) => state?.windows.some((window) => window.type !== OUTAGE_WINDOW_TYPE));
+  const states = provider ? entriesOf(provider) : [..._providers.values()];
+  return states.some((state) => state.windows.some((window) => window.type !== OUTAGE_WINDOW_TYPE));
 }
 
+/** Whether a dispatch on this route must wait: its own entry, or an outage of the provider. */
 function isProviderModeRateLimited(provider: string, mode: string): boolean {
-  const state = _providers.get(provider);
-  if (!state) return false;
-  return state.windows.some((window) => window.type === OUTAGE_WINDOW_TYPE)
-    || state.modes.includes(mode);
+  if (_providers.has(throttleKey(provider, mode))) return true;
+  return !!_providers.get(provider)?.windows.some((window) => window.type === OUTAGE_WINDOW_TYPE);
 }
 
 function getThrottleState(): RateLimitThrottleState {

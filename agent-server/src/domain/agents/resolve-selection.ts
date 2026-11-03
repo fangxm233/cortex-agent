@@ -5,8 +5,9 @@
 // Layers, highest first: what the request says, a selection the caller carries (a schedule's, a
 // delegating parent's), the session's, the channel's draft (only before a session exists), the
 // configured default. The backend is always one of those layers' own field — never inferred from a
-// connection or route name. A Claude selection stores the connection the user chose, or null; the
-// connection a run uses is computed every time from what still exists.
+// connection or route name. A selection stores the connection the user chose, or null; the
+// connection a run uses is computed every time from what still exists. A PI connection is one of
+// the provider's accounts.
 
 import { createLogger } from '@core/log.js';
 import type { Backend } from '@core/types/agent-types.js';
@@ -133,6 +134,14 @@ function claudeIds(r: Resolver): string[] {
   return r.inventory.claudeConnections().map((view) => view.id);
 }
 
+/** The connection a pick carries over: the start's, while the pick stays on its backend and — for
+ *  PI, whose accounts each belong to one provider — on its provider. */
+function inheritedConnection(start: EngineSelection | null, ref: ModelRef): string | null {
+  if (!start || start.backend !== ref.backend) return null;
+  if (ref.backend === 'pi' && start.provider !== ref.provider) return null;
+  return start.connection ?? null;
+}
+
 /**
  * A connection the request names (and that differs from the one it already had) must exist. One
  * carried over is kept while it exists and serves the model; otherwise the choice is dropped and
@@ -141,17 +150,24 @@ function claudeIds(r: Resolver): string[] {
 function resolveConnection(
   partial: Partial<EngineSelection>, start: EngineSelection | null, ref: ModelRef, r: Resolver,
 ): Step<string | null> {
-  if (ref.backend !== 'claude') return { ok: true, value: null };
-  const inherited = start?.backend === 'claude' ? start.connection ?? null : null;
+  const inherited = inheritedConnection(start, ref);
   const named = partial.connection !== undefined && partial.connection !== inherited;
-  if (named) return explicitConnection(partial.connection!, r);
+  if (named) return explicitConnection(partial.connection!, ref, r);
+  if (ref.backend === 'pi') return { ok: true, value: carriedPiConnection(inherited, ref.provider!, r) };
   return { ok: true, value: carriedConnection(inherited, sameModel(start, ref), ref.model, r) };
 }
 
-function explicitConnection(connection: string | null, r: Resolver): Step<string | null> {
+function piAccountIds(provider: string, r: Resolver): string[] {
+  return r.inventory.piAccounts(provider).map((view) => view.id);
+}
+
+/** What a selection may name: one of Claude's connections; for PI, one of the provider's signed-in
+ *  accounts, or the provider itself for its default login (stored as null). */
+function explicitConnection(connection: string | null, ref: ModelRef, r: Resolver): Step<string | null> {
   if (connection === null) return { ok: true, value: null };
-  const ids = claudeIds(r);
-  return ids.includes(connection) ? { ok: true, value: connection } : { ok: false, reason: 'invalid-connection', allowed: ids };
+  const ids = ref.backend === 'pi' ? [ref.provider!, ...piAccountIds(ref.provider!, r)] : claudeIds(r);
+  if (!ids.includes(connection)) return { ok: false, reason: 'invalid-connection', allowed: ids };
+  return { ok: true, value: connection === ref.provider ? null : connection };
 }
 
 function carriedConnection(connection: string | null, same: boolean, model: string, r: Resolver): string | null {
@@ -163,13 +179,21 @@ function carriedConnection(connection: string | null, same: boolean, model: stri
   return same || servingConnections(r.catalog(), model).includes(connection) ? connection : null;
 }
 
+/** A PI account stays chosen while it is signed in; otherwise the provider's default login runs. */
+function carriedPiConnection(connection: string | null, provider: string, r: Resolver): string | null {
+  if (connection === null || piAccountIds(provider, r).includes(connection)) return connection;
+  log.warn(`Account '${connection}' is not signed in to ${provider}; the selection falls back to its default login`);
+  return null;
+}
+
 /**
  * The connection a Claude run uses: the chosen one while it exists; otherwise the default
  * connection when it serves the model, else the first connection that does. Null only when the host
- * has no Claude connection at all (the run then reports the missing login itself).
+ * has no Claude connection at all (the run then reports the missing login itself). A PI run uses
+ * its account while signed in, else the provider's default login (null).
  */
 function computeConnection(selection: EngineSelection, r: Resolver): string | null {
-  if (selection.backend !== 'claude') return null;
+  if (selection.backend === 'pi') return carriedPiConnection(selection.connection, selection.provider ?? '', r);
   if (selection.connection && r.inventory.findClaude(selection.connection)) return selection.connection;
   if (selection.connection) log.warn(`Connection '${selection.connection}' no longer exists; using the default connection`);
   const fallback = r.inventory.defaultClaudeConnection();

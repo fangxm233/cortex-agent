@@ -1,8 +1,9 @@
-import type { SystemRateLimitStatus } from '@cortex-agent/ui-contract';
+import type { ConnectionView, SystemRateLimitStatus } from '@cortex-agent/ui-contract';
 import type { Lang } from '@/i18n';
 import { fmt } from '@/i18n/fmt';
 import { pickVocab } from '@/i18n/lang';
 import { formatSpanPrecise } from '@/i18n/time-format';
+import type { ConnectionNames } from '@/lib/model-selection';
 
 export interface RateLimitWindowView {
   type: string;
@@ -12,7 +13,10 @@ export interface RateLimitWindowView {
 }
 
 export interface RateLimitProviderView {
+  /** `provider::route`, or the bare provider for a provider-wide outage: what a clear names. */
+  key: string;
   provider: string;
+  /** The provider, and a named account's label when the row belongs to one. */
   displayName: string;
   recoveryAt: number;
   recoveryCountdown: string;
@@ -53,10 +57,26 @@ function buildWindow(window: RawRateLimitWindow, nowSec: number, lang: Lang): Ra
   };
 }
 
+type RawRateLimitProvider = SystemRateLimitStatus['providers'][number];
+
+/** Named accounts' labels by the key their rate-limit row carries, `provider::id`: a Claude account
+ *  is limited under `anthropic`, a PI account under its provider. An id alone is unique only within
+ *  its backend. */
+export function accountLimitNames(views: readonly ConnectionView[] | null | undefined): ConnectionNames {
+  return Object.fromEntries((views ?? []).filter((view) => view.kind === 'account')
+    .map((view) => [`${view.backend === 'claude' ? 'anthropic' : view.provider}::${view.id}`, view.label]));
+}
+
+function displayName(raw: RawRateLimitProvider, names: ConnectionNames, lang: Lang): string {
+  const account = raw.key && Object.hasOwn(names, raw.key) ? names[raw.key] : null;
+  return account ? fmt(pickVocab(lang).accountsAccountName, { provider: raw.displayName, account }) : raw.displayName;
+}
+
 function buildProvider(
-  raw: SystemRateLimitStatus['providers'][number],
+  raw: RawRateLimitProvider,
   nowSec: number,
   lang: Lang,
+  names: ConnectionNames,
 ): RateLimitProviderView | null {
   const windows = raw.windows
     .filter((window) => window.resetsAt > nowSec)
@@ -68,7 +88,7 @@ function buildProvider(
   const recoveryAt = Math.max(...windows.map((window) => window.resetsAt));
   const waitingSessions = raw.waitingSessions ?? 0;
   return {
-    provider: raw.provider, displayName: raw.displayName, recoveryAt,
+    key: raw.key ?? raw.provider, provider: raw.provider, displayName: displayName(raw, names, lang), recoveryAt,
     recoveryCountdown: formatRateLimitCountdown(recoveryAt - nowSec, lang),
     waitingLabel: waitingLabel(waitingSessions, lang), windows,
   };
@@ -82,15 +102,17 @@ function aggregateLabel(count: number, countdown: string, lang: Lang): string {
   return fmt(pickVocab(lang).rlAggregate, { count, countdown });
 }
 
+/** `names` labels named accounts by their row key (see accountLimitNames). */
 export function buildRateLimitView(
   status: SystemRateLimitStatus | null | undefined,
   nowSec: number,
   lang: Lang,
+  names: ConnectionNames = {},
 ): RateLimitView | null {
   const providers = (status?.providers ?? [])
-    .map((provider) => buildProvider(provider, nowSec, lang))
+    .map((provider) => buildProvider(provider, nowSec, lang, names))
     .filter((provider): provider is RateLimitProviderView => provider !== null)
-    .sort((a, b) => a.displayName.localeCompare(b.displayName) || a.provider.localeCompare(b.provider));
+    .sort((a, b) => a.displayName.localeCompare(b.displayName) || a.key.localeCompare(b.key));
   if (providers.length === 0) return null;
   const firstRecoveryAt = Math.min(...providers.map((provider) => provider.recoveryAt));
   const firstCountdown = formatRateLimitCountdown(firstRecoveryAt - nowSec, lang);

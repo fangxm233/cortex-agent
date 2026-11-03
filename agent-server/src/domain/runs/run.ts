@@ -14,9 +14,12 @@ import { NO_SPEND, countSpend, spendOfResult, type RunSpend } from './spend.js';
 import type { EngineSelection } from '../agents/engine-selection.js';
 import { publishAuthRecovered, publishAuthRequired, classifyAuthError } from '../auth/auth-events.js';
 import {
-  attemptAuthType, attemptProvider, attemptProviderOrNull, rateLimitedResult, shouldSkipAttempt,
+  attemptAccount, attemptAuthType, attemptProvider, attemptProviderOrNull, rateLimitedResult, shouldSkipAttempt,
 } from './fallback.js';
 import { resolveRunRoute } from './config-resolver.js';
+import {
+  announceFailover, loginLabel, preflightFailover, resumeFailover, type FailoverTarget,
+} from './account-failover.js';
 import { AttemptNoticeTracker, assistantNoticeLevel } from './notices.js';
 import { startAttempt, type RunAttempt } from './attempt.js';
 import type { RunObserver, RunRequest, RunResult } from './request.js';
@@ -165,6 +168,7 @@ export class AgentRunImpl implements AgentRun {
         channel: args.request.context.channel,
         isUserInitiated: args.request.context.isUserInitiated,
         trigger: args.request.context.trigger,
+        failoverResume: (provider, route) => resumeFailover(args.request.selection, { provider, route }) !== null,
       },
       (text, blockId, noticeLevel, noticeAction, subagent) => this.absorb({
         type: 'assistant_text', text, phase: this.phaseValue,
@@ -220,7 +224,7 @@ export class AgentRunImpl implements AgentRun {
 
   /** One selection, at most one spawn. Background work never waits for a throttled provider. */
   private async runOnce(): Promise<void> {
-    const attempt = this.request.selection;
+    const attempt = this.startingSelection();
     if (shouldSkipAttempt(attempt, this.request.context)) {
       const blocked = rateLimitedResult(routeName(attempt), attemptProvider(attempt));
       this.notices.emitTerminalRateLimit(blocked);
@@ -241,6 +245,29 @@ export class AgentRunImpl implements AgentRun {
     }
   }
 
+  /** The session's selection, or — with account failover on and its login rate-limited — another
+   *  login of the same provider, for this run only. */
+  private startingSelection(): EngineSelection {
+    const selection = this.request.selection;
+    if (!getSettings().accountFailover) return selection;
+    const target = preflightFailover(selection);
+    this.noteFailover(target);
+    if (!target) return selection;
+    this.attemptValue = { index: 0, config: target.selection };
+    return target.selection;
+  }
+
+  /** The first run of a switch tells the session; the runs after it on the same pair do not. */
+  private noteFailover(target: FailoverTarget | null): void {
+    const channel = this.request.context.channel ?? '';
+    if (!announceFailover(channel, target) || !target) return;
+    log.info(`Account failover on ${channel || '(no channel)'}: ${target.from} → ${target.to}`);
+    if (!channel.startsWith('web:')) return;
+    this.notices.observe(t('notify.accountFailover', {
+      from: loginLabel(this.request.selection), to: loginLabel(target.selection),
+    }), undefined, 'info');
+  }
+
   private openAttempt(attempt: EngineSelection): RunAttempt {
     const spend: RunSpend = { ...NO_SPEND };
     this.liveSpend = spend;
@@ -253,7 +280,7 @@ export class AgentRunImpl implements AgentRun {
       },
     });
     this.current = current;
-    this.registerAttempt(current);
+    this.registerAttempt(current, attemptAccount(attempt));
     this.announcePluginWarnings(current.spec);
     return current;
   }
@@ -294,18 +321,22 @@ export class AgentRunImpl implements AgentRun {
     this.onForegroundError(failure);
   }
 
-  /** Stamp the selected provider onto a result that did not name one. */
+  /** Stamp the selected provider and route onto a result that did not name them. */
   private attribute(result: RunResult): RunResult {
     const provider = attemptProviderOrNull(this.attemptValue.config);
     if (!provider || result.rateLimitProvider) return result;
-    return { ...result, rateLimitProvider: provider };
+    return { ...result, rateLimitProvider: provider, rateLimitRoute: routeName(this.attemptValue.config) };
   }
 
   private attributeError(error: unknown): Error {
     const failure = asError(error);
     const provider = attemptProviderOrNull(this.attemptValue.config);
     if (provider && isRetryableError(failure)) {
-      (failure as Error & { rateLimitProvider?: string }).rateLimitProvider ??= provider;
+      const attributed = failure as Error & { rateLimitProvider?: string; rateLimitRoute?: string };
+      if (!attributed.rateLimitProvider) {
+        attributed.rateLimitProvider = provider;
+        attributed.rateLimitRoute = routeName(this.attemptValue.config);
+      }
     }
     return failure;
   }
@@ -316,7 +347,9 @@ export class AgentRunImpl implements AgentRun {
   private publishAuthOutcome(
     result: RunResult | null, error: Error | null, attempt = this.attemptValue.config,
   ): void {
-    const identity = { backend: attempt.backend, provider: attemptProvider(attempt) };
+    const identity = {
+      backend: attempt.backend, provider: attemptProvider(attempt), connection: attemptAccount(attempt),
+    };
     if (result) {
       if (!result.rateLimited) publishAuthRecovered(identity);
       return;
@@ -385,13 +418,14 @@ export class AgentRunImpl implements AgentRun {
 
   // ── wiring ─────────────────────────────────────────────────────────────
 
-  private registerAttempt(attempt: RunAttempt): void {
+  private registerAttempt(attempt: RunAttempt, account: string | null): void {
     this.registry.register({
       channel: this.request.context.channel,
       executionId: this.executionId,
       kind: this.request.context.executionKind,
       kill: () => attempt.kill(),
       backend: attempt.backend,
+      account,
       run: this,
       trackSessionId: this.request.session.sessionId,
       backendSessionId: attempt.backendSessionId ?? this.request.session.backendSessionId,

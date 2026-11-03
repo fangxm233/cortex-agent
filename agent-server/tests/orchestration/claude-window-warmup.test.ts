@@ -1,7 +1,10 @@
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import { writeConnections } from '../../src/core/connections-file.js';
+import { CLAUDE_ACCOUNTS_HOME } from '../../src/core/paths.js';
 import {
-  WARMUP_QUIET_MS, WARMUP_RETRY_MS, fiveHourEnd, newWarmupState, tickWindowWarmup,
-  type WarmupDeps, type WindowEnd,
+  WARMUP_QUIET_MS, WARMUP_RETRY_MS, fiveHourEnd, newWarmupState, tickAllWindowWarmups, tickWindowWarmup,
+  warmupLaunch, type WarmupDeps, type WarmupState, type WindowEnd,
 } from '../../src/orchestration/claude-window-warmup.js';
 
 const MIN = 60_000;
@@ -150,5 +153,36 @@ describe('tickWindowWarmup', () => {
     const noWindow = harness();
     noWindow.end.value = undefined;
     expect(await tickUntil(noWindow, newWarmupState(), 60 * MIN)).toBe(0);
+  });
+});
+
+describe('tickAllWindowWarmups', () => {
+  it('watches each login on its own: a run as one does not hold back the other', async () => {
+    const clock = { now: START };
+    const now = () => clock.now;
+    const subscription = harness({ now, windowEnd: async () => START + 300 * MIN, claudeRunning: () => true });
+    const school = harness({ now, connection: () => 'school' });
+    const depsFor = (connection: string) => (connection === 'school' ? school.deps : subscription.deps);
+    const states = new Map<string, WarmupState>();
+    while (clock.now <= START + WARMUP_QUIET_MS) {
+      await tickAllWindowWarmups(states, ['subscription', 'school'], depsFor);
+      clock.now += MIN;
+    }
+    expect(school.warm).toHaveBeenCalledWith('school');
+    expect(subscription.warm).not.toHaveBeenCalled();
+  });
+
+  it('drops the state of a login that is no longer listed', async () => {
+    const h = harness();
+    const states = new Map([['gone', newWarmupState()]]);
+    await tickAllWindowWarmups(states, ['subscription'], () => h.deps);
+    expect([...states.keys()]).toEqual(['subscription']);
+  });
+});
+
+describe('warmupLaunch', () => {
+  it('runs an account warm-up in the account config dir', () => {
+    writeConnections([{ id: 'school', backend: 'claude', type: 'account', label: 'School' }]);
+    expect(warmupLaunch('school').env.CLAUDE_CONFIG_DIR).toBe(path.join(CLAUDE_ACCOUNTS_HOME, 'school'));
   });
 });

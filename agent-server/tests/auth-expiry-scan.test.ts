@@ -30,7 +30,7 @@ function account(
   overrides: Partial<AuthAccountStatus> = {},
 ): AuthAccountStatus {
   return {
-    backend: 'pi', provider: 'openai-codex', label: 'OpenAI Codex',
+    backend: 'pi', provider: 'openai-codex', connection: null, isDefault: true, identity: null, label: 'OpenAI Codex',
     capabilities: ['oauth'], authType: 'oauth', state, source: 'stored',
     expiresAt: state === 'logged-out' ? null : EXPIRY, refreshExpiresAt: null,
     inUse, credentials: [{

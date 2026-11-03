@@ -20,7 +20,7 @@ function controller(): ModelsController {
     facts: [{ ref, key: modelKey(ref), thinking: 'high', current: true }], options: [ref],
     loading: false, error: null, catalogOpen: false, catalogModels: [], catalogPending: false, catalogError: null,
     catalog: { piPending: false, routes: [], thinkingLevels: { pi: ['off', 'high'], claude: ['high'] } },
-    pending: false, setCatalogOpen: vi.fn(), setDefault: vi.fn(), setThinking: vi.fn(), add: vi.fn(), remove: vi.fn(),
+    pending: false, setCatalogOpen: vi.fn(), setDefault: vi.fn(), setDefaultConnection: vi.fn(), connectionControl: null, setThinking: vi.fn(), add: vi.fn(), remove: vi.fn(),
   };
 }
 function render(c: ModelsController) { return create(<LangProvider><ModelsPanelView controller={c} /></LangProvider>); }

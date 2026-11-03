@@ -12,7 +12,9 @@ import { createHash } from 'crypto';
 import { readFileSync } from 'fs';
 import * as path from 'path';
 import { parse as parseDotenv } from 'dotenv';
-import { CONNECTIONS_FILE, readConnections, type ClaudeKeyConnection } from './connections-file.js';
+import {
+  CONNECTIONS_FILE, claudeKeyConnections, readConnections, type ClaudeKeyConnection,
+} from './connections-file.js';
 import { CLAUDE_CONFIG_HOME, CONFIG_DIR } from './paths.js';
 
 /** OAuth tokens go on `Authorization: Bearer` and need this beta opt-in; API keys use `x-api-key`. */
@@ -108,9 +110,8 @@ export function readDotenvCredentials(deps: ClaudeCredentialDeps = {}): DotenvCr
  * whose key the daemon may use for its own Anthropic calls. A relay's key belongs to the relay.
  */
 export function officialApiKeyConnection(deps: ClaudeCredentialDeps = {}): ClaudeKeyConnection | null {
-  const found = readConnections(deps.connectionsFile ?? CONNECTIONS_FILE).find((entry) =>
-    entry.backend === 'claude' && !entry.baseUrl && entry.authStyle === 'x-api-key');
-  return found?.backend === 'claude' ? found : null;
+  return claudeKeyConnections(readConnections(deps.connectionsFile ?? CONNECTIONS_FILE))
+    .find((entry) => !entry.baseUrl && entry.authStyle === 'x-api-key') ?? null;
 }
 
 /** The official Anthropic API key, when a connection holds one. */
@@ -205,16 +206,39 @@ export function claudeLoginHeaders(deps: ClaudeCredentialDeps = {}): Record<stri
   return token ? oauthHeaders(token) : null;
 }
 
-/** The organization Claude's login belongs to, from Claude Code's `.claude.json`. */
-export function readClaudeOrganizationUuid(deps: ClaudeCredentialDeps = {}): string | null {
+/** The account record Claude Code keeps beside its login, in `.claude.json`. */
+function readOAuthAccount(deps: ClaudeCredentialDeps): Record<string, unknown> | null {
   const raw = readFileOrNull(fileReader(deps), path.join(claudeConfigDir(deps), '.claude.json'));
   if (raw === null) return null;
   try {
-    const account = (JSON.parse(raw) as { oauthAccount?: { organizationUuid?: unknown } } | null)?.oauthAccount;
-    return stringField(account?.organizationUuid);
+    const account = (JSON.parse(raw) as { oauthAccount?: unknown } | null)?.oauthAccount;
+    return account && typeof account === 'object' && !Array.isArray(account) ? account as Record<string, unknown> : null;
   } catch {
     return null;
   }
+}
+
+/** The organization Claude's login belongs to, from Claude Code's `.claude.json`. */
+export function readClaudeOrganizationUuid(deps: ClaudeCredentialDeps = {}): string | null {
+  return stringField(readOAuthAccount(deps)?.organizationUuid);
+}
+
+/** Who a Claude login is, as Claude Code recorded it. Not a secret. */
+export interface ClaudeAccountIdentity {
+  email: string | null;
+  organization: string | null;
+  /** Claude's organization type, e.g. `claude_max` or `claude_team`. */
+  plan: string | null;
+}
+
+export function readClaudeAccountIdentity(deps: ClaudeCredentialDeps = {}): ClaudeAccountIdentity | null {
+  const account = readOAuthAccount(deps);
+  if (!account) return null;
+  return {
+    email: stringField(account.emailAddress),
+    organization: stringField(account.organizationName),
+    plan: stringField(account.organizationType) ?? stringField(account.billingType),
+  };
 }
 
 type LegacyTokenSource = 'env-oauth-token' | 'dotenv-oauth-token';
@@ -318,7 +342,7 @@ export async function claudeKeychainCredential(deps: ClaudeCredentialDeps = {}):
  * authoritative is the platform's choice: the plaintext file on Linux and Windows, the login
  * keychain on macOS. Checking only the file reads as "not logged in" on every Mac.
  */
-function claudeOwnsOAuthCredential(deps: ClaudeCredentialDeps): boolean {
+export function claudeOwnsOAuthCredential(deps: ClaudeCredentialDeps = {}): boolean {
   if (readClaudeStore(deps)) return true;
   const platform = deps.platform ?? process.platform;
   if (platform !== 'darwin') return false;

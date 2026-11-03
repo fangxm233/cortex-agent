@@ -50,6 +50,8 @@ export interface AuthNoticeAction {
   noticeId: string;
   backend: 'claude' | 'pi';
   provider: string;
+  /** The account to sign in again; absent or null is the provider's default login. */
+  connection?: string | null;
   authType: 'oauth' | 'api_key';
 }
 
@@ -162,6 +164,9 @@ export interface AgentResult {
   /** Opaque provider key used by provider-scoped throttle and resume bookkeeping. Set by the
    *  run layer for every attempt, including successful turns whose continuation may fail. */
   rateLimitProvider?: string;
+  /** The route (connection) the attempt ran on; with `rateLimitProvider` it names the one throttle
+   *  entry — one account — the result is filed under. */
+  rateLimitRoute?: string;
   planFilePath: string | null;
   enteredPlanMode: boolean;
   exitedPlanMode: boolean;

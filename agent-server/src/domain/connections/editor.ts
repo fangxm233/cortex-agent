@@ -5,9 +5,9 @@
 
 import { createLogger } from '@core/log.js';
 import {
-  CONNECTIONS_FILE, CONNECTION_ID_RE, SUBSCRIPTION_CONNECTION, isPiCustomConnection, readConnections,
-  removeConnection, upsertConnection, type ClaudeAuthStyle, type ClaudeKeyConnection, type ConnectionBilling,
-  type PiOverrideConnection, type StoredConnection,
+  CONNECTIONS_FILE, CONNECTION_ID_RE, SUBSCRIPTION_CONNECTION, isAccountConnection, isPiCustomConnection,
+  readConnections, removeConnection, upsertConnection, type AccountConnection, type ClaudeAuthStyle,
+  type ClaudeKeyConnection, type ConnectionBilling, type PiOverrideConnection, type StoredConnection,
 } from '@core/connections-file.js';
 import { removeAnthropicApiKey, API_KEY_CONNECTION } from '../auth/anthropic-env.js';
 import {
@@ -73,8 +73,16 @@ function stored(deps: ConnectionEditorDeps): StoredConnection[] {
   return readConnections(deps.file ?? CONNECTIONS_FILE);
 }
 
-function findStored(deps: ConnectionEditorDeps, backend: 'claude' | 'pi', id: string): StoredConnection | null {
-  return stored(deps).find((entry) => entry.backend === backend && entry.id === id) ?? null;
+type EditableConnection = Exclude<StoredConnection, AccountConnection>;
+
+/** Accounts are added and removed with their login (domain/auth/accounts), never edited here. */
+function findStored(deps: ConnectionEditorDeps, backend: 'claude' | 'pi', id: string): EditableConnection | null {
+  const found = stored(deps).find((entry) => entry.backend === backend && entry.id === id);
+  return found && !isAccountConnection(found) ? found : null;
+}
+
+function isAccountId(deps: ConnectionEditorDeps, backend: 'claude' | 'pi', id: string): boolean {
+  return stored(deps).some((entry) => entry.backend === backend && entry.id === id && isAccountConnection(entry));
 }
 
 function viewFor(deps: ConnectionEditorDeps, backend: 'claude' | 'pi', id: string): ConnectionView | null {
@@ -126,6 +134,7 @@ function claudeConnection(input: ClaudeConnectionInput, previous: ClaudeKeyConne
 }
 
 function upsertClaude(input: ClaudeConnectionInput & { create?: boolean }, deps: ConnectionEditorDeps): ConnectionWrite {
+  if (isAccountId(deps, 'claude', input.id)) return { ok: false, errors: ['name-taken'] };
   const found = findStored(deps, 'claude', input.id);
   const previous = found?.backend === 'claude' ? found : null;
   const issues = claudeIssues(input, previous);
@@ -137,6 +146,7 @@ function upsertClaude(input: ClaudeConnectionInput & { create?: boolean }, deps:
 function upsertOverride(input: PiOverrideInput & { create?: boolean }, deps: ConnectionEditorDeps): ConnectionWrite {
   const provider = input.provider.trim();
   const found = findStored(deps, 'pi', provider);
+  if (isAccountId(deps, 'pi', provider)) return { ok: false, errors: ['name-taken'] };
   if (found?.backend === 'pi' && isPiCustomConnection(found)) return { ok: false, errors: ['name-taken'] };
   const previous = found?.backend === 'pi' ? found as PiOverrideConnection : null;
   const issues = nameIssues(provider, previous !== null, input.create);
@@ -154,6 +164,7 @@ function upsertOverride(input: PiOverrideInput & { create?: boolean }, deps: Con
 function upsertCustom(input: PiCustomInput & { create?: boolean }, deps: ConnectionEditorDeps): ConnectionWrite {
   const provider = input.provider.trim();
   const found = findStored(deps, 'pi', provider);
+  if (isAccountId(deps, 'pi', provider)) return { ok: false, errors: ['name-taken'] };
   if (found && (input.create || !(found.backend === 'pi' && isPiCustomConnection(found)))) {
     return { ok: false, errors: ['name-taken'] };
   }
@@ -174,7 +185,7 @@ export function upsertConnectionFrom(input: ConnectionInput, deps: ConnectionEdi
 }
 
 /** Delete a stored connection; the Claude `api` key also leaves a pre-connections `.env`. */
-async function deleteStored(found: StoredConnection, deps: ConnectionEditorDeps): Promise<ConnectionIssue[]> {
+async function deleteStored(found: EditableConnection, deps: ConnectionEditorDeps): Promise<ConnectionIssue[]> {
   const file = deps.file ?? CONNECTIONS_FILE;
   if (found.backend === 'pi' && isPiCustomConnection(found)) {
     const removed = removeCustomProvider({ connectionsPath: file }, found.id);

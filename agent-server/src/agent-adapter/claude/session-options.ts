@@ -32,6 +32,8 @@ export interface ClaudeSessionOptions {
   anthropicBaseUrl?: string;
   /** The connection the route was resolved for; rate-limit readings are filed under it. */
   connection?: string;
+  /** CLAUDE_CONFIG_DIR for an account's route; absent, Cortex's own config dir. */
+  configDir?: string;
   routeEnv?: Record<string, string>;
   /** Keys deleted from the child env after route environment is applied (EngineSpec.env.unsets). */
   unsetEnv?: string[];
@@ -135,6 +137,7 @@ export function claudeProcessLaunch(launch: ClaudeLaunchInput): { args: string[]
   const env = buildClaudeEnv(
     launch.channel, launch.sessionId, options.callbackSource || null, options.scheduleTaskId || null,
     options.anthropicBaseUrl, options.routeEnv, options.context, options.pinnedEnv, options.unsetEnv,
+    options.configDir,
   );
   env[MCP_BUNDLES_ENV] = encodeMcpBundles(resolveClaudeMcpBundles(spawnOptions));
   return { args: buildSpawnArgs(spawnOptions), env };
@@ -195,6 +198,7 @@ function sessionRuntimeOptions(
   return {
     anthropicBaseUrl: spec.route.anthropicBaseUrl,
     connection: spec.route.connection,
+    configDir: spec.route.claudeConfigDir,
     routeEnv: spec.env.sets,
     unsetEnv: spec.env.unsets,
     cwd: resolveSpawnCwd(spec.cwd),

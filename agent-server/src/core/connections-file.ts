@@ -3,7 +3,8 @@
 // Claude Code's subscription login and PI's built-in provider logins stay in their own stores
 // (Claude's config dir, PI's auth.json) and never appear here. What this file holds is everything
 // those stores cannot express: an Anthropic API key or relay for Claude Code, a base-URL override
-// for one of PI's built-in providers, and a complete user-defined PI provider. The file is written
+// for one of PI's built-in providers, a complete user-defined PI provider, and each additional
+// account — whose login lives in a directory of its own, so its entry holds no secret. The file is written
 // owner-only because it carries keys; nothing read from it may reach a log or the UI unmasked.
 
 import { readFileSync } from 'node:fs';
@@ -75,7 +76,30 @@ export interface PiCustomConnection {
 }
 
 export type PiConnection = PiOverrideConnection | PiCustomConnection;
-export type StoredConnection = ClaudeKeyConnection | PiConnection;
+
+/** A login of its own. The credential lives in the account's own directory, never in this file. */
+export interface ClaudeAccountConnection {
+  id: string;
+  backend: 'claude';
+  type: 'account';
+  label: string;
+  /** Written before the first login completes; the entry is dropped when that login fails. */
+  pending?: boolean;
+}
+
+/** A second (or further) login to one of PI's providers. Its id never equals a provider name: PI
+ *  override and custom connections use the provider name as their id. */
+export interface PiAccountConnection {
+  id: string;
+  backend: 'pi';
+  type: 'account';
+  label: string;
+  provider: string;
+  pending?: boolean;
+}
+
+export type AccountConnection = ClaudeAccountConnection | PiAccountConnection;
+export type StoredConnection = ClaudeKeyConnection | PiConnection | AccountConnection;
 
 interface ConnectionsDocument {
   version: 1;
@@ -105,6 +129,20 @@ function stringMap(value: unknown): Record<string, string> | undefined {
 
 export function isPiCustomConnection(connection: PiConnection): connection is PiCustomConnection {
   return 'api' in connection;
+}
+
+export function isAccountConnection(connection: StoredConnection): connection is AccountConnection {
+  return 'type' in connection && connection.type === 'account';
+}
+
+/** The Claude connections that carry a key: every stored Claude entry but the accounts. */
+export function claudeKeyConnections(connections: StoredConnection[]): ClaudeKeyConnection[] {
+  return connections.filter((entry): entry is ClaudeKeyConnection => entry.backend === 'claude' && !isAccountConnection(entry));
+}
+
+/** The PI override and custom connections: every stored PI entry but the accounts. */
+export function piProviderConnections(connections: StoredConnection[]): PiConnection[] {
+  return connections.filter((entry): entry is PiConnection => entry.backend === 'pi' && !isAccountConnection(entry));
 }
 
 function parseClaude(raw: Json, id: string): ClaudeKeyConnection | null {
@@ -146,10 +184,22 @@ function parsePi(raw: Json, id: string): PiConnection | null {
   return custom;
 }
 
+function parseAccount(raw: Json, id: string): AccountConnection | null {
+  const label = text(raw.label) ?? id;
+  const pending = raw.pending === true ? { pending: true } : {};
+  if (raw.backend === 'claude') {
+    return id === SUBSCRIPTION_CONNECTION ? null : { id, backend: 'claude', type: 'account', label, ...pending };
+  }
+  const provider = text(raw.provider);
+  if (!provider || !CONNECTION_ID_RE.test(provider) || provider === id) return null;
+  return { id, backend: 'pi', type: 'account', label, provider, ...pending };
+}
+
 function parseConnection(raw: unknown): StoredConnection | null {
   if (!isObject(raw)) return null;
   const id = text(raw.id);
   if (!id || !CONNECTION_ID_RE.test(id)) return null;
+  if (raw.type === 'account' && (raw.backend === 'claude' || raw.backend === 'pi')) return parseAccount(raw, id);
   if (raw.backend === 'claude') return parseClaude(raw, id);
   if (raw.backend === 'pi') return parsePi(raw, id);
   return null;
@@ -221,6 +271,12 @@ export function removeConnection(
   if (next.length === current.length) return false;
   writeConnections(next, file);
   return true;
+}
+
+/** The account a login, logout or status row names: Claude's own subscription is the default
+ *  login, not an account. Null: the default. */
+export function accountIdOf(connection: string | null | undefined): string | null {
+  return connection && connection !== SUBSCRIPTION_CONNECTION ? connection : null;
 }
 
 /** A key as the UI and logs may show it: enough to recognise, never enough to use. */

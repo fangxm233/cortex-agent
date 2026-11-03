@@ -13,7 +13,8 @@ import type { AuthStatusSnapshot } from '../src/domain/auth/auth-status.js';
 const AUTH_SNAPSHOT: AuthStatusSnapshot = {
   generatedAt: '2030-01-01T00:00:00.000Z',
   accounts: [{
-    backend: 'claude', provider: 'anthropic', label: 'Anthropic', capabilities: ['oauth'],
+    backend: 'claude', provider: 'anthropic', connection: null, isDefault: true, identity: null,
+    label: 'Anthropic', capabilities: ['oauth'],
     authType: 'oauth', state: 'logged-in', source: 'credentials.json', expiresAt: null,
     refreshExpiresAt: null, inUse: true, credentials: [{
       authType: 'oauth', state: 'logged-in', source: 'credentials.json', expiresAt: null,

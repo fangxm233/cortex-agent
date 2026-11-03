@@ -73,8 +73,10 @@ export interface EngineSpec {
   env: { sets?: Record<string, string>; unsets?: string[]; pinned?: NodeJS.ProcessEnv;
          context?: CortexContextEnv };
   /** Where the engine sends its requests. `connection` names the Claude connection the route was
-   *  resolved for (rate limits are filed under it); PI routes by provider and leaves it unset. */
-  route: { anthropicBaseUrl?: string; connection?: string };
+   *  resolved for (rate limits are filed under it); PI routes by provider and leaves it unset.
+   *  `claudeConfigDir` is a Claude account's own config dir; absent, Cortex's own. */
+  /** `piAgentDir`: a PI account's own agent dir; absent, the adapter's own. */
+  route: { anthropicBaseUrl?: string; connection?: string; claudeConfigDir?: string; piAgentDir?: string };
   /** `disableSkills` covers the whole skill layer, including the user-level plugins and skills
    *  Cortex never passed in (`--plugin-dir` only ever added its own); `settingSources` narrows
    *  which setting files the backend may read at all. */

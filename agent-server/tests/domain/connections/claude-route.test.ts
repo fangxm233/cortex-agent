@@ -27,6 +27,24 @@ beforeEach(() => {
 });
 afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
 
+describe('resolveClaudeRoute on an account', () => {
+  it('runs on the account\'s own config dir and lets no credential variable through', () => {
+    const file = path.join(dir, 'connections.json');
+    writeConnections([{ id: 'school', backend: 'claude', type: 'account', label: 'School' }], file);
+    const sharedDir = path.join(dir, 'shared');
+    const accountsDir = path.join(dir, 'accounts');
+    fs.mkdirSync(sharedDir);
+    const route = resolveClaudeRoute('school', {
+      ...deps(true, { CLAUDE_CODE_OAUTH_TOKEN: 'fake-static-token' }), accountDir: { sharedDir, accountsDir },
+    });
+    expect(route).toEqual({
+      connection: 'school', sets: {}, configDir: path.join(accountsDir, 'school'),
+      unsets: ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN'],
+    });
+    expect(fs.lstatSync(path.join(accountsDir, 'school', 'projects')).isSymbolicLink()).toBe(true);
+  });
+});
+
 describe('resolveClaudeRoute', () => {
   it('runs the subscription on Claude\'s own login, clearing every routing variable', () => {
     expect(resolveClaudeRoute('subscription', deps(true))).toEqual({
