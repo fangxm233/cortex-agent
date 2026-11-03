@@ -513,4 +513,13 @@ describe('named account logins', () => {
     expect(flowStep(renderer)).toBe('prompt');
     expect(find(renderer, { 'data-auth-title': true }).props.children).toBe('Log in to Claude Code (Team)');
   });
+
+  it('registers a PI account with the provider and the login type picked for it', async () => {
+    harness.onStart = () => prompt(1, { kind: 'secret', message: 'Enter DeepSeek API key' }, { backend: 'pi', provider: 'deepseek', authType: 'api_key', connection: 'work' });
+    mount({ target: { backend: 'pi', provider: 'deepseek', authType: 'api_key', newAccount: 'Work', label: 'DeepSeek (Work)' } });
+    await flush();
+
+    expect(harness.addCalls).toEqual([{ backend: 'pi', label: 'Work', provider: 'deepseek', authType: 'api_key' }]);
+    expect(harness.startCalls).toEqual([]);
+  });
 });

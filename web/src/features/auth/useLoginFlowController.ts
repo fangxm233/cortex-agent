@@ -102,7 +102,8 @@ async function startFlow(api: LoginClient, target: LoginFlowTarget): Promise<Log
   if (target.newAccount) {
     const added = await api.auth.addAccount.mutate({
       backend: target.backend, label: target.newAccount,
-      ...(target.backend === 'pi' ? { provider: target.provider } : {}),
+      // Claude accounts always sign in with OAuth; a PI account uses the login picked for it.
+      ...(target.backend === 'pi' ? { provider: target.provider, authType: target.authType } : {}),
     });
     return added.flow;
   }
