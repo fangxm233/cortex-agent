@@ -159,6 +159,15 @@ describe('connection names', () => {
     expect(connectionName(connectionNames(views), 'subscription')).toBe('subscription');
   });
 
+  it('keeps each backend\'s names apart: an account id is unique only within its backend', () => {
+    const both = [
+      view({ id: 'lab', kind: 'account', label: 'Lab', billing: 'subscription' }),
+      view({ id: 'lab', backend: 'pi', provider: 'openai', kind: 'account', label: 'LAB key' }),
+    ];
+    expect(connectionNames(both, undefined, 'claude')).toEqual({ lab: 'Lab' });
+    expect(connectionNames(both, undefined, 'pi')).toEqual({ lab: 'LAB key' });
+  });
+
   it('names the default login by its email, else by the fallback', () => {
     const named = status(row({ identity: { email: 'me@home.com', organization: null, plan: 'claude_max' } }),
       row({ connection: 'school', isDefault: false, identity: { email: 'me@school.edu', organization: null, plan: null } }));

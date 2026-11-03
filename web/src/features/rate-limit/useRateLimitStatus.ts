@@ -2,10 +2,9 @@ import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
-import { connectionNames } from '@/lib/model-selection';
 import { useLiveConnection, useLiveEvents } from '@/features/live/LiveEventsProvider';
 import { RATE_LIMIT_LIVE_EVENTS } from '@/features/live/live-events';
-import { buildRateLimitView, type RateLimitView } from './rate-limit-vm';
+import { accountLimitNames, buildRateLimitView, type RateLimitView } from './rate-limit-vm';
 
 function currentEpochSeconds(): number {
   return Math.floor(Date.now() / 1000);
@@ -38,5 +37,5 @@ export function useRateLimitStatus(): RateLimitView | null {
     return () => window.clearInterval(timer);
   }, [active]);
 
-  return buildRateLimitView(query.data, nowSec, lang, connectionNames(connections.data));
+  return buildRateLimitView(query.data, nowSec, lang, accountLimitNames(connections.data));
 }

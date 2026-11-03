@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SystemRateLimitStatus } from '@cortex-agent/ui-contract';
-import { buildRateLimitView } from './rate-limit-vm';
+import { accountLimitNames, buildRateLimitView } from './rate-limit-vm';
 
 type RawProvider = SystemRateLimitStatus['providers'][number];
 
@@ -75,13 +75,22 @@ describe('buildRateLimitView', () => {
         { ...provider({ provider: 'anthropic', displayName: 'Anthropic', windows: [window('five_hour', 300)] }), route: 'subscription', key: 'anthropic::subscription' },
         provider({ provider: 'openai-codex', displayName: 'OpenAI Codex', windows: [window('outage', 300)] }),
       ],
-    }, NOW, 'en', { school: 'School' });
+    }, NOW, 'en', accountLimitNames([
+      { id: 'school', backend: 'claude', provider: null, kind: 'account', label: 'School' },
+      // The same id on the other backend is another account.
+      { id: 'school', backend: 'pi', provider: 'openai', kind: 'account', label: 'Other school' },
+    ] as never));
 
     expect(vm?.providers.map((row) => [row.key, row.displayName])).toEqual([
       ['anthropic::subscription', 'Anthropic'],
       ['anthropic::school', 'Anthropic (School)'],
       ['openai-codex', 'OpenAI Codex'],
     ]);
+    const codex = buildRateLimitView({ providers: [
+      { ...provider({ provider: 'openai-codex', displayName: 'OpenAI Codex', windows: [window('five_hour', 300)] }), route: 'codex-lab', key: 'openai-codex::codex-lab' },
+      { ...provider({ provider: 'openai-codex', displayName: 'OpenAI Codex', windows: [window('five_hour', 300)] }), route: 'openai-codex', key: 'openai-codex' },
+    ] }, NOW, 'en', accountLimitNames([{ id: 'codex-lab', backend: 'pi', provider: 'openai-codex', kind: 'account', label: 'Lab' }] as never));
+    expect(codex?.providers.map((row) => row.displayName)).toEqual(['OpenAI Codex', 'OpenAI Codex (Lab)']);
     // Two accounts of one provider are two limited connections.
     expect(vm?.label).toBe('3 connections limited · first 5m');
   });

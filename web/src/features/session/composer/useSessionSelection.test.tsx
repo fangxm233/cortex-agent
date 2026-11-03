@@ -78,7 +78,8 @@ describe('shared selection controller', () => {
   });
   it('names the default login by its email, else by the generic name, and keeps the Default row apart', () => {
     harness.connections = [
-      { id: 'subscription', kind: 'subscription', label: 'Claude subscription' }, { id: 'api', kind: 'key', label: 'api' },
+      { id: 'subscription', backend: 'claude', kind: 'subscription', label: 'Claude subscription' },
+      { id: 'api', backend: 'claude', kind: 'key', label: 'api' },
     ];
     const generic = mount();
     expect(value.connectionOptions.map(option => option.label)).toEqual(['Default (api)', 'api', 'Claude subscription']);

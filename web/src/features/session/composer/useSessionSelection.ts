@@ -101,10 +101,11 @@ function selectionOptions(data: ReturnType<typeof useSelectionData>, hasHistory:
   const catalog = data.catalogQuery.data ?? null;
   const agents = data.config?.agents ?? [];
   const thinkingOptions = buildThinkingOptions(catalog, effective);
-  const connectionDefault = defaultConnectionLabel(catalog, effective, data.names, {
+  const names = data.names[effective.backend];
+  const connectionDefault = defaultConnectionLabel(catalog, effective, names, {
     withConnection: L.wbConnectionDefault, plain: L.wbThinkingDefault,
   });
-  const connectionOptions = buildConnectionOptions(catalog, effective, connectionDefault, data.names);
+  const connectionOptions = buildConnectionOptions(catalog, effective, connectionDefault, names);
   const copy = { model: L.wbModel, thinking: L.wbThinking, connection: L.wbConnection, default: L.wbThinkingDefault, connectionDefault };
   return {
     models, catalog, agents, effective, agentName, hasHistory,
@@ -112,7 +113,7 @@ function selectionOptions(data: ReturnType<typeof useSelectionData>, hasHistory:
     modelGroups: groupModelOptions(buildModelOptions(catalog, models, effective, { hasHistory }), effective.backend),
     thinkingOptions, connectionOptions, agentOptions: buildAgentOptions(agents, { agentName }),
     rootRows: selectionRootRows(effective, copy, {
-      hasThinking: thinkingOptions.length > 1, hasConnections: connectionOptions.length > 0, connectionNames: data.names,
+      hasThinking: thinkingOptions.length > 1, hasConnections: connectionOptions.length > 0, connectionNames: names,
     }),
     modelsReady: !data.catalogQuery.isLoading && !data.catalogQuery.data?.piPending,
     catalogLoading: data.catalogQuery.isLoading,

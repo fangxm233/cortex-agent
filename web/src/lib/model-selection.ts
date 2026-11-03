@@ -10,18 +10,22 @@ export function modelLabel(ref: ModelRef): string {
   return ref.model.replace(/^claude-/, '').replace(/-\d{8}$/, '');
 }
 
-/** Display names of connections that have one: an account shows its label, Claude's default login
- *  the name it is given, every other connection its id. */
+/** Display names of one backend's connections that have one: an account shows its label, Claude's
+ *  default login the name it is given, every other connection its id. Account ids are unique only
+ *  within a backend, so each backend has its own names. */
 export type ConnectionNames = Readonly<Record<string, string>>;
+export type BackendConnectionNames = Readonly<Record<ModelRef['backend'], ConnectionNames>>;
 
 function viewName(view: ConnectionView, defaultLogin: string | undefined): string | undefined {
   if (view.kind === 'account') return view.label;
   return view.kind === 'subscription' ? defaultLogin : undefined;
 }
 
-export function connectionNames(views: readonly ConnectionView[] | null | undefined, defaultLogin?: string): ConnectionNames {
+export function connectionNames(
+  views: readonly ConnectionView[] | null | undefined, defaultLogin?: string, backend?: ModelRef['backend'],
+): ConnectionNames {
   return Object.fromEntries((views ?? []).flatMap((view) => {
-    const name = viewName(view, defaultLogin);
+    const name = !backend || view.backend === backend ? viewName(view, defaultLogin) : undefined;
     return name ? [[view.id, name]] : [];
   }));
 }

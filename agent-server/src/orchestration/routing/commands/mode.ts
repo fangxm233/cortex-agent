@@ -22,7 +22,7 @@ function destination(channel: string): Destination {
 }
 
 function selectionText(selection: EngineSelection): string {
-  const route = selection.connection ? ` · ${connectionName(selection.connection)}` : '';
+  const route = selection.connection ? ` · ${connectionName(selection.connection, selection.backend)}` : '';
   return `${selection.backend} · ${selection.provider ? `${selection.provider}/` : ''}${selection.model} · ${selection.thinking ?? t('cmd.thinking.none')}${route}`;
 }
 
@@ -51,16 +51,17 @@ async function selectReply(channel: string, selection: Partial<EngineSelection>)
     : `${Icons.error} ${selectionFailure(result, selection)}`;
 }
 
-/** A named account reads as its id and label; any other connection as its id. */
-function connectionName(id: string): string {
-  const account = credentialInventory.accounts().find(entry => entry.id === id);
+/** A named account reads as its id and label; any other connection as its id. An account id is
+ *  unique only within its backend. */
+function connectionName(id: string, backend: Backend): string {
+  const account = credentialInventory.accounts().find(entry => entry.id === id && entry.backend === backend);
   return account ? t('cmd.connection.account', { id, label: account.label }) : id;
 }
 
 /** What a channel runs on: its connection, else a PI provider's own login (Claude's default
  *  connection is only settled per run). */
 function currentConnection(current: EngineSelection): string {
-  if (current.connection) return connectionName(current.connection);
+  if (current.connection) return connectionName(current.connection, current.backend);
   return current.backend === 'pi' ? t('cmd.connection.piDefault', { provider: current.provider ?? '' }) : '—';
 }
 

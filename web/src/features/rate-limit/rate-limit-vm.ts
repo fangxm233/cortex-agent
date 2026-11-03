@@ -1,4 +1,4 @@
-import type { SystemRateLimitStatus } from '@cortex-agent/ui-contract';
+import type { ConnectionView, SystemRateLimitStatus } from '@cortex-agent/ui-contract';
 import type { Lang } from '@/i18n';
 import { fmt } from '@/i18n/fmt';
 import { pickVocab } from '@/i18n/lang';
@@ -59,8 +59,16 @@ function buildWindow(window: RawRateLimitWindow, nowSec: number, lang: Lang): Ra
 
 type RawRateLimitProvider = SystemRateLimitStatus['providers'][number];
 
+/** Named accounts' labels by the key their rate-limit row carries, `provider::id`: a Claude account
+ *  is limited under `anthropic`, a PI account under its provider. An id alone is unique only within
+ *  its backend. */
+export function accountLimitNames(views: readonly ConnectionView[] | null | undefined): ConnectionNames {
+  return Object.fromEntries((views ?? []).filter((view) => view.kind === 'account')
+    .map((view) => [`${view.backend === 'claude' ? 'anthropic' : view.provider}::${view.id}`, view.label]));
+}
+
 function displayName(raw: RawRateLimitProvider, names: ConnectionNames, lang: Lang): string {
-  const account = raw.route && Object.hasOwn(names, raw.route) ? names[raw.route] : null;
+  const account = raw.key && Object.hasOwn(names, raw.key) ? names[raw.key] : null;
   return account ? fmt(pickVocab(lang).accountsAccountName, { provider: raw.displayName, account }) : raw.displayName;
 }
 
@@ -94,7 +102,7 @@ function aggregateLabel(count: number, countdown: string, lang: Lang): string {
   return fmt(pickVocab(lang).rlAggregate, { count, countdown });
 }
 
-/** `names` labels the routes that are named accounts. */
+/** `names` labels named accounts by their row key (see accountLimitNames). */
 export function buildRateLimitView(
   status: SystemRateLimitStatus | null | undefined,
   nowSec: number,

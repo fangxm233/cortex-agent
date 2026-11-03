@@ -70,6 +70,8 @@ test('!connection switches to a signed-in Claude account and names it by its lab
 
 test('!connection switches a PI channel to an account of its provider and back to the default login', async () => {
   upsertConnection({ id: 'openai-lab', backend: 'pi', type: 'account', provider: 'openai', label: 'Lab' });
+  // The same id on Claude is another account; this channel's reply names the PI one.
+  upsertConnection({ id: 'openai-lab', backend: 'claude', type: 'account', label: 'Claude twin' });
   writeFileSync(join(ensurePiAccountDir('openai-lab'), 'auth.json'), JSON.stringify({ openai: { type: 'api_key', key: 'fake-key' } }));
   const adapter = new MockAdapter();
   await handleModelCmd('model-cmd', adapter, '!model openai/gpt-test');
@@ -80,6 +82,7 @@ test('!connection switches a PI channel to an account of its provider and back t
   expect(adapter.posted.at(-1)?.content.text).toContain('Lab');
   await handleConnectionCmd('model-cmd', adapter, '!connection');
   expect(adapter.posted.at(-1)?.content.text).toContain('openai-lab (Lab)');
+  expect(adapter.posted.at(-1)?.content.text).not.toContain('Claude twin');
   await handleConnectionCmd('model-cmd', adapter, '!connection openai');
   expect(getChannelSelection('model-cmd')?.connection).toBeNull();
   await handleConnectionCmd('model-cmd', adapter, '!connection school');

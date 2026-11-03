@@ -91,7 +91,7 @@ export function useModelsController(initialSnapshot?: ConfigSnapshot) {
   const facts = snapshot ? buildModelFacts(snapshot) : [];
   const options = snapshot ? defaultModelOptions(snapshot, catalog.data ?? null) : [];
   const actions = useModelActions(resources, options);
-  const names = useConnectionNames(L.wbConnectionSubscription);
+  const names = useConnectionNames(L.wbConnectionSubscription)[snapshot?.models.default?.backend ?? 'claude'];
   return {
     snapshot, facts, options, loading: config.isLoading, error: config.error,
     connectionControl: snapshot ? defaultConnectionControl(snapshot, catalog.data ?? null, names, {
