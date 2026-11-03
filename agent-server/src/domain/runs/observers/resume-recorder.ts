@@ -1,6 +1,8 @@
 import { recordResume } from '../../costs/resume-registry.js';
 import { isProviderRateLimited } from '../../costs/rate-limit-throttle.js';
 import { throttleKey } from '../../costs/throttle-key.js';
+import type { EngineSelection } from '../../agents/engine-selection.js';
+import { resumeFailover, type FailoverDeps } from '../account-failover.js';
 
 /** A direct (interactive conversation) resume candidate.
  *
@@ -16,6 +18,9 @@ export interface DirectResumeInput {
   /** Stable Cortex tracking id, not the backend session id. Null when the turn had no track record. */
   trackSessionId: string | null;
   userMessage: string;
+  /** The session's selection the interrupted run started from; with account failover on, the
+   *  entry continues at once on another login instead of waiting for this one. */
+  selection?: EngineSelection | null;
 }
 
 /**
@@ -30,11 +35,14 @@ export interface DirectResumeInput {
  * Returns whether the entry was queued, so a caller can choose between "paused, will auto-resume"
  * and "failed" wording without asking the throttle a second time.
  */
-export function recordDirectResume(input: DirectResumeInput): boolean {
+export function recordDirectResume(input: DirectResumeInput, failover: FailoverDeps = {}): boolean {
   if (!isProviderRateLimited(input.provider, input.route)) return false;
+  const target = input.selection ? resumeFailover(input.selection, input, failover) : null;
   recordResume({
     kind: 'direct',
-    provider: input.provider ? throttleKey(input.provider, input.route) : null,
+    // A failover entry waits on the login it continues on, which is free: it is ready now.
+    provider: input.provider ? throttleKey(input.provider, target?.to ?? input.route) : null,
+    ...(target ? { failover: true } : {}),
     channel: input.channel,
     trackSessionId: input.trackSessionId,
     userMessage: input.userMessage,

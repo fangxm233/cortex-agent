@@ -27,6 +27,8 @@ export const statusEn = {
   'notify.pluginsUnavailable': 'Some plugin skills or MCP servers could not be loaded and are missing from this turn:\n${detail}',
   'notify.pluginsUnavailableMore': '…and ${n} more.',
   'notify.rateLimitAutoResume': 'Rate limited — this chat will resume automatically when the limit resets.',
+  'notify.rateLimitFailover': 'Rate limited — this chat continues on another account now.',
+  'notify.accountFailover': '${from} is rate-limited, so this chat now runs on ${to}. It goes back to ${from} once the limit resets.',
   // --- Authentication-required notification ---
   'notify.authRequired.title': 'Authentication required',
   'notify.authRequired.body': 'Authentication for ${provider} failed (${kind}). ${guidance}',
@@ -83,6 +85,8 @@ export const statusZh: Record<keyof typeof statusEn, string> = {
   'notify.pluginsUnavailable': '部分插件技能或 MCP server 未能加载，本轮不可用：\n${detail}',
   'notify.pluginsUnavailableMore': '……另有 ${n} 项。',
   'notify.rateLimitAutoResume': '触发限流，解除后此对话将自动续跑。',
+  'notify.rateLimitFailover': '触发限流，此对话马上换一个账号继续。',
+  'notify.accountFailover': '${from} 已限流，此对话已切到 ${to}；${from} 恢复后会自动切回。',
   // --- Authentication-required notification ---
   'notify.authRequired.title': '需要重新认证',
   'notify.authRequired.body': '${provider} 的认证已失效（${kind}）。${guidance}',

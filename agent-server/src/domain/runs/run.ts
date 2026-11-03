@@ -17,6 +17,9 @@ import {
   attemptAccount, attemptAuthType, attemptProvider, attemptProviderOrNull, rateLimitedResult, shouldSkipAttempt,
 } from './fallback.js';
 import { resolveRunRoute } from './config-resolver.js';
+import {
+  announceFailover, loginLabel, preflightFailover, resumeFailover, type FailoverTarget,
+} from './account-failover.js';
 import { AttemptNoticeTracker, assistantNoticeLevel } from './notices.js';
 import { startAttempt, type RunAttempt } from './attempt.js';
 import type { RunObserver, RunRequest, RunResult } from './request.js';
@@ -165,6 +168,7 @@ export class AgentRunImpl implements AgentRun {
         channel: args.request.context.channel,
         isUserInitiated: args.request.context.isUserInitiated,
         trigger: args.request.context.trigger,
+        failoverResume: (provider, route) => resumeFailover(args.request.selection, { provider, route }) !== null,
       },
       (text, blockId, noticeLevel, noticeAction, subagent) => this.absorb({
         type: 'assistant_text', text, phase: this.phaseValue,
@@ -220,7 +224,7 @@ export class AgentRunImpl implements AgentRun {
 
   /** One selection, at most one spawn. Background work never waits for a throttled provider. */
   private async runOnce(): Promise<void> {
-    const attempt = this.request.selection;
+    const attempt = this.startingSelection();
     if (shouldSkipAttempt(attempt, this.request.context)) {
       const blocked = rateLimitedResult(routeName(attempt), attemptProvider(attempt));
       this.notices.emitTerminalRateLimit(blocked);
@@ -239,6 +243,29 @@ export class AgentRunImpl implements AgentRun {
     } catch (error) {
       this.onAttemptError(current, attempt, error);
     }
+  }
+
+  /** The session's selection, or — with account failover on and its login rate-limited — another
+   *  login of the same provider, for this run only. */
+  private startingSelection(): EngineSelection {
+    const selection = this.request.selection;
+    if (!getSettings().accountFailover) return selection;
+    const target = preflightFailover(selection);
+    this.noteFailover(target);
+    if (!target) return selection;
+    this.attemptValue = { index: 0, config: target.selection };
+    return target.selection;
+  }
+
+  /** The first run of a switch tells the session; the runs after it on the same pair do not. */
+  private noteFailover(target: FailoverTarget | null): void {
+    const channel = this.request.context.channel ?? '';
+    if (!announceFailover(channel, target) || !target) return;
+    log.info(`Account failover on ${channel || '(no channel)'}: ${target.from} → ${target.to}`);
+    if (!channel.startsWith('web:')) return;
+    this.notices.observe(t('notify.accountFailover', {
+      from: loginLabel(this.request.selection), to: loginLabel(target.selection),
+    }), undefined, 'info');
   }
 
   private openAttempt(attempt: EngineSelection): RunAttempt {

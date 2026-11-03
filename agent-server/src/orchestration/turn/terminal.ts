@@ -3,6 +3,7 @@ import { t } from '../../core/i18n.js';
 import type { Destination, PlatformAdapter, MessageRef, OutputStream } from '@platform/index.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import type { RunRequest } from '@domain/runs/request.js';
+import type { EngineSelection } from '@domain/agents/engine-selection.js';
 import { activeTurns } from './active-turns.js';
 
 import { renderTurnStatus, computeElapsed, formatMetricsSuffix, sealStatus, buildSealedStatusActionBlocks } from '../status-helpers.js';
@@ -109,7 +110,7 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
  *  it) and `rate-limited` (queued for auto-resume) are not the end of the conversation's turn. */
 export type AgentErrorOutcome = 'superseded' | 'cancelled' | 'rate-limited' | 'failed';
 
-export async function handleAgentError({ error, channel, adapter, statusMsg, startTime, executionId, sessionId = null, effectiveSessionId = null, threadAnchorId = null, userMessageTs = null, userMessage = null }: { error: { message: string; cancelled?: boolean; rateLimitProvider?: string; rateLimitRoute?: string }; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; sessionId?: string | null; effectiveSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; userMessage?: string | null }): Promise<AgentErrorOutcome> {
+export async function handleAgentError({ error, channel, adapter, statusMsg, startTime, executionId, sessionId = null, effectiveSessionId = null, threadAnchorId = null, userMessageTs = null, userMessage = null, selection = null }: { error: { message: string; cancelled?: boolean; rateLimitProvider?: string; rateLimitRoute?: string }; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; sessionId?: string | null; effectiveSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; userMessage?: string | null; selection?: EngineSelection | null }): Promise<AgentErrorOutcome> {
   // Status and identity both display the stable track ID. The backend ID remains only a resume
   // target; it must never replace the channel binding or registry key.
   const { elapsedStr, elapsedS } = computeElapsed(startTime);
@@ -142,6 +143,7 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
     && isProviderRateLimited(error.rateLimitProvider, error.rateLimitRoute)) {
     recordDirectResume({
       provider: error.rateLimitProvider, route: error.rateLimitRoute, channel, trackSessionId: sessionId, userMessage,
+      selection,
     });
     const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionId, elapsedStr });
     await sealQuietly(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionId, isDm: true }));
@@ -249,6 +251,7 @@ export async function handleDefaultAgentResult({ result, channel, adapter, statu
     // resets (rate-limit-throttle onResume → resume-dispatcher).
     recordDirectResume({
       provider: result.rateLimitProvider, route: result.rateLimitRoute, channel, trackSessionId: sessionId, userMessage,
+      selection: request?.selection ?? null,
     });
     const { elapsedStr } = computeElapsed(startTime);
     const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionId, elapsedStr });

@@ -25,6 +25,7 @@ vi.mock('../../../src/domain/executions/registry.js', () => ({
 
 const { listSystemNotices, resetSystemNoticeHistory } = await import('../../../src/domain/system/notice-history.js');
 const providerLifecycle = await import('../../../src/domain/agents/provider-run-lifecycle.js');
+const accountFailover = await import('../../../src/domain/runs/account-failover.js');
 const { fireScheduledTask } = await import('../../../src/domain/scheduling/jobs/scheduled-task.js');
 const { ctx } = await import('../../../src/domain/scheduling/job-registry.js');
 const { createDirectSession } = await import('../../../src/domain/sessions/session-lifecycle.js');
@@ -216,4 +217,17 @@ test('only the stored selection is checked for rate limiting before opening a se
   expect(notify.mock.calls[0][1]).toContain('summarize new arxiv papers');
   expect(notify.mock.calls[0][1]).toContain('rate-limited');
   expect(listSystemNotices()[0]).toMatchObject({ level: 'warning', text: notify.mock.calls[0][1] });
+});
+
+test('a limited selection still opens its session when account failover has a free login for it', async () => {
+  vi.spyOn(providerLifecycle, 'configIsRateLimited').mockReturnValue(true);
+  const failover = vi.spyOn(accountFailover, 'preflightFailover').mockReturnValue({
+    selection: { ...selection, connection: 'school' }, from: 'subscription', to: 'school',
+  });
+  const { deps } = makeDeps();
+  await fireScheduledTask(fire(), deps);
+  expect(failover).toHaveBeenCalledWith(selection);
+  expect(deps.createSession).toHaveBeenCalledTimes(1);
+  expect(deps.createSession.mock.calls[0]![0].selection).toEqual(selection);
+  expect(notify).not.toHaveBeenCalled();
 });

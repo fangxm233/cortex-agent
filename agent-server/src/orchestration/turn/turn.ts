@@ -444,6 +444,7 @@ export class Turn {
         executionId: this.executionId,
         sessionId, effectiveSessionId: this.backendSessionIdOfRun,
         threadAnchorId, userMessageTs, userMessage: this.input.user.text,
+        selection: this.currentRun?.request?.selection ?? null,
       });
       if (outcome === 'cancelled') this.ending = { status: 'stopped', finalOutput: '' };
       else if (outcome === 'failed') this.ending = { status: 'failed', finalOutput: (error as Error)?.message ?? '' };
@@ -500,7 +501,7 @@ export class Turn {
   }): Promise<boolean> {
     const hold = await holdBackgroundContinuation({
       run: args.run, result: args.result, channel: this.channel, transcript: args.transcript,
-      sessionId: this.sessionId, userMessage: this.input.user.text,
+      sessionId: this.sessionId, userMessage: this.input.user.text, selection: args.run.request?.selection ?? null,
       // A run keeps its execution registered for the whole of its background phase, so the hold's
       // own run must not veto its own idle publish.
       executionId: args.run.executionId,

@@ -460,6 +460,7 @@ Web 与桌面 App、以及手机上，新对话的输入框里有一枚**干净*
 | `showToolCalls` | boolean | `false` | 在 Slack 与飞书的回复中为每次工具调用发一行简短记录，连续调用同一工具时合并为一行。也可在 **设置 → 平台** 中设置 | `CORTEX_SHOW_TOOL_CALLS` |
 | `statusNewqButton` | boolean | `false` | 在状态消息上显示「New (quiet)」按钮（`=!newq`，跳过 pre-close 钩子） | `CORTEX_STATUS_NEWQ_BUTTON` |
 | `autoResume` | boolean | `true` | 当用量限制窗口重置后，自动继续被该限制中断的对话，并注入一条提示让其从中断处接着做。设为 `false` 可让被中断的工作保持暂停、由人工继续 | `CORTEX_AUTO_RESUME` |
+| `accountFailover` | boolean | `false` | 对话所用的登录被限流时，改用同一 provider 下另一个已登录的登录运行：provider 的默认登录或它的某个账号，计费方式相同（订阅不会改用 API key）、能跑当前模型、自身没被限流。不会用 key 连接。因限流结束的一轮会马上在这样的登录上续跑；第一次切换时 Web 对话里会说明换到了哪个登录。会话保存的选择不变，原登录恢复后自动切回。切换后的第一次回复不走 prompt cache，用量更多。`autoResume` 与它无关：那是等同一个登录的限额重置后再续跑。也可在 **设置 → 高级** 中开关 | — |
 | `providerRateLimits` | object | `{}` | 按 provider 和额度窗口配置限流策略。Provider 条目包含由 `{ type, label?, enabled, threshold? }` 组成的 `windows` 数组；`threshold` 是大于 `0` 且不超过 `1` 的比率 | — |
 | `showThinking` | boolean | `true` | 采集模型返回的思考内容，在 Web 和手机聊天中显示。关闭后停止采集新的思考，已保存的行仍可见。Claude 请求思考摘要，PI 显示 provider 返回的文本 | `CORTEX_SHOW_THINKING` |
 | `streamDeltas` | boolean | `true` | 按 token 流式输出助手文本和已采集的思考。关闭后只投递完整内容块 | `CORTEX_STREAM_DELTAS` |
@@ -492,7 +493,7 @@ Web 与桌面 App、以及手机上，新对话的输入框里有一枚**干净*
 | `adminChannel` | string \| null | `null` | 发送系统通知（启动、限流、磁盘告警）的 Slack 频道。第一次给机器人发私信时会被自动探测并持久化到这里 | `SLACK_ADMIN_CHANNEL`，然后 `CORTEX_ADMIN_CHANNEL` |
 | `feishuAdminChannel` | string \| null | `null` | 同类通知的飞书 admin `chat_id`（`oc_...`）。与 `adminChannel` 相互独立——Slack 的频道 id 在飞书上不可用 | `FEISHU_ADMIN_CHANNEL` |
 
-Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）、**设置 → 高级**（`disableUserContext`、`teamEnabled`、`claudeWindowWarmupEnabled`、`cacheKeepWarmHours`、`coldResumeClearToolResults`、`maxContextTokens`、`piCompactReserveTokens`、`serverUpdateDisable`、`serverAutoUpdate`、`sessionRetentionDays`、`memoryIndexRegenEnabled`、`memoryIndexRegenIntervalMs`、`diskMonitor` 和 `eventLog`）、**设置 → 平台**（`showToolCalls`、`adminChannel`、`feishuAdminChannel`、`feishuSkillsInWeb`）、**设置 → 隐私**（`telemetryEnabled`），以及桌面端/移动端的 **用量** 页面（`providerRateLimits`）。其余键都靠手工编辑该文件。
+Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）、**设置 → 高级**（`disableUserContext`、`teamEnabled`、`accountFailover`、`claudeWindowWarmupEnabled`、`cacheKeepWarmHours`、`coldResumeClearToolResults`、`maxContextTokens`、`piCompactReserveTokens`、`serverUpdateDisable`、`serverAutoUpdate`、`sessionRetentionDays`、`memoryIndexRegenEnabled`、`memoryIndexRegenIntervalMs`、`diskMonitor` 和 `eventLog`）、**设置 → 平台**（`showToolCalls`、`adminChannel`、`feishuAdminChannel`、`feishuSkillsInWeb`）、**设置 → 隐私**（`telemetryEnabled`），以及桌面端/移动端的 **用量** 页面（`providerRateLimits`）。其余键都靠手工编辑该文件。
 
 `providerRateLimits` 是 `settings.json` 中以 provider id 为键的对象。每个 provider 条目可包含 `windows` 数组，数组元素为 `{ type, label?, enabled, threshold? }`。普通额度行以 provider 上报的 `type` 为身份；模型级额度行同时使用 `type` 和 provider 上报的精确 `label`。精确的窗口条目优先于旧的 provider 级 `enabled`/`threshold` 字段。这些根字段保留为向后兼容的回退，非默认时会出现在用量页面中，并附带清除它们的操作。
 
