@@ -14,8 +14,8 @@ export interface CostEntry {
   backend: string;
   /** Billing bucket: 'plan' for spend Claude's subscription covers, 'api' for everything else. */
   mode: string;
-  /** The connection the spend ran on (`routeName`): a Claude connection id, or a PI provider.
-   *  Absent on rows written before connections existed. */
+  /** The connection the spend ran on (`routeName`): a Claude connection id, a PI account, or a PI
+   *  provider's default login (the provider). Absent on rows written before connections existed. */
   connection?: string;
   source: string;
   input_tokens?: number | null;

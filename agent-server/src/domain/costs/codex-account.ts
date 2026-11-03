@@ -206,3 +206,8 @@ export class HttpCodexAccountClient implements CodexAccountClient {
 export const codexAccountClient: CodexAccountClient = new HttpCodexAccountClient({
   credentials: () => loadCodexCredentials(),
 });
+
+/** One additional Codex account, signed in to the auth.json of its own PI agent dir. */
+export function codexAccountClientFor(authPath: string): CodexAccountClient {
+  return new HttpCodexAccountClient({ credentials: () => loadCodexCredentials({ authPath }) });
+}

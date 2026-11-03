@@ -1,8 +1,10 @@
 import { SUBSCRIPTION_CONNECTION, accountIdOf } from '@core/connections-file.js';
 import { createLogger } from '@core/log.js';
+import { findAccount } from '../connections/accounts.js';
 import { claudeAccountDir } from '../connections/claude-account-dir.js';
+import { piAccountAuthPath } from '../connections/pi-account-dir.js';
 import { claudeAccountClient, claudeAccountClientFor } from './claude-account.js';
-import { codexAccountClient } from './codex-account.js';
+import { codexAccountClient, codexAccountClientFor } from './codex-account.js';
 import { clearThrottle } from './rate-limit-throttle.js';
 import { throttleKey } from './throttle-key.js';
 import type { ResetAccount, ResetProvider, ResetStatus } from './reset-account.js';
@@ -49,12 +51,24 @@ interface ResolvedDeps extends Required<Omit<UsageResetDeps, 'accounts'>> {
   account: ResetAccount;
 }
 
-/** The login a redeem spends on: an injected account, one Claude account's own, or the default. */
+/** A Codex account is a PI account of openai-codex, signed in to its own agent dir. */
+function codexAccountFor(connection: string): ResetAccount {
+  const account = findAccount({ backend: 'pi', id: connection });
+  if (account?.backend !== 'pi' || account.provider !== 'openai-codex') {
+    throw new Error(`No Codex account named ${connection}`);
+  }
+  return codexAccountClientFor(piAccountAuthPath(account.id));
+}
+
+const ACCOUNT_CLIENTS: Record<ResetProvider, (connection: string) => ResetAccount> = {
+  'openai-codex': codexAccountFor,
+  anthropic: (connection) => claudeAccountClientFor(claudeAccountDir(connection)),
+};
+
+/** The login a redeem spends on: an injected account, one account's own, or the default. */
 function accountFor(provider: ResetProvider, connection: string | null, deps: UsageResetDeps): ResetAccount {
   if (deps.accounts?.[provider]) return deps.accounts[provider]!;
-  if (!connection) return DEFAULT_ACCOUNTS[provider];
-  if (provider !== 'anthropic') throw new Error(`Accounts of ${provider} cannot redeem a reset yet`);
-  return claudeAccountClientFor(claudeAccountDir(connection));
+  return connection ? ACCOUNT_CLIENTS[provider](connection) : DEFAULT_ACCOUNTS[provider];
 }
 
 function resolveDeps(provider: ResetProvider, connection: string | null, deps: UsageResetDeps): ResolvedDeps {

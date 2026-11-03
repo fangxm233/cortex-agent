@@ -76,14 +76,19 @@ interface Lookups {
   accountOf: AccountOf;
 }
 
-/** A PI provider is its own connection, and bills as its credential does. */
+/** A PI provider's default login is the provider itself; an account of it runs on a route of its
+ *  own. Each bills as its credential does. */
+function piAttribution(entry: CostEntry, lookups: Lookups): Attribution | null {
+  const provider = entry.provider;
+  if (!provider) return null;
+  const named = entry.connection && entry.connection !== provider ? entry.connection : null;
+  const route = named === null ? null : lookups.accountOf({ backend: 'pi', provider, connection: named });
+  const billing = usageBilling(lookups.billingOf({ backend: 'pi', provider, connection: route }));
+  return { provider, connection: route ?? provider, billing, route };
+}
+
 function attribute(entry: CostEntry, lookups: Lookups): Attribution | null {
-  if ((entry.backend || 'claude') === 'pi') {
-    const provider = entry.provider;
-    if (!provider) return null;
-    const billing = usageBilling(lookups.billingOf({ backend: 'pi', provider, connection: null }));
-    return { provider, connection: provider, billing, route: null };
-  }
+  if ((entry.backend || 'claude') === 'pi') return piAttribution(entry, lookups);
   const connection = claudeConnection(entry);
   const ref = { backend: 'claude' as const, provider: null, connection };
   const billing = connection === null ? 'api' : usageBilling(lookups.billingOf(ref));
