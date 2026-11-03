@@ -97,7 +97,7 @@ async function throttle(provider: string, outage = false) {
   if (outage) await activateOutageWindow(provider, 300_000);
   else await handleRateLimitEvent(
     { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: Math.floor(Date.now() / 1000) + 300 },
-    { provider, displayName: provider, mode: provider === 'anthropic' ? 'plan' : provider },
+    { provider, displayName: provider, mode: provider === 'anthropic' ? 'subscription' : provider },
   );
 }
 
