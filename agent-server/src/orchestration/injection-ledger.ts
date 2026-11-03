@@ -206,6 +206,8 @@ class PendingLifecycle implements PendingInjection {
   }
 
   private async setAside(): Promise<boolean> {
+    // Cortex wrote it, not the user: there is nothing for them to resend or edit.
+    if (this.record.systemOrigin) return false;
     try {
       if (!(await this.deps.setAsideUnsent(this.record))) return false;
     } catch (error) {

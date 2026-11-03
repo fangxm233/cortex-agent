@@ -68,6 +68,7 @@ import type { LayerOrigin } from '@core/builtin-layer.js';
 export type { HookApplyTime, HookMountTarget } from '@domain/hooks/hook-view.js';
 import type { Session } from '@store/session-registry-repo.js';
 import type { ExecutionRecord } from '@store/execution-repo.js';
+import type { PendingInjectionRecord } from '@store/pending-injection-repo.js';
 import type { Waitpoint } from '@store/waitpoint-repo.js';
 import type { SessionTotals } from '@store/session-totals.js';
 export type { SessionTotals } from '@store/session-totals.js';
@@ -526,6 +527,8 @@ export interface PendingTranscriptUserMessage {
   attachments?: AttachmentMeta[];
   /** Same signal as `TranscriptMessage.systemOrigin`, on a row that is not committed yet. */
   systemOrigin?: SystemTurnOrigin;
+  /** Its run was stopped before the model read it; it waits for `sessions.resolveUnsent`. */
+  unsent?: boolean;
 }
 
 export interface TranscriptSubagentSummary {
@@ -1554,6 +1557,12 @@ export interface SessionsSendReturn {
   acceptedAt: string;
 }
 
+/** The unsent message as it was taken out of the session — for `edit`, what the composer restores. */
+export interface SessionsResolveUnsentReturn {
+  text: string;
+  attachments?: AttachmentMeta[];
+}
+
 export interface SessionsCancelReturn {
   /** True when at least one running execution on the session's channel was cancelled. */
   cancelled: boolean;
@@ -1694,6 +1703,7 @@ export interface MutateReturnMap {
   'sessions.delete': SessionsDeleteReturn;
   'sessions.send': SessionsSendReturn;
   'sessions.cancel': SessionsCancelReturn;
+  'sessions.resolveUnsent': SessionsResolveUnsentReturn;
   'sessions.compact': SessionsCompactReturn;
   'sessions.setAgent': SessionsSetAgentReturn;
   'sessions.setSelection': SessionsSetSelectionReturn;
@@ -1862,13 +1872,10 @@ export interface UiServiceDeps {
   };
   /** Durable active pending-injection snapshot joined into `sessions.transcript`. */
   pendingInjections: {
-    listBySession(sessionId: string): Promise<{
-      id: string;
-      text: string;
-      createdAt: string;
-      attachments?: AttachmentMeta[];
-      systemOrigin?: SystemTurnOrigin;
-    }[]>;
+    listBySession(sessionId: string): Promise<PendingInjectionRecord[]>;
+    /** Remove an unsent record of the session and return it; null when it is gone. */
+    takeUnsent(sessionId: string, id: string): Promise<PendingInjectionRecord | null>;
+    add(record: PendingInjectionRecord): Promise<void>;
   };
   /**
    * Inject a genuine user turn into a session and route it through the agent (S4 chat send).

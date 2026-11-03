@@ -124,7 +124,7 @@ L5  entry/         → everything (composition root)
 
 **事件类别：**
 
-- **Session**：`session.message`、`session.message.delta`、`session.message.delivered`、`session.status`、`session.turn`、`session.turn.completed`、`session.todos`、`session.context-usage`、`session.context-compacted`、`session.rewound`、`session.decision`、`session.board`、`session.interaction`、`session.tool-images`、`session.debug.updated`
+- **Session**：`session.message`、`session.message.delta`、`session.message.delivered`、`session.message.unsent`、`session.message.withdrawn`、`session.status`、`session.turn`、`session.turn.completed`、`session.todos`、`session.context-usage`、`session.context-compacted`、`session.rewound`、`session.decision`、`session.board`、`session.interaction`、`session.tool-images`、`session.debug.updated`
 - **Interaction**：`plan.submitted`、`plan.approved`、`ask-user.requested`、`ask-user.answered`
 - **Agent lifecycle**：`agent.started`、`agent.completed`、`agent.failed`、`agent.superseded`
 - **Auth**：`auth.required`、`auth.recovered`

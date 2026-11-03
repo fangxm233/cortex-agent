@@ -5,6 +5,7 @@ export const uimsgEn = {
   // sessions
   'ui.session.notFound': 'Session not found: ${id}',
   'ui.session.textOrAttachments': 'Either text or attachments required',
+  'ui.session.unsentGone': 'This message was already sent or taken back',
   'ui.session.runningCompact': 'Session is running — stop it before compacting context',
   'ui.session.runningDelete': 'Session is running — stop it before deleting',
   'ui.session.compactUnsupported': 'This session backend does not support manual context compaction',
@@ -92,6 +93,7 @@ export const uimsgEn = {
 export const uimsgZh: Record<keyof typeof uimsgEn, string> = {
   'ui.session.notFound': '未找到会话：${id}',
   'ui.session.textOrAttachments': '请输入文字或添加附件。',
+  'ui.session.unsentGone': '这条消息已经重新发送或撤回编辑了。',
   'ui.session.runningCompact': '会话正在运行——请先停止，再压缩上下文。',
   'ui.session.runningDelete': '会话正在运行——请先停止，再删除。',
   'ui.session.compactUnsupported': '该会话的后端不支持手动压缩上下文。',

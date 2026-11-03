@@ -234,6 +234,13 @@ export const sessionsCancelInput = z.object({
   sessionId: z.string(),
 });
 
+/** Resend an unsent message, or take it back to the composer of the device that asked. */
+export const sessionsResolveUnsentInput = z.object({
+  sessionId: z.string(),
+  pendingId: z.string(),
+  action: z.enum(['send', 'edit']),
+});
+
 export const sessionsCompactInput = z.object({
   sessionId: z.string(),
 });
@@ -839,6 +846,7 @@ export const mutateInputSchemas = {
   'sessions.delete': sessionsDeleteInput,
   'sessions.send': sessionsSendInput,
   'sessions.cancel': sessionsCancelInput,
+  'sessions.resolveUnsent': sessionsResolveUnsentInput,
   'sessions.compact': sessionsCompactInput,
   'sessions.setAgent': sessionsSetAgentInput,
   'sessions.setSelection': sessionsSetSelectionInput,

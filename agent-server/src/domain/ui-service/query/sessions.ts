@@ -259,6 +259,7 @@ async function pendingUserSnapshot(
     ts: record.createdAt,
     ...(record.attachments ? { attachments: record.attachments } : {}),
     ...(record.systemOrigin ? { systemOrigin: record.systemOrigin } : {}),
+    ...(record.unsentAt ? { unsent: true } : {}),
   }));
 }
 

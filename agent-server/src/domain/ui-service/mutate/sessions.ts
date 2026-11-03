@@ -11,6 +11,8 @@ import type {
   SessionsCompactReturn,
   SessionsMarkManyReadReturn,
   SessionsCancelReturn,
+  SessionsResolveUnsentReturn,
+  Err,
   SessionsDeleteReturn,
   SessionsSetAgentReturn,
   SessionsSetSelectionReturn,
@@ -75,6 +77,33 @@ export async function handleSendSession(
     attachments: args.attachments,
   });
   return { ok: true, data: { accepted: true, acceptedAt } };
+}
+
+/**
+ * An unsent message — its run was stopped before the model read it — leaves the session: `send`
+ * routes it again as a fresh message, `edit` hands it back for the asking device's composer. Taking
+ * the record is the claim, so two devices acting at once resolve it once; the loser gets not-found.
+ */
+export async function handleResolveUnsent(
+  deps: UiServiceDeps,
+  args: MutateArgs<'sessions.resolveUnsent'>,
+): Promise<Result<SessionsResolveUnsentReturn>> {
+  const record = await deps.pendingInjections.takeUnsent(args.sessionId, args.pendingId);
+  if (!record) return { ok: false, code: 'not-found', message: t('ui.session.unsentGone') };
+  if (args.action === 'send') {
+    const sent = await handleSendSession(deps, {
+      sessionId: args.sessionId, text: record.text, attachments: record.attachments,
+    });
+    if (!sent.ok) {
+      await deps.pendingInjections.add(record);
+      return sent as Err;
+    }
+  }
+  deps.bus.publish({
+    type: 'session.message.withdrawn',
+    sessionId: record.sessionId, channel: record.channel, pendingId: record.id,
+  });
+  return { ok: true, data: { text: record.text, ...(record.attachments ? { attachments: record.attachments } : {}) } };
 }
 
 // S4 chat Stop: cancel the agent(s) currently running for this session. Resolves the session's

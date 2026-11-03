@@ -84,7 +84,7 @@ import {
   handlePluginsMcpWrite,
 } from './mutate/plugin-packages.js';
 import { handleCreateProject, handleDeleteProject } from './mutate/projects.js';
-import { handleCreateSession, handleSendSession, handleCancelSession, handleDeleteSession, handleCompactSession, handleSetAgent, handleSetSelection, handleCreateAndSend, handleMarkReadSession, handleMarkManyReadSessions, handleAnswerQuestion, handleRespondPlan, handleRespondDecision, handleCancelResume, handleRewindSession } from './mutate/sessions.js';
+import { handleCreateSession, handleSendSession, handleCancelSession, handleDeleteSession, handleCompactSession, handleSetAgent, handleSetSelection, handleCreateAndSend, handleMarkReadSession, handleMarkManyReadSessions, handleAnswerQuestion, handleRespondPlan, handleRespondDecision, handleCancelResume, handleRewindSession, handleResolveUnsent } from './mutate/sessions.js';
 import { handleCancelExecution } from './mutate/executions.js';
 import { handleCancelWaitpoint } from './mutate/waitpoints.js';
 import {
@@ -188,6 +188,7 @@ export const mutateHandlers = {
   'sessions.create': (deps, args) => handleCreateSession(deps, args),
   'sessions.send': (deps, args) => handleSendSession(deps, args),
   'sessions.cancel': (deps, args) => handleCancelSession(deps, args),
+  'sessions.resolveUnsent': (deps, args) => handleResolveUnsent(deps, args),
   'sessions.delete': (deps, args) => handleDeleteSession(deps, args),
   'sessions.compact': (deps, args) => handleCompactSession(deps, args),
   'sessions.setAgent': (deps, args) => handleSetAgent(deps, args),

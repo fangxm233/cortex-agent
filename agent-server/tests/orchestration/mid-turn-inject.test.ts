@@ -820,6 +820,19 @@ test('stopping one run leaves another run\'s unread message alone', async () => 
   assert.deepEqual(r.track, [+1, +1, -1]);
 });
 
+test('a system-authored message is committed rather than left for the user to resend', async () => {
+  const run = fakeRun();
+  const r = recorder({}, run);
+  await tryInjectIntoLiveTurn(r.deps, {
+    ...baseCtx, text: 'worker finished', systemOrigin: 'agent-result',
+  });
+
+  await run.close('cancelled');
+
+  assert.deepEqual(r.history.map((h) => h.text), ['worker finished']);
+  assert.deepEqual(r.unsent, []);
+});
+
 test('a message whose record cannot be kept unsent is committed rather than lost', async () => {
   const run = fakeRun();
   const r = recorder({ setAsideUnsent: async () => false }, run);

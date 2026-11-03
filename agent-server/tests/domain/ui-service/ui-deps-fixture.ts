@@ -1,7 +1,7 @@
 import { EventBus } from '../../../src/events/event-bus.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
-type NestedDep = 'sessionStore' | 'conversationHistory' | 'clientRegistry';
+type NestedDep = 'sessionStore' | 'conversationHistory' | 'clientRegistry' | 'pendingInjections';
 
 /** Top-level overrides replace the default; the nested stores are merged member by member. */
 export type UiDepsOverrides = Partial<Omit<UiServiceDeps, NestedDep>> & {
@@ -33,7 +33,7 @@ export function makeUiDeps(overrides: UiDepsOverrides = {}): UiServiceDeps {
       getFirstUserText: async () => null,
       appendDecisionAction: async () => {},
     },
-    pendingInjections: { listBySession: async () => [] },
+    pendingInjections: { listBySession: async () => [], takeUnsent: async () => null, add: async () => {} },
     sendSessionMessage: () => {},
     approvalsPath: '/tmp/nonexistent-approvals.md',
     runningExecutions: { getAll: () => [] } as any,
@@ -59,13 +59,14 @@ export function makeUiDeps(overrides: UiDepsOverrides = {}): UiServiceDeps {
     respondPlan: () => 'not-found',
     isInteractionPending: () => false,
   };
-  const { sessionStore, conversationHistory, clientRegistry, ...rest } = overrides;
+  const { sessionStore, conversationHistory, clientRegistry, pendingInjections, ...rest } = overrides;
   return {
     ...base,
     ...rest,
     sessionStore: mergeNested(base.sessionStore, sessionStore),
     conversationHistory: mergeNested(base.conversationHistory, conversationHistory),
     clientRegistry: mergeNested(base.clientRegistry, clientRegistry),
+    pendingInjections: mergeNested(base.pendingInjections, pendingInjections),
   };
 }
 
