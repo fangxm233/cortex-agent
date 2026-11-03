@@ -53,7 +53,7 @@ export function DefaultTag() {
 
 function namedMeta(account: NamedAccountVm, L: Vocab, lang: 'en' | 'zh'): string {
   if (!account.connected) return L.accountsSignedOut;
-  return [account.identity, account.inUse ? L.accountsInUse : null, quietExpiry(account.health, account.expiresAt, L, lang)]
+  return [account.identity, quietExpiry(account.health, account.expiresAt, L, lang)]
     .filter(Boolean).join(' · ');
 }
 

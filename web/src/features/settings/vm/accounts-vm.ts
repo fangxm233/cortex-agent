@@ -48,8 +48,8 @@ export interface NamedAccountVm {
   label: string;
   /** Email and plan, where the vendor records them. */
   identity: string | null;
+  // No in-use flag: the server's marks the provider in use, not this account.
   connected: boolean;
-  inUse: boolean;
   health: CredentialHealth;
   expiresAt: string | null;
   /** What logging in again uses: the current type, else the provider's first. */
@@ -172,7 +172,6 @@ function namedAccountVm(account: AuthAccountStatus): NamedAccountVm {
     label: account.label,
     identity: identityText(account),
     connected,
-    inUse: account.inUse && connected,
     health: connected ? HEALTH[account.state] : 'unknown',
     expiresAt: account.expiresAt ?? active?.expiresAt ?? null,
     loginType: account.authType ?? active?.authType ?? account.capabilities[0] ?? 'oauth',

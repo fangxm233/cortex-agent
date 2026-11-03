@@ -103,7 +103,7 @@ describe('named accounts in Settings → Accounts', () => {
     expect(rows).toEqual(['claude:oauth', 'claude:api_key', 'claude:anthropic:school', 'claude:anthropic:lab', 'openai']);
     expect(renderer.root.findAll(node => node.props['data-account-default'] !== undefined)).toHaveLength(1);
     const school = renderer.root.find(node => node.props['data-account-row'] === 'claude:anthropic:school');
-    expect(school.findByProps({ 'data-account-meta': true }).props.children).toBe('me@school.edu · claude_team · In use');
+    expect(school.findByProps({ 'data-account-meta': true }).props.children).toBe('me@school.edu · claude_team');
     const lab = renderer.root.find(node => node.props['data-account-row'] === 'claude:anthropic:lab');
     expect(lab.findByProps({ 'data-account-meta': true }).props.children).toBe('Logged out');
     expect(rowText(renderer, 'claude:oauth')).toContain('me@home.com · claude_max');

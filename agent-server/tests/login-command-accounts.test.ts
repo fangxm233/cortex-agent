@@ -107,4 +107,6 @@ test('!login status lists every account with the id the commands take', () => {
   assert.match(text, /me@school\.edu/);
   assert.match(text, /Lab \(`lab`\)/);
   assert.match(text, /Work \(`ds-work`\)/);
+  const school = text.split('\n').find(line => line.includes('`school`')) ?? '';
+  assert.doesNotMatch(school, /in use/i);
 });

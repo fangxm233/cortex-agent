@@ -39,7 +39,8 @@ function formatAccount(account: AuthAccountStatus): string[] {
   const line = t('cmd.auth.accountLine', {
     backend, label: accountLabel(account), authType: authTypeLabel(account.authType),
     state: authStateLabel(account.state), identity: email ? t('cmd.auth.identity', { email }) : '',
-    inUse: account.inUse ? t('cmd.auth.inUse') : '',
+    // A named account's flag marks its provider in use, not the account: only a default login shows it.
+    inUse: account.inUse && !account.connection ? t('cmd.auth.inUse') : '',
   });
   if (account.credentials.length === 0) return [line];
   return [line, t('cmd.auth.credentials'), ...account.credentials.map(formatCredential)];
