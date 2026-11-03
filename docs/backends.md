@@ -315,9 +315,9 @@ host. The same login flow is exposed through three channels:
 
 | Channel | Entry | Interaction |
 |---|---|---|
-| Slack | Send `!login`, `!login cc`, or `!login pi [provider]` | Selectors and secret fields open in Slack modals; authorization links are posted to the channel. |
-| Feishu | Send `!login`, `!login cc`, or `!login pi [provider]` | Selectors and secret fields use inline card forms; authorization links are posted to the chat. |
-| Web (desktop and mobile) | Desktop: open **Settings → Accounts**. Mobile: tap **Settings → Accounts** to drill in to `/m/settings/accounts`. | The Accounts section shows Claude Code credentials and every PI provider, with status plus login/logout actions that open the same selector-driven login flow. |
+| Slack | Send `!login`, `!login cc [account]`, or `!login pi [provider [account]]` | Selectors and secret fields open in Slack modals; authorization links are posted to the channel. |
+| Feishu | Send `!login`, `!login cc [account]`, or `!login pi [provider [account]]` | Selectors and secret fields use inline card forms; authorization links are posted to the chat. |
+| Web (desktop and mobile) | Desktop: open **Settings → Accounts**. Mobile: tap **Settings → Accounts** to drill in to `/m/settings/accounts`. | The Accounts section shows Claude Code credentials and every PI provider, each with its [accounts](#accounts), status, and login/logout actions that open the same selector-driven login flow. |
 
 The chat command forms are:
 
@@ -325,8 +325,10 @@ The chat command forms are:
 !login
 !login status
 !login cc
+!login cc <account>
 !login pi
 !login pi <provider>
+!login pi <provider> <account>
 !login custom
 ```
 
@@ -334,14 +336,15 @@ The chat command forms are:
 [Custom providers](#custom-providers) below.
 
 `!login` with no arguments and `!login status` both show the authentication
-status overview. `!login cc` selects Claude Code. `!login pi` opens a PI
-provider selector; adding a provider skips that selector. Authentication type
+status overview, one line per account. `!login cc` selects Claude Code. `!login pi` opens a PI
+provider selector; adding a provider skips that selector. A trailing account id
+or label signs that [account](#accounts) in again instead of the default login. Authentication type
 is also selected interactively when a provider supports more than one type.
 Do not append `oauth`, API keys, authorization codes, or provider-specific
 OAuth flags to the command.
 
-One backend/provider pair has at most one login in progress. Starting a login
-cancels an unfinished one for the same pair, whichever channel started it,
+One account has at most one login in progress. Starting a login
+cancels an unfinished one for the same account, whichever channel started it,
 unless that login is already saving a submitted credential; then the new start
 is refused until it finishes. A failed login shows Cortex's message followed by
 the first line of the provider's own reason.
@@ -367,7 +370,7 @@ unknown state, and it can be removed. Once Claude owns a credential the token is
 ignored.
 
 When a running backend reports expired authentication, Cortex posts a card that
-names the provider and offers one-click re-login, pre-filled with the
+names the provider and the account and offers one-click re-login of that account, pre-filled with the
 authentication type that failed: for Claude Code, the API key when the run was on the
 `api` connection and the subscription otherwise. While that login runs, the button
 reopens it; after it fails, is cancelled or expires, the button starts a new
@@ -389,6 +392,43 @@ cortex auth status --json
 The text form is a concise overview; `--json` returns the complete normalized
 status snapshot. Both are credential-free. See
 [CLI Reference](./cli-reference.md#cortex) for the exact command contract.
+
+## Accounts
+
+A provider can hold more than one account — a personal Claude Max subscription
+beside a school or team one, for example. The login Cortex keeps for a provider
+is its **default account**; every further account is a **named account**, with
+a label you choose.
+
+**Adding an account.** In **Settings → Accounts**, **+ Add account** at the
+bottom of Claude Code's group asks for a name and opens the usual login dialog.
+Cortex derives the account's id from the name (`School Team` becomes
+`school-team`); chat commands and `config/connections.json` use that id. The
+account exists once its first login succeeds: a first login that fails or is
+cancelled leaves nothing behind. Accounts are added only in the Web UI; chat
+signs existing ones in again.
+
+**Managing accounts.** Each account row shows the label, the email and plan of
+the signed-in account, and the login state, with **Log in again**, **Log out**
+and **Delete**. Once a provider has named accounts, its default login carries a
+**default** tag. A logged-out account stays listed for a later login; deleting
+one signs it out and removes it after a confirmation. Sessions, schedules and
+defaults that chose a logged-out or deleted account run on the default account.
+In chat, `!login status` lists every account with its id, `!login cc <account>`
+signs a Claude account in again by id or label, and `!connection <id>` moves a
+channel onto it.
+
+**Choosing an account.** An account is a [connection](#per-session-model-thinking-level-and-route):
+the composer's **Connection** row lists accounts by label beside the
+subscription and any key connections, and **Settings → Models** can pin the
+default model to one. Changing a conversation's account starts a new Claude
+Code process on that account's login. All accounts share one transcript store,
+so the conversation resumes where it was; the first turn on the other account
+writes the prompt cache afresh.
+
+**Separate limits.** Every account has its own Usage row, quota readings,
+banked resets and rate-limit windows. An account at its limit pauses only the
+work that runs on it.
 
 ## Custom providers
 
@@ -465,15 +505,16 @@ A conversation with history cannot change backend. The picker disables models
 on the other backend; a new draft can choose either backend.
 
 **Connection** applies to Claude Code only: which of this host's Claude
-connections a conversation runs on — the subscription, an API key, or a relay
-or local endpoint added in **Settings → Accounts**. The picker shows the
+connections a conversation runs on — the subscription, a named
+[account](#accounts), an API key, or a relay or local endpoint added in
+**Settings → Accounts**. Accounts appear by their label. The picker shows the
 connection row only when more than one connection can run the current model. Its
 **Default** row names no connection: each run then uses the default connection
 (the subscription when signed in) if it serves the model, otherwise the first
 connection that does. A connection with its own model list serves only those
 models. Picking another model keeps the chosen connection while it serves that
-model. A chosen connection that is later removed falls back to the default
-instead of failing the conversation. PI has no connection row: its provider is
+model. A chosen connection that is later removed, or an account that is logged out,
+falls back to the default instead of failing the conversation. PI has no connection row: its provider is
 the connection. Claude Code and PI's built-in `anthropic` provider are separate
 entries: PI's provider runs on PI's own Anthropic credentials, and when both are
 signed in each keeps its own models, favorites, quota and rate limits.
@@ -483,7 +524,9 @@ the Anthropic Models API plus the models connections list themselves, PI's from
 its own scan, custom providers included. Thinking levels use the model's own
 levels where the source reports them, otherwise the backend's range.
 
-**Settings → Models** manages the default model and the favorites list. Platform
+**Settings → Models** manages the default model and the favorites list. While
+more than one connection can run the default model, it also sets the connection
+the default runs on. Platform
 channels use the same selection rules through these commands:
 
 | Command | What it does |
@@ -494,7 +537,7 @@ channels use the same selection rules through these commands:
 | `!model reset` | Restores the complete configured default selection |
 | `!thinking [level]` | Shows or sets the reasoning level |
 | `!thinking reset` | Sets thinking to null, using the backend default |
-| `!connection [id\|reset]` | Shows or sets the Claude connection; `reset` returns to the default. `!mode` is an alias |
+| `!connection [id\|reset]` | Shows or sets the Claude connection or account, by id; `reset` returns to the default. `!mode` is an alias |
 
 ## Thinking level
 
@@ -506,11 +549,14 @@ accept is clamped by PI to the nearest one it does.
 
 ## Usage-limit throttling and auto-resume
 
-Cortex tracks rolling usage windows by provider. Provider identifiers are opaque strings, so
+Cortex tracks rolling usage windows by provider and account. Provider identifiers are opaque strings, so
 the throttle can track any number of providers without a fixed provider
-enum. Each provider keeps its own window types and reset times. A provider
-and the connections its traffic runs on are gated without blocking another
-provider that happens to use a connection of the same name.
+enum. Each account of a provider — its default login, a named
+[account](#accounts), or a key connection — keeps its own window types and
+reset times, so an account at its limit pauses only the work that runs on it
+and never another provider's connection of the same name. An outage of the
+provider's service pauses all of its accounts. The rate-limit status shows a
+row per limited account, and clearing a row lifts only that account.
 
 The policy is configured in [`config/settings.json`](./configuration.md#configsettingsjson)
 as `providerRateLimits`, an object keyed by provider id. Each provider can
@@ -583,8 +629,10 @@ screen, or **Refresh** — reads two subscription accounts directly:
   primary and secondary windows on the Codex subscription row. When the read
   fails, the row keeps the windows last observed in Codex response headers and
   carries a note saying so.
-- **Claude**, signed in with `claude login`. The reading fills the five-hour
-  and seven-day windows on the Anthropic subscription row, plus the weekly
+- **Claude**, signed in with `claude login`. Each Claude account is read on
+  its own and has its own row; a named account's row reads
+  **Anthropic (<label>)**. The reading fills the five-hour
+  and seven-day windows on the account's subscription row, plus the weekly
   limit the account scopes to one model, shown with that model's name, such
   as **7 days (Fable)**. That model window is the one Claude Code reports as
   `seven_day_overage_included`, so its threshold control is the policy that
@@ -608,7 +656,7 @@ used. Metered rows show spend for today, the last 30 days and the last
 no spend.
 
 Signing out of a subscription in **Settings → Accounts** removes that
-provider's subscription row from the Usage screens; metered rows stay. The row
+account's subscription row from the Usage screens; metered rows stay. The row
 returns when the account is signed in again through Cortex, or when a quota
 reading taken after the sign-out arrives — a sign-in made outside Cortex shows
 up this way on the next collection.
@@ -625,8 +673,8 @@ days after it is granted. A Claude reset clears the windows its grant names —
 typically the five-hour, seven-day, and seven-day-including-overage limits —
 for claude.ai and every other Claude client as well. Cortex never spends a
 reset on its own. On the Codex and Anthropic cards in desktop and mobile
-Usage, **Reset** appears while a reset is available and asks for
-confirmation first; the Claude confirmation names the windows the reset
+Usage, **Reset** appears while a reset is available, spends it on that card's
+account, and asks for confirmation first; the Claude confirmation names the windows the reset
 clears and, while the account is not at a limit, shows their current use.
 Cortex spends the reset the account offers next, otherwise the one that
 expires first. In chat, `!usage` shows the same count and expiry with a
