@@ -81,6 +81,10 @@ export const STORE_DIR = path.join(DATA_DIR, 'data');
  *  apart from the user's terminal `~/.claude`. */
 export const CLAUDE_CONFIG_HOME = path.join(STORE_DIR, 'claude');
 
+/** One Claude Code config dir per additional Claude account (DATA_DIR/data/claude-accounts/<id>).
+ *  Only the login is the account's own; the rest links back to CLAUDE_CONFIG_HOME. */
+export const CLAUDE_ACCOUNTS_HOME = path.join(STORE_DIR, 'claude-accounts');
+
 /** The terminal's own Claude Code config dir. Cortex never runs Claude against it; only the
  *  one-time transcript migration and the first settings seed read from it. */
 export const USER_CLAUDE_CONFIG_DIR = path.join(os.homedir(), '.claude');

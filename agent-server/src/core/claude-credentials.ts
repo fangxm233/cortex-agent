@@ -12,7 +12,9 @@ import { createHash } from 'crypto';
 import { readFileSync } from 'fs';
 import * as path from 'path';
 import { parse as parseDotenv } from 'dotenv';
-import { CONNECTIONS_FILE, readConnections, type ClaudeKeyConnection } from './connections-file.js';
+import {
+  CONNECTIONS_FILE, claudeKeyConnections, readConnections, type ClaudeKeyConnection,
+} from './connections-file.js';
 import { CLAUDE_CONFIG_HOME, CONFIG_DIR } from './paths.js';
 
 /** OAuth tokens go on `Authorization: Bearer` and need this beta opt-in; API keys use `x-api-key`. */
@@ -108,9 +110,8 @@ export function readDotenvCredentials(deps: ClaudeCredentialDeps = {}): DotenvCr
  * whose key the daemon may use for its own Anthropic calls. A relay's key belongs to the relay.
  */
 export function officialApiKeyConnection(deps: ClaudeCredentialDeps = {}): ClaudeKeyConnection | null {
-  const found = readConnections(deps.connectionsFile ?? CONNECTIONS_FILE).find((entry) =>
-    entry.backend === 'claude' && !entry.baseUrl && entry.authStyle === 'x-api-key');
-  return found?.backend === 'claude' ? found : null;
+  return claudeKeyConnections(readConnections(deps.connectionsFile ?? CONNECTIONS_FILE))
+    .find((entry) => !entry.baseUrl && entry.authStyle === 'x-api-key') ?? null;
 }
 
 /** The official Anthropic API key, when a connection holds one. */
@@ -318,7 +319,7 @@ export async function claudeKeychainCredential(deps: ClaudeCredentialDeps = {}):
  * authoritative is the platform's choice: the plaintext file on Linux and Windows, the login
  * keychain on macOS. Checking only the file reads as "not logged in" on every Mac.
  */
-function claudeOwnsOAuthCredential(deps: ClaudeCredentialDeps): boolean {
+export function claudeOwnsOAuthCredential(deps: ClaudeCredentialDeps = {}): boolean {
   if (readClaudeStore(deps)) return true;
   const platform = deps.platform ?? process.platform;
   if (platform !== 'darwin') return false;

@@ -4,7 +4,7 @@
 
 import { claudeSubscriptionLogin, type ClaudeCredentialDeps } from '@core/claude-credentials.js';
 import {
-  CONNECTIONS_FILE, SUBSCRIPTION_CONNECTION, readConnections, type ClaudeKeyConnection,
+  CONNECTIONS_FILE, SUBSCRIPTION_CONNECTION, claudeKeyConnections, readConnections, type ClaudeKeyConnection,
 } from '@core/connections-file.js';
 import { createCredentialInventory } from './inventory.js';
 
@@ -53,8 +53,7 @@ function keyRoute(connection: ClaudeKeyConnection): ClaudeRoute {
 }
 
 function storedClaudeConnection(id: string, file: string): ClaudeKeyConnection | null {
-  const found = readConnections(file).find((entry) => entry.backend === 'claude' && entry.id === id);
-  return found?.backend === 'claude' ? found : null;
+  return claudeKeyConnections(readConnections(file)).find((entry) => entry.id === id) ?? null;
 }
 
 /**

@@ -4,7 +4,7 @@
 // for providers PI does not know. The user's own PI catalog is carried over beneath them.
 
 import {
-  CONNECTIONS_FILE, isPiCustomConnection, readConnections, type PiConnection,
+  CONNECTIONS_FILE, isPiCustomConnection, piProviderConnections, readConnections, type PiConnection,
 } from '@core/connections-file.js';
 import { readProvidersBlock } from '../../agent-adapter/pi/custom-catalog.js';
 import { USER_PI_MODELS_PATH } from '../../agent-adapter/pi/agent-dir.js';
@@ -61,8 +61,7 @@ function connectionBlock(connection: PiConnection): Block {
 export function buildPiCatalog(deps: PiCatalogDeps = {}): PiCatalog {
   const providers = userBlocks(deps.userModelsPath === undefined ? USER_PI_MODELS_PATH : deps.userModelsPath);
   const runtimeKeys: Record<string, string> = {};
-  for (const connection of readConnections(deps.file ?? CONNECTIONS_FILE)) {
-    if (connection.backend !== 'pi') continue;
+  for (const connection of piProviderConnections(readConnections(deps.file ?? CONNECTIONS_FILE))) {
     providers[connection.provider] = connectionBlock(connection);
     if (connection.key) runtimeKeys[connection.provider] = connection.key;
   }

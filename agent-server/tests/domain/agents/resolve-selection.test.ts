@@ -29,6 +29,7 @@ function inventoryOf(views: ConnectionView[]): CredentialInventory {
     piConnections: () => [],
     findClaude: (id) => claude.find((view) => view.id === id) ?? null,
     findPi: () => null,
+    accounts: () => [],
     hasClaude: () => claude.length > 0,
     claudeSubscriptionSource: () => (claude.some((view) => view.id === 'subscription') ? 'claude-store' : null),
     defaultClaudeConnection: () => claude[0]?.id ?? null,

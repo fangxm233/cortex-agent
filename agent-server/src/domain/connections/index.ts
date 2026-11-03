@@ -7,6 +7,13 @@ export {
   type ConnectionKind, type ConnectionView, type CredentialInventory, type InventoryDeps, type SelectionRef,
 } from './inventory.js';
 export { resolveClaudeRoute, type ClaudeRoute, type ClaudeRouteDeps } from './claude-route.js';
+export {
+  accountId, confirmAccount, createPendingAccount, findAccount, pendingAccounts, removeAccountEntry,
+  type AccountCreate, type AccountInput, type AccountIssue, type AccountRef, type AccountRegistryDeps,
+} from './accounts.js';
+export {
+  claudeAccountDir, ensureClaudeAccountDir, removeClaudeAccountDir, type ClaudeAccountDirDeps,
+} from './claude-account-dir.js';
 export { buildPiCatalog, isGatewayEraBlock, type PiCatalog, type PiCatalogDeps } from './pi-catalog.js';
 export { SUBSCRIPTION_CONNECTION } from '@core/connections-file.js';
 
