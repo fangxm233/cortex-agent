@@ -60,6 +60,14 @@ describe('SwapText', () => {
     expect(lines()).toEqual(['in:Thinking']);
   });
 
+  it('rolls out the content as last shown, not as it was when its key arrived', () => {
+    allowMotion();
+    mount('Thinking');
+    act(() => mounted.update(<SwapText swapKey="Thinking"><span>Thinking so the parser</span></SwapText>));
+    act(() => mounted.update(view('Ran pwd')));
+    expect(lines()).toEqual(['in:Ran pwd', 'out:Thinking so the parser']);
+  });
+
   it('cuts a roll short when the text changes again mid-way', () => {
     allowMotion();
     mount('A');

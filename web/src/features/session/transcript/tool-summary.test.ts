@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { en, zh } from '@/i18n/vocab';
 import type { ToolCall } from '@/features/session/composer/chat-content';
-import { bareToolName, runLead, toolCategory, toolStepText } from './tool-summary';
+import { bareToolName, runLead, thoughtNow, toolCategory, toolStepText } from './tool-summary';
 
 const call = (kind: string, input = '', description?: string): ToolCall => ({ kind, input, ...(description ? { description } : {}) });
 const thought: ToolCall = { kind: 'thinking', input: 'hmm', thinking: true };
@@ -55,5 +55,13 @@ describe('runLead', () => {
     expect(runLead(run, false)).toBe(run[1]);
     expect(runLead([thought], false)).toBe(thought);
     expect(runLead([], false)).toBeUndefined();
+  });
+});
+
+describe('thoughtNow', () => {
+  it('is the thought\'s latest line with words, as plain text', () => {
+    expect(thoughtNow('**Plan**\n\n- check `parse()`\n\n')).toBe('check parse()');
+    expect(thoughtNow('one\r\ntwo')).toBe('two');
+    expect(thoughtNow('  \n ')).toBe('');
   });
 });

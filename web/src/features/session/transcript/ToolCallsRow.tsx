@@ -9,7 +9,7 @@ import { DebugDetailsModal, DebugInspectButton, type DebugDetail } from './Debug
 import { ToolCallImages } from './ToolCallImages';
 import { ThinkingRow } from './HintRow';
 import { EventIcon, eventRowStyle, type EventIconName } from './EventRow';
-import { bareToolName, callCategory, runLead, toolCategory, toolStepText, type StepCategory } from './tool-summary';
+import { bareToolName, callCategory, runLead, thoughtNow, toolCategory, toolStepText, type StepCategory } from './tool-summary';
 
 const mono = "'IBM Plex Mono',monospace";
 
@@ -17,8 +17,9 @@ const mono = "'IBM Plex Mono',monospace";
 // description of the call, or the call made readable ("Edited parser.ts") — which opens to the calls
 // themselves, one line each, the command or path in mono. The line is the same in both states:
 // opening it turns its caret and hangs the list under it. While the run is what the agent is doing
-// right now, the line is the step under way ("Running pnpm test", "Thinking") — a thought being
-// written joins the run as its latest entry — and its words roll to the next step rather than jump.
+// right now, the line is the step under way ("Running pnpm test", "Thinking" and the thought's latest
+// line) — a thought being written joins the run as its latest entry — and its words roll to the next
+// step rather than jump.
 
 const CATEGORY_ICON: Record<StepCategory, EventIconName> = {
   command: 'terminal', read: 'file', edit: 'pencil', search: 'search', web: 'globe', todo: 'list', skill: 'circle', other: 'circle', thought: 'spark',
@@ -40,6 +41,8 @@ const nowStyle: CSSProperties = {
   color: 'var(--proto-ink-3)', fontWeight: 550, flex: '0 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
 };
 const doneStyle: CSSProperties = { flex: 'none', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' };
+const thoughtLabelStyle: CSSProperties = { ...nowStyle, flex: 'none' };
+const thoughtStyle: CSSProperties = { flex: '0 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' };
 const inputStyle: CSSProperties = {
   font: `400 12px ${mono}`, color: 'var(--proto-ink-3)', minWidth: 0,
   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
@@ -106,6 +109,10 @@ function imageCount(calls: ToolCall[]): number {
 interface RunLine {
   icon: EventIconName;
   text: string;
+  /** The thought under way, after its step: its latest line. */
+  thought?: string;
+  /** What the line speaks for; the line rolls only when this changes, so a thought grows in place. */
+  key: string;
   /** The run is what the agent is doing right now. */
   live: boolean;
 }
@@ -115,8 +122,14 @@ function runLine(calls: ToolCall[], live: boolean, L: Vocab): RunLine {
   const images = imageCount(calls);
   const lead = runLead(calls, live);
   const icon = images > 0 ? 'file' : CATEGORY_ICON[lead ? callCategory(lead) : 'other'];
-  if (images > 0 && !live) return { icon, live, text: fmt(images === 1 ? L.chatToolImagesOne : L.chatToolImagesMany, { n: images }) };
-  return { icon, live, text: lead ? toolStepText(lead, live, L) : '' };
+  if (images > 0 && !live) {
+    const text = fmt(images === 1 ? L.chatToolImagesOne : L.chatToolImagesMany, { n: images });
+    return { icon, live, text, key: text };
+  }
+  const text = lead ? toolStepText(lead, live, L) : '';
+  if (!live || !lead?.thinking) return { icon, live, text, key: text };
+  const thought = thoughtNow(lead.input);
+  return { icon, live, text, key: `${text}\n${calls.length - 1}`, ...(thought ? { thought } : {}) };
 }
 
 function useCallInspect(sessionId: string | undefined): { selected: DebugDetail | null; clear: () => void; inspect: Inspect } {
@@ -140,8 +153,9 @@ function useCallInspect(sessionId: string | undefined): { selected: DebugDetail 
 
 function RunLineText({ line }: { line: RunLine }): JSX.Element {
   return (
-    <SwapText swapKey={line.text} style={{ flex: 1 }}>
-      <span style={line.live ? nowStyle : doneStyle}>{line.text}</span>
+    <SwapText swapKey={line.key} style={{ flex: 1 }}>
+      <span style={line.thought ? thoughtLabelStyle : line.live ? nowStyle : doneStyle}>{line.text}</span>
+      {line.thought ? <span style={thoughtStyle}>{line.thought}</span> : null}
     </SwapText>
   );
 }
