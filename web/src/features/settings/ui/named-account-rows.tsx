@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from 'react';
+import { useState, type CSSProperties, type KeyboardEvent } from 'react';
 import type { AuthType } from '@cortex-agent/ui-contract';
 import { fmt, useLang, useVocab, type Vocab } from '@/i18n';
 import {
@@ -20,6 +20,11 @@ export interface AccountGroup {
   /** The provider's display name; an account reads as "Claude Code (School)". */
   providerLabel: string;
   indent?: number;
+}
+
+/** The group's indent on top of the host's row inset, which the row padding already carries. */
+function indentStyle(group: AccountGroup): CSSProperties {
+  return group.indent ? { paddingLeft: `calc(var(--settings-row-inset, 0px) + ${group.indent}px)` } : {};
 }
 
 function accountName(group: AccountGroup, account: string, L: Vocab): string {
@@ -111,7 +116,7 @@ export function NamedAccountRow({ group, account, handlers, confirm }: {
   const meta = namedMeta(account, L, lang);
   return (
     <Row data-account-row={`${group.backend}:${group.provider}:${account.connection}`}
-      data-account-connected={account.connected ? '' : undefined} style={{ paddingLeft: group.indent }}>
+      data-account-connected={account.connected ? '' : undefined} style={indentStyle(group)}>
       <span style={LEAD_STYLE}>
         <span style={NAME_STYLE}>{account.label}</span>
         {meta ? <span data-account-meta style={META_STYLE}>{meta}</span> : null}
@@ -145,7 +150,7 @@ export function AddAccountRow({ group, types, handlers }: {
   const [draft, setDraft] = useState<string | null>(null);
   if (draft === null) {
     return (
-      <Row data-account-add={`${group.backend}:${group.provider}`} style={{ paddingLeft: group.indent, minHeight: 32 }}>
+      <Row data-account-add={`${group.backend}:${group.provider}`} style={{ ...indentStyle(group), minHeight: 32 }}>
         <SLinkAction data-account-add-open disabled={handlers.disabled} onClick={() => setDraft('')}>
           + {L.accountsAddAccount}
         </SLinkAction>
@@ -165,7 +170,7 @@ export function AddAccountRow({ group, types, handlers }: {
     if (event.key === 'Enter' && !event.nativeEvent.isComposing && types.length < 2) submit(types[0] ?? 'oauth');
   };
   return (
-    <Row data-account-add-form={`${group.backend}:${group.provider}`} style={{ paddingLeft: group.indent }}>
+    <Row data-account-add-form={`${group.backend}:${group.provider}`} style={indentStyle(group)}>
       <input data-account-add-label aria-label={L.accountsAccountLabel} placeholder={L.accountsAccountLabelPlaceholder}
         autoFocus maxLength={64} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={onKeyDown}
         style={{ ...S_CONTROL_STYLE, minHeight: 30, padding: '4px 10px', flex: '1 1 160px', width: 'auto', maxWidth: 280 }} />
