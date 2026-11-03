@@ -336,6 +336,20 @@ describe('banked resets', () => {
     expect(vm.providers[1].resets).toMatchObject({ provider: 'anthropic', connection: 'school' });
   });
 
+  it('keeps a row per PI account: a Codex account spends its own resets, a metered account shows its spend', () => {
+    const lab = {
+      ...codex, billing: 'subscription' as const, route: 'codex-lab', label: 'Lab', displayName: 'OpenAI Codex (Lab)',
+      resetCredits: { availableCount: 1, credits: [] },
+    };
+    const work = { ...status[2], billing: 'api' as const, route: 'ds-work', label: 'Work', displayName: 'DeepSeek (Work)' };
+    const vm = buildUsageView([lab, { ...codex, billing: 'subscription' as const }, work, status[2]], null, NOW, 'en');
+    const rows = Object.fromEntries(vm.providers.map((row) => [row.displayName, row]));
+    expect(Object.keys(rows).sort()).toEqual(['DeepSeek', 'DeepSeek (Work)', 'OpenAI Codex', 'OpenAI Codex (Lab)']);
+    expect(rows['OpenAI Codex (Lab)'].resets).toMatchObject({ provider: 'openai-codex', connection: 'codex-lab', available: 1 });
+    expect(rows['OpenAI Codex'].resets).toBeNull();
+    expect(rows['DeepSeek (Work)'].key).not.toBe(rows.DeepSeek.key);
+  });
+
   it('offers no reset to spend on a metered row', () => {
     const vm = buildUsageView([{ ...claude, billing: 'api', resetCredits: { availableCount: 1, credits: [] } }], null, NOW, 'en');
     expect(vm.providers[0].resets?.provider).toBeNull();
