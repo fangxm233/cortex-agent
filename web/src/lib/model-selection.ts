@@ -36,24 +36,35 @@ export function connectionName(names: ConnectionNames, id: string): string {
   return Object.hasOwn(names, id) ? names[id] : id;
 }
 
-function claudeRoute(catalog: ModelCatalogSnapshot | null | undefined) {
-  return catalog?.routes.find((route) => route.backend === 'claude' && route.provider === null);
+function routeOf(catalog: ModelCatalogSnapshot | null | undefined, ref: Pick<ModelRef, 'backend' | 'provider'>) {
+  return catalog?.routes.find((route) => route.backend === ref.backend && route.provider === ref.provider);
 }
 
-/** The Claude connections that can run a model, by the catalog's own rule: the model's own list when
- *  the catalog has one, else every Claude connection (the default first). Empty for PI. */
+/** The connections that can run a model, the default first, by the catalog's own rule.
+ *  Claude: the model's own list when the catalog has one, else every Claude connection.
+ *  PI: the provider itself — its default login — then the provider's signed-in accounts; a
+ *  provider the catalog does not list still runs on its default login. */
 export function servingConnections(catalog: ModelCatalogSnapshot | null | undefined, ref: ModelRef): string[] {
-  if (ref.backend !== 'claude') return [];
-  const route = claudeRoute(catalog);
+  const route = routeOf(catalog, ref);
+  if (ref.backend === 'pi') return route?.connections.length ? route.connections : ref.provider ? [ref.provider] : [];
   return route ? route.modelConnections?.[ref.model] ?? route.connections : [];
 }
 
 /** The connection a selection that names none runs on: the default connection when it serves the
- *  model, else the first one that does — the server's rule, shown before the run. */
+ *  model, else the first one that does — the server's rule, shown before the run. For PI that is
+ *  the provider's default login, named by the provider. */
 export function defaultConnectionFor(catalog: ModelCatalogSnapshot | null | undefined, ref: ModelRef): string | null {
   const serving = servingConnections(catalog, ref);
-  const fallback = claudeRoute(catalog)?.connections[0];
+  const fallback = ref.backend === 'pi' ? serving[0] : routeOf(catalog, ref)?.connections[0];
   return fallback && serving.includes(fallback) ? fallback : serving[0] ?? null;
+}
+
+/** The connection a pick carries over: the current one while the pick stays on its backend and —
+ *  for PI, whose accounts each belong to one provider — on its provider. */
+function carriedConnection(ref: ModelRef, current: EngineSelection | null | undefined): string | null {
+  if (!current || current.backend !== ref.backend) return null;
+  if (ref.backend === 'pi' && current.provider !== ref.provider) return null;
+  return current.connection;
 }
 
 /**
@@ -67,13 +78,13 @@ export function selectionForModel(
   current?: EngineSelection | null,
 ): EngineSelection {
   const remembered = config?.models.memory[modelKey(ref)];
-  const carried = ref.backend === 'claude' && current?.backend === 'claude' ? current.connection : null;
+  const carried = carriedConnection(ref, current);
   const connection = carried && servingConnections(catalog, ref).includes(carried) ? carried : null;
   return { ...ref, thinking: remembered?.thinking ?? null, connection };
 }
 
-/** Whether this host can run a selection: PI's provider is its connection; a Claude model needs a
- *  connection that serves it, which only a loaded catalog can tell. */
+/** Whether this host can run a selection: a PI provider always has its default login; a Claude
+ *  model needs a connection that serves it, which only a loaded catalog can tell. */
 export function hasRoute(selection: EngineSelection, catalog: ModelCatalogSnapshot | null | undefined): boolean {
   return selection.backend === 'pi' || servingConnections(catalog, selection).length > 0;
 }

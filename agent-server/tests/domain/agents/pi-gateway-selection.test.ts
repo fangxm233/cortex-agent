@@ -29,11 +29,10 @@ it.each(['api', undefined])('migrates explicit PI mode %s without confusing it w
   expect(models.default).toEqual({ ...legacySelection, mode: mode ?? 'anthropic' });
 });
 
-it('a PI selection names no connection in either selection writer', async () => {
+it('a PI selection names no connection but its provider\'s accounts, in either selection writer', async () => {
   expect(await setDefaultModel(CONFIG_DIR, { selection })).toBe(true);
   await expect(setDefaultModel(CONFIG_DIR, { selection: { ...selection, connection: 'api' } }))
     .rejects.toMatchObject({ code: 'invalid-args' });
-  // The channel writer drops a connection named on a PI pick: the provider is its connection.
   const result = await applyChannelSelection({ channel: 'pi-api-route', ...selection, connection: 'api' });
-  expect(result).toMatchObject({ ...selection, ok: true });
+  expect(result).toMatchObject({ ok: false, reason: 'invalid-connection' });
 });

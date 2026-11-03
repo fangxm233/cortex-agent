@@ -206,11 +206,13 @@ test('a connection that no longer exists is dropped when carried and refused onl
     .toMatchObject({ ok: false, reason: 'invalid-connection', allowed: ['subscription', 'api'] });
 });
 
-test('a PI pick never names a connection, requested or remembered: its provider is the connection', async () => {
+test('a PI pick names only an account of its provider, never a remembered connection', async () => {
   seed({ modelMemory: { '["pi","other","model"]': { thinking: null, connection: 'api' } } });
   const api = await fresh();
   const piAnthropic = { channel: 'web:a', backend: 'pi' as const, provider: 'anthropic', model: 'claude-opus-4-7' };
   expect(await api.applyChannelSelection({ ...piAnthropic, connection: 'api' }))
+    .toMatchObject({ ok: false, reason: 'invalid-connection', allowed: ['anthropic'] });
+  expect(await api.applyChannelSelection({ ...piAnthropic, connection: 'anthropic' }))
     .toMatchObject({ ok: true, provider: 'anthropic', connection: null });
   expect(await api.applyChannelSelection({ channel: 'web:a', backend: 'pi', provider: 'other', model: 'model' }))
     .toMatchObject({ ok: true, provider: 'other', connection: null });

@@ -8,6 +8,7 @@ import { composeSystemPrompt, globalRuleBodies } from './prompt.js';
 import { workspacePrompt } from '@core/workspace.js';
 import { resolvePluginRuntime } from '../plugins/runtime.js';
 import type { ClaudeRoute } from '../connections/claude-route.js';
+import { resolvePiAccountRoute } from '../connections/pi-account-dir.js';
 import type { EngineSelection } from '../agents/engine-selection.js';
 import type { RunRequest } from './request.js';
 
@@ -157,6 +158,17 @@ function backendField(
 
 // --- Public API ---
 
+/** Claude: the resolved route. PI: the account's agent dir when the selection names an account. */
+function specRoute(attempt: EngineSelection, route: ClaudeRoute | undefined): EngineSpec['route'] {
+  const pi = resolvePiAccountRoute(attempt);
+  if (pi) return { connection: pi.connection, piAgentDir: pi.agentDir };
+  return {
+    anthropicBaseUrl: route?.baseUrl,
+    connection: route?.connection,
+    ...(route?.configDir ? { claudeConfigDir: route.configDir } : {}),
+  };
+}
+
 /**
  * Group the resolved inputs into the backend-neutral {@link EngineSpec}.
  * Pure re-grouping: every value, condition and defaulting rule is the original flat builder's.
@@ -216,11 +228,7 @@ export function buildEngineSpec(
       pinned: request.isolation?.pinnedEnv,
       context,
     },
-    route: {
-      anthropicBaseUrl: route?.baseUrl,
-      connection: route?.connection,
-      ...(route?.configDir ? { claudeConfigDir: route.configDir } : {}),
-    },
+    route: specRoute(attempt, route),
     flags: policy.flags,
     context: {
       channel: request.context.channel,

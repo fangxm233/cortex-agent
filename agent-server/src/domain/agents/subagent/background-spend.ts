@@ -42,7 +42,7 @@ export function recordBackgroundChildSpend(owner: BackgroundSpendOwner, report: 
   void recordCost({
     session_id: owner.sessionId, execution_id: record.id,
     project: owner.project || 'general', trigger: 'subagent',
-    cost_usd: usage.cost, backend: 'pi', connection: report.provider, source: 'estimate',
+    cost_usd: usage.cost, backend: 'pi', connection: report.connection ?? report.provider, source: 'estimate',
     input_tokens: usage.input, output_tokens: usage.output,
     prompt_tokens: usage.input + usage.cacheRead + usage.cacheWrite,
     cache_read_tokens: usage.cacheRead, cache_creation_tokens: usage.cacheWrite,

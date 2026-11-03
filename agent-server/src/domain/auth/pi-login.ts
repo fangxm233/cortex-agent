@@ -10,6 +10,7 @@ import {
 } from './login-flow.js';
 import {
   loadPiRuntime,
+  type LoadPiRuntimeOptions,
   type PiModelRuntime,
   type PiProvider,
   type PiRuntimeLoadResult,
@@ -47,8 +48,12 @@ type PiApiKeyLoginFailure = Extract<PiApiKeyLoginResult, { ok: false }>;
 const log = createLogger('pi-login');
 
 export interface PiApiKeyLoginDependencies {
-  loadRuntime?: () => Promise<PiRuntimeLoadResult>;
+  loadRuntime?: (options?: LoadPiRuntimeOptions) => Promise<PiRuntimeLoadResult>;
   refreshProviders?: () => void;
+  /** An account's own auth.json; absent, the default login's. */
+  authPath?: string;
+  /** The account signing in; absent, the provider's default login. */
+  connection?: string;
 }
 
 function failed(
@@ -65,7 +70,8 @@ async function loadRuntime(
   dependencies: PiApiKeyLoginDependencies,
 ): Promise<PiRuntimeLoadResult | null> {
   try {
-    return await (dependencies.loadRuntime ?? loadPiRuntime)();
+    const loader = dependencies.loadRuntime ?? loadPiRuntime;
+    return await (dependencies.authPath ? loader({ authPath: dependencies.authPath }) : loader());
   } catch (error) {
     log.warn('PI runtime failed to load:', error);
     return null;
@@ -78,7 +84,8 @@ function supportsApiKeyLogin(provider: PiProvider): boolean {
 
 function finishLogin(provider: string, dependencies: PiApiKeyLoginDependencies): PiApiKeyLoginResult {
   (dependencies.refreshProviders ?? (() => piProviderDiscovery.refresh()))();
-  publishAuthRecovered({ backend: 'pi', provider });
+  const account = dependencies.connection ? { connection: dependencies.connection } : {};
+  publishAuthRecovered({ backend: 'pi', provider, ...account });
   return { ok: true, provider, authType: 'api_key', expiresAt: null };
 }
 

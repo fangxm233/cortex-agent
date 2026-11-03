@@ -410,9 +410,12 @@ function subagentUsageEvents(value: unknown, state: PIEventParserState): Normali
   const cost = nullableNonNegativeNumber(usage['cost']);
   state.pendingCompletion.totalCostUsd = sumNullableCosts(state.pendingCompletion.totalCostUsd, cost);
   const model = report['model'];
+  const connection = report['connection'];
   return [{
     type: 'cost_record',
     provider,
+    // A child's spend is filed under its own route: its account, else its provider.
+    connection: typeof connection === 'string' && connection !== '' ? connection : provider,
     model: typeof model === 'string' ? model : '',
     tokens_in: input, tokens_out: output,
     prompt_tokens: input + cacheRead + cacheCreation, cached_tokens: cacheRead,

@@ -23,6 +23,9 @@ export interface PiCatalogDeps {
   file?: string;
   /** The user's PI catalog (`~/.pi/agent/models.json`). Null: carry nothing over. */
   userModelsPath?: string | null;
+  /** The provider of the account whose agent dir this catalog is for. No key is written for it —
+   *  the account's own credential must be the one that provider sends. */
+  accountProvider?: string;
 }
 
 /** The placeholder key and route Cortex wrote while every PI call went through a local gateway. */
@@ -65,5 +68,14 @@ export function buildPiCatalog(deps: PiCatalogDeps = {}): PiCatalog {
     providers[connection.provider] = connectionBlock(connection);
     if (connection.key) runtimeKeys[connection.provider] = connection.key;
   }
-  return { providers, runtimeKeys };
+  return deps.accountProvider ? withoutKeyFor({ providers, runtimeKeys }, deps.accountProvider) : { providers, runtimeKeys };
+}
+
+/** The catalog an account's agent dir gets: the same, minus every key for the account's provider. */
+function withoutKeyFor(catalog: PiCatalog, provider: string): PiCatalog {
+  const { [provider]: _key, ...runtimeKeys } = catalog.runtimeKeys;
+  const block = catalog.providers[provider];
+  if (!block || !('apiKey' in block)) return { providers: catalog.providers, runtimeKeys };
+  const { apiKey: _apiKey, ...keyless } = block;
+  return { providers: { ...catalog.providers, [provider]: keyless }, runtimeKeys };
 }

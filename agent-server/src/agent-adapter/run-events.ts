@@ -73,6 +73,8 @@ export type RunEvent =
   | { type: 'rate_limit'; provider?: string; mode?: string; raw: unknown }
   | {
       type: 'cost_record'; provider: string; model: string;
+      /** The route the spend is filed under when it is not the run's own (a nested child's). */
+      connection?: string;
       /** Legacy backend-specific input metric retained for compatibility. */
       tokens_in: number | null; tokens_out: number | null;
       /** Exact prompt total when the backend reports every input category. */

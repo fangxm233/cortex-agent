@@ -141,6 +141,9 @@ export const authAddAccountInput = z.object({
   label: z.string().trim().min(1).max(64),
   /** PI only: the provider the account signs in to. */
   provider: z.string().min(1).optional(),
+  /** PI only: how the first login signs in; absent, OAuth where the provider offers it, else an API
+   *  key. A Claude account always signs in with OAuth. */
+  authType: z.enum(['api_key', 'oauth']).optional(),
 });
 
 export const authRemoveAccountInput = z.object({

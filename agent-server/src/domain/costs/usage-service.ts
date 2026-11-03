@@ -1,14 +1,16 @@
 import { getPiEngineAdapter } from '../runs/adapters.js';
 import { Capability } from '../../agent-adapter/capabilities.js';
 import type { AgentUsageScope } from '../../agent-adapter/types.js';
-import { SUBSCRIPTION_CONNECTION, accountIdOf, type ClaudeAccountConnection } from '@core/connections-file.js';
+import {
+  SUBSCRIPTION_CONNECTION, accountIdOf, type AccountConnection, type ClaudeAccountConnection, type PiAccountConnection,
+} from '@core/connections-file.js';
 import { t } from '@core/i18n.js';
 import { createLogger } from '@core/log.js';
 import { costRepo } from '@store/cost-repo.js';
 import { providerStateRepo } from '@store/provider-state-repo.js';
-import { claudeAccountDir, credentialInventory } from '../connections/index.js';
+import { claudeAccountDir, credentialInventory, piAccountAuthPath, type SelectionRef } from '../connections/index.js';
 import { claudeAccountClient, claudeAccountClientFor } from './claude-account.js';
-import { codexAccountClient } from './codex-account.js';
+import { codexAccountClient, codexAccountClientFor } from './codex-account.js';
 import type { CostEntry } from './cost-tracker.js';
 import { ledgerSpend, type AccountOf, type BillingOf, type LedgerSpendRow, type SpendFigures } from './ledger-spend.js';
 import { releaseRecoveredQuota, type QuotaReading } from './rate-limit-throttle.js';
@@ -37,11 +39,20 @@ export interface UsageServiceStore {
   commit(records: ProviderUsage[]): Promise<void>;
 }
 
-/** One additional Claude account and the reader of its own usage. */
-export interface ClaudeAccountReader {
+/** One additional account and the reader of its own usage. */
+export interface AccountReader {
   id: string;
   label: string;
   account: Pick<ResetAccount, 'readUsage'>;
+}
+
+export type ClaudeAccountReader = AccountReader;
+
+/** An account a ledger row may be filed under, and the name its row shows. */
+export interface AccountLabel {
+  provider: string;
+  id: string;
+  label: string;
 }
 
 /** When each provider's subscription — or one account of it, `provider::account` — was last signed
@@ -73,11 +84,16 @@ export interface UsageServiceDependencies {
    *  the row keeps only what was last stored. */
   claudeAccount?: Pick<ResetAccount, 'readUsage'>;
   /** The additional Claude accounts; each is read like the default and gets a row of its own. */
-  claudeAccounts?: () => ClaudeAccountReader[];
+  claudeAccounts?: () => AccountReader[];
+  /** The additional Codex accounts (PI accounts of openai-codex), each read like the default. */
+  codexAccounts?: () => AccountReader[];
+  /** Every account whose spend may land on a row of its own, for the row's name; the Claude and
+   *  Codex readers name theirs regardless. */
+  accountLabels?: () => readonly AccountLabel[];
 }
 
-/** Which Anthropic login a quota read is for: the default, or one account. */
-interface AnthropicTarget {
+/** Which login of a provider a quota read is for: the default, or one account. */
+interface QuotaTarget {
   route?: string;
   label?: string;
 }
@@ -95,6 +111,14 @@ interface AnthropicQuotaResult {
 interface CodexQuotaResult {
   record: ProviderUsage | null;
   note?: string;
+}
+
+/** One Codex login to read: the default, or one account. */
+interface CodexSource {
+  account: Pick<ResetAccount, 'readUsage'>;
+  route?: string;
+  /** The row response headers last reported for this login. */
+  observed: () => Promise<ProviderUsage | null>;
 }
 
 interface QuotaSnapshot {
@@ -277,11 +301,35 @@ function anthropicResets(quota: AnthropicQuotaResult, prior: ProviderUsage[], ro
   return prior.find((row) => usageRecordKey(row) === key)?.resetCredits;
 }
 
-function codexDraft(drafts: Map<string, RowDraft>): RowDraft {
-  const draft = ensureDraft(drafts, CODEX_PROVIDER, 'subscription');
+function codexDraft(drafts: Map<string, RowDraft>, target: QuotaTarget): RowDraft {
+  const draft = ensureDraft(drafts, CODEX_PROVIDER, 'subscription', target.route);
   draft.quotaPolled = true;
-  draft.modes.add(CODEX_PROVIDER);
+  draft.modes.add(target.route ?? CODEX_PROVIDER);
+  if (target.label) draft.label = target.label;
   return draft;
+}
+
+function isCodexRouteRow(record: ProviderUsage, route: string | undefined): boolean {
+  return record.provider === CODEX_PROVIDER && record.route === route;
+}
+
+/** An account's header readings land on its own stored row; read back, they are no longer live. */
+function observedCodexRow(prior: ProviderUsage[], route: string): ProviderUsage | null {
+  const key = draftKey(CODEX_PROVIDER, 'subscription', route);
+  const row = prior.find((candidate) => usageRecordKey(candidate) === key);
+  return row ? { ...row, freshness: row.observedAt === null ? 'never' : 'stale' } : null;
+}
+
+function targetOf(account: AccountReader): QuotaTarget {
+  return { route: account.id, label: account.label };
+}
+
+function labelKey(provider: string, id: string): string {
+  return `${provider}\u0000${id}`;
+}
+
+function readerLabels(provider: string, accounts: AccountReader[]): AccountLabel[] {
+  return accounts.map((account) => ({ provider, id: account.id, label: account.label }));
 }
 
 function codexNotes(result: PromiseSettledResult<CodexQuotaResult>, reading: CodexQuotaResult): string[] {
@@ -373,7 +421,9 @@ export class UsageService {
   private readonly codexAccount: Pick<ResetAccount, 'readUsage'>;
   private readonly releaseThrottle: (provider: string, windows: QuotaReading[], route?: string) => Promise<unknown>;
   private readonly claudeAccount: Pick<ResetAccount, 'readUsage'>;
-  private readonly claudeAccounts: () => ClaudeAccountReader[];
+  private readonly claudeAccounts: () => AccountReader[];
+  private readonly codexAccounts: () => AccountReader[];
+  private readonly accountLabels: () => readonly AccountLabel[];
 
   constructor(dependencies: UsageServiceDependencies = {}) {
     this.store = dependencies.store ?? usageStore;
@@ -383,6 +433,8 @@ export class UsageService {
     this.billingOf = dependencies.billingOf ?? ((ref) => credentialInventory.billingOf(ref));
     this.accountOf = dependencies.accountOf ?? (() => null);
     this.claudeAccounts = dependencies.claudeAccounts ?? (() => []);
+    this.codexAccounts = dependencies.codexAccounts ?? (() => []);
+    this.accountLabels = dependencies.accountLabels ?? (() => []);
     this.now = dependencies.now ?? (() => new Date());
     this.codexAccount = dependencies.codexAccount ?? NO_ACCOUNT;
     this.claudeAccount = dependencies.claudeAccount ?? NO_ACCOUNT;
@@ -412,20 +464,25 @@ export class UsageService {
 
   async collect(): Promise<ProviderUsage[]> {
     const prior = await this.signedIn(await this.store.list());
-    const accounts = this.claudeAccounts();
-    const [[spend, quota, codex], accountQuotas] = await Promise.all([
-      Promise.allSettled([this.readSpend(), this.readAnthropicQuota(this.claudeAccount), this.readCodexQuota()] as const),
-      Promise.allSettled(accounts.map((account) => this.readAnthropicQuota(account.account, account.id))),
+    const claude = this.claudeAccounts();
+    const codex = this.codexAccounts();
+    const [[spend, quota, codexQuota], claudeQuotas, codexQuotas] = await Promise.all([
+      Promise.allSettled([this.readSpend(), this.readAnthropicQuota(this.claudeAccount), this.readCodexQuota({
+        account: this.codexAccount, observed: () => this.readObservedCodexQuota(),
+      })] as const),
+      Promise.allSettled(claude.map((account) => this.readAnthropicQuota(account.account, account.id))),
+      Promise.allSettled(codex.map((account) => this.readCodexQuota({
+        account: account.account, route: account.id, observed: async () => observedCodexRow(prior, account.id),
+      }))),
     ]);
     const drafts = new Map<string, RowDraft>();
     if (spend.status === 'fulfilled') applyLedgerRows(drafts, spend.value);
     else log.warn(`ledger spend read failed: ${errorMessage(spend.reason)}`);
     this.applyAnthropicQuota(drafts, quota, prior, {});
-    accounts.forEach((account, index) => this.applyAnthropicQuota(
-      drafts, accountQuotas[index]!, prior, { route: account.id, label: account.label },
-    ));
-    this.labelAccountRows(drafts, accounts);
-    this.applyCodexQuota(drafts, codex, prior);
+    claude.forEach((account, index) => this.applyAnthropicQuota(drafts, claudeQuotas[index]!, prior, targetOf(account)));
+    this.applyCodexQuota(drafts, codexQuota, prior, {});
+    codex.forEach((account, index) => this.applyCodexQuota(drafts, codexQuotas[index]!, prior, targetOf(account)));
+    this.labelAccountRows(drafts, [...readerLabels(ANTHROPIC_PROVIDER, claude), ...readerLabels(CODEX_PROVIDER, codex)]);
     const composed = [...drafts.values()].map(finalizeDraft);
     await this.store.commit(await this.signedIn(guardDeletions(composed, prior, spend)));
     return this.getStatus();
@@ -438,10 +495,11 @@ export class UsageService {
   // ── Composition steps ────────────────────────────────────────
 
   /** Ledger rows of an account carry its route only; the label comes from the registry. */
-  private labelAccountRows(drafts: Map<string, RowDraft>, accounts: ClaudeAccountReader[]): void {
-    const labels = new Map(accounts.map((account) => [account.id, account.label]));
+  private labelAccountRows(drafts: Map<string, RowDraft>, readers: AccountLabel[]): void {
+    const labels = new Map([...this.accountLabels(), ...readers]
+      .map((account) => [labelKey(account.provider, account.id), account.label]));
     for (const draft of drafts.values()) {
-      if (draft.route && !draft.label) draft.label = labels.get(draft.route);
+      if (draft.route && !draft.label) draft.label = labels.get(labelKey(draft.provider, draft.route));
     }
   }
 
@@ -449,7 +507,7 @@ export class UsageService {
     drafts: Map<string, RowDraft>,
     result: PromiseSettledResult<AnthropicQuotaResult>,
     prior: ProviderUsage[],
-    target: AnthropicTarget,
+    target: QuotaTarget,
   ): void {
     const quota = settledAnthropicQuota(result);
     const inUse = drafts.has(draftKey(ANTHROPIC_PROVIDER, 'subscription', target.route))
@@ -474,13 +532,14 @@ export class UsageService {
     drafts: Map<string, RowDraft>,
     result: PromiseSettledResult<CodexQuotaResult>,
     prior: ProviderUsage[],
+    target: QuotaTarget,
   ): void {
     const reading = result.status === 'fulfilled' ? result.value : { record: null };
-    // Observation-only: with no reading and no history, Codex is simply not in use here.
-    const inUse = drafts.has(draftKey(CODEX_PROVIDER, 'subscription'))
-      || prior.some((row) => row.provider === CODEX_PROVIDER);
+    // Observation-only: with no reading and no history, this Codex login is simply not in use here.
+    const inUse = drafts.has(draftKey(CODEX_PROVIDER, 'subscription', target.route))
+      || prior.some((row) => isCodexRouteRow(row, target.route));
     if (!reading.record && !inUse) return;
-    const draft = codexDraft(drafts);
+    const draft = codexDraft(drafts, target);
     draft.notes.push(...codexNotes(result, reading));
     if (reading.record) applyCodexRecord(draft, reading.record);
     else carryQuotaFromPrior(draft, prior);
@@ -493,19 +552,19 @@ export class UsageService {
   }
 
   /**
-   * Ask the Codex account directly when a ChatGPT sign-in exists; otherwise, or when that read
-   * fails, fall back to the row response headers last reported.
+   * Ask the Codex login directly when its ChatGPT sign-in exists; otherwise, or when that read
+   * fails, fall back to the row response headers last reported for it.
    */
-  private async readCodexQuota(): Promise<CodexQuotaResult> {
+  private async readCodexQuota(source: CodexSource): Promise<CodexQuotaResult> {
     let live: AccountReading | null;
     try {
-      live = await this.codexAccount.readUsage();
+      live = await source.account.readUsage();
     } catch (error) {
       const note = t('ux.usage.codexAccountFailed', { error: errorMessage(error) });
-      return { record: await this.readObservedCodexQuota(), note };
+      return { record: await source.observed(), note };
     }
-    if (!live) return { record: withoutResetCredits(await this.readObservedCodexQuota()) };
-    await this.releaseRecovered(CODEX_PROVIDER, live.windows, CODEX_PROVIDER);
+    if (!live) return { record: withoutResetCredits(await source.observed()) };
+    await this.releaseRecovered(CODEX_PROVIDER, live.windows, source.route ?? CODEX_PROVIDER);
     return { record: liveCodexUsage(live, Math.floor(this.now().getTime() / 1000)) };
   }
 
@@ -544,26 +603,53 @@ export class UsageService {
   }
 }
 
-const claudeAccountClients = new Map<string, Pick<ResetAccount, 'readUsage'>>();
+const accountClients = new Map<string, Pick<ResetAccount, 'readUsage'>>();
 
-/** The daemon's Claude accounts, each with a usage client on its own config dir. */
-function daemonClaudeAccounts(): ClaudeAccountReader[] {
-  return credentialInventory.accounts()
-    .filter((account): account is ClaudeAccountConnection => account.backend === 'claude')
-    .map((account) => {
-      let client = claudeAccountClients.get(account.id);
-      if (!client) {
-        client = claudeAccountClientFor(claudeAccountDir(account.id));
-        claudeAccountClients.set(account.id, client);
-      }
-      return { id: account.id, label: account.label, account: client };
-    });
+/** One usage client per account, kept across cycles. */
+function cachedClient(key: string, create: () => Pick<ResetAccount, 'readUsage'>): Pick<ResetAccount, 'readUsage'> {
+  let client = accountClients.get(key);
+  if (!client) {
+    client = create();
+    accountClients.set(key, client);
+  }
+  return client;
 }
 
-function daemonAccountOf(ref: { backend: 'claude' | 'pi'; connection: string | null }): string | null {
-  if (ref.backend !== 'claude' || !ref.connection) return null;
-  return credentialInventory.accounts().some((account) => account.backend === 'claude' && account.id === ref.connection)
-    ? ref.connection : null;
+/** The daemon's Claude accounts, each with a usage client on its own config dir. */
+function daemonClaudeAccounts(): AccountReader[] {
+  return credentialInventory.accounts()
+    .filter((account): account is ClaudeAccountConnection => account.backend === 'claude')
+    .map((account) => ({
+      id: account.id, label: account.label,
+      account: cachedClient(`claude:${account.id}`, () => claudeAccountClientFor(claudeAccountDir(account.id))),
+    }));
+}
+
+/** The daemon's Codex accounts, each with a usage client on its own agent dir's auth.json. */
+function daemonCodexAccounts(): AccountReader[] {
+  return credentialInventory.accounts()
+    .filter((account): account is PiAccountConnection => account.backend === 'pi' && account.provider === CODEX_PROVIDER)
+    .map((account) => ({
+      id: account.id, label: account.label,
+      account: cachedClient(`pi:${account.id}`, () => codexAccountClientFor(piAccountAuthPath(account.id))),
+    }));
+}
+
+function accountProvider(account: AccountConnection): string {
+  return account.backend === 'pi' ? account.provider : ANTHROPIC_PROVIDER;
+}
+
+function daemonAccountLabels(): AccountLabel[] {
+  return credentialInventory.accounts()
+    .map((account) => ({ provider: accountProvider(account), id: account.id, label: account.label }));
+}
+
+/** A ledger row's account: a stored account of the row's backend (and, on PI, of its provider). */
+function daemonAccountOf(ref: SelectionRef): string | null {
+  if (!ref.connection) return null;
+  const owns = (account: AccountConnection): boolean => account.backend === ref.backend && account.id === ref.connection
+    && (account.backend === 'claude' || account.provider === ref.provider);
+  return credentialInventory.accounts().some(owns) ? ref.connection : null;
 }
 
 export const usageService = new UsageService({
@@ -574,6 +660,8 @@ export const usageService = new UsageService({
   codexAccount: codexAccountClient,
   claudeAccount: claudeAccountClient,
   claudeAccounts: daemonClaudeAccounts,
+  codexAccounts: daemonCodexAccounts,
+  accountLabels: daemonAccountLabels,
   accountOf: daemonAccountOf,
   releaseThrottle: releaseRecoveredQuota,
 });

@@ -10,8 +10,8 @@ export interface CatalogRoute {
   backend: Backend;
   /** PI's provider; null for Claude. */
   provider: string | null;
-  /** Claude: every connection a selection may name, the default first. PI: empty — the provider
-   *  is the connection. */
+  /** Every connection a selection may name, the default first. Claude: its connections. PI: the
+   *  provider itself, standing for its default login, then the provider's signed-in accounts. */
   connections: string[];
   /** Selectable model ids. Empty: a known route whose models are unknown — free text, not an error. */
   models: string[];
@@ -32,10 +32,12 @@ export class CatalogBuilder {
   private readonly routes = new Map<string, CatalogRoute>();
   private readonly claude: ConnectionView[];
   private readonly pi: ConnectionView[];
+  private readonly piAccounts: ConnectionView[];
 
   constructor(connections: ConnectionView[]) {
     this.claude = connections.filter((view) => view.backend === 'claude');
-    this.pi = connections.filter((view) => view.backend === 'pi');
+    this.pi = connections.filter((view) => view.backend === 'pi' && view.kind !== 'account');
+    this.piAccounts = connections.filter((view) => view.backend === 'pi' && view.kind === 'account');
   }
 
   /** The Anthropic catalog, then the models connections list themselves. */
@@ -82,7 +84,9 @@ export class CatalogBuilder {
   }
 
   private newRoute(ref: { backend: Backend; provider: string | null }, source: CatalogSource): CatalogRoute {
-    const connections = ref.backend === 'claude' ? this.claude.map((view) => view.id) : [];
+    const connections = ref.backend === 'claude'
+      ? this.claude.map((view) => view.id)
+      : [ref.provider!, ...this.piAccounts.filter((view) => view.provider === ref.provider).map((view) => view.id)];
     return { ...ref, connections, models: [], source, modelThinking: {}, modelConnections: {} };
   }
 }

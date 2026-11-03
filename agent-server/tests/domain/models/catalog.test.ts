@@ -120,9 +120,19 @@ test('PI scan: one route per provider, deduplicated, with each model\'s own thin
   const deepseek = piRoute(snapshot, 'deepseek');
   assert.equal(deepseek.source, 'pi');
   assert.deepEqual(deepseek.models, ['deepseek-v4', 'deepseek-v4-flash']);
-  assert.deepEqual(deepseek.connections, [], 'the provider is the connection');
+  assert.deepEqual(deepseek.connections, ['deepseek'], 'the provider stands for its default login');
   assert.deepEqual(deepseek.modelThinking, { 'deepseek-v4': ['off', 'low', 'high'] });
   assert.deepEqual(piRoute(snapshot, 'openai-codex').modelThinking, { 'gpt-6-astra': [] });
+});
+
+test('a PI provider lists its signed-in accounts after its default login; an account adds no route', async () => {
+  const work = piView('deepseek-work', { kind: 'account', provider: 'deepseek' });
+  const codex = piView('codex-lab', { kind: 'account', provider: 'openai-codex' });
+  const snapshot = await load({
+    connections: [work, codex], pi: [{ provider: 'deepseek', model: 'deepseek-v4', thinkingLevels: [] }],
+  });
+  assert.deepEqual(piRoute(snapshot, 'deepseek').connections, ['deepseek', 'deepseek-work']);
+  assert.equal(routeFor(snapshot, { backend: 'pi', provider: 'openai-codex' }), undefined);
 });
 
 test('custom provider connection: its own models without a scan, labelled custom even once scanned', async () => {

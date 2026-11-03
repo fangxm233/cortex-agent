@@ -8,6 +8,7 @@ import type { SubagentNotice } from '@core/agents/subagent/types.js';
 import { parseModelSpec, selectChildModel, type ModelSpec } from '@core/agents/subagent/model-spec.js';
 import { noticesFor } from '../../../agent-adapter/pi/child-events.js';
 import { getPiEngineAdapter } from '../../runs/adapters.js';
+import { resolvePiAccountRoute } from '../../connections/pi-account-dir.js';
 import { type AgentRole } from '@core/agents/roles.js';
 import { resolveDaemonSelection } from '../model-selection.js';
 import type { EngineSelection } from '../engine-selection.js';
@@ -31,7 +32,8 @@ const CHILD_MCP_BUNDLES = ['cortex-core', 'cortex-ext'];
 /** The delegating turn's materialized engine context. */
 export interface SubagentParentContext {
   backend: Backend;
-  /** The parent run's connection. A same-backend Claude child reuses it verbatim. */
+  /** The parent run's connection. A same-backend Claude child reuses it verbatim; a PI child on the
+   *  parent's provider runs on the parent's account. */
   connection?: string | null;
   provider?: string | null;
   model?: string | null;
@@ -92,8 +94,9 @@ async function runPiSubagent(request: SubagentRunRequest): Promise<SubagentResul
   ]);
   const model = piChildModel(request);
   const adapter = getPiEngineAdapter();
+  const agentDir = piChildAccountDir(request.parent, model) ?? adapter.agentDir;
   try {
-    adapter.ensureCatalog();
+    adapter.ensureCatalog(agentDir);
   } catch (error) {
     log.warn(`Could not write the PI catalog for a pi subagent: ${(error as Error).message}`);
   }
@@ -102,7 +105,7 @@ async function runPiSubagent(request: SubagentRunRequest): Promise<SubagentResul
     role: request.role,
     cwd: request.cwd,
     workspace: request.workspace ?? null,
-    agentDir: adapter.agentDir,
+    agentDir,
     parentEnv: request.parent.env ?? process.env,
     model,
     // A Claude parent delegating to a `pi` child builds the child outside any PI session, so the
@@ -111,6 +114,15 @@ async function runPiSubagent(request: SubagentRunRequest): Promise<SubagentResul
     signal: request.signal,
     forward: piForwarder(request),
   });
+}
+
+/** A PI parent on an account keeps a child on the same provider on that account; any other child
+ *  runs on the provider's default login. */
+function piChildAccountDir(parent: SubagentParentContext, model: ModelSpec): string | undefined {
+  if (parent.backend !== 'pi' || !parent.connection) return undefined;
+  const provider = model.provider ?? parent.provider ?? null;
+  if (provider !== parent.provider) return undefined;
+  return resolvePiAccountRoute({ backend: 'pi', provider, connection: parent.connection })?.agentDir;
 }
 
 /**

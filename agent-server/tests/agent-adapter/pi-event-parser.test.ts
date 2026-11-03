@@ -537,7 +537,7 @@ test('cortex_subagent_usage: one cost_record per finished child', () => {
     freshState(),
   );
   assert.deepEqual(events, [{
-    type: 'cost_record', provider: 'openai-codex', model: 'gpt-5-codex',
+    type: 'cost_record', provider: 'openai-codex', connection: 'openai-codex', model: 'gpt-5-codex',
     tokens_in: 300, tokens_out: 120, prompt_tokens: 350, cached_tokens: 40,
     input_tokens: 300, output_tokens: 120, cache_read_tokens: 40,
     cache_creation_tokens: 10, provider_requests: 2, cost_usd: 0.004,

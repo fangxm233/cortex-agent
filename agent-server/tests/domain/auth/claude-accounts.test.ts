@@ -86,7 +86,7 @@ describe('the login service with an account', () => {
     expect(factory).toHaveBeenCalledWith('school');
     await expect(service.start({ ...base, connection: 'nope' })).rejects.toMatchObject({ code: 'account_not_found' });
     await expect(service.start({ ...base, backend: 'pi', provider: 'openai-codex', connection: 'lab' }))
-      .rejects.toMatchObject({ code: 'account_not_supported' });
+      .rejects.toMatchObject({ code: 'account_not_found' });
   });
 
   it('keeps one running login per account, not per provider', async () => {
@@ -186,13 +186,6 @@ describe('adding and removing an account', () => {
     const { service } = fakeLogin();
     await addAccount({ backend: 'claude', label: 'Fresh' }, { login: service });
     expect(readConnections(CONNECTIONS_FILE).map((entry) => entry.id)).toEqual(['fresh']);
-  });
-
-  it('refuses a PI account until PI accounts exist', async () => {
-    const { service, calls } = fakeLogin();
-    expect(await addAccount({ backend: 'pi', label: 'Lab', provider: 'openai-codex' }, { login: service }))
-      .toEqual({ ok: false, errors: ['not-supported'] });
-    expect(calls).toHaveLength(0);
   });
 
   it('signs out, deletes the dir and the entry, and reports the removal', async () => {

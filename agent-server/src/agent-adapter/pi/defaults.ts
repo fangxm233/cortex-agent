@@ -1,5 +1,6 @@
 import * as path from 'path';
-import { DATA_DIR } from '@core/paths.js';
+import { CONNECTION_ID_RE } from '@core/connections-file.js';
+import { DATA_DIR, PI_ACCOUNTS_HOME } from '@core/paths.js';
 import { piUserAuthPath } from '@core/pi-sdk.js';
 
 /** PI_CODING_AGENT_DIR: PI reads models.json from this dir (auth.json: see piAuthPath). Daemon
@@ -21,4 +22,10 @@ export function piAuthPath(agentDir: string = PI_AGENT_DIR): string {
  *  both (design §13 P7 / A3): a trial agent dir implies a trial provider catalog. */
 export function piModelsPath(agentDir: string): string {
   return path.join(agentDir, 'models.json');
+}
+
+/** The agent dir of one PI account: its own auth.json, and the catalog Cortex writes beside it. */
+export function piAccountDir(id: string, accountsDir: string = PI_ACCOUNTS_HOME): string {
+  if (!CONNECTION_ID_RE.test(id)) throw new Error(`Invalid account id: ${id}`);
+  return path.join(accountsDir, id);
 }
