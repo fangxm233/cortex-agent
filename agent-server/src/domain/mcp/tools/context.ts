@@ -54,7 +54,7 @@ function selectionFromEnv(env: NodeJS.ProcessEnv): EngineSelection | null {
     backend, model,
     provider: backend === 'pi' ? optional(env.CORTEX_PROVIDER) : null,
     thinking: optional(env.CORTEX_THINKING),
-    connection: backend === 'claude' ? optional(env.CORTEX_CONNECTION) : null,
+    connection: optional(env.CORTEX_CONNECTION),
   };
 }
 

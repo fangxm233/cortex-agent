@@ -14,6 +14,8 @@ export interface QuestionSpec {
 interface CostRecordEvent {
   type: 'cost_record';
   provider: string;
+  /** The route the spend is filed under when it is not the run's own (a nested child's). */
+  connection?: string;
   model: string;
   /** Legacy backend-specific input metric retained for compatibility. */
   tokens_in: number | null;

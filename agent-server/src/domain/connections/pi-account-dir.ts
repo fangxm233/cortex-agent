@@ -41,6 +41,18 @@ export function piAccountAuthType(
   return storedAuthType(piAccountAuthPath(account.id, deps), account.provider);
 }
 
+/** Where a PI selection runs: the agent dir of the account it names, while that account is stored,
+ *  confirmed and of the selection's provider; undefined for the provider's default login. */
+export function resolvePiAccountRoute(
+  selection: { backend: string; provider: string | null; connection: string | null },
+  deps: PiAccountDirDeps & { file?: string } = {},
+): { connection: string; agentDir: string } | undefined {
+  if (selection.backend !== 'pi' || !selection.connection) return undefined;
+  const account = findAccount({ backend: 'pi', id: selection.connection }, deps.file ?? CONNECTIONS_FILE);
+  if (account?.backend !== 'pi' || account.pending || account.provider !== selection.provider) return undefined;
+  return { connection: account.id, agentDir: ensurePiAccountDir(account.id, deps) };
+}
+
 /** The stored PI account an agent dir belongs to; null for any other dir. */
 export function piAccountOfDir(
   agentDir: string,

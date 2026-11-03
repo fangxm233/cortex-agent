@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import type { CodexQuotaReading } from '@core/codex-quota.js';
 import { ensurePIAgentRoles } from './agent-dir.js';
 import { PI_AGENT_DIR } from './defaults.js';
+import { PI_HOME_AGENT_DIR_ENV } from './session-options.js';
 import { loadRoles } from '@core/agents/roles.js';
 import {
   decodeSubagentModels, hostModelOptions, roleOptionsFrom, type SubagentCatalog,
@@ -148,12 +149,14 @@ function childQuotaProbe(
 
 function registerRuntimeAgent(pi: ExtensionAPI, env: NodeJS.ProcessEnv, hooks: ToolShimHooks): void {
   const agentDir = env.PI_CODING_AGENT_DIR ?? PI_AGENT_DIR;
+  const homeAgentDir = env[PI_HOME_AGENT_DIR_ENV];
   // The provider this session's own model is on, known once the session starts. A child that
   // inherited it is the only one whose quota readings can be filed under this run's provider.
   let sessionProvider: string | null = null;
   const quotaProbe = childQuotaProbe(hooks);
   const deps: SubagentToolDeps = {
     agentDir,
+    ...(homeAgentDir ? { homeAgentDir, account: env.CORTEX_CONNECTION } : {}),
     ensureRoles: () => ensurePIAgentRoles({ legacyDir: path.join(agentDir, 'agents') }),
     createSession: hooks.createChildSession ?? createChildSession,
     // The child inherits this session's opener: it is the same daemon, hosting the same bundles.

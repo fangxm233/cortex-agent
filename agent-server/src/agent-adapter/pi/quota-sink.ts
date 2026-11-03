@@ -27,7 +27,7 @@ const DISPLAY_NAMES: Record<string, string> = {
  * `isProviderModeRateLimited(resolveRateLimitProvider(config), routeName(selection))`, so a reading
  * filed under any other pair would be recorded and then never consulted. The provider mirrors
  * `resolveRateLimitProvider` (selection provider, else the backend name); the route is the
- * selection's connection, and a PI selection — which names none — is throttled by its provider.
+ * selection's account, else — the provider's default login — the provider itself.
  */
 export function resolveQuotaSource(
   route: { provider?: string | null; connection?: string | null },
@@ -52,6 +52,8 @@ function providerUsage(
     // Quota windows only exist for plan-backed traffic, so this row is the provider's
     // subscription row — it must share a key with the one usage collection composes.
     billing: 'subscription',
+    // An account's reading lands on the account's own row.
+    ...(source.mode && source.mode !== source.provider ? { route: source.mode } : {}),
   };
 }
 

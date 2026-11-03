@@ -21,7 +21,7 @@ import type {
 import { subagentChannel } from './child-events.js';
 import { subagentEndNotice } from '@core/agents/subagent/attribution.js';
 import { runPiChild } from './child-runner.js';
-import { selectChildModel } from '@core/agents/subagent/model-spec.js';
+import { selectChildModel, type ModelSpec } from '@core/agents/subagent/model-spec.js';
 import type { SubagentNotice } from '@core/agents/subagent/types.js';
 import { openChildWorkspace, prepareCleanTasks, withWorkspaceNote } from '@core/agents/subagent/workspace.js';
 import { PI_CLEAN_WORKSPACE_ENV } from './session-options.js';
@@ -109,11 +109,18 @@ export interface SubagentUsageReport {
   usage: SubagentUsage;
   /** The task's description, for a host that files the child as a record of its own. */
   description?: string;
+  /** The account the child answered on; absent, the provider's default login. */
+  connection?: string;
 }
 
 export interface SubagentToolDeps {
   /** PI agent dir whose auth/models the `pi` children use. */
   agentDir: string;
+  /** Set when `agentDir` is an account's: the adapter's own dir, where a child on another provider
+   *  runs, since the account signs in to its own provider only. */
+  homeAgentDir?: string;
+  /** The account `agentDir` belongs to, filed on the spend of a child that answered on it. */
+  account?: string;
   /** Where the shared role files live; defaults to the registry's own location. */
   rolesDir?: string;
   ensureRoles(): void;
@@ -148,13 +155,22 @@ export interface SubagentToolDeps {
  * nothing to file. An aborted child files nothing — its accumulator dies with the cancelled run.
  * Best-effort by contract: accounting must never fail a subagent that already did its work.
  */
-function reportChildUsage(deps: SubagentToolDeps, result: SubagentResult): void {
+function reportChildUsage(deps: SubagentToolDeps, result: SubagentResult, sessionProvider: string | null): void {
   if (!deps.onUsage || !result.provider || result.usage.turns === 0) return;
+  const onAccount = deps.account && deps.homeAgentDir && result.provider === sessionProvider;
   try {
     deps.onUsage({
       provider: result.provider, model: result.model ?? '', usage: result.usage, description: result.description,
+      ...(onAccount ? { connection: deps.account } : {}),
     });
   } catch { /* best-effort */ }
+}
+
+/** A child stays on the session's account only while it runs the account's provider. */
+function childAgentDir(deps: SubagentToolDeps, ctx: ChildContext, model: ModelSpec): string {
+  const sessionProvider = ctx.model?.provider ?? null;
+  const provider = model.provider ?? sessionProvider;
+  return deps.homeAgentDir && provider !== sessionProvider ? deps.homeAgentDir : deps.agentDir;
 }
 
 function fallbackModel(ctx: ExtensionContext) {
@@ -196,22 +212,32 @@ function buildRunChild(
         ? await openChildWorkspace(task, { parentWorkspace: ctx.parentWorkspace, runId: parentToolCallId, index })
         : null;
       const place = { cwd: workspace ?? ctx.cwd, workspace };
+      const model = selectChildModel(task, role, ctx.model && { model: ctx.model.id, provider: ctx.model.provider });
       const result = backend === 'pi'
         ? await runPiChild({
-          task, role, ...place, agentDir: deps.agentDir, parentEnv: deps.parentEnv,
-          model: selectChildModel(task, role, ctx.model && { model: ctx.model.id, provider: ctx.model.provider }),
+          task, role, ...place, agentDir: childAgentDir(deps, ctx, model), parentEnv: deps.parentEnv,
+          model,
           createSession: deps.createSession,
           childExtensions: deps.childExtensions, signal, forward,
         })
         : await runForeignChild(ctx, deps, { task, role, backend, ref, ...place }, signal);
       return withWorkspaceNote(result, workspace);
     };
-    return runAndSeal(deps, task, backend, ref, signal, execute);
+    return runAndSeal(deps, { task, backend, ref, sessionProvider: ctx.model?.provider ?? null }, signal, execute);
   };
 }
 
+/** One child as its seal and its spend name it. */
+interface ChildRun {
+  task: SubagentTask;
+  backend: Backend;
+  ref: string;
+  /** The parent session's provider: a child answering on it used the session's account. */
+  sessionProvider: string | null;
+}
+
 async function runAndSeal(
-  deps: SubagentToolDeps, task: SubagentTask, backend: Backend, ref: string,
+  deps: SubagentToolDeps, { task, backend, ref, sessionProvider }: ChildRun,
   signal: AbortSignal | undefined, execute: () => Promise<SubagentResult>,
 ): Promise<SubagentResult> {
   const seal = (status: SubagentEndStatus): void => {
@@ -220,7 +246,7 @@ async function runAndSeal(
   };
   try {
     const result = await execute();
-    if (backend === 'pi') reportChildUsage(deps, result);
+    if (backend === 'pi') reportChildUsage(deps, result, sessionProvider);
     seal(signal?.aborted ? 'killed' : endStatusOf(result));
     return result;
   } catch (error) {

@@ -16,7 +16,7 @@ export {
 } from './claude-account-dir.js';
 export {
   ensurePiAccountDir, piAccountAuthPath, piAccountAuthType, piAccountOfDir, removePiAccountDir,
-  type PiAccountDirDeps,
+  resolvePiAccountRoute, type PiAccountDirDeps,
 } from './pi-account-dir.js';
 export { buildPiCatalog, isGatewayEraBlock, type PiCatalog, type PiCatalogDeps } from './pi-catalog.js';
 export { SUBSCRIPTION_CONNECTION } from '@core/connections-file.js';
