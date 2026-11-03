@@ -43,7 +43,7 @@ function healthyPiRuntime(login: unknown = async () => ({ type: 'api_key' })) {
 
 function authAccount(over: Partial<AuthAccountStatus> = {}): AuthAccountStatus {
   return {
-    backend: 'claude', provider: 'anthropic', label: 'Anthropic',
+    backend: 'claude', provider: 'anthropic', connection: null, isDefault: true, identity: null, label: 'Anthropic',
     capabilities: ['api_key', 'oauth'], authType: 'api_key', state: 'logged-in',
     source: 'env', expiresAt: null, refreshExpiresAt: null, inUse: true,
     credentials: [], ...over,

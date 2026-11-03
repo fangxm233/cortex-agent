@@ -273,6 +273,12 @@ export function removeConnection(
   return true;
 }
 
+/** The account a login, logout or status row names: Claude's own subscription is the default
+ *  login, not an account. Null: the default. */
+export function accountIdOf(connection: string | null | undefined): string | null {
+  return connection && connection !== SUBSCRIPTION_CONNECTION ? connection : null;
+}
+
 /** A key as the UI and logs may show it: enough to recognise, never enough to use. */
 export function maskKey(key: string | null | undefined): string | null {
   if (!key) return null;

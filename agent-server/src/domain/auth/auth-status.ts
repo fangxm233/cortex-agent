@@ -2,7 +2,11 @@
 // slots: the subscription (Claude's own login, or a legacy static token) and the API key, which is
 // the `api` connection. Every other Claude connection is a connection, not an Anthropic slot.
 
-import { readClaudeStore, type ClaudeSubscriptionSource } from '@core/claude-credentials.js';
+import {
+  claudeOwnsOAuthCredential, readClaudeAccountIdentity, readClaudeStore, type ClaudeSubscriptionSource,
+} from '@core/claude-credentials.js';
+import type { ClaudeAccountConnection } from '@core/connections-file.js';
+import { claudeAccountDir } from '../connections/claude-account-dir.js';
 import type { Backend } from '../../agent-adapter/types.js';
 import { piAuthPath } from '../../agent-adapter/pi/defaults.js';
 import { resolveConfiguredDefaultRun } from '../runs/config-resolver.js';
@@ -37,10 +41,26 @@ export interface AuthCredentialStatus {
   detail?: string;
 }
 
+/** Who a login is, as its vendor recorded it. Never a secret. */
+export interface AuthAccountIdentity {
+  email: string | null;
+  organization: string | null;
+  /** The plan as the vendor names it, e.g. Claude's `claude_max` or `claude_team`. */
+  plan: string | null;
+}
+
+/** One login. A provider's default login (Claude's subscription and API key, PI's auth.json) is the
+ *  row with `connection: null`; every account is a row of its own under the same provider. */
 export interface AuthAccountStatus {
   backend: 'claude' | 'pi';
   provider: string;
+  /** Null: the provider's default login. Otherwise the account connection's id. */
+  connection: string | null;
+  isDefault: boolean;
+  /** The provider's name on a default row; the user's label on an account row. */
   label: string;
+  /** Known only while signed in, and only where the vendor records it. */
+  identity: AuthAccountIdentity | null;
   capabilities: AuthType[];
   authType: AuthType | null;
   state: AuthAccountState;
@@ -62,9 +82,10 @@ export function preferredAuthType(
   snapshot: AuthStatusSnapshot,
   backend: 'claude' | 'pi',
   provider: string,
+  connection: string | null = null,
 ): AuthType | null {
   const account = snapshot.accounts.find(item => (
-    item.backend === backend && item.provider === provider
+    item.backend === backend && item.provider === provider && (item.connection ?? null) === connection
   ));
   if (account?.capabilities.includes('oauth')) return 'oauth';
   return account?.capabilities.includes('api_key') ? 'api_key' : null;
@@ -82,13 +103,18 @@ export interface GetAuthStatusOptions {
   loadPiRuntime?: (options?: LoadPiRuntimeOptions) => Promise<PiRuntimeLoadResult>;
   /** Which Claude credentials exist. Defaults to the daemon's inventory, or one over
    *  `claudeConfigDir` when that is given. */
-  inventory?: Pick<CredentialInventory, 'findClaude' | 'claudeSubscriptionSource'>;
+  inventory?: ClaudeStatusInventory;
+  /** Where Claude account config dirs live. */
+  claudeAccountsDir?: string;
   /** The connection the default Claude selection runs on. */
   getDefaultClaudeConnection?: () => string;
   getActiveBackend?: () => Backend;
   listFavorites?: () => ModelRef[];
   getDefaultSelection?: () => SelectionReference | null;
 }
+
+type ClaudeStatusInventory = Pick<CredentialInventory, 'findClaude' | 'claudeSubscriptionSource'>
+  & Partial<Pick<CredentialInventory, 'accounts'>>;
 
 interface ClaudeOAuthMetadata {
   expiresAt: number | null;
@@ -179,6 +205,7 @@ interface ClaudeSlots {
   apiKey: boolean;
   subscription: ClaudeSubscriptionSource | null;
   oauth: ClaudeOAuthMetadata | null;
+  identity: AuthAccountIdentity | null;
 }
 
 function subscriptionCredential(slots: ClaudeSlots, nowMs: number): AuthCredentialStatus | null {
@@ -192,13 +219,18 @@ function claudeCredentials(slots: ClaudeSlots, nowMs: number): AuthCredentialSta
   return [...(slots.apiKey ? [claudeApiKeyCredential()] : []), ...(oauth ? [oauth] : [])];
 }
 
+const CLAUDE_DEFAULT_ROW = {
+  backend: 'claude', provider: 'anthropic', connection: null, isDefault: true, label: 'Anthropic',
+} as const;
+
 function claudeAccountFromCredential(
   credential: AuthCredentialStatus,
   credentials: AuthCredentialStatus[],
   inUse: boolean,
+  identity: AuthAccountIdentity | null,
 ): AuthAccountStatus {
   return {
-    backend: 'claude', provider: 'anthropic', label: 'Anthropic',
+    ...CLAUDE_DEFAULT_ROW, identity,
     capabilities: ['api_key', 'oauth'], authType: credential.authType, state: credential.state,
     source: credential.source, expiresAt: credential.expiresAt,
     refreshExpiresAt: credential.refreshExpiresAt, inUse, credentials,
@@ -208,7 +240,7 @@ function claudeAccountFromCredential(
 
 function loggedOutClaudeAccount(credentials: AuthCredentialStatus[], inUse: boolean): AuthAccountStatus {
   return {
-    backend: 'claude', provider: 'anthropic', label: 'Anthropic',
+    ...CLAUDE_DEFAULT_ROW, identity: null,
     capabilities: ['api_key', 'oauth'], authType: null, state: 'logged-out', source: null,
     expiresAt: null, refreshExpiresAt: null, inUse, credentials,
   };
@@ -225,9 +257,42 @@ function buildClaudeAccount(
   const credentials = claudeCredentials(slots, nowMs);
   const slot: AuthType = connection === API_KEY_CONNECTION ? 'api_key' : 'oauth';
   const current = credentials.find(item => item.authType === slot);
+  const identity = slots.oauth ? slots.identity : null;
   return current
-    ? claudeAccountFromCredential(current, credentials, inUse)
+    ? claudeAccountFromCredential(current, credentials, inUse, identity)
     : loggedOutClaudeAccount(credentials, inUse);
+}
+
+/** An account's login, read from its own config dir; null when it is signed out. */
+function claudeAccountCredential(configDir: string, nowMs: number): AuthCredentialStatus | null {
+  const oauth = readClaudeOAuth(configDir);
+  if (oauth) return claudeOAuthCredential(oauth, nowMs);
+  return claudeOwnsOAuthCredential({ claudeConfigDir: configDir }) ? claudeKeychainCredential() : null;
+}
+
+function buildClaudeAccountRow(
+  account: ClaudeAccountConnection,
+  options: GetAuthStatusOptions,
+  nowMs: number,
+  inUse: boolean,
+): AuthAccountStatus {
+  const configDir = claudeAccountDir(account.id, { accountsDir: options.claudeAccountsDir });
+  const credential = claudeAccountCredential(configDir, nowMs);
+  return {
+    backend: 'claude', provider: 'anthropic', connection: account.id, isDefault: false, label: account.label,
+    identity: credential ? readClaudeAccountIdentity({ claudeConfigDir: configDir }) : null,
+    capabilities: ['oauth'], authType: credential ? 'oauth' : null, state: credential?.state ?? 'logged-out',
+    source: credential?.source ?? null, expiresAt: credential?.expiresAt ?? null, refreshExpiresAt: null,
+    // A signed-out account is the user's choice, not something to warn about.
+    inUse: inUse && credential !== null, credentials: credential ? [credential] : [],
+  };
+}
+
+function claudeAccountRows(options: GetAuthStatusOptions, nowMs: number, inUse: boolean): AuthAccountStatus[] {
+  const accounts = claudeInventory(options).accounts?.() ?? [];
+  return accounts
+    .filter((account): account is ClaudeAccountConnection => account.backend === 'claude')
+    .map(account => buildClaudeAccountRow(account, options, nowMs, inUse));
 }
 
 function providerCapabilities(provider: PiProvider): AuthType[] {
@@ -244,7 +309,7 @@ function piAccountFromCredential(
   inUse: boolean,
 ): AuthAccountStatus {
   return {
-    backend: 'pi', provider: provider.id, label: provider.name,
+    backend: 'pi', provider: provider.id, connection: null, isDefault: true, label: provider.name, identity: null,
     capabilities: providerCapabilities(provider), authType: credential.authType,
     state: credential.state, source: credential.source, expiresAt: credential.expiresAt,
     refreshExpiresAt: null, inUse, credentials,
@@ -259,7 +324,7 @@ function unknownPiAccount(
   credentials: AuthCredentialStatus[] = [],
 ): AuthAccountStatus {
   return {
-    backend: 'pi', provider: provider.id, label: provider.name,
+    backend: 'pi', provider: provider.id, connection: null, isDefault: true, label: provider.name, identity: null,
     capabilities: providerCapabilities(provider), authType: null, state: 'unknown', source,
     expiresAt: null, refreshExpiresAt: null, inUse, credentials,
   };
@@ -411,12 +476,12 @@ function appendPiAccounts(
   }
 }
 
-function claudeInventory(
-  options: GetAuthStatusOptions,
-): Pick<CredentialInventory, 'findClaude' | 'claudeSubscriptionSource'> {
+function claudeInventory(options: GetAuthStatusOptions): ClaudeStatusInventory {
   if (options.inventory) return options.inventory;
-  return options.claudeConfigDir
-    ? createCredentialInventory({ claude: { claudeConfigDir: options.claudeConfigDir } })
+  return options.claudeConfigDir || options.claudeAccountsDir
+    ? createCredentialInventory({
+      claude: { claudeConfigDir: options.claudeConfigDir }, claudeAccountsDir: options.claudeAccountsDir,
+    })
     : credentialInventory;
 }
 
@@ -426,6 +491,7 @@ function claudeSlots(options: GetAuthStatusOptions): ClaudeSlots {
     apiKey: inventory.findClaude(API_KEY_CONNECTION) !== null,
     subscription: inventory.claudeSubscriptionSource(),
     oauth: readClaudeOAuth(options.claudeConfigDir),
+    identity: readClaudeAccountIdentity({ claudeConfigDir: options.claudeConfigDir }),
   };
 }
 
@@ -439,7 +505,7 @@ export async function getAuthStatus(options: GetAuthStatusOptions = {}): Promise
     claudeSlots(options), (options.getDefaultClaudeConnection ?? defaultClaudeConnection)(),
     now.getTime(), usage.claude,
   );
-  const accounts = [claude];
+  const accounts = [claude, ...claudeAccountRows(options, now.getTime(), usage.claude)];
   if (pi.available) appendPiAccounts(accounts, pi, authPath, now.getTime(), usage.pi);
   return { generatedAt: now.toISOString(), accounts, piRuntime: piRuntimeSnapshot(pi) };
 }

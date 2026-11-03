@@ -62,7 +62,7 @@ function expirySuffix(account: AuthAccountStatus): string {
 function noticeText(account: AuthAccountStatus & { state: WarningState }): string {
   return t('notify.authExpiry.body', {
     backend: account.backend,
-    provider: account.provider,
+    provider: account.isDefault ? account.provider : `${account.provider} (${account.label})`,
     state: t(STATE_KEYS[account.state]),
     expiry: expirySuffix(account),
     guidance: t('notify.authExpiry.guide.action'),
@@ -82,12 +82,14 @@ async function warnAccount(
   dependencies: AuthExpiryScanDependencies,
 ): Promise<void> {
   const text = noticeText(account);
-  const authType = preferredAuthType(snapshot, account.backend, account.provider);
+  const authType = preferredAuthType(snapshot, account.backend, account.provider, account.connection);
+  const owner = account.connection ? `${account.provider}:${account.connection}` : account.provider;
   const action = authType ? dependencies.buildPlatformAction({
     kind: 'auth-login',
-    noticeId: `auth-expiry:${account.backend}:${account.provider}:${(dependencies.now ?? Date.now)()}`,
+    noticeId: `auth-expiry:${account.backend}:${owner}:${(dependencies.now ?? Date.now)()}`,
     backend: account.backend,
     provider: account.provider,
+    ...(account.connection ? { connection: account.connection } : {}),
     authType,
   }, '', text) : null;
   await emitSystemNotice(adapter, {
@@ -106,7 +108,7 @@ export async function runAuthExpiryScan(
   const recentlyNotified = dependencies.wasRecentlyNotified ?? wasAuthRecentlyNotified;
   for (const account of snapshot.accounts) {
     if (!isWarningAccount(account)) continue;
-    if (recentlyNotified(account.backend, account.provider)) continue;
+    if (recentlyNotified(account.backend, account.provider, account.connection)) continue;
     await warnAccount(adapter, snapshot, account, dependencies);
   }
 }

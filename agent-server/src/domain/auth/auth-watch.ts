@@ -42,8 +42,8 @@ export interface AuthWatchDependencies {
   ) => ButtonElement;
 }
 
-function pairKey(event: { backend: string; provider: string }): string {
-  return `${event.backend}:${event.provider}`;
+function pairKey(event: { backend: string; provider: string; connection?: string | null }): string {
+  return event.connection ? `${event.backend}:${event.provider}:${event.connection}` : `${event.backend}:${event.provider}`;
 }
 
 interface Reminder { notifiedAt: number; attempt: symbol }
@@ -85,6 +85,7 @@ class ReminderLedger {
 export type WasAuthRecentlyNotified = (
   backend: AuthRequiredEvent['backend'],
   provider: string,
+  connection?: string | null,
 ) => boolean;
 
 let recentNotificationQuery: WasAuthRecentlyNotified = () => false;
@@ -92,11 +93,14 @@ let recentNotificationQuery: WasAuthRecentlyNotified = () => false;
 export function wasAuthRecentlyNotified(
   backend: AuthRequiredEvent['backend'],
   provider: string,
+  connection: string | null = null,
 ): boolean {
-  return recentNotificationQuery(backend, provider);
+  return recentNotificationQuery(backend, provider, connection);
 }
 
+/** An account is named by its label beside the backend, so two logins never read alike. */
 function providerLabel(event: AuthRequiredEvent, account: AuthAccountStatus | null): string {
+  if (account?.isDefault === false) return `${event.backend === 'claude' ? 'Claude' : event.provider} (${account.label})`;
   if (event.backend === 'claude') return 'Claude';
   return account?.label || event.provider;
 }
@@ -138,6 +142,7 @@ function findAccount(
 ): AuthAccountStatus | null {
   return snapshot?.accounts.find(account => (
     account.backend === event.backend && account.provider === event.provider
+    && (account.connection ?? null) === (event.connection ?? null)
   )) ?? null;
 }
 
@@ -151,7 +156,7 @@ function noticeAuthType(
     authType && account.capabilities.includes(authType) ? authType : null
   );
   return supported(event.authType) ?? supported(account.authType)
-    ?? preferredAuthType(snapshot, event.backend, event.provider);
+    ?? preferredAuthType(snapshot, event.backend, event.provider, account.connection);
 }
 
 function resolveAction(
@@ -163,9 +168,10 @@ function resolveAction(
   if (!authType) return null;
   return {
     kind: 'auth-login',
-    noticeId: `${event.backend}:${event.provider}:${event.ts}`,
+    noticeId: `${pairKey(event)}:${event.ts}`,
     backend: event.backend,
     provider: event.provider,
+    ...(event.connection ? { connection: event.connection } : {}),
     authType,
   };
 }
@@ -248,7 +254,9 @@ export function registerAuthWatch(
 ): void {
   // A restart may repeat one reminder; keeping this local avoids shared mutable publisher state.
   const reminders = new ReminderLedger(dependencies.now ?? Date.now);
-  recentNotificationQuery = (backend, provider) => reminders.anyRecent(pairKey({ backend, provider }));
+  recentNotificationQuery = (backend, provider, connection) => (
+    reminders.anyRecent(pairKey({ backend, provider, connection }))
+  );
   bus.subscribe('auth.required', (event) => {
     const key = pairKey(event);
     const attempt = reminders.reserve(key, event.channel);

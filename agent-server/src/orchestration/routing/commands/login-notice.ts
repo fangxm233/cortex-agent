@@ -17,6 +17,8 @@ import type {
 export interface AuthRequiredLoginMetadata {
   backend: 'claude' | 'pi';
   provider: string;
+  /** The account to sign in again; absent or null is the provider's default login. */
+  connection?: string | null;
   authType: 'oauth' | 'api_key';
   flowId?: string;
   noticeId: string;
@@ -54,6 +56,7 @@ export function buildAuthRequiredLoginAction(
   return actionButton({
     backend: action.backend,
     provider: action.provider,
+    ...(action.connection ? { connection: action.connection } : {}),
     authType: action.authType,
     noticeId: action.noticeId,
     noticeText,
@@ -107,6 +110,7 @@ async function startNotificationFlow(
   const state = await dependencies.authLogin.start({
     backend: metadata.backend,
     provider: metadata.provider,
+    connection: metadata.connection ?? null,
     authType: metadata.authType,
     channel: metadata.channel,
     sessionId: null,

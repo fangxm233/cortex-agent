@@ -160,7 +160,7 @@ function account(snapshot: AuthStatusSnapshot, provider: string) {
 function assertFreshAccount(snapshot: AuthStatusSnapshot): void {
   const expiresAt = new Date(NOW_MS + 7 * DAY_MS).toISOString();
   assert.deepEqual(account(snapshot, 'fresh'), {
-    backend: 'pi', provider: 'fresh', label: 'Fresh OAuth', capabilities: ['oauth'],
+    backend: 'pi', provider: 'fresh', connection: null, isDefault: true, identity: null, label: 'Fresh OAuth', capabilities: ['oauth'],
     authType: 'oauth', state: 'logged-in', source: 'stored', expiresAt,
     refreshExpiresAt: null, inUse: true,
     credentials: [{
@@ -183,7 +183,7 @@ function assertOtherStates(snapshot: AuthStatusSnapshot): void {
 
 function assertModelsJsonKey(snapshot: AuthStatusSnapshot): void {
   assert.deepEqual(account(snapshot, 'models-key'), {
-    backend: 'pi', provider: 'models-key', label: 'Models Key', capabilities: ['api_key'],
+    backend: 'pi', provider: 'models-key', connection: null, isDefault: true, identity: null, label: 'Models Key', capabilities: ['api_key'],
     authType: 'api_key', state: 'logged-in', source: 'models_json_key',
     expiresAt: null, refreshExpiresAt: null, inUse: false, detail: 'models_json_key',
     credentials: [{

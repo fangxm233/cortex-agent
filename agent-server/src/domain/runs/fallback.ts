@@ -1,7 +1,7 @@
 // Provider and credential attribution for the run's single engine selection.
 import type { EngineSelection } from '../agents/engine-selection.js';
 import { configIsRateLimited, resolveRateLimitProvider } from '../agents/provider-run-lifecycle.js';
-import { routeName, SUBSCRIPTION_CONNECTION } from '../connections/index.js';
+import { findAccount, routeName, SUBSCRIPTION_CONNECTION } from '../connections/index.js';
 
 export { configIsRateLimited, rateLimitedResult, resolveRateLimitProvider } from '../agents/provider-run-lifecycle.js';
 export { isRetryableError, isRetryableResult } from './retryable-errors.js';
@@ -22,7 +22,15 @@ export function attemptAuthType(
   selection: Pick<EngineSelection, 'backend' | 'provider' | 'connection'>,
 ): 'oauth' | 'api_key' | null {
   if (selection.backend !== 'claude') return null;
-  return routeName(selection) === SUBSCRIPTION_CONNECTION ? 'oauth' : 'api_key';
+  const route = routeName(selection);
+  return route === SUBSCRIPTION_CONNECTION || attemptAccount(selection) ? 'oauth' : 'api_key';
+}
+
+/** The account a selection runs on; null for a provider's default login. */
+export function attemptAccount(selection: Pick<EngineSelection, 'backend' | 'provider' | 'connection'>): string | null {
+  if (selection.backend !== 'claude') return null;
+  const route = routeName(selection);
+  return findAccount({ backend: 'claude', id: route }) ? route : null;
 }
 
 export function attemptProviderOrNull(selection: EngineSelection): string | null {

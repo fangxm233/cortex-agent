@@ -1,3 +1,4 @@
+export * from './accounts.js';
 export * from './auth-events.js';
 export * from './cc-login.js';
 export * from './cc-subscription.js';

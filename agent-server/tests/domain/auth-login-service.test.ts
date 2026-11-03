@@ -15,6 +15,7 @@ import type {
 const STATE: LoginFlowState = {
   flowId: 'flow-1',
   revision: 1,
+  connection: null,
   backend: 'claude',
   provider: 'anthropic',
   authType: 'api_key',

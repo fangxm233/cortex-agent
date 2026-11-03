@@ -3,11 +3,13 @@ import { createLogger } from '@core/log.js';
 import { piAuthPath as defaultPiAuthPath } from '../../agent-adapter/pi/defaults.js';
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
 import { claudeSubscriptionLogin } from '@core/claude-credentials.js';
+import { accountIdOf } from '@core/connections-file.js';
 import {
   removeAnthropicApiKey,
   removeClaudeCodeOAuthToken,
   savedClaudeSecrets,
 } from './anthropic-env.js';
+import { claudeAccountDir } from '../connections/claude-account-dir.js';
 import { logoutClaudeAuth } from './cc-auth-cli.js';
 import {
   getAuthStatus,
@@ -27,6 +29,8 @@ import {
 export interface LogoutAccountInput {
   backend: 'claude' | 'pi';
   provider: string;
+  /** An account connection id; absent or null is the provider's default login. */
+  connection?: string | null;
   authType: AuthType;
 }
 
@@ -113,6 +117,7 @@ function selectedCredential(
 ): AuthCredentialStatus | null {
   const account = snapshot.accounts.find(item => (
     item.backend === input.backend && item.provider === input.provider
+    && (item.connection ?? null) === (input.connection ?? null)
   ));
   if (!account) return null;
   const candidates = account.credentials.filter(item => item.authType === input.authType);
@@ -145,11 +150,26 @@ async function clearLegacyClaudeOAuth(): Promise<void> {
   await removeClaudeCodeOAuthToken();
 }
 
+/** An account signs out of its own config dir; no legacy token ever stood in for it. */
+async function logoutClaudeAccount(
+  input: LogoutAccountInput & { connection: string },
+  dependencies: LogoutAccountDependencies,
+): Promise<AuthLogoutResult> {
+  const secrets = savedClaudeSecrets();
+  try {
+    await (dependencies.logoutClaudeAuth ?? logoutClaudeAuth)({ configDir: claudeAccountDir(input.connection) });
+    return succeeded(input);
+  } catch (error) {
+    return failed(input, 'logout_failed', error, secrets);
+  }
+}
+
 async function logoutClaude(
   input: LogoutAccountInput,
   credential: AuthCredentialStatus,
   dependencies: LogoutAccountDependencies,
 ): Promise<AuthLogoutResult> {
+  if (input.connection) return logoutClaudeAccount({ ...input, connection: input.connection }, dependencies);
   if (input.authType === 'api_key') {
     const remove = dependencies.removeAnthropicApiKey ?? removeAnthropicApiKey;
     return removeClaudeSavedCredential(input, remove);
@@ -230,9 +250,10 @@ export async function logoutAccount(
   } catch (error) {
     return failed(input, 'logout_failed', error);
   }
-  const credential = selectedCredential(snapshot, input);
+  const target = { ...input, connection: accountIdOf(input.connection) };
+  const credential = selectedCredential(snapshot, target);
   if (!credential?.manageable) return failed(input, 'not_manageable');
   return input.backend === 'pi'
     ? logoutPi(input, dependencies)
-    : logoutClaude(input, credential, dependencies);
+    : logoutClaude(target, credential, dependencies);
 }

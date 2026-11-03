@@ -14,7 +14,7 @@ import { NO_SPEND, countSpend, spendOfResult, type RunSpend } from './spend.js';
 import type { EngineSelection } from '../agents/engine-selection.js';
 import { publishAuthRecovered, publishAuthRequired, classifyAuthError } from '../auth/auth-events.js';
 import {
-  attemptAuthType, attemptProvider, attemptProviderOrNull, rateLimitedResult, shouldSkipAttempt,
+  attemptAccount, attemptAuthType, attemptProvider, attemptProviderOrNull, rateLimitedResult, shouldSkipAttempt,
 } from './fallback.js';
 import { resolveRunRoute } from './config-resolver.js';
 import { AttemptNoticeTracker, assistantNoticeLevel } from './notices.js';
@@ -316,7 +316,9 @@ export class AgentRunImpl implements AgentRun {
   private publishAuthOutcome(
     result: RunResult | null, error: Error | null, attempt = this.attemptValue.config,
   ): void {
-    const identity = { backend: attempt.backend, provider: attemptProvider(attempt) };
+    const identity = {
+      backend: attempt.backend, provider: attemptProvider(attempt), connection: attemptAccount(attempt),
+    };
     if (result) {
       if (!result.rateLimited) publishAuthRecovered(identity);
       return;

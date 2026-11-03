@@ -3,17 +3,23 @@ import { createLogger } from '@core/log.js';
 import { usageService } from '@domain/costs/usage-service.js';
 import { seedModelsFromCatalog } from '@domain/models/seed.js';
 import {
+  addAccount,
   authLoginService,
   bindAuthNoticeFlow,
   isLoginFlowError,
   logoutAccount,
+  removeAccount,
   resolveAuthNoticeFlow,
   resumableNoticeFlow,
+  type AddAccountIssue,
   type AuthLoginService,
   type LoginFlowState,
+  type RemoveAccountIssue,
 } from '@domain/auth/index.js';
 import type {
+  AuthAddAccountReturn,
   AuthLogoutReturn,
+  AuthRemoveAccountReturn,
   AuthSyncModelsReturn,
   Result,
   UiServiceDeps,
@@ -126,6 +132,34 @@ export async function handleAuthLogout(
     return { ok: true, data: result };
   }
   return { ok: false, code: result.error.code, message: result.error.message };
+}
+
+/** A missing account is a client error, a failed write or login start is ours, anything else a
+ *  draft to fix. */
+function accountFailure(errors: Array<AddAccountIssue | RemoveAccountIssue>): Result<never> {
+  const internal = errors.includes('write-failed') || errors.includes('login-failed');
+  const code = errors.includes('not-found') ? 'not-found' : internal ? 'internal' : 'invalid-args';
+  const message = errors.map(issue => t(`account.issue.${issue}` as Parameters<typeof t>[0])).join(' ');
+  return { ok: false, code, message };
+}
+
+export async function handleAuthAddAccount(
+  deps: UiServiceDeps,
+  args: MutateArgs<'auth.addAccount'>,
+): Promise<Result<AuthAddAccountReturn>> {
+  const result = await addAccount(args, { login: serviceFor(deps), ...deps.accounts });
+  if (result.ok === false) return accountFailure(result.errors);
+  return { ok: true, data: { account: result.account, flow: result.flow } };
+}
+
+export async function handleAuthRemoveAccount(
+  deps: UiServiceDeps,
+  args: MutateArgs<'auth.removeAccount'>,
+): Promise<Result<AuthRemoveAccountReturn>> {
+  const logout = deps.logoutAccount ?? logoutAccount;
+  const result = await removeAccount(args, { logout, ...deps.accounts });
+  if (result.ok === false) return accountFailure(result.errors);
+  return { ok: true, data: { account: result.account, loggedOut: result.loggedOut } };
 }
 
 /**

@@ -18,6 +18,7 @@ import { usageStore } from '../../../src/domain/costs/usage-store.js';
 const STATE: LoginFlowState = {
   flowId: 'flow-web',
   revision: 1,
+  connection: null,
   backend: 'pi',
   provider: 'deepseek',
   authType: 'api_key',

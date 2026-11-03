@@ -79,6 +79,8 @@ import type { SessionHistory } from '@store/conversation-history-repo.js';
 import type { Backend } from '../../agent-adapter/types.js';
 import type { ProjectNote } from '@store/project-notes-repo.js';
 import type {
+  AccountLifecycleDeps,
+  AccountSummary,
   AuthLoginService,
   AuthLogoutResult,
   AuthLogoutSuccess,
@@ -87,6 +89,8 @@ import type {
   LogoutAccountInput,
 } from '@domain/auth/index.js';
 export type {
+  AccountSummary,
+  AuthAccountIdentity,
   AuthAccountState,
   AuthAccountStatus,
   AuthCredentialStatus,
@@ -162,6 +166,19 @@ export interface SessionsPendingInteraction {
 // ── Mutate args ───────────────────────────────────────────────────
 
 export type AuthLogoutReturn = AuthLogoutSuccess;
+
+/** The account just registered (pending until `flow` lands) and its first login. */
+export interface AuthAddAccountReturn {
+  account: AccountSummary;
+  flow: LoginFlowState;
+}
+
+export interface AuthRemoveAccountReturn {
+  account: AccountSummary;
+  /** False when there was no login to sign out of, or signing out failed; the account is gone
+   *  either way. */
+  loggedOut: boolean;
+}
 
 export interface AuthSyncModelsReturn {
   /** False when nothing was written (see `reason`); not an error. */
@@ -1743,6 +1760,8 @@ export interface MutateReturnMap {
   'auth.cancelFlow': LoginFlowState;
   'auth.logout': AuthLogoutReturn;
   'auth.syncModels': AuthSyncModelsReturn;
+  'auth.addAccount': AuthAddAccountReturn;
+  'auth.removeAccount': AuthRemoveAccountReturn;
   'connections.upsert': ConnectionsUpsertReturn;
   'connections.remove': ConnectionsRemoveReturn;
   'usageSharing.set': UsageSharingSettings;
@@ -1811,6 +1830,8 @@ export interface UiServiceDeps {
   getAuthStatus?: () => Promise<AuthStatusSnapshot>;
   authLogin?: AuthLoginService;
   logoutAccount?: (input: LogoutAccountInput) => Promise<AuthLogoutResult>;
+  /** Adding and removing accounts; defaults to the host's own. */
+  accounts?: AccountLifecycleDeps;
   /** Seeds favorites and a missing default from the model catalog; defaults to the host's own. */
   syncModels?: (options: { backends?: Array<'claude' | 'pi'> }) => Promise<AuthSyncModelsReturn>;
   /** The connections file Settings edits; defaults to the host's own. */

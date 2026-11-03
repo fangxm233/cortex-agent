@@ -50,6 +50,8 @@ export interface AuthNoticeAction {
   noticeId: string;
   backend: 'claude' | 'pi';
   provider: string;
+  /** The account to sign in again; absent or null is the provider's default login. */
+  connection?: string | null;
   authType: 'oauth' | 'api_key';
 }
 

@@ -18,7 +18,9 @@ const OUTCOME_DETAIL = 'Credential managed by Claude Code.';
 export interface ClaudeSubscriptionLoginDependencies {
   login?: typeof loginClaudeAuth;
   removeLegacyToken?: () => Promise<void>;
-  publishRecovered?: (input: { backend: 'claude'; provider: string }) => void;
+  publishRecovered?: (input: { backend: 'claude'; provider: string; connection?: string | null }) => void;
+  /** An account's login: its id and config dir. Absent, Cortex's own subscription. */
+  account?: { id: string; configDir: string };
 }
 
 export interface ClaudeSubscriptionLoginOutcome extends LoginOutcome {
@@ -72,14 +74,16 @@ export async function loginClaudeSubscription(
   interaction: AuthInteraction,
   dependencies: ClaudeSubscriptionLoginDependencies = {},
 ): Promise<ClaudeSubscriptionLoginOutcome> {
+  const account = dependencies.account;
   try {
-    await (dependencies.login ?? loginClaudeAuth)(loginOptions(interaction));
+    await (dependencies.login ?? loginClaudeAuth)(loginOptions(interaction), { configDir: account?.configDir });
   } catch (error) {
     throw loginError(error);
   }
-  await clearLegacyToken(dependencies);
+  // A legacy static token only ever stood in for Cortex's own subscription.
+  if (!account) await clearLegacyToken(dependencies);
   (dependencies.publishRecovered ?? publishAuthRecovered)({
-    backend: 'claude', provider: 'anthropic',
+    backend: 'claude', provider: 'anthropic', connection: account?.id ?? null,
   });
   return {
     provider: 'anthropic', authType: 'oauth', expiresAt: null, detail: OUTCOME_DETAIL,

@@ -93,8 +93,9 @@ export type CortexEvent =
   | { type: 'agent.superseded';       ts: string; executionId: string; reason: string }
 
   // Authentication lifecycle
-  | { type: 'auth.required';          ts: string; backend: 'claude' | 'pi'; provider: string; authType: 'oauth' | 'api_key' | null; kind: AuthErrorKind; channel: string | null; sessionId: string | null }
-  | { type: 'auth.recovered';         ts: string; backend: 'claude' | 'pi'; provider: string }
+  // `connection`: the account the credential belongs to; null is the provider's default login.
+  | { type: 'auth.required';          ts: string; backend: 'claude' | 'pi'; provider: string; connection?: string | null; authType: 'oauth' | 'api_key' | null; kind: AuthErrorKind; channel: string | null; sessionId: string | null }
+  | { type: 'auth.recovered';         ts: string; backend: 'claude' | 'pi'; provider: string; connection?: string | null }
 
   // Boards. Content-free change hints. `board.updated`: the registry record, the board directory
   // (board.html, assets, decisions.jsonl) or the set of bound sessions changed — clients refetch

@@ -111,7 +111,7 @@ test('subscription relays URL/code to claude auth login and completes only after
   });
   assert.deepEqual(evidence.codes, [CODE]);
   assert.equal(evidence.cleanup.mock.calls.length, 1);
-  assert.deepEqual(evidence.recovered, [{ backend: 'claude', provider: 'anthropic' }]);
+  assert.deepEqual(evidence.recovered, [{ backend: 'claude', provider: 'anthropic', connection: null }]);
   assert.equal(JSON.stringify([waiting, completed, evidence.recovered]).includes(CODE), false);
 });
 

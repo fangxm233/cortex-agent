@@ -123,11 +123,29 @@ export const systemVersionInput = z.object({});
 
 // ── Mutate input schemas ──────────────────────────────────────────
 
+/** An account connection id; absent or null is the provider's default login. */
+const accountConnection = z.string().min(1).regex(CUSTOM_PROVIDER_NAME_RE).nullable().optional();
+
 export const authStartLoginInput = z.object({
   backend: z.enum(['claude', 'pi']),
   provider: z.string().min(1),
+  connection: accountConnection,
   authType: z.enum(['api_key', 'oauth']),
   noticeId: z.string().min(1).optional(),
+});
+
+// auth.addAccount — register an account under a label and start its first login; the id is derived
+// from the label. auth.removeAccount — sign it out, then delete its directory and entry.
+export const authAddAccountInput = z.object({
+  backend: z.enum(['claude', 'pi']),
+  label: z.string().trim().min(1).max(64),
+  /** PI only: the provider the account signs in to. */
+  provider: z.string().min(1).optional(),
+});
+
+export const authRemoveAccountInput = z.object({
+  backend: z.enum(['claude', 'pi']),
+  id: z.string().min(1).regex(CUSTOM_PROVIDER_NAME_RE),
 });
 
 export const authRespondPromptInput = z.object({
@@ -150,6 +168,7 @@ export const authSyncModelsInput = z.object({
 export const authLogoutInput = z.object({
   backend: z.enum(['claude', 'pi']),
   provider: z.string().min(1),
+  connection: accountConnection,
   authType: z.enum(['api_key', 'oauth']),
 });
 
@@ -886,6 +905,8 @@ export const mutateInputSchemas = {
   'auth.cancelFlow': authCancelFlowInput,
   'auth.logout': authLogoutInput,
   'auth.syncModels': authSyncModelsInput,
+  'auth.addAccount': authAddAccountInput,
+  'auth.removeAccount': authRemoveAccountInput,
   'connections.upsert': connectionsUpsertInput,
   'connections.remove': connectionsRemoveInput,
   'usageSharing.set': usageSharingSetInput,
