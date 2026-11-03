@@ -1,10 +1,16 @@
 // An account-failover resume is started as soon as it is recorded and, unlike a window-reset
 // resume, is neither dropped by auto-resume being off nor lost to a busy channel.
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { dispatchPendingResumes, registerResumeWakeOnAgentSettle } from '../../src/orchestration/resume-dispatcher.js';
 import { EventBus } from '../../src/events/index.js';
 import { MockAdapter } from '../../src/platform/testing.js';
-import type { ResumeEntry } from '../../src/domain/costs/resume-registry.js';
+import {
+  initResumeRegistry, _testReset as resumeReset, type ResumeEntry,
+} from '../../src/domain/costs/resume-registry.js';
+import {
+  handleRateLimitEvent, initRateLimitThrottle, _testReset as throttleReset,
+} from '../../src/domain/costs/rate-limit-throttle.js';
+import { recordDirectResume } from '../../src/domain/runs/observers/resume-recorder.js';
 import { updateSettings } from '../../src/core/settings.js';
 
 const entry = (channel: string, failover?: true): ResumeEntry => ({
@@ -31,7 +37,11 @@ function deps(entries: ResumeEntry[], busy: string[] = []) {
 
 const adapter = new MockAdapter({ adminChannel: 'admin' }) as never;
 
-afterEach(() => updateSettings({ autoResume: true }));
+afterEach(async () => {
+  throttleReset();
+  resumeReset();
+  await updateSettings({ autoResume: true });
+});
 
 describe('dispatching resumes', () => {
   it('starts only failover entries while auto-resume is off', async () => {
@@ -66,6 +76,30 @@ describe('waking the dispatcher', () => {
     bus.publish({ type: 'rate-limit.changed' });
     await Promise.resolve();
     expect(wakes).toBe(1);
+    stop();
+  });
+});
+
+describe('a failover resume, end to end through the queue', () => {
+  it('is started as soon as it is recorded, with auto-resume off', async () => {
+    await updateSettings({ autoResume: false });
+    const bus = new EventBus();
+    await initResumeRegistry({ save: async () => {}, load: async () => [] }, () => bus.publish({ type: 'rate-limit.changed' }));
+    await initRateLimitThrottle(adapter, { save: async () => {}, load: async () => null } as never);
+    await handleRateLimitEvent(
+      { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: Math.floor(Date.now() / 1000) + 300 },
+      { provider: 'anthropic', displayName: 'Anthropic', mode: 'subscription' },
+    );
+    const routed: string[] = [];
+    const stop = registerResumeWakeOnAgentSettle(bus, adapter, (target) => dispatchPendingResumes(target, {
+      route: async (ctx) => { routed.push(ctx.channel); },
+      channelBusy: () => false, acquireSessionUse: async () => () => {}, delay: async () => {},
+    }));
+    recordDirectResume({
+      provider: 'anthropic', route: 'subscription', channel: 'web:c1', trackSessionId: null, userMessage: 'hi',
+      selection: { backend: 'claude', provider: null, model: 'claude-sonnet-4-6', thinking: null, connection: 'subscription' },
+    }, { enabled: () => true, logins: () => ['subscription', 'school'], billingOf: () => 'subscription' });
+    await vi.waitFor(() => expect(routed).toEqual(['web:c1']));
     stop();
   });
 });
