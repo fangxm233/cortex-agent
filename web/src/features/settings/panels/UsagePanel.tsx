@@ -370,11 +370,11 @@ function ResetConfirm(props: { lines: string[]; onConfirm: () => void; onCancel:
 function ResetCredits({ resets, reset }: { resets: UsageResetsView; reset: UsageResetState }) {
   const L = useVocab();
   const [confirming, setConfirming] = useState(false);
-  const attempt = resetAttemptFor(reset, resets.provider);
+  const attempt = resetAttemptFor(reset, resets.provider, resets.connection);
   const provider = resets.provider;
   const canUse = provider !== null && resets.available > 0 && !confirming;
   return (
-    <div data-usage-resets={provider ?? ''} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: ROW_STYLE.padding }}>
+    <div data-usage-resets={[provider ?? '', resets.connection].filter(Boolean).join(':')} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: ROW_STYLE.padding }}>
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, minHeight: 28 }}>
         <ResetSummary resets={resets} />
         <ResetOutcome attempt={attempt} />
@@ -390,7 +390,7 @@ function ResetCredits({ resets, reset }: { resets: UsageResetsView; reset: Usage
       {confirming && provider
         ? (
           <ResetConfirm lines={resets.confirm} onCancel={() => setConfirming(false)}
-            onConfirm={() => { setConfirming(false); reset.redeem(provider); }} />
+            onConfirm={() => { setConfirming(false); reset.redeem(provider, resets.connection); }} />
         )
         : null}
     </div>

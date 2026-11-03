@@ -60,6 +60,8 @@ export interface UsageWindowView {
 export interface UsageResetsView {
   /** The account a reset is spent on; null for a row that cannot spend one here. */
   provider: ResetProvider | null;
+  /** The provider's named account the row belongs to; null on its default login. */
+  connection: string | null;
   available: number;
   /** Earliest-expiring spendable reset; null when only the count is known. */
   nextExpiresAt: number | null;
@@ -315,6 +317,7 @@ function buildResets(record: ProviderUsage, nowSec: number, lang: Lang): UsageRe
   const next = live.find((credit) => credit.id === credits.nextCreditId) ?? live[0] ?? null;
   return {
     provider: resetProvider(record),
+    connection: record.route ?? null,
     available: credits.credits.length > 0
       ? live.reduce((sum, credit) => sum + (credit.count ?? 1), 0)
       : credits.availableCount,
@@ -372,8 +375,11 @@ function buildProvider(
   };
 }
 
-export function usageRowKey(record: Pick<ProviderUsage, 'provider' | 'billing'>): string {
-  return record.billing ? `${record.provider}::${record.billing}` : record.provider;
+/** The server's row identity: one row per provider, billing kind and account. */
+export function usageRowKey(record: Pick<ProviderUsage, 'provider' | 'billing' | 'route'>): string {
+  if (!record.billing) return record.provider;
+  const base = `${record.provider}::${record.billing}`;
+  return record.route ? `${base}::${record.route}` : base;
 }
 
 /**

@@ -67,4 +67,20 @@ describe('buildRateLimitView', () => {
     expect(buildRateLimitView(raw(3), NOW, 'en')?.providers[0].waitingLabel).toBe('3 sessions waiting');
     expect(buildRateLimitView(raw(2), NOW, 'zh')?.providers[0].waitingLabel).toBe('2 个会话等待恢复');
   });
+
+  it('keeps a row per account, names a named account by its label, and keys each row for its own clear', () => {
+    const vm = buildRateLimitView({
+      providers: [
+        { ...provider({ provider: 'anthropic', displayName: 'Anthropic', windows: [window('five_hour', 600)] }), route: 'school', key: 'anthropic::school' },
+        { ...provider({ provider: 'anthropic', displayName: 'Anthropic', windows: [window('five_hour', 300)] }), route: 'subscription', key: 'anthropic::subscription' },
+        provider({ provider: 'openai-codex', displayName: 'OpenAI Codex', windows: [window('outage', 300)] }),
+      ],
+    }, NOW, 'en', { school: 'School' });
+
+    expect(vm?.providers.map((row) => [row.key, row.displayName])).toEqual([
+      ['anthropic::subscription', 'Anthropic'],
+      ['anthropic::school', 'Anthropic (School)'],
+      ['openai-codex', 'OpenAI Codex'],
+    ]);
+  });
 });

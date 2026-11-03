@@ -329,10 +329,10 @@ function ResetConfirm(props: { L: Vocab; lines: string[]; onConfirm: () => void;
 /** Banked resets on a Codex or Claude row; spending one always takes a second, explicit confirm. */
 function ResetRow({ resets, reset, L }: { resets: UsageResetsView; reset: UsageResetState; L: Vocab }) {
   const [confirming, setConfirming] = useState(false);
-  const attempt = resetAttemptFor(reset, resets.provider);
+  const attempt = resetAttemptFor(reset, resets.provider, resets.connection);
   const provider = resets.provider;
   return (
-    <div data-usage-resets={provider ?? ''} style={{ padding: '9px 0 0', borderTop: RULE }}>
+    <div data-usage-resets={[provider ?? '', resets.connection].filter(Boolean).join(':')} style={{ padding: '9px 0 0', borderTop: RULE }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 32 }}>
         <span style={META}>{resetSummary(resets, L)}</span>
         {provider !== null && resets.available > 0 && !confirming
@@ -348,7 +348,7 @@ function ResetRow({ resets, reset, L }: { resets: UsageResetsView; reset: UsageR
       {confirming && provider
         ? (
           <ResetConfirm L={L} lines={resets.confirm} onCancel={() => setConfirming(false)}
-            onConfirm={() => { setConfirming(false); reset.redeem(provider); }} />
+            onConfirm={() => { setConfirming(false); reset.redeem(provider, resets.connection); }} />
         )
         : null}
     </div>

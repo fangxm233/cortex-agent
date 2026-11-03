@@ -117,8 +117,9 @@ function clearButtonStyle(mobile: boolean, busy: boolean): CSSProperties {
   };
 }
 
-/** Lifts the provider's throttle early via system.clearRateLimit; refreshes the status query. */
-function ClearRateLimitButton({ provider, mobile = false }: { provider: string; mobile?: boolean }): JSX.Element {
+/** Lifts one row's throttle early via system.clearRateLimit (its `provider::route` key); refreshes
+ *  the status query. */
+function ClearRateLimitButton({ target, mobile = false }: { target: string; mobile?: boolean }): JSX.Element {
   const L = useVocab();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -130,7 +131,7 @@ function ClearRateLimitButton({ provider, mobile = false }: { provider: string; 
     <button
       type="button" disabled={busy}
       title={L.rlClearTitle}
-      onClick={() => clearMut.mutate({ provider })}
+      onClick={() => clearMut.mutate({ provider: target })}
       style={clearButtonStyle(mobile, busy)}
     >
       {busy ? L.rlClearing : L.rlClear}
@@ -165,7 +166,7 @@ function ProviderDetails(props: {
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 8 }}>
         <span style={{ fontSize: 11, fontWeight: 700 }}>{provider.displayName}</span>
         <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <ClearRateLimitButton provider={provider.provider} mobile={mobile} />
+          <ClearRateLimitButton target={provider.key} mobile={mobile} />
           <span style={{ font: `600 11px ${MONO}`, color: amber }}>{provider.recoveryCountdown}</span>
         </span>
       </div>
@@ -182,7 +183,7 @@ export function RateLimitDetails({ status, mobile = false }: { status: RateLimit
     <div className="content-surface" style={{ minWidth: mobile ? 0 : 230, color: ink }}>
       <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>{L.rlDetailsTitle}</div>
       {status.providers.map((provider, index) => (
-        <ProviderDetails key={provider.provider} provider={provider} index={index} mobile={mobile} />
+        <ProviderDetails key={provider.key} provider={provider} index={index} mobile={mobile} />
       ))}
     </div>
   );

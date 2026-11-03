@@ -10,6 +10,7 @@ function status(): RateLimitView {
     label: 'OpenAI Codex · outage · 5m',
     providers: [
       {
+        key: 'openai-codex',
         provider: 'openai-codex',
         displayName: 'OpenAI Codex',
         recoveryAt: 1_000,

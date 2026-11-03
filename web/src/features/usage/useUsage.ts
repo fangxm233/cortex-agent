@@ -24,9 +24,11 @@ export interface UsagePolicyDraft {
 
 /** Spending a banked usage reset: always an explicit, confirmed user action. */
 export interface UsageResetState {
-  redeem: (provider: ResetProvider) => void;
+  /** Spends a reset of the provider's default login, or of the named account `connection`. */
+  redeem: (provider: ResetProvider, connection: string | null) => void;
   /** The account of the running or last attempt in this view. */
   provider: ResetProvider | null;
+  connection: string | null;
   isRedeeming: boolean;
   /** Outcome of the last attempt in this view. */
   status: ResetStatus | null;
@@ -36,8 +38,12 @@ export interface UsageResetState {
 export type UsageResetAttempt = Pick<UsageResetState, 'isRedeeming' | 'status' | 'error'>;
 
 /** The running or last attempt, as seen from one provider's card. */
-export function resetAttemptFor(reset: UsageResetState, provider: ResetProvider | null): UsageResetAttempt {
-  if (provider === null || reset.provider !== provider) return { isRedeeming: false, status: null, error: null };
+export function resetAttemptFor(
+  reset: UsageResetState, provider: ResetProvider | null, connection: string | null = null,
+): UsageResetAttempt {
+  if (provider === null || reset.provider !== provider || reset.connection !== connection) {
+    return { isRedeeming: false, status: null, error: null };
+  }
   return { isRedeeming: reset.isRedeeming, status: reset.status, error: reset.error };
 }
 
@@ -272,8 +278,9 @@ function useUsageReset(
     onSuccess: (data: SystemRedeemUsageResetReturn) => queryClient.setQueryData(statusKey, data.usage),
   }));
   return {
-    redeem: (provider) => mutation.mutate({ provider }),
+    redeem: (provider, connection) => mutation.mutate({ provider, ...(connection ? { connection } : {}) }),
     provider: mutation.variables?.provider ?? null,
+    connection: mutation.variables?.connection ?? null,
     isRedeeming: mutation.isPending,
     status: mutation.data?.status ?? null,
     error: mutation.isError ? mutation.error : null,
