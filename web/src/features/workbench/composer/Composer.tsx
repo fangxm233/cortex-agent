@@ -22,7 +22,7 @@ import { ComposerActionRow, ComposerSlashMenu } from './ComposerActionRow';
 import { AgentSelectorView, CleanToggleView, CleanWorkspaceChip, SessionSelectorView } from './SessionSelector';
 import type { ContextCompactAction } from '@/features/session/composer/ContextUsageControl';
 import type { EngineSelection, SessionTotals, TodoSnapshot } from '@cortex-agent/ui-contract';
-import type { TurnClock } from '@/features/session/transcript/transcript-vm';
+import { awaitsModel, type TurnClock } from '@/features/session/transcript/transcript-vm';
 import { DraftProjectSelector } from './DraftProjectSelector';
 import { useFileDropTarget } from './useFileDropTarget';
 import { ChatDropOverlay } from './ChatDropOverlay';
@@ -202,7 +202,7 @@ export function Composer({
   // says "press ⏎".
   const composerRing = focused || canSend || slashOpen;
   const statusLine = runStatusLine({
-    isDraft, running, backgroundRunning, starting: optimistic.pendingUser.length > 0, turns, cost, turnClock,
+    isDraft, running, backgroundRunning, starting: awaitsModel(optimistic.pendingUser), turns, cost, turnClock,
     waitingOn,
   }, L, lang);
   // Second segment: the same three quantities for the WHOLE session. Independent of the run status —

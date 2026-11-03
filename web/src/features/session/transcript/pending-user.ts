@@ -75,6 +75,12 @@ export function markPendingUnsent(pending: PendingUserMessage[], pendingId: stri
   return pending.map((p, i) => (i === idx ? { ...p, unsent: true } : p));
 }
 
+/** A message is still on its way to the model. An unsent one is not: its run is over, so it must
+ *  not make the session read as starting. */
+export function awaitsModel(pending: PendingUserMessage[]): boolean {
+  return pending.some((p) => !p.unsent);
+}
+
 /** The user resent or took back an unsent message: its row goes. */
 export function withdrawPending(pending: PendingUserMessage[], pendingId: string): PendingUserMessage[] {
   return pending.some((p) => p.id === pendingId) ? pending.filter((p) => p.id !== pendingId) : pending;

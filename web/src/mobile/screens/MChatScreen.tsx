@@ -21,6 +21,7 @@ import { normalizeMobilePath } from '../mobile-route-manifest';
 import { SAME_SCREEN_STATE } from '../MobileAnimatedOutlet';
 import { MChatView } from './MChatView';
 import { UnsentActionsProvider } from '@/features/session/transcript/UnsentActionsProvider';
+import { awaitsModel } from '@/features/session/transcript/transcript-vm';
 import {
   buildMobileChatRows, mobileRunStatus,
   type ChatHeaderStatus, type SelectionSheetRow, type PendingAttachmentVM,
@@ -223,7 +224,7 @@ export function MChatScreen(): JSX.Element {
   // A pending interaction outranks everything; then the phone's plain-words run line.
   const runLine = mobileRunStatus({
     isDraft, running: chat.running, backgroundRunning: chat.backgroundRunning,
-    starting: chat.pendingUser.length > 0, turns: chat.turns, cost: active?.costUsd ?? null,
+    starting: awaitsModel(chat.pendingUser), turns: chat.turns, cost: active?.costUsd ?? null,
     turnClock: chat.turnClock, waitingOn: active?.waitingOn ?? 0,
     workers: teamRoster(team.workers).active.length, lastUsedAt: active?.lastUsedAt ?? null,
   }, vocab, lang);

@@ -4,7 +4,7 @@ import type { SessionTranscript } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 import { MChatStream } from '@/mobile/screens/MChatView';
 import { ChatRows } from './MessageStream';
-import { buildTranscriptRows, markPendingUnsent, withdrawPending, type ChatRow, type PendingUserMessage } from './transcript-vm';
+import { awaitsModel, buildTranscriptRows, markPendingUnsent, withdrawPending, type ChatRow, type PendingUserMessage } from './transcript-vm';
 import { UnsentActionsContext, type UnsentActions } from './useUnsentActions';
 
 const T = '2026-10-31T16:29:47.000Z';
@@ -20,6 +20,12 @@ describe('pending rows whose run was stopped', () => {
     expect(next.map((p) => !!p.unsent)).toEqual([false, true]);
     expect(markPendingUnsent(pending, 'pin-9')).toBe(pending);
     expect(markPendingUnsent(next, 'pin-2')).toBe(next);
+  });
+
+  it('an unsent row alone does not read as a message on its way to the model', () => {
+    expect(awaitsModel(pending)).toBe(true);
+    expect(awaitsModel(markPendingUnsent([pending[0]], 'pin-1'))).toBe(false);
+    expect(awaitsModel(markPendingUnsent(pending, 'pin-1'))).toBe(true);
   });
 
   it('drops a withdrawn row', () => {
