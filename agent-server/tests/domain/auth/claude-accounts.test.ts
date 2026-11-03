@@ -160,10 +160,13 @@ describe('logging an account out', () => {
   });
 });
 
+// Injected so no test loads the PI runtime over the real ~/.pi/agent/auth.json.
+const NO_PI_PROVIDERS = async () => [];
+
 describe('adding and removing an account', () => {
   it('registers a pending account, starts its login, and keeps it once the login lands', async () => {
     const { service, calls } = fakeLogin();
-    const result = await addAccount({ backend: 'claude', label: 'School Team' }, { login: service });
+    const result = await addAccount({ backend: 'claude', label: 'School Team' }, { login: service, piProviders: NO_PI_PROVIDERS });
     expect(result).toMatchObject({ ok: true, account: { id: 'school-team', backend: 'claude', provider: 'anthropic', label: 'School Team' } });
     expect(calls[0]?.input).toMatchObject({ backend: 'claude', provider: 'anthropic', connection: 'school-team', authType: 'oauth' });
     expect(findAccount({ backend: 'claude', id: 'school-team' })?.pending).toBe(true);
@@ -173,9 +176,18 @@ describe('adding and removing an account', () => {
       { id: 'school-team', backend: 'claude', type: 'account', label: 'School Team' });
   });
 
+  it('never names a Claude account after a PI provider or a PI account', async () => {
+    writeConnections([{ id: 'work', backend: 'pi', type: 'account', provider: 'anthropic', label: 'Work' }]);
+    const piProviders = async () => [{ id: 'anthropic', capabilities: ['oauth' as const, 'api_key' as const] }];
+    const { service } = fakeLogin();
+    const named = await addAccount({ backend: 'claude', label: 'Anthropic' }, { login: service, piProviders });
+    const work = await addAccount({ backend: 'claude', label: 'Work' }, { login: service, piProviders });
+    expect([named.ok && named.account.id, work.ok && work.account.id]).toEqual(['anthropic-2', 'work-2']);
+  });
+
   it('drops the account and its dir when the first login fails', async () => {
     const { service, calls } = fakeLogin();
-    await addAccount({ backend: 'claude', label: 'School' }, { login: service });
+    await addAccount({ backend: 'claude', label: 'School' }, { login: service, piProviders: NO_PI_PROVIDERS });
     await calls[0]?.hooks?.onFailure?.();
     expect(findAccount({ backend: 'claude', id: 'school' })).toBeNull();
     expect(fs.existsSync(path.join(CLAUDE_ACCOUNTS_HOME, 'school'))).toBe(false);
@@ -184,7 +196,7 @@ describe('adding and removing an account', () => {
   it('discards a pending account whose login is no longer running', async () => {
     createPendingAccount({ backend: 'claude', label: 'Stale' });
     const { service } = fakeLogin();
-    await addAccount({ backend: 'claude', label: 'Fresh' }, { login: service });
+    await addAccount({ backend: 'claude', label: 'Fresh' }, { login: service, piProviders: NO_PI_PROVIDERS });
     expect(readConnections(CONNECTIONS_FILE).map((entry) => entry.id)).toEqual(['fresh']);
   });
 

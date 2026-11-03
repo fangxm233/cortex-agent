@@ -28,7 +28,7 @@ export type AccountCreate =
 
 export interface AccountRegistryDeps {
   file?: string;
-  /** Ids an account may not take beyond the file's own: PI's provider names, for a PI account. */
+  /** Ids no account may take beyond the file's own: PI's provider names. */
   reservedIds?: Iterable<string>;
 }
 
@@ -47,10 +47,14 @@ export function accountId(label: string, taken: ReadonlySet<string>): string {
   }
 }
 
+/** Ids are unique across backends: a Claude account and a PI account of `anthropic` sharing one
+ *  would share a route, and with it a throttle and a usage row. So no stored connection's id of
+ *  either backend, no name Claude's default logins go by, and no PI provider's name (a provider's
+ *  default login is named by it). */
 function takenIds(input: AccountInput, deps: AccountRegistryDeps): Set<string> {
-  const stored = readConnections(deps.file ?? CONNECTIONS_FILE).filter((entry) => entry.backend === input.backend);
-  const reserved = input.backend === 'claude' ? RESERVED_CLAUDE_IDS : [input.provider ?? '', ...(deps.reservedIds ?? [])];
-  return new Set([...stored.map((entry) => entry.id), ...reserved]);
+  const stored = readConnections(deps.file ?? CONNECTIONS_FILE).map((entry) => entry.id);
+  const reserved = [...RESERVED_CLAUDE_IDS, input.provider?.trim() ?? '', ...(deps.reservedIds ?? [])];
+  return new Set([...stored, ...reserved].filter(Boolean));
 }
 
 function accountIssues(input: AccountInput): AccountIssue[] {

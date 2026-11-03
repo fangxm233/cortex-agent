@@ -108,20 +108,23 @@ function firstAuthType(input: AddAccountInput, providers: PiProviderInfo[]): Aut
   return offered.includes('oauth') ? 'oauth' : 'api_key';
 }
 
-async function piProvidersFor(input: AddAccountInput, deps: AccountLifecycleDeps): Promise<PiProviderInfo[]> {
-  return input.backend === 'pi' ? (deps.piProviders ?? loadPiProviders)() : [];
+/** Every account needs them: no account's id may be a PI provider's name. */
+function piProvidersFor(deps: AccountLifecycleDeps): Promise<PiProviderInfo[]> {
+  return (deps.piProviders ?? loadPiProviders)();
 }
 
 /** A provider PI knows that cannot sign in the way asked; an unknown one is left to its login. */
 function unsupportedAuth(input: AddAccountInput, providers: PiProviderInfo[]): boolean {
+  if (input.backend !== 'pi') return false;
   const known = providers.find((provider) => provider.id === input.provider?.trim());
   return !!known && !known.capabilities.includes(firstAuthType(input, providers));
 }
 
-/** Register an account and start its first login. A PI account's id is never a provider's name. */
+/** Register an account and start its first login. Its id is never another connection's, of either
+ *  backend, nor a PI provider's name. */
 export async function addAccount(input: AddAccountInput, deps: AccountLifecycleDeps = {}): Promise<AddAccountResult> {
   discardAbandoned(input.backend);
-  const providers = await piProvidersFor(input, deps);
+  const providers = await piProvidersFor(deps);
   if (unsupportedAuth(input, providers)) return { ok: false, errors: ['not-supported'] };
   const created = createPendingAccount(input, { reservedIds: providers.map((provider) => provider.id) });
   if (created.ok === false) return { ok: false, errors: created.errors };

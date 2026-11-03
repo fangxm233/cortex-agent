@@ -73,6 +73,24 @@ describe('account ids', () => {
     expect(pi.ok && pi.account.id).toBe('openai-2');
   });
 
+  it('never takes an id another backend uses, a provider name, or a default login\'s name', () => {
+    writeConnections([
+      { id: 'relay', backend: 'claude', label: 'Relay', authStyle: 'x-api-key', key: 'fake-key', billing: 'metered' },
+      { id: 'deepseek', backend: 'pi', provider: 'deepseek', baseUrl: 'https://relay.example', key: 'fake-key' },
+      { id: 'work', backend: 'pi', type: 'account', provider: 'anthropic', label: 'Work' },
+      { id: 'school', backend: 'claude', type: 'account', label: 'School' },
+    ], file);
+    const ids = [
+      createPendingAccount({ backend: 'claude', label: 'Work' }, { file }),
+      createPendingAccount({ backend: 'claude', label: 'DeepSeek' }, { file }),
+      createPendingAccount({ backend: 'claude', label: 'Anthropic' }, { file, reservedIds: ['anthropic', 'openai'] }),
+      createPendingAccount({ backend: 'pi', label: 'School', provider: 'anthropic' }, { file }),
+      createPendingAccount({ backend: 'pi', label: 'Relay', provider: 'openai' }, { file }),
+      createPendingAccount({ backend: 'pi', label: 'Subscription', provider: 'anthropic' }, { file }),
+    ].map((created) => created.ok && created.account.id);
+    expect(ids).toEqual(['work-2', 'deepseek-2', 'anthropic-2', 'school-2', 'relay-2', 'subscription-2']);
+  });
+
   it('refuses an empty label and a PI account without a provider', () => {
     expect(createPendingAccount({ backend: 'claude', label: '  ' }, { file }))
       .toEqual({ ok: false, errors: ['label-required'] });
