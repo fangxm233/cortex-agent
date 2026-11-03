@@ -33,7 +33,10 @@ export function AccountsPanel({ onLogin }: AccountsPanelProps) {
     return <div style={{ ...PANEL_TEXT_STYLE, color: 'var(--proto-danger)' }}>{L.accountsLoadFailed}</div>;
   }
   const vm = buildAccountsVm(controller.status, filter);
-  const handlers = { onLogin, onLogout: controller.logout, disabled: controller.logoutPending };
+  const handlers = {
+    onLogin, onLogout: controller.logout, onRemove: controller.remove,
+    disabled: controller.logoutPending || controller.removePending,
+  };
   const rescan = (
     <SLinkAction data-accounts-sync disabled={controller.syncPending} onClick={controller.syncModels}>
       {L.accountsSyncModels}

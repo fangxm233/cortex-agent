@@ -77,9 +77,12 @@ function rowMeta(view: ConnectionView, L: MetaVocab): string {
   return endpoint;
 }
 
-/** The connections Cortex stores: logins (the subscription, PI OAuth) are the account rows above. */
+/** Logins (the subscription, PI OAuth, named accounts) are the account rows above, not connections. */
+const LOGIN_KINDS = new Set<ConnectionView['kind']>(['subscription', 'account']);
+
+/** The connections Cortex stores and edits here. */
 export function buildConnectionRows(views: readonly ConnectionView[], L: MetaVocab): ConnectionRowVm[] {
-  return views.filter((view) => view.kind !== 'subscription').map((view) => ({
+  return views.filter((view) => !LOGIN_KINDS.has(view.kind)).map((view) => ({
     key: connectionKey(view),
     backend: view.backend === 'claude' ? 'claude' : 'pi',
     id: view.id,

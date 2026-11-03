@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AuthType, LoginFlowState } from '@cortex-agent/ui-contract';
-import { useVocab, type Vocab } from '@/i18n';
+import { fmt, useVocab, type Vocab } from '@/i18n';
 import { trpcErrorCode, useTRPC, useTRPCClient } from '@/lib/trpc';
 import { expiredSnapshot, isTerminal, newerSnapshot } from './login-flow-vm';
 
@@ -17,6 +17,10 @@ export interface LoginFlowTarget {
   noticeId?: string;
   /** Display label of the provider, when the caller has it. */
   label?: string;
+  /** A named account to sign in again; absent or null is the provider's default login. */
+  connection?: string | null;
+  /** Register a new account under this name; its first login is the flow. */
+  newAccount?: string;
 }
 
 export interface LoginFlowController {
@@ -88,7 +92,25 @@ function useDoneInvalidation(state: LoginFlowState | null, onDone?: (state: Logi
 
 function targetKey(target: LoginFlowTarget | null | undefined): string | null {
   if (!target) return null;
-  return [target.backend, target.provider, target.authType, target.noticeId ?? ''].join('\u0000');
+  return [
+    target.backend, target.provider, target.authType, target.noticeId ?? '', target.connection ?? '', target.newAccount ?? '',
+  ].join('\u0000');
+}
+
+/** A new account is registered and signed in by one call; every other login starts its own flow. */
+async function startFlow(api: LoginClient, target: LoginFlowTarget): Promise<LoginFlowState> {
+  if (target.newAccount) {
+    const added = await api.auth.addAccount.mutate({
+      backend: target.backend, label: target.newAccount,
+      ...(target.backend === 'pi' ? { provider: target.provider } : {}),
+    });
+    return added.flow;
+  }
+  return api.auth.startLogin.mutate({
+    backend: target.backend, provider: target.provider, authType: target.authType,
+    ...(target.connection ? { connection: target.connection } : {}),
+    ...(target.noticeId ? { noticeId: target.noticeId } : {}),
+  });
 }
 
 /**
@@ -130,10 +152,7 @@ export function useLoginFlowController(
     const request = ++generation.current;
     reset(); setStarting(true);
     try {
-      const state = await api.auth.startLogin.mutate({
-        backend: current.backend, provider: current.provider, authType: current.authType,
-        ...(current.noticeId ? { noticeId: current.noticeId } : {}),
-      });
+      const state = await startFlow(api, current);
       // Closed or restarted while the start was in flight: do not leave the flow running.
       if (!accept(request, state)) cancelQuietly(api, state);
     } catch (reason) {
@@ -179,15 +198,19 @@ export function useLoginFlowController(
   return { latest, startError, respondError, starting, responding, respond, retry };
 }
 
-/** The provider's display label: the caller's, Claude Code's, or PI's from the account status. */
+/** The provider's display label: the caller's, Claude Code's, or PI's from the account status; a
+ *  named account reads as "Claude Code (School)". */
 export function useProviderLabel(open: boolean, target: LoginFlowTarget | null): string | null {
+  const L = useVocab();
   const trpc = useTRPC();
-  const lookup = open && !!target && !target.label && target.backend === 'pi';
+  const lookup = open && !!target && !target.label && (target.backend === 'pi' || !!target.connection);
   const status = useQuery({ ...trpc.auth.status.queryOptions({}), enabled: lookup });
   if (!target) return null;
   if (target.label) return target.label;
-  if (target.backend === 'claude') return CLAUDE_LABEL;
-  return status.data?.accounts.find(account => (
-    account.backend === 'pi' && account.provider === target.provider
-  ))?.label ?? null;
+  const rows = (status.data?.accounts ?? []).filter(account => (
+    account.backend === target.backend && account.provider === target.provider
+  ));
+  const provider = target.backend === 'claude' ? CLAUDE_LABEL : rows.find(row => !row.connection)?.label ?? null;
+  const account = target.connection ? rows.find(row => row.connection === target.connection)?.label : undefined;
+  return provider && account ? fmt(L.accountsAccountName, { provider, account }) : provider;
 }

@@ -14,6 +14,10 @@ export interface AccountActionTarget {
   authType: AuthType;
   /** Display label, carried so the login dialog and toasts never fall back to the id. */
   label?: string;
+  /** A named account; absent or null is the provider's default login. */
+  connection?: string | null;
+  /** Register a new account under this name, then sign it in. */
+  newAccount?: string;
 }
 
 /** Vocab key naming an auth type; Claude's OAuth login is its subscription. */
@@ -38,17 +42,39 @@ export interface ClaudeSlotVm {
   canLogout: boolean;
 }
 
+/** An account added beside a provider's default login: a second subscription, a second key. */
+export interface NamedAccountVm {
+  connection: string;
+  label: string;
+  /** Email and plan, where the vendor records them. */
+  identity: string | null;
+  connected: boolean;
+  inUse: boolean;
+  health: CredentialHealth;
+  expiresAt: string | null;
+  /** What logging in again uses: the current type, else the provider's first. */
+  loginType: AuthType;
+  canLogout: boolean;
+}
+
 export interface ClaudeAccountVm {
   provider: string;
   label: string;
   /** In use and actually connected — a logged-out account is never shown as in use. */
   inUse: boolean;
   slots: ClaudeSlotVm[];
+  /** Who the default subscription login belongs to. */
+  identity: string | null;
+  accounts: NamedAccountVm[];
+  /** Login types a new account can use. */
+  addTypes: AuthType[];
 }
 
 export interface ConnectedProviderVm {
   provider: string;
   label: string;
+  /** Whether the default login holds a credential; a provider with only named accounts has none. */
+  connected: boolean;
   inUse: boolean;
   /** The credential type the provider currently resolves to. */
   authType: AuthType | null;
@@ -57,6 +83,8 @@ export interface ConnectedProviderVm {
   external: ExternalSource | null;
   loginTypes: AuthType[];
   logoutTypes: AuthType[];
+  accounts: NamedAccountVm[];
+  addTypes: AuthType[];
 }
 
 export interface AvailableProviderVm {
@@ -127,7 +155,38 @@ function claudeSlot(account: AuthAccountStatus, authType: AuthType): ClaudeSlotV
   };
 }
 
-function claudeVm(account: AuthAccountStatus | undefined): ClaudeAccountVm | null {
+function identityText(account: AuthAccountStatus): string | null {
+  const { email, plan } = account.identity ?? {};
+  return [email, plan].filter(Boolean).join(' · ') || null;
+}
+
+function isConnected(account: AuthAccountStatus): boolean {
+  return account.credentials.length > 0 || (account.state !== 'logged-out' && account.source !== null);
+}
+
+function namedAccountVm(account: AuthAccountStatus): NamedAccountVm {
+  const active = activeCredential(account);
+  const connected = isConnected(account);
+  return {
+    connection: account.connection ?? '',
+    label: account.label,
+    identity: identityText(account),
+    connected,
+    inUse: account.inUse && connected,
+    health: connected ? HEALTH[account.state] : 'unknown',
+    expiresAt: account.expiresAt ?? active?.expiresAt ?? null,
+    loginType: account.authType ?? active?.authType ?? account.capabilities[0] ?? 'oauth',
+    canLogout: account.credentials.some(item => item.manageable),
+  };
+}
+
+/** Named accounts of one provider, in registry order. */
+function accountsOf(rows: AuthAccountStatus[], provider: string): NamedAccountVm[] {
+  return rows.filter(row => !!row.connection && row.provider === provider).map(namedAccountVm);
+}
+
+function claudeVm(rows: AuthAccountStatus[]): ClaudeAccountVm | null {
+  const account = rows.find(row => !row.connection);
   if (!account) return null;
   const slots = CLAUDE_SLOT_ORDER.map(authType => claudeSlot(account, authType));
   return {
@@ -135,18 +194,18 @@ function claudeVm(account: AuthAccountStatus | undefined): ClaudeAccountVm | nul
     label: CLAUDE_CODE_LABEL,
     inUse: account.inUse && slots.some(slot => slot.connected),
     slots,
+    identity: slots[0].connected ? identityText(account) : null,
+    accounts: accountsOf(rows, account.provider),
+    addTypes: ['oauth'],
   };
 }
 
-function isConnected(account: AuthAccountStatus): boolean {
-  return account.credentials.length > 0 || (account.state !== 'logged-out' && account.source !== null);
-}
-
-function connectedVm(account: AuthAccountStatus): ConnectedProviderVm {
+function connectedVm(account: AuthAccountStatus, accounts: NamedAccountVm[]): ConnectedProviderVm {
   const active = activeCredential(account);
   return {
     provider: account.provider,
     label: account.label,
+    connected: isConnected(account),
     inUse: account.inUse,
     authType: account.authType ?? active?.authType ?? null,
     health: HEALTH[account.state],
@@ -154,6 +213,8 @@ function connectedVm(account: AuthAccountStatus): ConnectedProviderVm {
     external: active ? credentialExternal(active) : externalSource(account.source),
     loginTypes: [...account.capabilities],
     logoutTypes: logoutTypes(account.credentials),
+    accounts,
+    addTypes: [...account.capabilities],
   };
 }
 
@@ -173,11 +234,15 @@ function connectedOrder(left: ConnectedProviderVm, right: ConnectedProviderVm): 
 }
 
 export function buildAccountsVm(snapshot: AuthStatusSnapshot, filter = ''): AccountsVm {
-  const pi = snapshot.accounts.filter(account => account.backend === 'pi');
-  const loginable = pi.filter(account => !isConnected(account) && account.capabilities.length > 0);
+  const piRows = snapshot.accounts.filter(account => account.backend === 'pi');
+  const pi = piRows.filter(account => !account.connection)
+    .map(account => ({ account, named: accountsOf(piRows, account.provider) }));
+  const shown = pi.filter(({ account, named }) => isConnected(account) || named.length > 0);
+  const loginable = pi.filter(entry => !shown.includes(entry) && entry.account.capabilities.length > 0)
+    .map(({ account }) => account);
   return {
-    claude: claudeVm(snapshot.accounts.find(account => account.backend === 'claude')),
-    connected: pi.filter(isConnected).map(connectedVm).sort(connectedOrder),
+    claude: claudeVm(snapshot.accounts.filter(account => account.backend === 'claude')),
+    connected: shown.map(({ account, named }) => connectedVm(account, named)).sort(connectedOrder),
     available: loginable.filter(account => matchesFilter(account, filter))
       .map(account => ({ provider: account.provider, label: account.label, loginTypes: [...account.capabilities] }))
       .sort(byLabel),

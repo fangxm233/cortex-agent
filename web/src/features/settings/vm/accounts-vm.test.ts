@@ -146,3 +146,45 @@ describe('account copy helpers', () => {
     expect(expiryText(null, now, 'en', en)).toBeNull();
   });
 });
+
+describe('named accounts', () => {
+  const identity = { email: 'me@school.edu', organization: 'School', plan: 'claude_team' };
+
+  function claudeAccount(connection: string, label: string, overrides: Partial<AuthAccountStatus> = {}): AuthAccountStatus {
+    return claude([credential('oauth', 'credentials.json', true)], {
+      connection, isDefault: false, label, identity, capabilities: ['oauth'], authType: 'oauth', inUse: false, ...overrides,
+    });
+  }
+
+  it('lists Claude accounts under the default login, never as their own group', () => {
+    const vm = buildAccountsVm(snapshot([
+      claude([credential('oauth', 'credentials.json', true)], { authType: 'oauth', identity: { email: 'me@home.com', organization: null, plan: 'claude_max' } }),
+      claudeAccount('school', 'School'),
+      claudeAccount('lab', 'Lab', { state: 'logged-out', authType: null, credentials: [], identity: null }),
+    ]));
+
+    expect(vm.claude?.identity).toBe('me@home.com · claude_max');
+    expect(vm.claude?.addTypes).toEqual(['oauth']);
+    expect(vm.claude?.accounts).toEqual([
+      expect.objectContaining({ connection: 'school', label: 'School', identity: 'me@school.edu · claude_team', connected: true, loginType: 'oauth', canLogout: true }),
+      expect.objectContaining({ connection: 'lab', label: 'Lab', identity: null, connected: false, loginType: 'oauth', canLogout: false }),
+    ]);
+  });
+
+  it('groups PI accounts under their provider and keeps a provider with only accounts connected', () => {
+    const vm = buildAccountsVm(snapshot([
+      piAccount('openai-codex', ['oauth'], [credential('oauth', 'stored', true)]),
+      piAccount('openai-codex', ['oauth'], [credential('oauth', 'stored', true)], { connection: 'codex-lab', isDefault: false, label: 'Lab ChatGPT' }),
+      piAccount('deepseek', ['api_key'], []),
+      piAccount('deepseek', ['api_key'], [credential('api_key', 'stored', true)], { connection: 'ds-work', isDefault: false, label: 'Work' }),
+      piAccount('groq', ['api_key'], []),
+    ]));
+
+    expect(vm.connected.map(item => [item.provider, item.connected, item.accounts.map(account => account.connection)])).toEqual([
+      ['deepseek', false, ['ds-work']],
+      ['openai-codex', true, ['codex-lab']],
+    ]);
+    expect(vm.connected[0].addTypes).toEqual(['api_key']);
+    expect(vm.available.map(item => item.provider)).toEqual(['groq']);
+  });
+});

@@ -62,6 +62,7 @@ vi.mock('@/lib/trpc', () => {
     auth: {
       status: query('auth.status'),
       logout: mutation('auth.logout'),
+      removeAccount: mutation('auth.removeAccount'),
       syncModels: mutation('auth.syncModels'),
     },
     connections: {

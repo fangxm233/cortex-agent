@@ -14,6 +14,7 @@ const STATUS: AuthStatusSnapshot = {
 const adapter = vi.hoisted(() => ({
   status: vi.fn(),
   logout: vi.fn(),
+  removeAccount: vi.fn(),
   syncModels: vi.fn(),
   toast: vi.fn(),
 }));
@@ -32,11 +33,20 @@ vi.mock('@/lib/trpc', () => ({
           ...options, mutationFn: (input: unknown) => adapter.logout(input),
         }),
       },
+      removeAccount: {
+        mutationOptions: (options: object) => ({
+          ...options, mutationFn: (input: unknown) => adapter.removeAccount(input),
+        }),
+      },
       syncModels: {
         mutationOptions: (options: object) => ({
           ...options, mutationFn: (input: unknown) => adapter.syncModels(input),
         }),
       },
+    },
+    system: {
+      usageStatus: { queryFilter: (input: unknown) => ({ queryKey: ['system.usageStatus', input] }) },
+      rateLimitStatus: { queryFilter: (input: unknown) => ({ queryKey: ['system.rateLimitStatus', input] }) },
     },
     connections: {
       list: { queryFilter: (input: unknown) => ({ queryKey: ['connections.list', input] }) },

@@ -11,7 +11,7 @@ import { MConnectionsSection, type MConnectionsProps } from './MConnectionsSecti
 export type { MConnectionsProps } from './MConnectionsSection';
 
 export function MAccountsView({
-  vm, filter, onFilter, onBack, onLogin, onLogout, actionsDisabled, connections, onRescan, rescanning,
+  vm, filter, onFilter, onBack, onLogin, onLogout, onRemove, actionsDisabled, connections, onRescan, rescanning,
 }: {
   vm: AccountsVm;
   filter: string;
@@ -19,6 +19,8 @@ export function MAccountsView({
   onBack: () => void;
   onLogin: (target: AccountActionTarget) => void;
   onLogout: (target: AccountActionTarget) => void;
+  /** Deletes a named account; absent, no account can be added or deleted. */
+  onRemove?: (target: AccountActionTarget) => void;
   actionsDisabled: boolean;
   connections: MConnectionsProps;
   onRescan: () => void;
@@ -26,7 +28,7 @@ export function MAccountsView({
 }) {
   const L = useVocab();
   const confirm = useLogoutConfirm();
-  const handlers = { onLogin, onLogout, disabled: actionsDisabled };
+  const handlers = { onLogin, onLogout, onRemove, disabled: actionsDisabled };
   const trailing = (
     <MButton compact data-accounts-sync disabled={rescanning} onClick={onRescan}>{L.accountsSyncModels}</MButton>
   );

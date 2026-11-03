@@ -8,6 +8,7 @@ type Respond = { flowId: string; value: string; promptId?: number };
 
 const harness = vi.hoisted(() => ({
   startCalls: [] as unknown[],
+  addCalls: [] as unknown[],
   respondCalls: [] as Respond[],
   cancelCalls: [] as unknown[],
   pollCalls: [] as string[],
@@ -51,6 +52,12 @@ vi.mock('@/lib/trpc', () => {
   harness.client = {
     auth: {
       startLogin: { mutate: async (input: unknown) => { harness.startCalls.push(input); return harness.onStart!(input); } },
+      addAccount: {
+        mutate: async (input: unknown) => {
+          harness.addCalls.push(input);
+          return { account: { id: 'team', backend: 'claude', provider: 'anthropic', label: 'Team' }, flow: await harness.onStart!(input) };
+        },
+      },
       respondPrompt: { mutate: async (input: Respond) => { harness.respondCalls.push(input); return harness.onRespond!(input); } },
       cancelFlow: { mutate: async (input: unknown) => { harness.cancelCalls.push(input); return null; } },
       flowState: { query: async ({ flowId }: { flowId: string }) => { harness.pollCalls.push(flowId); return harness.onPoll!(flowId); } },
@@ -83,6 +90,7 @@ const AUTH_STATUS = {
   accounts: [
     { backend: 'pi', provider: 'openai-codex', label: 'OpenAI Codex', capabilities: ['oauth'] },
     { backend: 'pi', provider: 'cloudflare-ai-gateway', label: 'Cloudflare AI Gateway', capabilities: ['api_key'] },
+    { backend: 'claude', provider: 'anthropic', connection: 'school', label: 'School', capabilities: ['oauth'] },
   ],
   piRuntime: { available: true, version: 'test', entry: null, error: null },
 };
@@ -182,6 +190,7 @@ async function submit(renderer: ReactTestRenderer): Promise<void> {
 beforeEach(() => {
   vi.useFakeTimers();
   harness.startCalls = [];
+  harness.addCalls = [];
   harness.respondCalls = [];
   harness.cancelCalls = [];
   harness.pollCalls = [];
@@ -466,5 +475,42 @@ describe('LoginFlowProvider', () => {
     expect(harness.startCalls).toEqual([{ backend: 'pi', provider: 'openai-codex', authType: 'oauth', noticeId: 'notice-1' }]);
     expect(find(renderer, { 'data-auth-title': true }).props.children).toBe('Log in to OpenAI Codex');
     expect(harness.modalProps.layer).toBe('nested');
+  });
+});
+
+describe('named account logins', () => {
+  const CLAUDE_PROMPT = { kind: 'manual_code' as const, message: 'Paste code' };
+
+  it('re-logs the account a chat notice names, under its account name', async () => {
+    harness.onStart = () => prompt(1, CLAUDE_PROMPT, { backend: 'claude', provider: 'anthropic', authType: 'oauth', connection: 'school' });
+    const notice: AuthNoticeAction = {
+      kind: 'auth-login', noticeId: 'notice-2', backend: 'claude', provider: 'anthropic', connection: 'school', authType: 'oauth',
+    };
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(<LangProvider><LoginFlowProvider>
+        <ChatNotice level="error" text="Authentication expired" authAction={notice} />
+      </LoginFlowProvider></LangProvider>);
+    });
+    act(() => { find(renderer, { 'data-auth-notice-action': true }).props.onClick(); });
+    await flush();
+
+    expect(harness.startCalls).toEqual([{
+      backend: 'claude', provider: 'anthropic', authType: 'oauth', connection: 'school', noticeId: 'notice-2',
+    }]);
+    expect(find(renderer, { 'data-auth-title': true }).props.children).toBe('Log in to Claude Code (School)');
+  });
+
+  it('registers a new account and drives the login it returns', async () => {
+    harness.onStart = () => prompt(1, CLAUDE_PROMPT, { backend: 'claude', provider: 'anthropic', authType: 'oauth', connection: 'team' });
+    const renderer = mount({
+      target: { backend: 'claude', provider: 'anthropic', authType: 'oauth', newAccount: 'Team', label: 'Claude Code (Team)' },
+    });
+    await flush();
+
+    expect(harness.addCalls).toEqual([{ backend: 'claude', label: 'Team' }]);
+    expect(harness.startCalls).toEqual([]);
+    expect(flowStep(renderer)).toBe('prompt');
+    expect(find(renderer, { 'data-auth-title': true }).props.children).toBe('Log in to Claude Code (Team)');
   });
 });
