@@ -12,7 +12,7 @@ import {
 
 function state(overrides: Partial<LoginFlowState> = {}): LoginFlowState {
   return {
-    flowId: 'flow-1', revision: 1, backend: 'pi', provider: 'deepseek', authType: 'api_key',
+    flowId: 'flow-1', revision: 1, connection: null, backend: 'pi', provider: 'deepseek', authType: 'api_key',
     step: 'running', pendingPrompt: null, notice: null, channel: null, sessionId: null,
     createdAt: '2030-01-01T00:00:00.000Z', expiresAt: '2030-01-01T00:30:00.000Z',
     outcome: null, error: null, errorCode: null,

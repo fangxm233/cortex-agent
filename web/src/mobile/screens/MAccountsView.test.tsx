@@ -9,25 +9,25 @@ const status: AuthStatusSnapshot = {
   generatedAt: '2030-01-01T00:00:00.000Z',
   accounts: [
     {
-      backend: 'claude', provider: 'anthropic', label: 'Anthropic', capabilities: ['api_key', 'oauth'],
+      backend: 'claude', provider: 'anthropic', label: 'Anthropic', connection: null, isDefault: true, identity: null, capabilities: ['api_key', 'oauth'],
       authType: 'oauth', state: 'logged-in', source: 'credentials.json', expiresAt: '2031-01-01T00:00:00.000Z',
       refreshExpiresAt: null, inUse: true,
       credentials: [{ authType: 'oauth', state: 'logged-in', source: 'credentials.json', expiresAt: '2031-01-01T00:00:00.000Z', refreshExpiresAt: null, manageable: true }],
     },
     {
-      backend: 'pi', provider: 'openrouter', label: 'OpenRouter', capabilities: ['api_key', 'oauth'],
+      backend: 'pi', provider: 'openrouter', label: 'OpenRouter', connection: null, isDefault: true, identity: null, capabilities: ['api_key', 'oauth'],
       authType: 'oauth', state: 'expiring', source: 'stored', expiresAt: '2030-02-01T00:00:00.000Z',
       refreshExpiresAt: null, inUse: true,
       credentials: [{ authType: 'oauth', state: 'expiring', source: 'stored', expiresAt: '2030-02-01T00:00:00.000Z', refreshExpiresAt: null, manageable: true }],
     },
     {
-      backend: 'pi', provider: 'deepseek', label: 'DeepSeek', capabilities: ['api_key'],
+      backend: 'pi', provider: 'deepseek', label: 'DeepSeek', connection: null, isDefault: true, identity: null, capabilities: ['api_key'],
       authType: 'api_key', state: 'logged-in', source: 'environment', expiresAt: null,
       refreshExpiresAt: null, inUse: false,
       credentials: [{ authType: 'api_key', state: 'logged-in', source: 'environment', expiresAt: null, refreshExpiresAt: null, manageable: false }],
     },
     {
-      backend: 'pi', provider: 'unused', label: 'Unused', capabilities: ['api_key'],
+      backend: 'pi', provider: 'unused', label: 'Unused', connection: null, isDefault: true, identity: null, capabilities: ['api_key'],
       authType: null, state: 'logged-out', source: null, expiresAt: null,
       refreshExpiresAt: null, inUse: false, credentials: [],
     },

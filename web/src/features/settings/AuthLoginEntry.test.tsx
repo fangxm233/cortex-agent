@@ -107,7 +107,7 @@ const snapshot: ConfigSnapshot = {
 const authStatus: AuthStatusSnapshot = {
   generatedAt: '2030-01-01T00:00:00.000Z',
   accounts: [{
-    backend: 'claude', provider: 'anthropic', label: 'Anthropic',
+    backend: 'claude', provider: 'anthropic', label: 'Anthropic', connection: null, isDefault: true, identity: null,
     capabilities: ['api_key', 'oauth'], authType: null, state: 'logged-out', source: null,
     expiresAt: null, refreshExpiresAt: null, inUse: true, credentials: [],
   }],

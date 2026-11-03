@@ -26,7 +26,7 @@ function piAccount(
 ): AuthAccountStatus {
   const current = credentials[0] ?? null;
   return {
-    backend: 'pi', provider, label: provider.toUpperCase(), capabilities,
+    backend: 'pi', provider, label: provider.toUpperCase(), connection: null, isDefault: true, identity: null, capabilities,
     authType: current?.authType ?? null, state: current?.state ?? 'logged-out', source: current?.source ?? null,
     expiresAt: current?.expiresAt ?? null, refreshExpiresAt: null, inUse: false, credentials,
     detail: 'sentinel-account-fragment', ...overrides,
@@ -36,7 +36,7 @@ function piAccount(
 function claude(credentials: AuthCredentialStatus[], overrides: Partial<AuthAccountStatus> = {}): AuthAccountStatus {
   const current = credentials[0] ?? null;
   return {
-    backend: 'claude', provider: 'anthropic', label: 'Anthropic', capabilities: ['api_key', 'oauth'],
+    backend: 'claude', provider: 'anthropic', label: 'Anthropic', connection: null, isDefault: true, identity: null, capabilities: ['api_key', 'oauth'],
     authType: current?.authType ?? null, state: current?.state ?? 'logged-out', source: current?.source ?? null,
     expiresAt: current?.expiresAt ?? null, refreshExpiresAt: null, inUse: true, credentials, ...overrides,
   };
