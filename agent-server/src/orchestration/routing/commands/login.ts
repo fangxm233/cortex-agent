@@ -16,17 +16,15 @@ import type { CommandActionRouter } from '@orch/interactions/command-action-rout
 import type {
   ActionContext,
   ButtonElement,
-  Destination,
-  MessageContent,
-  MessageRef,
   ModalDefinition,
   ModalField,
   ModalSubmitContext,
   PlatformAdapter,
-  RichBlock,
 } from '@platform/index.js';
 import type { CommandResult } from './command-context.js';
 import { handleCustomProviderCommand } from './login-custom.js';
+import { findNamedAccount, loginName, unknownAccountText } from './login-accounts.js';
+import { deliverNotice, loginDestination, noticeKey, renderNotice, type NoticeTracker } from './login-render.js';
 import {
   loginStartFailureText,
   openAuthRequiredLoginAction,
@@ -57,6 +55,8 @@ type InteractiveLoginDependencies = ResolvedLoginDependencies & { router: Comman
 interface LoginOpenMetadata {
   backend: 'claude' | 'pi';
   provider?: string;
+  /** A named account to sign in again; absent or null is the provider's default login. */
+  connection?: string | null;
   authType?: AuthType;
   flowId?: string;
   noticeId?: string;
@@ -70,23 +70,22 @@ interface LoginOpenMetadata {
 
 type LoginRequest =
   | { kind: 'status' }
-  | { kind: 'login'; backend: 'claude' | 'pi'; provider?: string }
+  | { kind: 'login'; backend: 'claude' | 'pi'; provider?: string; account?: string }
   | { kind: 'custom'; args: string[] }
   | { kind: 'usage' };
 
-interface NoticeTracker {
-  lastNotice: string | null;
-  progressRef: MessageRef | null;
-}
 
+/** `!login cc [account]`. */
 function parseClaudeRequest(args: string[]): LoginRequest {
-  return args.length === 0 ? { kind: 'login', backend: 'claude' } : { kind: 'usage' };
+  if (args.length > 1) return { kind: 'usage' };
+  return { kind: 'login', backend: 'claude', ...(args[0] ? { account: args[0] } : {}) };
 }
 
+/** `!login pi [provider [account]]`. */
 function parsePiRequest(args: string[]): LoginRequest {
-  if (args.length === 0) return { kind: 'login', backend: 'pi' };
-  if (args.length === 1) return { kind: 'login', backend: 'pi', provider: args[0] };
-  return { kind: 'usage' };
+  if (args.length > 2) return { kind: 'usage' };
+  const [provider, account] = args;
+  return { kind: 'login', backend: 'pi', ...(provider ? { provider } : {}), ...(account ? { account } : {}) };
 }
 
 function parseRequest(message: string): LoginRequest {
@@ -99,9 +98,10 @@ function parseRequest(message: string): LoginRequest {
   return { kind: 'usage' };
 }
 
+/** PI providers to sign in to: their default logins; named accounts sit beside them. */
 function loginProviders(snapshot: AuthStatusSnapshot) {
   return snapshot.accounts.filter(account => (
-    account.backend === 'pi' && account.capabilities.length > 0
+    account.backend === 'pi' && !account.connection && account.capabilities.length > 0
   ));
 }
 
@@ -111,7 +111,7 @@ function loginAccount(
   provider: string,
 ) {
   return snapshot.accounts.find(account => (
-    account.backend === backend && account.provider === provider
+    account.backend === backend && account.provider === provider && !account.connection
   ));
 }
 
@@ -119,9 +119,6 @@ function authTypeLabel(authType: AuthType): string {
   return t(`cmd.auth.type.${authType}`);
 }
 
-function loginDestination(channel: string): Destination {
-  return { type: 'interactive-reply', conduit: channel, sessionId: '' };
-}
 
 function providerField(snapshot: AuthStatusSnapshot): ModalField {
   return {
@@ -243,7 +240,7 @@ async function waitForActionable(
 function flowResultText(state: LoginFlowState): string {
   if (state.step === 'done') {
     return t('cmd.auth.loginSucceeded', {
-      provider: state.outcome?.provider ?? state.provider ?? '',
+      provider: loginName(state.outcome?.provider ?? state.provider ?? '', state.connection),
       authType: authTypeLabel(state.outcome?.authType ?? state.authType ?? 'api_key'),
       expires: state.outcome?.expiresAt ?? t('cmd.auth.loginNoExpiry'),
     });
@@ -267,6 +264,7 @@ function ownsFlow(state: LoginFlowState, metadata: LoginOpenMetadata): boolean {
   return state.channel === metadata.channel
     && state.backend === metadata.backend
     && state.provider === metadata.provider
+    && (state.connection ?? null) === (metadata.connection ?? null)
     && state.authType === metadata.authType;
 }
 
@@ -282,75 +280,6 @@ function providerSelectionMetadata(
       [account.provider, account.capabilities]
     ))),
   };
-}
-
-function section(text: string): RichBlock {
-  return { type: 'section', text, format: 'markdown' };
-}
-
-function messageContent(lines: string[], richBlocks?: RichBlock[]): MessageContent {
-  const text = lines.join('\n');
-  return { text, richBlocks: richBlocks ?? [section(text)] };
-}
-
-function renderInfoNotice(notice: Extract<LoginFlowNotice, { kind: 'info' }>): MessageContent {
-  const links = (notice.links ?? []).map(link => (
-    link.label ? `${link.label}: ${link.url}` : link.url
-  ));
-  return messageContent([notice.message, ...links]);
-}
-
-function renderAuthUrlNotice(
-  notice: Extract<LoginFlowNotice, { kind: 'auth_url' }>,
-): MessageContent {
-  const heading = notice.instructions ?? t('cmd.auth.loginOpenAuthorization');
-  return messageContent([heading, notice.url]);
-}
-
-function renderDeviceNotice(
-  notice: Extract<LoginFlowNotice, { kind: 'device_code' }>,
-): MessageContent {
-  const code = `*${t('cmd.auth.loginDeviceCode')}*\n\`${notice.userCode}\``;
-  const verify = `*${t('cmd.auth.loginVerificationPage')}*\n${notice.verificationUri}`;
-  const expiry = notice.expiresInSeconds === undefined
-    ? []
-    : [t('cmd.auth.loginDeviceExpires', { seconds: notice.expiresInSeconds })];
-  return messageContent([code, verify, ...expiry], [section(code), section(verify), ...expiry.map(section)]);
-}
-
-function renderProgressNotice(
-  notice: Extract<LoginFlowNotice, { kind: 'progress' }>,
-): MessageContent {
-  return messageContent([t('cmd.auth.loginProgress', { message: notice.message })]);
-}
-
-function renderNotice(notice: LoginFlowNotice): MessageContent {
-  if (notice.kind === 'info') return renderInfoNotice(notice);
-  if (notice.kind === 'auth_url') return renderAuthUrlNotice(notice);
-  if (notice.kind === 'device_code') return renderDeviceNotice(notice);
-  return renderProgressNotice(notice);
-}
-
-function noticeKey(notice: LoginFlowNotice | null): string | null {
-  return notice ? JSON.stringify(notice) : null;
-}
-
-async function deliverNotice(
-  adapter: PlatformAdapter,
-  channel: string,
-  notice: LoginFlowNotice,
-  tracker: NoticeTracker,
-): Promise<void> {
-  const key = noticeKey(notice);
-  if (tracker.lastNotice === key) return;
-  tracker.lastNotice = key;
-  const content = renderNotice(notice);
-  if (notice.kind === 'progress' && tracker.progressRef) {
-    await adapter.updateMessage(tracker.progressRef, content);
-    return;
-  }
-  const ref = await adapter.postMessage(loginDestination(channel), content);
-  if (notice.kind === 'progress') tracker.progressRef = ref;
 }
 
 function promptButtonText(state: LoginFlowState): string {
@@ -377,7 +306,7 @@ async function postPromptAction(
 ): Promise<void> {
   const authType = authTypeLabel(metadata.authType!);
   await adapter.postMessage(loginDestination(metadata.channel), {
-    text: t('cmd.auth.loginReady', { provider: metadata.provider ?? '', authType }),
+    text: t('cmd.auth.loginReady', { provider: loginName(metadata.provider ?? '', metadata.connection), authType }),
     richBlocks: [{
       type: 'actions',
       elements: openAction({ ...metadata, flowId: state.flowId, stage: 'prompt' }, promptButtonText(state)),
@@ -571,6 +500,7 @@ function startSelectedFlow(
 ): void {
   void dependencies.authLogin.start({
     backend: metadata.backend, provider: metadata.provider!, authType: metadata.authType!,
+    ...(metadata.connection ? { connection: metadata.connection } : {}),
     channel: metadata.channel, sessionId: null,
   }).then(state => monitorFlow(state, { ...metadata, flowId: state.flowId }, dependencies))
     .catch(error => postBackgroundFailure(metadata, dependencies, error));
@@ -583,7 +513,7 @@ async function postAuthTypeAction(
   const adapter = dependencies.router.getAdapter();
   if (!adapter) return;
   await adapter.postMessage(loginDestination(metadata.channel), {
-    text: t('cmd.auth.loginChooseAuthType', { provider: metadata.provider ?? '' }),
+    text: t('cmd.auth.loginChooseAuthType', { provider: loginName(metadata.provider ?? '', metadata.connection) }),
     richBlocks: [{
       type: 'actions',
       elements: openAction(metadata, t('cmd.auth.loginChoose')),
@@ -681,26 +611,39 @@ function promptResult(state: LoginFlowState, metadata: LoginOpenMetadata): Comma
   const authType = authTypeLabel(metadata.authType!);
   return {
     text: notice?.text ?? t('cmd.auth.loginReady', {
-      provider: metadata.provider ?? '', authType,
+      provider: loginName(metadata.provider ?? '', metadata.connection), authType,
     }),
     richBlocks: notice?.richBlocks,
     actions: openAction(metadata, promptButtonText(state)),
   };
 }
 
+/** Where an explicit login goes: the channel it reports to and the login it signs in. */
+interface LoginTarget {
+  channel: string;
+  backend: 'claude' | 'pi';
+  provider: string;
+  connection: string | null;
+}
+
+function targetMetadata(target: LoginTarget): Pick<LoginOpenMetadata, 'backend' | 'provider' | 'channel' | 'connection'> {
+  return {
+    backend: target.backend, provider: target.provider, channel: target.channel,
+    ...(target.connection ? { connection: target.connection } : {}),
+  };
+}
+
 async function startExplicitLogin(
-  channel: string,
-  backend: 'claude' | 'pi',
-  provider: string,
+  target: LoginTarget,
   authType: AuthType,
   dependencies: ResolvedLoginDependencies,
 ): Promise<CommandResult> {
   const state = await dependencies.authLogin.start({
-    backend, provider, authType, channel, sessionId: null,
+    backend: target.backend, provider: target.provider, authType,
+    ...(target.connection ? { connection: target.connection } : {}),
+    channel: target.channel, sessionId: null,
   });
-  const metadata: LoginOpenMetadata = {
-    backend, provider, authType, flowId: state.flowId, channel, stage: 'prompt',
-  };
+  const metadata: LoginOpenMetadata = { ...targetMetadata(target), authType, flowId: state.flowId, stage: 'prompt' };
   if (state.step === 'prompt') return promptResult(state, metadata);
   if (TERMINAL_STEPS.has(state.step)) return { text: flowResultText(state) };
   if (dependencies.router) {
@@ -726,32 +669,33 @@ function providerSelectionResult(channel: string, count: number): CommandResult 
   };
 }
 
-function authTypeSelectionResult(
-  channel: string,
-  backend: 'claude' | 'pi',
-  provider: string,
-  capabilities: AuthType[],
-): CommandResult {
-  const metadata: LoginOpenMetadata = {
-    backend, provider, channel, stage: 'auth_type', allowedAuthTypes: capabilities,
-  };
+function authTypeSelectionResult(target: LoginTarget, capabilities: AuthType[]): CommandResult {
+  const metadata: LoginOpenMetadata = { ...targetMetadata(target), stage: 'auth_type', allowedAuthTypes: capabilities };
   return {
-    text: t('cmd.auth.loginChooseAuthType', { provider }),
+    text: t('cmd.auth.loginChooseAuthType', { provider: loginName(target.provider, target.connection) }),
     actions: openAction(metadata, t('cmd.auth.loginChoose')),
   };
 }
 
 async function startOrSelectAuthType(
-  channel: string,
-  backend: 'claude' | 'pi',
-  provider: string,
+  target: LoginTarget,
   capabilities: AuthType[],
   dependencies: ResolvedLoginDependencies,
 ): Promise<CommandResult> {
-  if (capabilities.length === 1) {
-    return startExplicitLogin(channel, backend, provider, capabilities[0], dependencies);
-  }
-  return authTypeSelectionResult(channel, backend, provider, capabilities);
+  if (capabilities.length === 1) return startExplicitLogin(target, capabilities[0], dependencies);
+  return authTypeSelectionResult(target, capabilities);
+}
+
+/** `!login cc <account>` / `!login pi <provider> <account>`: sign an existing account in again. */
+function startAccountLogin(
+  target: Omit<LoginTarget, 'connection'>,
+  snapshot: AuthStatusSnapshot,
+  name: string,
+  dependencies: ResolvedLoginDependencies,
+): Promise<CommandResult> | CommandResult {
+  const account = findNamedAccount(snapshot, target.backend, target.provider, name);
+  if (!account) return { text: unknownAccountText(snapshot, target.backend, target.provider, name) };
+  return startOrSelectAuthType({ ...target, connection: account.connection }, account.capabilities, dependencies);
 }
 
 async function handlePiLoginRequest(
@@ -766,22 +710,24 @@ async function handlePiLoginRequest(
   if (!selected || selected.capabilities.length === 0) {
     return { text: t('cmd.auth.loginUnknownProvider', { provider: request.provider }) };
   }
-  return startOrSelectAuthType(
-    channel, 'pi', selected.provider, selected.capabilities, dependencies,
-  );
+  const target = { channel, backend: 'pi' as const, provider: selected.provider };
+  if (request.account) return startAccountLogin(target, snapshot, request.account, dependencies);
+  return startOrSelectAuthType({ ...target, connection: null }, selected.capabilities, dependencies);
 }
 
 async function handleClaudeLoginRequest(
   channel: string,
+  request: Extract<LoginRequest, { kind: 'login' }>,
   dependencies: ResolvedLoginDependencies,
 ): Promise<CommandResult> {
   const snapshot = await dependencies.readStatus();
-  const selected = loginAccount(snapshot, 'claude', 'anthropic');
-  const capabilities = selected?.capabilities ?? [];
+  const target = { channel, backend: 'claude' as const, provider: 'anthropic' };
+  if (request.account) return startAccountLogin(target, snapshot, request.account, dependencies);
+  const capabilities = loginAccount(snapshot, 'claude', 'anthropic')?.capabilities ?? [];
   if (capabilities.length === 0) {
     return { text: t('cmd.auth.loginUnknownProvider', { provider: 'anthropic' }) };
   }
-  return startOrSelectAuthType(channel, 'claude', 'anthropic', capabilities, dependencies);
+  return startOrSelectAuthType({ ...target, connection: null }, capabilities, dependencies);
 }
 
 export function createLoginHandler(input: LoginCommandDependencies = {}) {
@@ -800,7 +746,7 @@ export function createLoginHandler(input: LoginCommandDependencies = {}) {
       return handleCustomProviderCommand(request.args);
     }
     if (request.kind === 'usage') return { text: t('cmd.auth.usage') };
-    if (request.backend === 'claude') return handleClaudeLoginRequest(channel, dependencies);
+    if (request.backend === 'claude') return handleClaudeLoginRequest(channel, request, dependencies);
     return handlePiLoginRequest(channel, request, dependencies);
   };
 }

@@ -1,7 +1,8 @@
 import { beforeEach, expect, test, vi } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CONFIG_DIR } from '../src/core/paths.js';
+import { mkdirSync } from 'node:fs';
+import { CLAUDE_ACCOUNTS_HOME, CONFIG_DIR } from '../src/core/paths.js';
 import { upsertConnection } from '../src/core/connections-file.js';
 import { modelsRepo } from '../src/store/models-repo.js';
 import { clearChannelSelection, getChannelSelection } from '../src/domain/agents/config.js';
@@ -50,4 +51,18 @@ test('!connection sets a stored connection, reports it, refuses an unknown one a
   expect(adapter.posted.at(-1)?.content.text).toContain('missing');
   await handleConnectionCmd('model-cmd', adapter, '!connection reset');
   expect(getChannelSelection('model-cmd')?.connection).toBeNull();
+});
+
+test('!connection switches to a signed-in Claude account and names it by its label', async () => {
+  upsertConnection({ id: 'school', backend: 'claude', type: 'account', label: 'School Team' });
+  const dir = join(CLAUDE_ACCOUNTS_HOME, 'school');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, '.credentials.json'), JSON.stringify({ claudeAiOauth: {
+    accessToken: 'fake-access', refreshToken: 'fake-refresh', expiresAt: Date.now() + 86_400_000 } }));
+  const adapter = new MockAdapter();
+  await handleConnectionCmd('model-cmd', adapter, '!connection school');
+  expect(getChannelSelection('model-cmd')?.connection).toBe('school');
+  await handleConnectionCmd('model-cmd', adapter, '!connection');
+  expect(adapter.posted.at(-1)?.content.text).toContain('school');
+  expect(adapter.posted.at(-1)?.content.text).toContain('School Team');
 });

@@ -15,6 +15,7 @@ import { conversationPluginDirs } from '@domain/plugins/conversation-skills.js';
 import { getSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { getEnvironment, listEnvironments } from '@domain/agents/environments/registry.js';
+import { credentialInventory } from '@domain/connections/index.js';
 
 function destination(channel: string): Destination {
   return { type: 'interactive-reply', conduit: channel, sessionId: '' };
@@ -50,9 +51,15 @@ async function selectReply(channel: string, selection: Partial<EngineSelection>)
     : `${Icons.error} ${selectionFailure(result, selection)}`;
 }
 
+/** A named account reads as its id and label; any other connection as its id. */
+function connectionName(id: string): string {
+  const account = credentialInventory.accounts().find(entry => entry.id === id);
+  return account ? t('cmd.connection.account', { id, label: account.label }) : id;
+}
+
 function connectionText(current: EngineSelection): string {
   if (current.backend === 'pi') return t('cmd.connection.piProvider', { provider: current.provider ?? '' });
-  return t('cmd.connection.current', { connection: current.connection ?? '—' });
+  return t('cmd.connection.current', { connection: current.connection ? connectionName(current.connection) : '—' });
 }
 
 /** `!connection [id|reset]`; `!mode` is the older name of the same command. */

@@ -28,18 +28,27 @@ function formatCredential(credential: AuthCredentialStatus): string {
   });
 }
 
+/** A named account shows the id `!login` and `!connection` take beside its label. */
+function accountLabel(account: AuthAccountStatus): string {
+  return account.connection ? t('cmd.auth.accountName', { label: account.label, id: account.connection }) : account.label;
+}
+
 function formatAccount(account: AuthAccountStatus): string[] {
   const backend = t(`cmd.auth.backend.${account.backend}`);
+  const email = account.identity?.email;
   const line = t('cmd.auth.accountLine', {
-    backend, label: account.label, authType: authTypeLabel(account.authType),
-    state: authStateLabel(account.state), inUse: account.inUse ? t('cmd.auth.inUse') : '',
+    backend, label: accountLabel(account), authType: authTypeLabel(account.authType),
+    state: authStateLabel(account.state), identity: email ? t('cmd.auth.identity', { email }) : '',
+    inUse: account.inUse ? t('cmd.auth.inUse') : '',
   });
   if (account.credentials.length === 0) return [line];
   return [line, t('cmd.auth.credentials'), ...account.credentials.map(formatCredential)];
 }
 
+/** Claude and every named account always show; a PI provider only once it holds something. */
 function visibleInSummary(account: AuthAccountStatus): boolean {
   return account.backend === 'claude'
+    || !!account.connection
     || account.inUse
     || account.state !== 'logged-out'
     || account.credentials.length > 0;
