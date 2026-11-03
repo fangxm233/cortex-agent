@@ -5,12 +5,14 @@ import { LangProvider } from '@/i18n';
 import { modelKey } from '@/lib/model-selection';
 
 const harness = vi.hoisted(() => ({
-  config: null as unknown, catalog: null as unknown, connections: [] as unknown[], writes: vi.fn(), invalidate: vi.fn(), fetch: vi.fn(),
+  config: null as unknown, catalog: null as unknown, connections: [] as unknown[], status: undefined as unknown, writes: vi.fn(), invalidate: vi.fn(), fetch: vi.fn(),
 }));
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: (opts: { kind: string }) => (opts.kind === 'connections'
-    ? { data: harness.connections, isLoading: false }
-    : { data: opts.kind === 'config' ? harness.config : harness.catalog, isLoading: !harness.catalog }),
+  useQuery: (opts: { kind: string }) => {
+    if (opts.kind === 'connections') return { data: harness.connections, isLoading: false };
+    if (opts.kind === 'status') return { data: harness.status, isLoading: false };
+    return { data: opts.kind === 'config' ? harness.config : harness.catalog, isLoading: !harness.catalog };
+  },
   useQueryClient: () => ({ invalidateQueries: harness.invalidate, fetchQuery: harness.fetch }),
   useMutation: (opts: { kind: string; onSuccess: () => void }) => ({
     mutate: (input: unknown) => { harness.writes(opts.kind, input); opts.onSuccess(); },
@@ -21,6 +23,7 @@ vi.mock('@/lib/trpc', () => ({ useTRPC: () => {
   return {
     config: { get: { queryOptions: () => ({ kind: 'config' }), queryFilter: () => ({ kind: 'config' }) } },
     connections: { list: { queryOptions: () => ({ kind: 'connections' }) } },
+    auth: { status: { queryOptions: () => ({ kind: 'status' }) } },
     models: {
       catalog: { queryOptions: () => ({ kind: 'catalog' }) },
       favorites: { add: mutation('add'), remove: mutation('remove') },
@@ -57,6 +60,8 @@ beforeEach(() => {
   harness.config = { models: { default: current, favorites: [current, other], memory: {} }, agents: [{ name: 'main' }] } as Partial<ConfigSnapshot>;
   harness.catalog = catalog;
   harness.fetch.mockResolvedValue(catalog);
+  harness.connections = [];
+  harness.status = undefined;
 });
 
 describe('shared selection controller', () => {
@@ -70,6 +75,19 @@ describe('shared selection controller', () => {
     expect(harness.fetch).toHaveBeenCalledOnce();
     expect(harness.writes).toHaveBeenCalledWith('selection', { sessionId: 's1', selection: { ...sonnet, thinking: null, connection: 'subscription' } });
     act(() => tree.unmount());
+  });
+  it('names the default login by its email, else by the generic name, and keeps the Default row apart', () => {
+    harness.connections = [
+      { id: 'subscription', kind: 'subscription', label: 'Claude subscription' }, { id: 'api', kind: 'key', label: 'api' },
+    ];
+    const generic = mount();
+    expect(value.connectionOptions.map(option => option.label)).toEqual(['Default (api)', 'api', 'Claude subscription']);
+    act(() => generic.unmount());
+    harness.status = { accounts: [{ backend: 'claude', connection: null, identity: { email: 'me@home.com' } }] };
+    const named = mount();
+    expect(value.connectionOptions.map(option => option.label)).toEqual(['Default (api)', 'api', 'me@home.com']);
+    expect(value.rootRows.find(row => row.key === 'connection')?.value).toBe('me@home.com');
+    act(() => named.unmount());
   });
   it('uses remembered thinking for a PI pick without requiring the catalog', async () => {
     harness.catalog = null;

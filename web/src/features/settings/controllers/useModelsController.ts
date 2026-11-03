@@ -4,7 +4,8 @@ import type { ConfigSnapshot, ModelRef } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
-import { connectionNames, modelKey, selectionForModel } from '@/lib/model-selection';
+import { modelKey, selectionForModel } from '@/lib/model-selection';
+import { useConnectionNames } from '@/lib/useConnectionNames';
 import {
   buildModelFacts, catalogModels, defaultConnectionControl, defaultModelOptions,
 } from '@/features/settings/vm/models-panel-vm';
@@ -36,8 +37,7 @@ function useModelsResources(initialSnapshot?: ConfigSnapshot) {
     ...trpc.models.catalog.queryOptions({}), staleTime: 60_000,
     refetchInterval: query => query.state.data?.piPending ? 2_500 : false,
   });
-  const connections = useQuery(trpc.connections.list.queryOptions({}));
-  return { config, catalog, connections, catalogOpen, setCatalogOpen };
+  return { config, catalog, catalogOpen, setCatalogOpen };
 }
 
 function useModelWriteGate() {
@@ -91,7 +91,7 @@ export function useModelsController(initialSnapshot?: ConfigSnapshot) {
   const facts = snapshot ? buildModelFacts(snapshot) : [];
   const options = snapshot ? defaultModelOptions(snapshot, catalog.data ?? null) : [];
   const actions = useModelActions(resources, options);
-  const names = connectionNames(resources.connections.data);
+  const names = useConnectionNames(L.wbConnectionSubscription);
   return {
     snapshot, facts, options, loading: config.isLoading, error: config.error,
     connectionControl: snapshot ? defaultConnectionControl(snapshot, catalog.data ?? null, names, L.wbConnectionDefault) : null,

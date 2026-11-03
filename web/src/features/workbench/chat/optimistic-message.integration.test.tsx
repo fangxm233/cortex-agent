@@ -60,6 +60,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
       }
       if (options.__kind === 'schedules.list') return { data: [], isPending: false };
       if (options.__kind === 'connections.list') return { data: [], isPending: false };
+      if (options.__kind === 'auth.status') return { data: undefined, isPending: false };
       // Nothing is waiting on an external signal in these scenarios; the rail then renders nothing.
       if (options.__kind === 'waitpoints.list') return { data: [], isPending: false };
       // The slash palette's skills; these scenarios never open it.
@@ -104,6 +105,7 @@ vi.mock('@/lib/trpc', () => ({
         get: query('config.get'),
       },
       connections: { list: query('connections.list') },
+      auth: { status: query('auth.status') },
       models: {
         catalog: query('models.catalog'),
         favorites: {

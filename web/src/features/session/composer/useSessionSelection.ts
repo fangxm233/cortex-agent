@@ -3,8 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { EngineSelection } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import {
-  connectionName, connectionNames, defaultConnectionFor, hasRoute, selectionForModel,
+  connectionName, defaultConnectionFor, hasRoute, selectionForModel,
 } from '@/lib/model-selection';
+import { useConnectionNames } from '@/lib/useConnectionNames';
 import { useToastOptional } from '@/design';
 import { fmt, useVocab } from '@/i18n';
 import {
@@ -81,18 +82,17 @@ function useApplySelection(input: SessionSelectionInput, mutations: ReturnType<t
 
 const EMPTY_ENGINE: EngineSelection = { backend: 'claude', provider: null, model: '', thinking: null, connection: null };
 
-function useSelectionData(input: SessionSelectionInput, open: boolean) {
+function useSelectionData(input: SessionSelectionInput, open: boolean, L: ReturnType<typeof useVocab>) {
   const trpc = useTRPC();
   const config = useQuery(trpc.config.get.queryOptions({}));
   const catalogQuery = useQuery(trpc.models.catalog.queryOptions({}, { enabled: open }));
-  // Account ids are slugs of their labels; the picker shows the label.
-  const connections = useQuery(trpc.connections.list.queryOptions({}, { enabled: open }));
+  const names = useConnectionNames(L.wbConnectionSubscription, open);
   const transition = resolveTransitionSelection(input.currentSelection, input.pendingCreatedSession, input.sessionId);
   const selection = input.isDraft ? input.draftSelection.selection : transition;
   const agentName = (input.isDraft ? input.draftSelection.agentName
     : resolveTransitionAgent(input.currentAgent, input.pendingCreatedSession, input.sessionId)) ?? null;
   return {
-    config: config.data, catalogQuery, names: connectionNames(connections.data),
+    config: config.data, catalogQuery, names,
     effective: selection ?? config.data?.models.default ?? EMPTY_ENGINE, agentName,
   };
 }
@@ -146,7 +146,7 @@ function useModelActions(data: ReturnType<typeof useSelectionData>, mutations: R
 export function useSessionSelection(input: SessionSelectionInput) {
   const L = useVocab();
   const picker = usePickerState();
-  const data = useSelectionData(input, picker.open);
+  const data = useSelectionData(input, picker.open, L);
   const mutations = useSelectionMutations();
   const apply = useApplySelection(input, mutations);
   const options = selectionOptions(data, !input.isDraft && input.hasHistory, L);

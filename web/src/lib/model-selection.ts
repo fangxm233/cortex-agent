@@ -1,5 +1,5 @@
 import type {
-  ConfigSnapshot, ConnectionView, EngineSelection, ModelCatalogSnapshot, ModelRef,
+  AuthStatusSnapshot, ConfigSnapshot, ConnectionView, EngineSelection, ModelCatalogSnapshot, ModelRef,
 } from '@cortex-agent/ui-contract';
 
 export function modelKey(ref: ModelRef): string {
@@ -10,12 +10,26 @@ export function modelLabel(ref: ModelRef): string {
   return ref.model.replace(/^claude-/, '').replace(/-\d{8}$/, '');
 }
 
-/** Display names of connections that have one: an account shows its label, every other connection
- *  its id. */
+/** Display names of connections that have one: an account shows its label, Claude's default login
+ *  the name it is given, every other connection its id. */
 export type ConnectionNames = Readonly<Record<string, string>>;
 
-export function connectionNames(views: readonly ConnectionView[] | null | undefined): ConnectionNames {
-  return Object.fromEntries((views ?? []).filter((view) => view.kind === 'account').map((view) => [view.id, view.label]));
+function viewName(view: ConnectionView, defaultLogin: string | undefined): string | undefined {
+  if (view.kind === 'account') return view.label;
+  return view.kind === 'subscription' ? defaultLogin : undefined;
+}
+
+export function connectionNames(views: readonly ConnectionView[] | null | undefined, defaultLogin?: string): ConnectionNames {
+  return Object.fromEntries((views ?? []).flatMap((view) => {
+    const name = viewName(view, defaultLogin);
+    return name ? [[view.id, name]] : [];
+  }));
+}
+
+/** What Claude's default login is called: the email it is signed in as, else `fallback`. */
+export function defaultLoginName(status: AuthStatusSnapshot | null | undefined, fallback: string): string {
+  const row = status?.accounts.find((account) => account.backend === 'claude' && !account.connection);
+  return row?.identity?.email ?? fallback;
 }
 
 export function connectionName(names: ConnectionNames, id: string): string {

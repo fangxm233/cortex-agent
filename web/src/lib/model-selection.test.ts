@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { ConfigModels, EngineSelection, ModelCatalogSnapshot, ModelRef } from '@cortex-agent/ui-contract';
+import type {
+  AuthAccountStatus, AuthStatusSnapshot, ConfigModels, ConnectionView, EngineSelection, ModelCatalogSnapshot, ModelRef,
+} from '@cortex-agent/ui-contract';
 import {
-  catalogModels, defaultConnectionFor, hasRoute, matchesModelFilter, modelKey, modelLabel, selectionForModel, servingConnections,
+  catalogModels, connectionName, connectionNames, defaultConnectionFor, defaultLoginName, hasRoute, matchesModelFilter,
+  modelKey, modelLabel, selectionForModel, servingConnections,
 } from './model-selection';
 
 const claude: ModelRef = { backend: 'claude', provider: null, model: 'claude-opus-5' };
@@ -116,5 +119,37 @@ describe('shared model filter', () => {
     expect(matchesModelFilter('Claude-Opus-5', ' OPUS ')).toBe(true);
     expect(matchesModelFilter('Claude-Opus-5', '')).toBe(true);
     expect(matchesModelFilter('Claude-Opus-5', 'sonnet')).toBe(false);
+  });
+});
+
+describe('connection names', () => {
+  const view = (fields: Partial<ConnectionView>): ConnectionView => ({
+    id: 'x', backend: 'claude', provider: null, kind: 'key', label: 'x', baseUrl: null, billing: 'metered',
+    authenticated: true, keyHint: null, models: null, ...fields,
+  });
+  const views = [
+    view({ id: 'subscription', kind: 'subscription', label: 'Claude subscription', billing: 'subscription' }),
+    view({ id: 'school', kind: 'account', label: 'School', billing: 'subscription' }),
+    view({ id: 'relay', label: 'Team relay' }),
+  ];
+  const row = (fields: Partial<AuthAccountStatus>) => ({
+    backend: 'claude', provider: 'anthropic', connection: null, isDefault: true, label: 'Anthropic', identity: null, ...fields,
+  }) as AuthAccountStatus;
+  const status = (...accounts: AuthAccountStatus[]) => ({ accounts }) as unknown as AuthStatusSnapshot;
+
+  it('names accounts by label and the default login by the name given; other connections keep their id', () => {
+    const names = connectionNames(views, 'me@home.com');
+    expect(['subscription', 'school', 'relay'].map(id => connectionName(names, id))).toEqual(['me@home.com', 'School', 'relay']);
+    expect(connectionName(connectionNames(views), 'subscription')).toBe('subscription');
+  });
+
+  it('names the default login by its email, else by the fallback', () => {
+    const named = status(row({ identity: { email: 'me@home.com', organization: null, plan: 'claude_max' } }),
+      row({ connection: 'school', isDefault: false, identity: { email: 'me@school.edu', organization: null, plan: null } }));
+    expect(defaultLoginName(named, 'Claude subscription')).toBe('me@home.com');
+    expect(defaultLoginName(status(row({})), 'Claude subscription')).toBe('Claude subscription');
+    expect(defaultLoginName(status(row({ backend: 'pi', provider: 'openai', identity: { email: 'pi@x.com', organization: null, plan: null } })), 'Claude subscription'))
+      .toBe('Claude subscription');
+    expect(defaultLoginName(undefined, 'Claude subscription')).toBe('Claude subscription');
   });
 });

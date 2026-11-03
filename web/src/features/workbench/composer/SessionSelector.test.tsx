@@ -26,7 +26,7 @@ vi.mock('@/design/Toast', async (importOriginal) => ({
 }));
 vi.mock('@tanstack/react-query', () => ({
   useQuery: (options: { __kind: string }) => {
-    if (options.__kind === 'connections.list') return { data: [] };
+    if (options.__kind === 'connections.list' || options.__kind === 'auth.status') return { data: undefined };
     return options.__kind === 'models.catalog'
       ? { data: harness.catalog, isLoading: !harness.catalog }
       : { data: { models: harness.models, agents: harness.agents } };
@@ -46,6 +46,7 @@ vi.mock('@/lib/trpc', () => {
   return { useTRPC: () => ({
     config: { get: { queryOptions: () => ({ __kind: 'config.get' }), queryFilter: () => ({}) } },
     connections: { list: { queryOptions: () => ({ __kind: 'connections.list' }) } },
+    auth: { status: { queryOptions: () => ({ __kind: 'auth.status' }) } },
     models: {
       catalog: { queryOptions: () => ({ __kind: 'models.catalog' }) },
       favorites: { add: mutation('models.favorites.add'), remove: mutation('models.favorites.remove') },

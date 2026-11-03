@@ -106,6 +106,7 @@ export const zhBase = {
   wbThinking: '思考强度',
   wbConnection: '连接',
   wbConnectionDefault: '默认（{connection}）',
+  wbConnectionSubscription: 'Claude 订阅',
   wbAgent: 'Agent',
   wbAgentDefault: '默认',
   wbAgentFollowDefault: '跟随全局默认',
