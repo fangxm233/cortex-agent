@@ -194,7 +194,8 @@ accounting. This is a runtime override and leaves the terminal PI settings intac
 
 **Credentials.** PI provider credentials are managed by Cortex — `!login pi` in
 chat or **Settings → Accounts** on the web — and stored in PI's own auth file at
-`~/.pi/agent/auth.json`. Cortex's sessions authenticate from that file directly,
+`~/.pi/agent/auth.json`; a named PI [account](#accounts) has its own,
+`$CORTEX_HOME/data/pi-accounts/<id>/auth.json`. Cortex's sessions authenticate from that file directly,
 so a token PI refreshes during a session lands where every other reader finds
 it, and Cortex reads user-defined providers from `~/.pi/agent/models.json`. An
 installation that also has the terminal `pi` CLI therefore shares one set of
@@ -396,17 +397,20 @@ status snapshot. Both are credential-free. See
 ## Accounts
 
 A provider can hold more than one account — a personal Claude Max subscription
-beside a school or team one, for example. The login Cortex keeps for a provider
-is its **default account**; every further account is a **named account**, with
-a label you choose.
+beside a school or team one, or a second ChatGPT plan or DeepSeek key for PI,
+for example. The login Cortex keeps for a provider is its **default account**;
+every further account is a **named account**, with a label you choose.
 
 **Adding an account.** In **Settings → Accounts**, **+ Add account** at the
-bottom of Claude Code's group asks for a name and opens the usual login dialog.
-Cortex derives the account's id from the name (`School Team` becomes
-`school-team`); chat commands and `config/connections.json` use that id. The
-account exists once its first login succeeds: a first login that fails or is
-cancelled leaves nothing behind. Accounts are added only in the Web UI; chat
-signs existing ones in again.
+bottom of Claude Code's group, or under a connected PI provider, asks for a name
+and opens the usual login dialog. A PI provider that signs in with either an API
+key or OAuth asks which one first. Cortex derives the account's id from the name
+(`School Team` becomes `school-team`); chat commands and
+`config/connections.json` use that id. An id is unique within its backend, and a
+PI account's id is never a PI provider's name. The account exists once its
+first login succeeds: a first login that fails or is cancelled leaves nothing
+behind. Accounts are added only in the Web UI; chat signs existing ones in
+again.
 
 **Managing accounts.** Each account row shows the label, the email and plan of
 the signed-in account, and the login state, with **Log in again**, **Log out**
@@ -415,20 +419,26 @@ and **Delete**. Once a provider has named accounts, its default login carries a
 one signs it out and removes it after a confirmation. Sessions, schedules and
 defaults that chose a logged-out or deleted account run on the default account.
 In chat, `!login status` lists every account with its id, `!login cc <account>`
-signs a Claude account in again by id or label, and `!connection <id>` moves a
-channel onto it.
+and `!login pi <provider> <account>` sign an account in again by id or label,
+and `!connection <id>` moves a channel onto it.
 
 **Choosing an account.** An account is a [connection](#per-session-model-thinking-level-and-route):
-the composer's **Connection** row lists accounts by label beside the
-subscription and any key connections, and **Settings → Models** can pin the
-default model to one. Changing a conversation's account starts a new Claude
-Code process on that account's login. All accounts share one transcript store,
-so the conversation resumes where it was; the first turn on the other account
-writes the prompt cache afresh.
+the composer's **Connection** row lists accounts by label, and **Settings →
+Models** can pin the default model to one. Changing a conversation's account
+starts a new Claude Code process or PI session on that account's login. All
+Claude accounts share one transcript store, so the conversation resumes where
+it was; the first turn on the other account writes the prompt cache afresh.
+
+**What an account holds.** A named Claude account keeps its login in its own
+Claude Code config directory. A PI account keeps its login in its own auth file
+and takes everything else from its provider, including a base URL the
+provider's connection sets, but never the connection's key: a relay in front of
+the provider receives the account's own key.
 
 **Separate limits.** Every account has its own Usage row, quota readings,
-banked resets and rate-limit windows. An account at its limit pauses only the
-work that runs on it.
+banked resets and rate-limit windows; a metered PI account's spend has its own
+row, such as **DeepSeek (Work)**. An account at its limit pauses only the work
+that runs on it.
 
 ## Custom providers
 
@@ -504,8 +514,8 @@ A fresh Web conversation starts from the last selected engine on this host.
 A conversation with history cannot change backend. The picker disables models
 on the other backend; a new draft can choose either backend.
 
-**Connection** applies to Claude Code only: which of this host's Claude
-connections a conversation runs on — the subscription, a named
+**Connection** is which of this host's logins and endpoints a conversation runs
+on. For Claude Code that is the subscription, a named
 [account](#accounts), an API key, or a relay or local endpoint added in
 **Settings → Accounts**. Accounts appear by their label, and the subscription
 by the email it is signed in as (**Claude subscription** when that is unknown).
@@ -516,8 +526,10 @@ connection row only when more than one connection can run the current model. Its
 connection that does. A connection with its own model list serves only those
 models. Picking another model keeps the chosen connection while it serves that
 model. A chosen connection that is later removed, or an account that is logged out,
-falls back to the default instead of failing the conversation. PI has no connection row: its provider is
-the connection. Claude Code and PI's built-in `anthropic` provider are separate
+falls back to the default instead of failing the conversation. For PI the
+provider is the connection: the row appears once the provider has a signed-in
+named account, and lists **Default**, the provider's own login, and those
+accounts. Picking a model of another provider returns to Default. Claude Code and PI's built-in `anthropic` provider are separate
 entries: PI's provider runs on PI's own Anthropic credentials, and when both are
 signed in each keeps its own models, favorites, quota and rate limits.
 
@@ -627,8 +639,10 @@ effect without a daemon restart. The legacy `CORTEX_AUTO_RESUME=0` variable in
 Every usage collection — the built-in provider-usage job, opening a Usage
 screen, or **Refresh** — reads two subscription accounts directly:
 
-- **OpenAI Codex**, with a ChatGPT-plan sign-in. The reading fills the Codex
-  primary and secondary windows on the Codex subscription row. When the read
+- **OpenAI Codex**, with a ChatGPT-plan sign-in. Each Codex account is read
+  with its own sign-in and has its own row; a named account's row reads
+  **OpenAI Codex (<label>)**. The reading fills the Codex
+  primary and secondary windows on the account's subscription row. When the read
   fails, the row keeps the windows last observed in Codex response headers and
   carries a note saying so.
 - **Claude**, signed in with `claude login`. Each Claude account is read on
@@ -645,7 +659,8 @@ screen, or **Refresh** — reads two subscription accounts directly:
   The account offers resets only to a current Claude Code client, so these
   requests identify as the installed `claude` CLI version.
 
-Each Usage row is one provider billed one way. Rows come from Cortex's own
+Each Usage row is one provider billed one way, and a named account has rows of
+its own. Rows come from Cortex's own
 cost records (`data/costs.jsonl`): a provider with traffic in the last 30 days
 gets a row for each way its traffic was billed, and the connections that
 carried it are listed under its name. A connection's spend is metered unless

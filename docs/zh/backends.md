@@ -70,7 +70,7 @@ PI 在 Cortex 服务器进程内运行。引擎（`@earendil-works/pi-coding-age
 
 **缓存预热。** Cortex 在主会话和子智能体会话中都关闭 PI 的自动 prompt-cache 预热。provider 的普通提示缓存仍可使用；Cortex 不会额外发起用量不在其费用统计之内的预热请求。这是运行时覆盖，不会改动终端 PI 的设置。
 
-**凭据。** PI 的 provider 凭据由 Cortex 管理——聊天里的 `!login pi`，或网页端的**设置 → 账号**——并保存在 PI 自己的认证文件 `~/.pi/agent/auth.json` 中。Cortex 的会话直接用这份文件认证，PI 在会话中刷新的 token 因此写回所有读取方都能看到的地方；Cortex 还从 `~/.pi/agent/models.json` 读取用户自定义的 provider。因此同时装有终端 `pi` CLI 的安装与 Cortex 共用同一份凭据和同一份 provider catalog。Cortex 自己的[连接](./configuration.md#configconnectionsjson)叠加在其上：agent 目录的 `models.json` 还会写入被连接覆盖了 base URL 的内置 provider 和自定义 provider，并带上各自的密钥，对这些 provider 而言它们优先于 PI 自己的凭据。其余内置 provider 用 PI 自己的凭据直接连接各自的厂商。
+**凭据。** PI 的 provider 凭据由 Cortex 管理——聊天里的 `!login pi`，或网页端的**设置 → 账号**——并保存在 PI 自己的认证文件 `~/.pi/agent/auth.json` 中；具名的 PI [账号](#accounts)有自己的认证文件 `$CORTEX_HOME/data/pi-accounts/<id>/auth.json`。Cortex 的会话直接用这份文件认证，PI 在会话中刷新的 token 因此写回所有读取方都能看到的地方；Cortex 还从 `~/.pi/agent/models.json` 读取用户自定义的 provider。因此同时装有终端 `pi` CLI 的安装与 Cortex 共用同一份凭据和同一份 provider catalog。Cortex 自己的[连接](./configuration.md#configconnectionsjson)叠加在其上：agent 目录的 `models.json` 还会写入被连接覆盖了 base URL 的内置 provider 和自定义 provider，并带上各自的密钥，对这些 provider 而言它们优先于 PI 自己的凭据。其余内置 provider 用 PI 自己的凭据直接连接各自的厂商。
 
 PI transcript 的保留基于文件系统。活跃的 PI 后端 session id 在保留扫描中受保护，而 `$CORTEX_HOME/logs/sessions-pi/` 下的孤立 transcript bundle 只有在超过保留截止线后仍无引用、且经过第二轮确认扫描后才会删除。
 
@@ -150,15 +150,17 @@ cortex auth status --json
 
 ## 账号 {#accounts}
 
-一个 provider 可以登录多个账号——例如个人的 Claude Max 订阅加上学校或团队的订阅。Cortex 为 provider 保存的那个登录是它的**默认账号**；其余每个账号都是**具名账号**，名称由你来取。
+一个 provider 可以登录多个账号——例如个人的 Claude Max 订阅加上学校或团队的订阅，或者 PI 上的第二个 ChatGPT 套餐、第二把 DeepSeek key。Cortex 为 provider 保存的那个登录是它的**默认账号**；其余每个账号都是**具名账号**，名称由你来取。
 
-**添加账号。** 在 **设置 → 账号** 中，Claude Code 分组底部的 **+ 添加账号** 先让你填名称，再打开常规的登录对话框。Cortex 由名称生成账号 id（`School Team` 生成 `school-team`），聊天命令和 `config/connections.json` 用的都是这个 id。首次登录成功后账号才存在：首次登录失败或被取消时不会留下任何东西。账号只在网页端添加；聊天里只能重新登录已有的账号。
+**添加账号。** 在 **设置 → 账号** 中，Claude Code 分组底部或已连接的 PI provider 下方的 **+ 添加账号** 先让你填名称，再打开常规的登录对话框。PI provider 同时支持 API key 和 OAuth 时，会先让你选一种。Cortex 由名称生成账号 id（`School Team` 生成 `school-team`），聊天命令和 `config/connections.json` 用的都是这个 id。id 在同一个后端内唯一，PI 账号的 id 不会是任何 PI provider 的名字。首次登录成功后账号才存在：首次登录失败或被取消时不会留下任何东西。账号只在网页端添加；聊天里只能重新登录已有的账号。
 
-**管理账号。** 每个账号一行，显示名称、已登录账号的邮箱和套餐以及登录状态，提供 **重新登录**、**登出** 和 **删除**。provider 有了具名账号之后，它的默认登录会带上 **默认** 标记。登出的账号仍保留在列表里，可以之后再登录；删除账号需要先确认，删除时会先登出再移除。选了已登出或已删除账号的会话、定时任务和默认设置，改用默认账号运行。在聊天中，`!login status` 列出所有账号及其 id，`!login cc <账号>` 按 id 或名称重新登录某个 Claude 账号，`!connection <id>` 把频道切到这个账号。
+**管理账号。** 每个账号一行，显示名称、已登录账号的邮箱和套餐以及登录状态，提供 **重新登录**、**登出** 和 **删除**。provider 有了具名账号之后，它的默认登录会带上 **默认** 标记。登出的账号仍保留在列表里，可以之后再登录；删除账号需要先确认，删除时会先登出再移除。选了已登出或已删除账号的会话、定时任务和默认设置，改用默认账号运行。在聊天中，`!login status` 列出所有账号及其 id，`!login cc <账号>` 和 `!login pi <provider> <账号>` 按 id 或名称重新登录某个账号，`!connection <id>` 把频道切到这个账号。
 
-**选择账号。** 账号就是一个[连接](#per-session-model-thinking-level-and-route)：输入框的 **连接** 行把账号按名称列在订阅和各个 key 连接旁边，**设置 → 模型** 也可以把默认模型固定到某个账号。换账号时会在该账号的登录上启动新的 Claude Code 进程。所有账号共用同一份 transcript，所以对话会从原处继续；在新账号上的第一轮会重新写入 prompt cache。
+**选择账号。** 账号就是一个[连接](#per-session-model-thinking-level-and-route)：输入框的 **连接** 行按名称列出账号，**设置 → 模型** 也可以把默认模型固定到某个账号。换账号时会在该账号的登录上启动新的 Claude Code 进程或 PI 会话。所有 Claude 账号共用同一份 transcript，所以对话会从原处继续；在新账号上的第一轮会重新写入 prompt cache。
 
-**各自的额度。** 每个账号都有自己的用量行、额度读数、储备重置和限流窗口。一个账号达到限额时，只暂停跑在它上面的工作。
+**账号里有什么。** 具名 Claude 账号的登录保存在它自己的 Claude Code 配置目录里。PI 账号的登录保存在它自己的认证文件里，其余设置都沿用它的 provider，包括 provider 连接设置的 base URL，但不用连接的 key：provider 前面若有中转，中转收到的是账号自己的 key。
+
+**各自的额度。** 每个账号都有自己的用量行、额度读数、储备重置和限流窗口；按量计费的 PI 账号，花费也单独一行，例如 **DeepSeek (Work)**。一个账号达到限额时，只暂停跑在它上面的工作。
 
 ## 自定义 provider {#custom-providers}
 
@@ -194,7 +196,7 @@ Web 和移动端输入框的引擎选择器在根层列出收藏模型，显示�
 
 有历史的对话不能切换后端。选择器会禁用另一后端的模型；新草稿可以任选后端。
 
-**连接**只用于 Claude Code：对话使用本机哪一个 Claude 连接——订阅、具名[账号](#accounts)、API key，或在 **设置 → 账号** 中添加的中转或本地端点。账号按名称显示，订阅按它登录的 email 显示（拿不到时显示 **Claude 订阅**）。只有当前模型有多于一个连接可用时，选择器才显示连接行。其中 **默认** 一项不指定连接：每次运行时，默认连接（已登录订阅时即订阅）能运行该模型就用它，否则用第一个能运行的连接。自带模型列表的连接只运行列表里的模型。换模型时，已选的连接若能运行新模型就保留。已选连接之后被删除、或所选账号已登出时，回退到默认连接，对话不会因此失败。PI 没有连接行：provider 本身就是连接。Claude Code 与 PI 内置的 `anthropic` provider 是两条独立的条目：PI 的 provider 使用 PI 自己的 Anthropic 凭据，两者都登录时，各自的模型、收藏、额度和限流互不混用。
+**连接**是对话使用本机的哪一个登录或端点。对 Claude Code 来说，是订阅、具名[账号](#accounts)、API key，或在 **设置 → 账号** 中添加的中转或本地端点。账号按名称显示，订阅按它登录的 email 显示（拿不到时显示 **Claude 订阅**）。只有当前模型有多于一个连接可用时，选择器才显示连接行。其中 **默认** 一项不指定连接：每次运行时，默认连接（已登录订阅时即订阅）能运行该模型就用它，否则用第一个能运行的连接。自带模型列表的连接只运行列表里的模型。换模型时，已选的连接若能运行新模型就保留。已选连接之后被删除、或所选账号已登出时，回退到默认连接，对话不会因此失败。对 PI 来说，provider 本身就是连接：provider 有了已登录的具名账号后才显示连接行，列出 **默认**（provider 自己的登录）和这些账号。换成其他 provider 的模型时回到默认。Claude Code 与 PI 内置的 `anthropic` provider 是两条独立的条目：PI 的 provider 使用 PI 自己的 Anthropic 凭据，两者都登录时，各自的模型、收藏、额度和限流互不混用。
 
 模型目录列出各后端与 PI provider 的模型：Claude 的来自 Anthropic Models API 加上各连接自带的模型列表，PI 的来自它自己的扫描，含自定义 provider。思考档位优先取来源报告的模型自身档位，否则取后端的值域。
 
@@ -238,10 +240,10 @@ Cortex 按 provider 和账号跟踪滚动用量窗口。provider 标识是不透
 
 每次用量采集——内置的 provider 用量作业、打开用量页面，或点击 **刷新**——都会直接读取两个订阅账号：
 
-- **OpenAI Codex**，以 ChatGPT 套餐登录。读数填入 Codex 订阅行的主窗口与次窗口。读取失败时，该行保留上次从 Codex 响应头观测到的窗口，并附上相应说明。
+- **OpenAI Codex**，以 ChatGPT 套餐登录。每个 Codex 账号用自己的登录单独读取，各有一行；具名账号的行显示为 **OpenAI Codex (<名称>)**。读数填入该账号订阅行的主窗口与次窗口。读取失败时，该行保留上次从 Codex 响应头观测到的窗口，并附上相应说明。
 - **Claude**，通过 `claude login` 登录。每个 Claude 账号分别读取、各占一行；具名账号的行显示为 **Anthropic (<名称>)**。读数填入该账号订阅行的 5 小时与 7 天窗口，以及账号按单个模型计的周额度，显示为带模型名的一行，例如 **7 天（Fable）**。这个模型窗口就是 Claude Code 上报的 `seven_day_overage_included`，所以它的阈值控件就是该窗口限流所用的策略。Cortex 使用 Claude Code 保存的访问令牌，且无法刷新它，因此令牌过期、使用 API key 或未登录时，该行保留上次读到的窗口；读取失败时同样保留，并附上说明。账号只向当前版本的 Claude Code 客户端提供重置，因此这些请求以本机安装的 `claude` CLI 版本标识自己。
 
-每个用量行对应一个 provider 的一种计费方式。行来自 Cortex 自己的费用记录（`data/costs.jsonl`）：近 30 天内有流量的 provider，按其流量的每种计费方式各得一行，承载这些流量的连接列在名称旁。连接的花费按量计费，除非它跑在订阅上——Claude 自己的登录，或以 OAuth 登录的 PI provider。带密钥的 PI 连接按量计费；只改 provider base URL 的连接沿用 PI 自身登录的计费方式。未指定连接的 Claude 选择，记在本次运行实际使用的连接下。按量计费的行显示今日、近 30 天和近 90 天的花费，90 天即费用记录的保留时长；订阅行只显示额度，不显示花费。
+每个用量行对应一个 provider 的一种计费方式，具名账号另有自己的行。行来自 Cortex 自己的费用记录（`data/costs.jsonl`）：近 30 天内有流量的 provider，按其流量的每种计费方式各得一行，承载这些流量的连接列在名称旁。连接的花费按量计费，除非它跑在订阅上——Claude 自己的登录，或以 OAuth 登录的 PI provider。带密钥的 PI 连接按量计费；只改 provider base URL 的连接沿用 PI 自身登录的计费方式。未指定连接的 Claude 选择，记在本次运行实际使用的连接下。按量计费的行显示今日、近 30 天和近 90 天的花费，90 天即费用记录的保留时长；订阅行只显示额度，不显示花费。
 
 在 **设置 → 账号** 中登出某个订阅后，该账号的订阅行会从用量页面移除；按量计费的行保留。通过 Cortex 重新登录该账号，或在登出之后收到新的额度读数时，该行重新出现——在 Cortex 之外完成的登录会在下一次采集时以这种方式显示。
 

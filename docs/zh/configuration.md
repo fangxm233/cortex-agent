@@ -38,7 +38,8 @@ $CORTEX_HOME/
 │   ├── archive/                  # 超过一周的已终结执行记录
 │   ├── claude/                   # Cortex 自己的 Claude Code 配置目录（CLAUDE_CONFIG_DIR）
 │   ├── claude-accounts/          # 每个具名账号一个 Claude Code 配置目录
-│   └── pi/                       # Cortex 的 PI agent 目录
+│   ├── pi/                       # Cortex 的 PI agent 目录
+│   └── pi-accounts/              # 每个具名 PI 账号一个 PI agent 目录
 ├── .claude/
 │   └── settings.json             # Cortex 脚手架生成的 Claude Code 项目设置
 ├── hooks/                        # 你的钩子脚本（.mjs）
@@ -237,7 +238,7 @@ Web UI 宿主服务浏览器工作台、桌面 App 和手机 App。[浏览器访
 
 位于 `$CORTEX_HOME/config/connections.json`，是 Cortex 自己保管的 provider 凭据与端点的登记表。文件里有密钥，因此只允许属主读写（mode `0600`）；密钥从不出现在 UI 或日志中，最多显示一段掩码提示。Cortex 不运行任何代理：每个 Claude Code 或 PI 进程都用其连接提供的凭据直接调用 provider。
 
-登录不在这个文件里。Claude Code 的订阅是 [Cortex 的 Claude Code 配置目录](#claude-code-config-directory)中的登录，只要该登录存在，它就是名为 `subscription` 的连接。具名的 Claude [账号](./backends.md#accounts)在这里有一条只含 id 和 label 的条目，登录放在它自己的配置目录里。PI 自己的登录和 API key 留在 PI 的凭据存储 `~/.pi/agent/auth.json` 中。
+登录不在这个文件里。Claude Code 的订阅是 [Cortex 的 Claude Code 配置目录](#claude-code-config-directory)中的登录，只要该登录存在，它就是名为 `subscription` 的连接。具名的 Claude [账号](./backends.md#accounts)在这里有一条只含 id 和 label 的条目，登录放在它自己的配置目录里。PI 自己的登录和 API key 留在 PI 的凭据存储 `~/.pi/agent/auth.json` 中；具名 PI 账号的条目只含 id、provider 和 label，登录放在它自己的 agent 目录里。
 
 ```json
 {
@@ -251,6 +252,7 @@ Web UI 宿主服务浏览器工作台、桌面 App 和手机 App。[浏览器访
     { "id": "school-team", "backend": "claude", "type": "account", "label": "School Team" },
     { "id": "deepseek", "backend": "pi", "provider": "deepseek",
       "baseUrl": "https://proxy.example.com/deepseek", "key": "..." },
+    { "id": "work", "backend": "pi", "type": "account", "provider": "deepseek", "label": "Work" },
     { "id": "my-vllm", "backend": "pi", "provider": "my-vllm",
       "api": "openai-completions", "baseUrl": "http://127.0.0.1:8100/v1",
       "models": [{ "id": "Model-27B" }] }
@@ -264,12 +266,13 @@ Web UI 宿主服务浏览器工作台、桌面 App 和手机 App。[浏览器访
 | Claude 账号 | `id`、`backend: "claude"`、`type: "account"`、`label` | 又一个 Claude Code 订阅。跑在它上面的运行与 `subscription` 一样清除这三个变量，并把 `CLAUDE_CONFIG_DIR` 设为该账号的目录 `data/claude-accounts/<id>/`。按订阅计费 |
 | PI base URL 覆盖 | `backend: "pi"`、`provider`（PI 内置 provider）、`baseUrl`；可选 `key`、`label` | PI 在 `baseUrl` 调用该内置 provider。设置了密钥时，它优先于 PI 自己为该 provider 保存的凭据 |
 | PI 自定义 provider | 同覆盖，另加 `api`（请求协议）和 `models`（PI 模型定义）；可选 `headers`、`compat` | 定义 PI 未内置的 provider；见[自定义 provider](./backends.md#custom-providers) |
+| PI 账号 | `id`、`backend: "pi"`、`type: "account"`、`provider`、`label` | PI provider 的又一个登录。跑在它上面的运行使用该账号的 agent 目录 `data/pi-accounts/<id>/`，其中的 `auth.json` 存放登录；provider 的覆盖照样生效，但不带它的密钥。以 OAuth 登录或 provider 只有订阅时按订阅计费，否则按量计费 |
 
-id 须匹配 `^[a-zA-Z0-9_-]+$`，`subscription` 为保留名；Claude 账号也不能叫 `api`。PI 连接的 id 就是它的 provider 名，因此一个 provider 至多一个连接。无效或重复的条目会被跳过并记录警告。
+id 须匹配 `^[a-zA-Z0-9_-]+$`，`subscription` 为保留名；Claude 账号也不能叫 `api`。PI 连接的 id 就是它的 provider 名，因此一个 provider 除账号外至多一个连接，PI 账号的 id 也不会是任何 provider 名。账号 id 在同一个后端内唯一：Claude 账号和 PI 账号可以同名。无效或重复的条目会被跳过并记录警告。
 
-**路由。** Claude Code 运行的环境取自其选择所指的连接。使用 `subscription` 时，Cortex 清除 `ANTHROPIC_BASE_URL`、`ANTHROPIC_API_KEY` 和 `ANTHROPIC_AUTH_TOKEN`，让 Claude Code 使用自己的登录。没有指定连接的选择使用默认连接：Claude Code 已登录时为订阅，否则为文件中第一个 Claude 连接。选择一个不存在的连接会被拒绝；已保存的选择所指的连接之后被删除、或所指账号已登出时，改用默认连接运行。每个 PI 会话拿到一份 `models.json`，在 `~/.pi/agent/models.json` 定义的 provider 之上加入被覆盖的内置 provider 和自定义 provider，并带上各自的密钥；其余 PI 内置 provider 用 PI 自己的凭据直接连接各自的厂商。每次 spawn 都会重新读取该文件，因此改动无需重启。
+**路由。** Claude Code 运行的环境取自其选择所指的连接。使用 `subscription` 时，Cortex 清除 `ANTHROPIC_BASE_URL`、`ANTHROPIC_API_KEY` 和 `ANTHROPIC_AUTH_TOKEN`，让 Claude Code 使用自己的登录。没有指定连接的选择使用默认连接：Claude Code 已登录时为订阅，否则为文件中第一个 Claude 连接。选择一个不存在的连接会被拒绝；已保存的选择所指的连接之后被删除、或所指账号已登出时，改用默认连接运行。每个 PI 会话拿到一份 `models.json`，在 `~/.pi/agent/models.json` 定义的 provider 之上加入被覆盖的内置 provider 和自定义 provider，并带上各自的密钥；其余 PI 内置 provider 用 PI 自己的凭据直接连接各自的厂商。跑在 PI 账号上的会话使用该账号的 agent 目录：provider 相同，但去掉账号所属 provider 的密钥，改用账号自己的登录。每次 spawn 都会重新读取该文件，因此改动无需重启。
 
-**条目从哪里来。** 账号在 **设置 → 账号** 中添加、登录和删除（见[账号](./backends.md#accounts)）；连接列表不显示账号，它的编辑器也不接受账号的 id。保存 Anthropic API key——**设置 → 账号**、`!login cc` 或 `cortex auth login`——会把它存为 `api` 连接，除非该条目已有 `baseUrl`，否则指向官方 API；移除密钥即移除该连接。**设置 → 账号 → 连接** 列出所有条目（密钥只显示掩码提示），可新建、编辑或删除三种条目中的任意一种。`cortex auth provider` 和 `!login custom` 管理自定义 provider。Claude 连接的 `label` 和 `billing` 通过编辑该文件设置；在设置里新建的连接以 id 作为 label，计费为 `metered`。`!connection [id|reset]`（别名 `!mode`）查看或设置频道的 Claude 连接或账号。
+**条目从哪里来。** 账号在 **设置 → 账号** 中添加、登录和删除（见[账号](./backends.md#accounts)）；连接列表不显示账号，它的编辑器也不接受账号的 id。保存 Anthropic API key——**设置 → 账号**、`!login cc` 或 `cortex auth login`——会把它存为 `api` 连接，除非该条目已有 `baseUrl`，否则指向官方 API；移除密钥即移除该连接。**设置 → 账号 → 连接** 列出所有条目（密钥只显示掩码提示），可新建、编辑或删除三种条目中的任意一种。`cortex auth provider` 和 `!login custom` 管理自定义 provider。Claude 连接的 `label` 和 `billing` 通过编辑该文件设置；在设置里新建的连接以 id 作为 label，计费为 `metered`。`!connection [id|reset]`（别名 `!mode`）查看或设置频道的连接或账号。
 
 ## models.json {#modelsjson}
 
@@ -302,7 +305,7 @@ id 须匹配 `^[a-zA-Z0-9_-]+$`，`subscription` 为保留名；Claude 账号也
 | `default.provider` | string 或 null | 是 | Claude 为 `null`；PI 必须指定 provider id，例如 `openai-codex`、`deepseek` 或[自定义 provider](./backends.md#custom-providers) |
 | `default.model` | string | 是 | 非空模型标识符，按后端命名 |
 | `default.thinking` | string 或 null | 是 | 后端原生思考档位；`null` 使用后端默认值 |
-| `default.connection` | string 或 null | 是 | Claude：连接 id（`subscription`，或 [`connections.json`](#configconnectionsjson) 中的某个 Claude 连接，如 `api` 或中转），或 `null` 表示每次运行使用默认连接。PI：恒为 `null` |
+| `default.connection` | string 或 null | 是 | Claude：连接 id（`subscription`，或 [`connections.json`](#configconnectionsjson) 中的某个 Claude 连接，如 `api` 或中转），或 `null` 表示每次运行使用默认连接。PI：该 provider 某个[账号](./backends.md#accounts)的 id，或 `null` 表示 provider 自己的登录 |
 | `favorites` | object[] | 是 | 按顺序存放模型引用，每项包含 `backend`、`provider`、`model`。同一模型身份最多出现一次 |
 
 收藏只保存模型身份，不保存思考档位或连接。默认模型不必在收藏中，收藏列表也可以为空。Claude 的 `thinking` 接受 `low`/`medium`/`high`/`xhigh`/`max`；PI 接受 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`。
@@ -668,6 +671,7 @@ init 还会在 `config/machines.json`、`config/preferences.json` 和 `data/agen
 | `provider-state.json` | provider 用量、限流窗口、恢复队列 | `$CORTEX_HOME/data/provider-state.json` |
 | `claude/` | Cortex 的 Claude Code 配置目录：transcript、设置、plugin、默认登录 | `$CORTEX_HOME/data/claude/` |
 | `claude-accounts/` | 每个具名账号一个 Claude Code 配置目录，存放它的登录 | `$CORTEX_HOME/data/claude-accounts/<id>/` |
+| `pi-accounts/` | 每个具名 PI 账号一个 PI agent 目录：它的 `auth.json`，以及 Cortex 为它写入的模型目录和设置 | `$CORTEX_HOME/data/pi-accounts/<id>/` |
 | `waitpoints.json` | Waitpoint | `$CORTEX_HOME/data/waitpoints.json` |
 | `board.css` | 可选，所有看板的样式表 | `$CORTEX_HOME/config/board.css` |
 | `session-registry.jsonl` | 仅追加的 session registry 日志 | `$CORTEX_HOME/data/session-registry.jsonl` |
