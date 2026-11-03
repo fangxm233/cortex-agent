@@ -280,6 +280,9 @@ export const messageEn = {
   msgEdited: 'edited',
   msgOriginal: 'Original',
   msgRegenNote: 'Regenerated from edit',
+  msgUnsent: 'Not sent',
+  msgUnsentSend: 'Send',
+  msgUnsentEdit: 'Edit',
 };
 export const messageZh: Record<keyof typeof messageEn, string> = {
   msgEdit: '编辑消息',
@@ -298,4 +301,7 @@ export const messageZh: Record<keyof typeof messageEn, string> = {
   msgEdited: '已编辑',
   msgOriginal: '原消息',
   msgRegenNote: '由编辑重新生成',
+  msgUnsent: '未发送',
+  msgUnsentSend: '发送',
+  msgUnsentEdit: '编辑',
 };

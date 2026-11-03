@@ -5,6 +5,7 @@ import { useAttachmentUploads, type AttachmentUploadController } from '@/feature
 import {
   clearDraft, draftStorageKey, loadDraft, mergeRestoredDraft, saveDraft, type ComposerDraft,
 } from '@/features/session/composer/composer-draft';
+import { registerComposerRestore } from '@/features/session/composer/composer-restore';
 
 export interface ComposerDraftScope {
   sessionId: string;
@@ -78,6 +79,7 @@ export function useComposerDraft(scope: ComposerDraftScope): ComposerDraftState 
     uploads.mergeRestored(sent.attachments);
     return true;
   };
+  useOutsideRestore(draftKey, (sent) => restore(sent, draftKey, latest.current.identity));
 
   return {
     text,
@@ -91,6 +93,17 @@ export function useComposerDraft(scope: ComposerDraftScope): ComposerDraftState 
     restore,
     releaseDraftBucket: () => { draftUploadId.current = null; },
   };
+}
+
+/** Lets a message coming back from outside the composer (an unsent message taken back to edit)
+ *  land in this scope while it is on screen. */
+function useOutsideRestore(draftKey: string | null, restore: (sent: ComposerDraft) => void): void {
+  const restoreRef = useRef(restore);
+  restoreRef.current = restore;
+  useEffect(() => {
+    if (!draftKey) return undefined;
+    return registerComposerRestore(draftKey, (sent) => restoreRef.current(sent));
+  }, [draftKey]);
 }
 
 interface PersistInput {

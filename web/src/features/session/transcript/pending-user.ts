@@ -21,6 +21,8 @@ export interface PendingUserMessage {
   attachments?: Attachment[];
   /** Cortex authored this turn — it renders as a system hint even while still unread. */
   systemOrigin?: SystemTurnOrigin;
+  /** Its run was stopped before the model read it: it stays until the user resends or edits it. */
+  unsent?: boolean;
 }
 
 /** A `session.message.delivered` payload. */
@@ -63,6 +65,19 @@ export function applyDelivered(
       ...(entry.systemOrigin ? { systemOrigin: entry.systemOrigin } : {}),
     },
   };
+}
+
+/** The run was stopped before the model read `pendingId`; its row stays, marked unsent. Unknown ids
+ *  change nothing — the transcript snapshot carries the flag to a client that never saw the row. */
+export function markPendingUnsent(pending: PendingUserMessage[], pendingId: string): PendingUserMessage[] {
+  const idx = pending.findIndex((p) => p.id === pendingId);
+  if (idx === -1 || pending[idx].unsent) return pending;
+  return pending.map((p, i) => (i === idx ? { ...p, unsent: true } : p));
+}
+
+/** The user resent or took back an unsent message: its row goes. */
+export function withdrawPending(pending: PendingUserMessage[], pendingId: string): PendingUserMessage[] {
+  return pending.some((p) => p.id === pendingId) ? pending.filter((p) => p.id !== pendingId) : pending;
 }
 
 /**

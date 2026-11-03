@@ -36,6 +36,7 @@ import { useNowTick } from '@/lib/useNowTick';
 import { BoardActionChatRow } from '@/features/board/BoardChatRows';
 import { LeadWaitingLine, TeamActionRow, TeamStreamProvider, TeamUpdateCard } from '@/features/team/TeamStreamRows';
 import type { MChatInteractions, MChatViewProps, MEditMode } from './MChatView.types';
+import { UnsentActions } from '@/features/session/transcript/UnsentActions';
 
 export type { MChatInteractions, MEditMode, MMsgMenu, MRejectBar } from './MChatView.types';
 
@@ -427,6 +428,7 @@ function UserBubbleRow({ row, index, dimmed, ctx }: RowProps<'user'>): JSX.Eleme
         <div {...(hold ?? {})} data-msg-bubble={hold ? index : undefined} style={userBubbleStyle(row.pending, !!hold, editingRow)}>
           {row.text}
         </div>
+        {row.unsent && row.pendingId && <UnsentActions pendingId={row.pendingId} fontSize={13} />}
         {edited && <EditedNote onTap={ctx.onShowOriginal ? () => ctx.onShowOriginal!(edited) : undefined} />}
       </div>
       {editingRow && ctx.editing && <WillRewindBadge editing={ctx.editing} />}

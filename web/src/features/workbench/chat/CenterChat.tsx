@@ -23,6 +23,7 @@ import { useAutoOpenNewBoard } from '@/features/board/useAutoOpenNewBoard';
 import { useTeamContext } from '@/features/team/useTeamContext';
 import { TeamCapsule } from '@/features/team/TeamRoster';
 import { TeamStreamProvider } from '@/features/team/TeamStreamRows';
+import { UnsentActionsProvider } from '@/features/session/transcript/UnsentActionsProvider';
 
 // CENTER CHAT pane — 1:1 rebuild from prototype.dc.html L103–395 (workspace-chat view). Task aba0
 // (S4 chat) makes the transcript body + composer send REAL, replacing 89e7's GAP-A (static transcript)
@@ -254,6 +255,7 @@ export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
           <TeamStreamProvider workers={team.workers} leadRunning={chat.running} onOpenWorker={setSelectedSession}>
             <BoardStreamProvider>
               <TranscriptStatusProvider backgroundRunning={chat.backgroundRunning} waitpoints={chat.waitpoints.waitpoints}>
+                <UnsentActionsProvider sessionId={sessionId || null}>
                 <MessageStream
                   rows={rows}
                   loading={!!sessionId && chat.transcriptPending}
@@ -264,6 +266,7 @@ export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
                   streamKey={sessionId}
                   live={chat.running && !chat.backgroundRunning}
                 />
+                </UnsentActionsProvider>
               </TranscriptStatusProvider>
             </BoardStreamProvider>
           </TeamStreamProvider>

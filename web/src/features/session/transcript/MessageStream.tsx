@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } fro
 import { fmt, useVocab } from '@/i18n';
 import type { ChatRow } from './transcript-vm';
 import { SystemHintRow, ThinkingRow } from './HintRow';
+import { UnsentActions } from './UnsentActions';
 import { ChatNavRail } from './ChatNavRail';
 import { buildNavMarks, sameNavRows, visibleNavRows } from './chat-nav';
 import { ToolCallsRow } from './ToolCallsRow';
@@ -85,7 +86,7 @@ function Divider({ text }: { text: string }): JSX.Element {
   );
 }
 
-function UserBubble({ text, attachments, ts, edited, actions = false, onStartEdit, editDisabled, pending, debug, anchor, label }: {
+function UserBubble({ text, attachments, ts, edited, actions = false, onStartEdit, editDisabled, pending, unsentId, debug, anchor, label }: {
   text: string;
   /** Who sent it when it was not the human at this keyboard (a lead session, in team mode). */
   label?: string;
@@ -104,6 +105,9 @@ function UserBubble({ text, attachments, ts, edited, actions = false, onStartEdi
    *  its background and full opacity, and nothing else marks the state. The row is provisional, not
    *  disabled or failing, and an icon/spinner/label would read as either. */
   pending?: boolean;
+  /** The pending message's id when its run was stopped before the model read it: the row then
+   *  carries its not-sent state and the send / edit actions. */
+  unsentId?: string;
   /** Present only when the server returned DEBUG-gated exact adapter input. */
   debug?: { agentMessage: string };
 }): JSX.Element {
@@ -156,6 +160,7 @@ function UserBubble({ text, attachments, ts, edited, actions = false, onStartEdi
           </div>
         </div>
       )}
+      {unsentId && <UnsentActions pendingId={unsentId} fontSize={12} />}
       {(timeLabel || (actions && (text || debug))) && (
         <div
           className="pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100"
@@ -430,7 +435,7 @@ function Row({ row, interactionActions, actions = false, assistantCopyText, onSt
           </div>
         );
       }
-      return <UserBubble text={row.text} attachments={row.attachments} ts={row.ts} edited={row.edited} actions={actions} onStartEdit={onStartEdit} editDisabled={editDisabled} pending={row.pending} debug={row.debug} anchor={anchor} />;
+      return <UserBubble text={row.text} attachments={row.attachments} ts={row.ts} edited={row.edited} actions={actions} onStartEdit={onStartEdit} editDisabled={editDisabled} pending={row.pending} unsentId={row.unsent ? row.pendingId : undefined} debug={row.debug} anchor={anchor} />;
     case 'tools':
       return (
         <div className="group" data-row="tools">

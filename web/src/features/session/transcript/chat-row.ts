@@ -47,7 +47,9 @@ export type ChatRow =
   // thread callback, a subtask's question, a backgrounded agent's result). Such a row is NOT a
   // user bubble: the stream renders it as a one-line hint, it offers no copy/edit/rewind (there is
   // no human message to rewind to) and it raises no nav-rail mark.
-  | { kind: 'user'; text: string; attachments?: Attachment[]; turnIndex?: number; ts?: string; edited?: { originalText: string; originalTs: string }; pending?: boolean; systemOrigin?: SystemTurnOrigin; debug?: { agentMessage: string } }
+  // `unsent` marks a pending row whose run was stopped before the model read it; `pendingId` is what
+  // resending or editing it names.
+  | { kind: 'user'; text: string; attachments?: Attachment[]; turnIndex?: number; ts?: string; edited?: { originalText: string; originalTs: string }; pending?: boolean; unsent?: boolean; pendingId?: string; systemOrigin?: SystemTurnOrigin; debug?: { agentMessage: string } }
   // `count` is the number of calls. A run of consecutive calls splits wherever it switches between
   // calls whose result carried images and the rest — see `flushTools`.
   | { kind: 'tools'; count: number; calls: ToolCallEntry[] }

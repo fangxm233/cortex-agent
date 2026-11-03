@@ -8,7 +8,7 @@ import type { LiveSessionMessage, PendingUserMessage, AssistantPreviewState } fr
 import {
   resolveRunning, resolveBackgroundRunning, initialAssistantPreviewState,
   applyAssistantPreviewDelta, finalizeAssistantPreview,
-  applyDelivered, reconcilePendingUserMessages,
+  applyDelivered, markPendingUnsent, reconcilePendingUserMessages, withdrawPending,
 } from '@/features/session/transcript/transcript-vm';
 import { contextUsageFromLivePayload, resolveContextUsage } from '@/features/session/composer/context-usage';
 import { resolveTodos, todoSnapshotFromLivePayload } from '@/features/session/rail/todo-vm';
@@ -382,6 +382,20 @@ export function useSessionMessageLiveSync(
         }
         // Always refetch: another device may receive the commit without ever mounting the chat that
         // saw its pending event. The durable transcript is the convergence source in that case.
+        invalidateTranscriptQuery(queryClient, trpc, sessionId);
+        return;
+      }
+      // The run was stopped before the model read the message: the row stays, marked unsent, until
+      // the user resends it or takes it back to edit — on any device, hence the withdrawn event.
+      if (raw.type === 'session.message.unsent' || raw.type === 'session.message.withdrawn') {
+        const p = raw.payload as { pendingId?: string } | undefined;
+        if (!p?.pendingId) return;
+        if (raw.type === 'session.message.unsent') {
+          setPending(markPendingUnsent(pendingRef.current, p.pendingId));
+        } else {
+          deliveredPendingIdsRef.current.add(p.pendingId);
+          setPending(withdrawPending(pendingRef.current, p.pendingId));
+        }
         invalidateTranscriptQuery(queryClient, trpc, sessionId);
         return;
       }

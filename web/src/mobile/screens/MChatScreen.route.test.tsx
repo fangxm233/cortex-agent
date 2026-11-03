@@ -73,6 +73,7 @@ vi.mock('@/lib/trpc', () => ({
         setAgent: mutation('sessions.setAgent'),
         cancel: mutation('sessions.cancel'),
         rewind: mutation('sessions.rewind'),
+        resolveUnsent: mutation('sessions.resolveUnsent'),
         compact: mutation('sessions.compact'),
       },
       config: { get: query('config.get') },

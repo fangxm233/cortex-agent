@@ -111,6 +111,7 @@ vi.mock('@/lib/trpc', () => ({
         setAgent: mutation('sessions.setAgent'),
         cancel: mutation('sessions.cancel'),
         rewind: mutation('sessions.rewind'),
+        resolveUnsent: mutation('sessions.resolveUnsent'),
       },
       config: { get: query('config.get') },
       models: { catalog: query('models.catalog'), favorites: { add: mutation('models.favorites.add'), remove: mutation('models.favorites.remove') } },

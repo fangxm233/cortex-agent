@@ -560,6 +560,7 @@ function appendPending(rows: ChatRow[], p: PendingUserMessage, team: TeamBuild, 
   }
   rows.push({
     kind: 'user', text: p.text, attachments: p.attachments, ts: p.ts, pending: true,
+    ...(p.unsent && p.id ? { unsent: true, pendingId: p.id } : {}),
     ...(p.systemOrigin ? { systemOrigin: p.systemOrigin } : {}),
   });
 }

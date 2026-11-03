@@ -33,6 +33,10 @@ export interface LiveScope {
 export const SESSION_LIVE_EVENTS = [
   'session.message',
   'session.message.delivered',
+  // A pending message whose run was stopped before the model read it, and its later removal once
+  // the user resent it or took it back to edit (possibly on another device).
+  'session.message.unsent',
+  'session.message.withdrawn',
   'session.status',
   'session.turn',
   'session.context-usage',

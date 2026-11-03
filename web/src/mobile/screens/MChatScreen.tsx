@@ -20,6 +20,7 @@ import { attachmentType, type AttachmentUploadItem } from '@/features/attachment
 import { normalizeMobilePath } from '../mobile-route-manifest';
 import { SAME_SCREEN_STATE } from '../MobileAnimatedOutlet';
 import { MChatView } from './MChatView';
+import { UnsentActionsProvider } from '@/features/session/transcript/UnsentActionsProvider';
 import {
   buildMobileChatRows, mobileRunStatus,
   type ChatHeaderStatus, type SelectionSheetRow, type PendingAttachmentVM,
@@ -235,6 +236,7 @@ export function MChatScreen(): JSX.Element {
   const schedHint = chat.isScheduledRun ? vocab.chatScheduledHint : null;
 
   return (
+    <UnsentActionsProvider sessionId={sessionId || null}>
     <MChatView
       title={title}
       parent={team.lead ? { title: sessionDisplayTitle(team.lead, null), onSelect: () => navigate(`/m/session/${team.lead!.sessionId}`) } : null}
@@ -292,5 +294,6 @@ export function MChatScreen(): JSX.Element {
       onRetryAttachment={uploads.retry}
       onAddFiles={uploads.addFiles}
     />
+    </UnsentActionsProvider>
   );
 }

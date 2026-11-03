@@ -6,7 +6,8 @@ export {
   liveToMessage, type LiveSessionMessage, type SubagentSpawnView,
 } from './live-message';
 export {
-  applyDelivered, reconcilePendingUserMessages, type DeliveredEvent, type PendingUserMessage,
+  applyDelivered, markPendingUnsent, reconcilePendingUserMessages, withdrawPending,
+  type DeliveredEvent, type PendingUserMessage,
 } from './pending-user';
 export {
   systemOriginBody, systemOriginDisplay, systemOriginLabel, systemOriginSummary, type SystemTurnDisplay,
