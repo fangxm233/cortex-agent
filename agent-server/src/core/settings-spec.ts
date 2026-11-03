@@ -20,6 +20,7 @@ export interface Settings {
   showToolCalls: boolean;
   statusNewqButton: boolean;
   autoResume: boolean;
+  accountFailover: boolean;
   showThinking: boolean;
   streamDeltas: boolean;
   bgContinuation: boolean;
@@ -182,6 +183,12 @@ export const SETTINGS_SPEC = {
     type: 'boolean',
     default: true,
     legacyParse: (raw: string) => raw !== '0' && raw !== 'false',
+  },
+  // While the login a run would use is rate-limited, run on another login of the same provider
+  // (same billing, not limited) instead of waiting for the reset.
+  accountFailover: {
+    type: 'boolean',
+    default: false,
   },
   showThinking: {
     envVar: 'CORTEX_SHOW_THINKING',

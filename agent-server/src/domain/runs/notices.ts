@@ -34,6 +34,8 @@ export interface NoticeContext {
   isUserInitiated?: boolean;
   /** `edit-retry` re-runs an existing message; a rate limit there is not queued for auto-resume. */
   trigger?: string | null;
+  /** Whether a limit on this login continues at once on another (account failover). */
+  failoverResume?: (provider: string | undefined, route: string | undefined) => boolean;
 }
 
 /** How a notice reaches the surface. Null when the run has no prose surface at all. */
@@ -109,7 +111,8 @@ export class AttemptNoticeTracker {
     this.heldError = null;
     if (this.synthesize && this.emit && !this.attemptHasErrorNotice) {
       this.attemptHasErrorNotice = true;
-      this.emit(t('notify.rateLimitAutoResume'), undefined, 'warning', { kind: 'cancel-resume' });
+      const text = this.ctx.failoverResume?.(provider, route) ? t('notify.rateLimitFailover') : t('notify.rateLimitAutoResume');
+      this.emit(text, undefined, 'warning', { kind: 'cancel-resume' });
     }
     return true;
   }

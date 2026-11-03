@@ -11,6 +11,7 @@ import { createDirectSession, type CreateDirectSessionDeps } from '@domain/sessi
 import { setSessionAsync } from '@domain/sessions/session.js';
 import { isValidDispatchPrompt, hasRunningExecutionForSchedule } from '../run-guards.js';
 import { configIsRateLimited } from '../../agents/provider-run-lifecycle.js';
+import { preflightFailover } from '../../runs/account-failover.js';
 import type { Destination } from '@platform/index.js';
 import { t } from '@core/i18n.js';
 import { publishSystemNotice } from '@domain/system/system-notice.js';
@@ -99,7 +100,8 @@ async function canOpenScheduledRun({ message, projectId, scheduleTaskId, selecti
     log.warn(`Guard dropped null/empty prompt for schedule ${scheduleTaskId} (project=${projectId}, model=${selection.model}): "${message?.substring(0, 60) || String(message)}"`);
     return false;
   }
-  if (!configIsRateLimited(selection)) return true;
+  // With account failover on, a limited login does not skip the fire: its run takes a free one.
+  if (!configIsRateLimited(selection) || preflightFailover(selection)) return true;
   log.info(`Skipping schedule ${scheduleTaskId} — selection ${selection.backend}/${selection.model} is rate-limited`);
   await notifySkippedSchedule(projectId, t('notice.schedule.rateLimited', { id: scheduleTaskId, message }));
   return false;

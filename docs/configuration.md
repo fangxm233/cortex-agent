@@ -758,6 +758,7 @@ Unknown keys are ignored.
 | `showToolCalls` | boolean | `false` | Post a compact line for each tool call in Slack and Feishu replies, merging consecutive calls to the same tool. Also on **Settings → Platform** | `CORTEX_SHOW_TOOL_CALLS` |
 | `statusNewqButton` | boolean | `false` | Show the "New (quiet)" button on status messages (`=!newq`, which skips the pre-close hook) | `CORTEX_STATUS_NEWQ_BUTTON` |
 | `autoResume` | boolean | `true` | When a usage-limit window resets, automatically continue the conversations the limit interrupted, injecting a note to pick up where they left off. Set to `false` to leave interrupted work paused for manual continuation | `CORTEX_AUTO_RESUME` |
+| `accountFailover` | boolean | `false` | While the login a conversation runs on is rate-limited, runs it on another signed-in login of the same provider: the provider's default login or one of its accounts, billed the same way (a subscription never moves to an API key), able to run the model, and not rate-limited itself. Key connections are never used. A run that ends on a rate limit continues at once on such a login; the web chat says which login it moved to the first time it moves. The session keeps its own selection and goes back to its login once that login recovers. The first reply after a switch is sent without the prompt cache, so it costs more. `autoResume` is separate: it waits for the same login's limit to reset. Also on **Settings → Advanced** | — |
 | `providerRateLimits` | object | `{}` | Per-provider, per-quota-window throttle policy. Provider entries contain a `windows` array of `{ type, label?, enabled, threshold? }`; `threshold` is a ratio greater than `0` and at most `1` | — |
 | `showThinking` | boolean | `true` | Capture model-provided thinking for Web and mobile chat. Disable to stop capturing new thinking; saved rows remain visible. Claude requests a thinking summary; PI displays the text the provider returns | `CORTEX_SHOW_THINKING` |
 | `streamDeltas` | boolean | `true` | Stream assistant text and captured thinking token by token. Disable to deliver only complete blocks | `CORTEX_STREAM_DELTAS` |
@@ -792,7 +793,7 @@ Unknown keys are ignored.
 
 The Web workbench writes a subset of these from **Settings → Notifications**
 (`turnNotify`, `autoResume`, `notifyCompaction`), **Settings → Advanced**
-(`disableUserContext`, `teamEnabled`, `claudeWindowWarmupEnabled`, `cacheKeepWarmHours`,
+(`disableUserContext`, `teamEnabled`, `accountFailover`, `claudeWindowWarmupEnabled`, `cacheKeepWarmHours`,
 `coldResumeClearToolResults`, `maxContextTokens`, `piCompactReserveTokens`,
 `serverUpdateDisable`, `serverAutoUpdate`,
 `sessionRetentionDays`, `memoryIndexRegenEnabled`, `memoryIndexRegenIntervalMs`,

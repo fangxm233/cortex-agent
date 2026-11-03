@@ -2,6 +2,7 @@ import { createLogger } from '@core/log.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import type { AgentRun } from '@domain/runs/run.js';
+import type { EngineSelection } from '@domain/agents/engine-selection.js';
 import type { RunEvent } from '@domain/runs/events.js';
 import type { RunObserver } from '@domain/runs/request.js';
 import { recordDirectResume } from '@domain/runs/observers/resume-recorder.js';
@@ -203,6 +204,8 @@ export interface BackgroundContinuationOptions {
   sessionId: string | null;
   /** RAW user text: what an auto-resume replays, never the assembled prompt. */
   userMessage: string;
+  /** The session's selection the run started from, for account failover on a rate limit. */
+  selection?: EngineSelection | null;
   /** The turn's execution, excluded from the seal's "anything else still live" test. */
   executionId?: string | null;
   renderer: HoldRenderer;
@@ -245,7 +248,7 @@ export async function holdBackgroundContinuation(
       const attributed = cont?.rateLimitProvider ? cont : base;
       resumable = recordDirectResume({
         provider: attributed?.rateLimitProvider ?? null, route: attributed?.rateLimitRoute,
-        channel, trackSessionId: opts.sessionId, userMessage: opts.userMessage,
+        channel, trackSessionId: opts.sessionId, userMessage: opts.userMessage, selection: opts.selection,
       });
     }
     try {

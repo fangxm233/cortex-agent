@@ -2,7 +2,9 @@ import type { PlatformAdapter } from '@platform/index.js';
 import { getSettings } from '@core/settings.js';
 import { buildResumeReminder } from '@core/resume-reminder.js';
 import type { EventBus } from '@events/index.js';
-import { takeReadyResumes, type ResumeEntry } from '@domain/costs/resume-registry.js';
+import {
+  hasFailoverResume, requeueResume, takeReadyResumes, type ResumeEntry,
+} from '@domain/costs/resume-registry.js';
 import { getThrottleState } from '@domain/costs/rate-limit-throttle.js';
 import { throttleKey } from '@domain/costs/throttle-key.js';
 import { agentRunner } from './agent-runner.js';
@@ -29,6 +31,8 @@ export interface ResumeDeps {
   channelBusy: (channel: string) => boolean;
   acquireSessionUse: (sessionId: string) => Promise<(() => void) | null>;
   delay: (ms: number) => Promise<void>;
+  /** Puts back an entry that could not start yet. */
+  requeue: (entry: ResumeEntry) => void;
 }
 
 function defaultDeps(): ResumeDeps {
@@ -41,6 +45,7 @@ function defaultDeps(): ResumeDeps {
     channelBusy: (ch) => runRegistry.getOwnByChannel(ch).length > 0,
     acquireSessionUse: (sessionId) => acquireSessionUse(sessionId),
     delay: (ms) => new Promise((r) => setTimeout(r, ms)),
+    requeue: requeueResume,
   };
 }
 
@@ -54,31 +59,44 @@ export function registerResumeWakeOnAgentSettle(
   bus: EventBus,
   adapter: PlatformAdapter,
   dispatch: ResumeDispatch = dispatchPendingResumes,
+  hasFailover: () => boolean = hasFailoverResume,
 ): () => void {
   const wake = () => { void dispatch(adapter); };
   const completed = bus.subscribe('agent.completed', wake);
   const failed = bus.subscribe('agent.failed', wake);
   const superseded = bus.subscribe('agent.superseded', wake);
+  // An account-failover entry is ready the moment it is recorded; no window reset will wake it.
+  const changed = bus.subscribe('rate-limit.changed', () => { if (hasFailover()) wake(); });
   return () => {
     completed.unsubscribe();
     failed.unsubscribe();
     superseded.unsubscribe();
+    changed.unsubscribe();
   };
+}
+
+/** What this dispatch may start: every ready entry with auto-resume on. With it off the rest are
+ *  dropped as before, but account failover's are kept — the user turned that on separately. */
+function dispatchable(ready: ResumeEntry[]): ResumeEntry[] {
+  if (isAutoResumeEnabled()) return ready;
+  const kept = ready.filter((entry) => entry.failover === true);
+  const dropped = ready.length - kept.length;
+  if (dropped > 0) log.info(`Auto-resume disabled — dropped ${dropped} ready entry(ies)`);
+  return kept;
+}
+
+/** A busy channel is skipped. A failover entry goes back for the next settled run to retry; any
+ *  other was woken by its window reset and is dropped, as it always has been. */
+function skipBusy(entry: ResumeEntry, deps: ResumeDeps): void {
+  log.info(`Resume skip (${entryKey(entry)}): channel already has a running execution`);
+  if (entry.failover) deps.requeue(entry);
 }
 
 /** Drain entries whose provider is no longer active and re-enter each target.
  *  Called after provider clears and during startup reconciliation. Never throws. */
 export async function dispatchPendingResumes(adapter: PlatformAdapter, overrides: Partial<ResumeDeps> = {}): Promise<void> {
   const deps = { ...defaultDeps(), ...overrides };
-
-  const activeProviders = deps.activeProviders();
-  if (!isAutoResumeEnabled()) {
-    const drained = deps.takeReady(activeProviders);
-    if (drained.length > 0) log.info(`Auto-resume disabled — dropped ${drained.length} ready entry(ies)`);
-    return;
-  }
-
-  const entries = deps.takeReady(activeProviders);
+  const entries = dispatchable(deps.takeReady(deps.activeProviders()));
   if (entries.length === 0) return;
   log.info(`Rate-limit window reset — resuming ${entries.length} interrupted target(s)`);
 
@@ -86,7 +104,7 @@ export async function dispatchPendingResumes(adapter: PlatformAdapter, overrides
   for (const entry of entries) {
     // A direct session is a live conversation — serialize per channel (no interleaved turns).
     if (deps.channelBusy(entry.channel)) {
-      log.info(`Resume skip (${entryKey(entry)}): channel already has a running execution`);
+      skipBusy(entry, deps);
       continue;
     }
     try {

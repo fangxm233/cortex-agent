@@ -101,6 +101,12 @@ export const ADVANCED_SECTIONS: AdvancedSection[] = [
       { kind: 'toggle', setting: 'teamEnabled', titleKey: 'stAdvTeamTitle', descKey: 'stAdvTeamDesc' },
       {
         kind: 'toggle',
+        setting: 'accountFailover',
+        titleKey: 'stAdvAccountFailoverTitle',
+        descKey: 'stAdvAccountFailoverDesc',
+      },
+      {
+        kind: 'toggle',
         setting: 'claudeWindowWarmupEnabled',
         titleKey: 'stAdvClaudeWarmupTitle',
         descKey: 'stAdvClaudeWarmupDesc',
