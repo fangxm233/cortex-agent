@@ -39,7 +39,7 @@ describe('buildRateLimitView', () => {
       ],
     }, NOW, 'en');
 
-    expect(vm?.label).toBe('2 providers limited · first 42m');
+    expect(vm?.label).toBe('2 connections limited · first 42m');
   });
 
   it('retains distinct reset times and deterministically orders providers and windows', () => {
@@ -82,5 +82,7 @@ describe('buildRateLimitView', () => {
       ['anthropic::school', 'Anthropic (School)'],
       ['openai-codex', 'OpenAI Codex'],
     ]);
+    // Two accounts of one provider are two limited connections.
+    expect(vm?.label).toBe('3 connections limited · first 5m');
   });
 });
