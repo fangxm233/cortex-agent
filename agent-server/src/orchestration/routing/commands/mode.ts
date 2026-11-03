@@ -22,7 +22,7 @@ function destination(channel: string): Destination {
 }
 
 function selectionText(selection: EngineSelection): string {
-  const route = selection.connection ? ` · ${selection.connection}` : '';
+  const route = selection.connection ? ` · ${connectionName(selection.connection)}` : '';
   return `${selection.backend} · ${selection.provider ? `${selection.provider}/` : ''}${selection.model} · ${selection.thinking ?? t('cmd.thinking.none')}${route}`;
 }
 
@@ -57,9 +57,15 @@ function connectionName(id: string): string {
   return account ? t('cmd.connection.account', { id, label: account.label }) : id;
 }
 
+/** What a channel runs on: its connection, else a PI provider's own login (Claude's default
+ *  connection is only settled per run). */
+function currentConnection(current: EngineSelection): string {
+  if (current.connection) return connectionName(current.connection);
+  return current.backend === 'pi' ? t('cmd.connection.piDefault', { provider: current.provider ?? '' }) : '—';
+}
+
 function connectionText(current: EngineSelection): string {
-  if (current.backend === 'pi') return t('cmd.connection.piProvider', { provider: current.provider ?? '' });
-  return t('cmd.connection.current', { connection: current.connection ? connectionName(current.connection) : '—' });
+  return t('cmd.connection.current', { connection: currentConnection(current) });
 }
 
 /** `!connection [id|reset]`; `!mode` is the older name of the same command. */
