@@ -72,8 +72,10 @@ interface ChannelInjectState {
   releases: Set<() => Promise<void>>;
   /** True once the spontaneous turn has been marked running, so we publish that edge only once. */
   continuationRunning: boolean;
-  /** The run-event subscription that drives phase two while this channel has live injections. */
-  unsubscribe?: () => void;
+  /** One run-event subscription per run injected into, driving phase two while this channel has
+   *  live injections. Keyed by run: a later turn on the channel runs on a new run whose acks an
+   *  earlier run's subscription never sees. */
+  subscriptions: Map<object, () => void>;
 }
 
 const channelStates = new Map<string, ChannelInjectState>();
@@ -81,7 +83,7 @@ const channelStates = new Map<string, ChannelInjectState>();
 function stateFor(channel: string): ChannelInjectState {
   let s = channelStates.get(channel);
   if (!s) {
-    s = { pending: [], releases: new Set(), continuationRunning: false };
+    s = { pending: [], releases: new Set(), continuationRunning: false, subscriptions: new Map() };
     channelStates.set(channel, s);
   }
   return s;
@@ -90,7 +92,7 @@ function stateFor(channel: string): ChannelInjectState {
 function disposeIfIdle(channel: string): void {
   const s = channelStates.get(channel);
   if (s && s.pending.length === 0 && s.releases.size === 0) {
-    s.unsubscribe?.();
+    for (const unsubscribe of s.subscriptions.values()) unsubscribe();
     channelStates.delete(channel);
   }
 }
@@ -343,7 +345,7 @@ export function createInjectionObserver(
   };
 }
 
-/** Subscribe the ledger to `run` once per channel; the subscription is released when it idles. */
+/** Subscribe the ledger to `run` once per run; the subscriptions are released when the channel idles. */
 export function ensureInjectionObserver(
   deps: InjectionLedgerDeps,
   channel: string,
@@ -351,8 +353,8 @@ export function ensureInjectionObserver(
   run: AgentRun,
 ): void {
   const state = stateFor(channel);
-  if (state.unsubscribe) return;
-  state.unsubscribe = run.subscribe(createInjectionObserver(deps, channel, sessionId, run));
+  if (state.subscriptions.has(run)) return;
+  state.subscriptions.set(run, run.subscribe(createInjectionObserver(deps, channel, sessionId, run)));
 }
 
 /** Test hook: drop all per-channel injection state. */

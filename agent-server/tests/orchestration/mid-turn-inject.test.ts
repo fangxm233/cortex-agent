@@ -747,6 +747,26 @@ test('a spontaneous turn ending with an injection still outstanding commits it t
   assert.equal(r.delivered.length, 2);
 });
 
+test('an ack from a later run commits its injection while an earlier run\'s injection still waits', async () => {
+  const first = fakeRun();
+  const r = recorder({}, first);
+  await tryInjectIntoLiveTurn(r.deps, baseCtx);
+
+  // The first run ends without reading its message; the next turn opens a new run on the channel.
+  const second = fakeRun();
+  runRegistry.remove(REGISTRY_KEY);
+  runRegistry.register({
+    channel: CHANNEL, executionId: null, registryKey: REGISTRY_KEY, kind: 'local',
+    kill: () => true, backend: second.backend, run: second as any, trackSessionId: SESSION,
+  });
+  await tryInjectIntoLiveTurn(r.deps, { ...baseCtx, text: 'wiring please', messageId: 'web_2' });
+  await second.deliver('wiring please', true);
+
+  assert.deepEqual(r.history.map((h) => h.text), ['wiring please']);
+  assert.equal(r.delivered.length, 1, 'the second run\'s ack reaches the ledger');
+  assert.equal(r.delivered[0].pendingId, 'pin-2');
+});
+
 test('a committed message is never committed twice, whatever fires afterwards', async () => {
   const run = fakeRun();
   const r = recorder({}, run);
