@@ -196,3 +196,8 @@ export class HttpClaudeAccountClient implements ResetAccount {
 export const claudeAccountClient: ResetAccount = new HttpClaudeAccountClient({
   credentials: () => loadClaudeAccountCredentials(),
 });
+
+/** One additional Claude account, signed in on its own config dir. */
+export function claudeAccountClientFor(claudeConfigDir: string): ResetAccount {
+  return new HttpClaudeAccountClient({ credentials: () => loadClaudeAccountCredentials({ claudeConfigDir }) });
+}

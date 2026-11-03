@@ -102,7 +102,7 @@ describe('redeemUsageReset — Codex', () => {
 
     assert.equal(result.status, 'reset');
     assert.deepEqual(calls.redeem, ['credit-early']);
-    assert.deepEqual(calls.cleared, ['openai-codex']);
+    assert.deepEqual(calls.cleared, ['openai-codex::openai-codex']);
     assert.equal(calls.refresh, 2, 'stops polling once the reading shows the reset');
     assert.deepEqual(calls.sleeps, [10, 20]);
     assert.equal(result.usage[0].windows[0].utilization, 0);
@@ -178,7 +178,7 @@ describe('redeemUsageReset — Codex', () => {
 
     assert.equal(await first, await second);
     assert.equal(redeem.mock.calls.length, 1);
-    assert.deepEqual(calls.cleared, ['openai-codex']);
+    assert.deepEqual(calls.cleared, ['openai-codex::openai-codex']);
   });
 });
 
@@ -196,7 +196,7 @@ describe('redeemUsageReset — Claude', () => {
 
     assert.deepEqual(result, { provider: 'anthropic', status: 'reset', cleared: ['five_hour', 'seven_day'], usage: claudeRow(0, 0) });
     assert.deepEqual(calls.redeem, ['grant_pick']);
-    assert.deepEqual(calls.cleared, ['anthropic']);
+    assert.deepEqual(calls.cleared, ['anthropic::subscription']);
     assert.equal(calls.refresh, 1);
   });
 

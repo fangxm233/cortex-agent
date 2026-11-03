@@ -778,6 +778,8 @@ export const systemRefreshUsageInput = z.object({});
 
 export const systemRedeemUsageResetInput = z.object({
   provider: z.enum(RESET_PROVIDERS),
+  /** One of the provider's accounts; absent or null, its default login. */
+  connection: accountConnection,
   /** Banked reset to spend; omit for the one the account offers next, else the one expiring first. */
   creditId: z.string().min(1).optional(),
 });

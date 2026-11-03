@@ -46,6 +46,11 @@ export function nextResetCredit(credits: UsageResetCredits): UsageResetCredit | 
 
 export interface ProviderUsage {
   provider: string;
+  /** An account's connection id: each account of a provider is a row of its own. Absent on the
+   *  provider's default login and on metered rows. */
+  route?: string;
+  /** The account's label, beside `route`. */
+  label?: string;
   displayName: string;
   /** Connections the row's traffic ran on (rows stored before connections hold gateway mode names). */
   modes: string[];
@@ -67,12 +72,14 @@ export interface ProviderUsage {
 }
 
 /**
- * Identity of a usage row. Rows are keyed by provider *and* billing kind so one
- * provider can hold both a subscription row and a metered row. Legacy records
- * without `billing` collapse onto the bare provider key.
+ * Identity of a usage row. Rows are keyed by provider, billing kind and account, so one provider
+ * can hold a subscription row per account and a metered row. Legacy records without `billing`
+ * collapse onto the bare provider key.
  */
-export function usageRecordKey(record: Pick<ProviderUsage, 'provider' | 'billing'>): string {
-  return record.billing ? `${record.provider}::${record.billing}` : record.provider;
+export function usageRecordKey(record: Pick<ProviderUsage, 'provider' | 'billing' | 'route'>): string {
+  if (!record.billing) return record.provider;
+  const base = `${record.provider}::${record.billing}`;
+  return record.route ? `${base}::${record.route}` : base;
 }
 
 export interface UsagePersistence {

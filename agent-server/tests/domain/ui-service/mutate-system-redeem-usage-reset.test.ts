@@ -10,7 +10,7 @@ describe('system.redeemUsageReset', () => {
 
     const args = { provider: 'anthropic' as const, creditId: 'grant_1' };
     expect(await handleSystemRedeemUsageReset(args, redeem)).toEqual({ ok: true, data: result });
-    expect(redeem).toHaveBeenCalledWith('anthropic', 'grant_1');
+    expect(redeem).toHaveBeenCalledWith('anthropic', 'grant_1', {}, undefined);
   });
 
   it('reports a failed request as an error', async () => {

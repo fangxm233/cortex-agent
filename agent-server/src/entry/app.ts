@@ -310,7 +310,7 @@ initAuthEvents(bus);
 // existing default and favorites are never overwritten.
 onLoginSuccess((event) => {
   if (event.authType === 'oauth') {
-    void usageService.signIn(event.provider)
+    void usageService.signIn(event.provider, event.connection)
       .catch((error: unknown) => log.warn(`showing ${event.provider} subscription usage failed:`, error));
   }
   void seedModelsFromCatalog({ backends: [event.backend] }).then((result) => {
