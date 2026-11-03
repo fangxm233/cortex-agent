@@ -1,4 +1,6 @@
-import type { ConfigSnapshot, EngineSelection, ModelCatalogSnapshot, ModelRef } from '@cortex-agent/ui-contract';
+import type {
+  ConfigSnapshot, ConnectionView, EngineSelection, ModelCatalogSnapshot, ModelRef,
+} from '@cortex-agent/ui-contract';
 
 export function modelKey(ref: ModelRef): string {
   return JSON.stringify([ref.backend, ref.provider, ref.model]);
@@ -6,6 +8,18 @@ export function modelKey(ref: ModelRef): string {
 
 export function modelLabel(ref: ModelRef): string {
   return ref.model.replace(/^claude-/, '').replace(/-\d{8}$/, '');
+}
+
+/** Display names of connections that have one: an account shows its label, every other connection
+ *  its id. */
+export type ConnectionNames = Readonly<Record<string, string>>;
+
+export function connectionNames(views: readonly ConnectionView[] | null | undefined): ConnectionNames {
+  return Object.fromEntries((views ?? []).filter((view) => view.kind === 'account').map((view) => [view.id, view.label]));
+}
+
+export function connectionName(names: ConnectionNames, id: string): string {
+  return Object.hasOwn(names, id) ? names[id] : id;
 }
 
 function claudeRoute(catalog: ModelCatalogSnapshot | null | undefined) {

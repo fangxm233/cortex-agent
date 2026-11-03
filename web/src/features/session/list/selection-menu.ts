@@ -1,7 +1,9 @@
 import type {
   ConfigAgentEntry, ConfigModels, EngineSelection, ModelCatalogSnapshot, ModelRef,
 } from '@cortex-agent/ui-contract';
-import { catalogModels, modelKey, modelLabel, selectionForModel, servingConnections } from '@/lib/model-selection';
+import {
+  catalogModels, connectionName, modelKey, modelLabel, selectionForModel, servingConnections, type ConnectionNames,
+} from '@/lib/model-selection';
 import type { SelectionChange } from '@/features/session/state/selected-session';
 
 export type EffectiveSelection = EngineSelection;
@@ -75,13 +77,16 @@ export function buildThinkingOptions(catalog: ModelCatalogSnapshot | null | unde
 }
 
 /** Offered only when more than one Claude connection serves the current model. `defaultLabel`
- *  names the row that follows the default connection. */
+ *  names the row that follows the default connection; accounts show their label. */
 export function buildConnectionOptions(
   catalog: ModelCatalogSnapshot | null | undefined, current: EngineSelection, defaultLabel: string,
+  names: ConnectionNames = {},
 ): ConnectionOption[] {
   const serving = servingConnections(catalog, current);
   if (serving.length < 2) return [];
-  return [null, ...serving].map((id) => ({ id, label: id ?? defaultLabel, active: id === (current.connection ?? null) }));
+  return [null, ...serving].map((id) => ({
+    id, label: id === null ? defaultLabel : connectionName(names, id), active: id === (current.connection ?? null),
+  }));
 }
 
 export function hasAgentChoice(agents: readonly unknown[]): boolean { return agents.length > 1; }
@@ -124,13 +129,15 @@ export interface SelectionRowCopy {
   connectionDefault?: string;
 }
 export function selectionRootRows(
-  current: EngineSelection, copy: SelectionRowCopy, opts: { hasThinking: boolean; hasConnections: boolean },
+  current: EngineSelection, copy: SelectionRowCopy,
+  opts: { hasThinking: boolean; hasConnections: boolean; connectionNames?: ConnectionNames },
 ): SelectionRootRow[] {
+  const connection = current.connection ? connectionName(opts.connectionNames ?? {}, current.connection) : null;
   return [
     { key: 'model', label: copy.model, value: current.model || '—' },
     ...(opts.hasThinking ? [{ key: 'thinking' as const, label: copy.thinking, value: current.thinking ?? copy.default ?? '—' }] : []),
     ...(opts.hasConnections ? [{
-      key: 'connection' as const, label: copy.connection, value: current.connection ?? copy.connectionDefault ?? '—',
+      key: 'connection' as const, label: copy.connection, value: connection ?? copy.connectionDefault ?? '—',
     }] : []),
   ];
 }

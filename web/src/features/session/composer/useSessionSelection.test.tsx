@@ -5,10 +5,12 @@ import { LangProvider } from '@/i18n';
 import { modelKey } from '@/lib/model-selection';
 
 const harness = vi.hoisted(() => ({
-  config: null as unknown, catalog: null as unknown, writes: vi.fn(), invalidate: vi.fn(), fetch: vi.fn(),
+  config: null as unknown, catalog: null as unknown, connections: [] as unknown[], writes: vi.fn(), invalidate: vi.fn(), fetch: vi.fn(),
 }));
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: (opts: { kind: string }) => ({ data: opts.kind === 'config' ? harness.config : harness.catalog, isLoading: !harness.catalog }),
+  useQuery: (opts: { kind: string }) => (opts.kind === 'connections'
+    ? { data: harness.connections, isLoading: false }
+    : { data: opts.kind === 'config' ? harness.config : harness.catalog, isLoading: !harness.catalog }),
   useQueryClient: () => ({ invalidateQueries: harness.invalidate, fetchQuery: harness.fetch }),
   useMutation: (opts: { kind: string; onSuccess: () => void }) => ({
     mutate: (input: unknown) => { harness.writes(opts.kind, input); opts.onSuccess(); },
@@ -18,6 +20,7 @@ vi.mock('@/lib/trpc', () => ({ useTRPC: () => {
   const mutation = (kind: string) => ({ mutationOptions: (options: object) => ({ kind, ...options }) });
   return {
     config: { get: { queryOptions: () => ({ kind: 'config' }), queryFilter: () => ({ kind: 'config' }) } },
+    connections: { list: { queryOptions: () => ({ kind: 'connections' }) } },
     models: {
       catalog: { queryOptions: () => ({ kind: 'catalog' }) },
       favorites: { add: mutation('add'), remove: mutation('remove') },

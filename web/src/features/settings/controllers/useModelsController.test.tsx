@@ -14,11 +14,12 @@ const snapshot = { models: { default: { ...ref, connection: 'subscription', thin
 const catalog = { routes: [{ endpoint: 'deepseek', backend: 'pi', provider: 'deepseek',
   connections: [], models: ['flash', 'new-model'], source: 'pi' }, { endpoint: 'anthropic', backend: 'claude', provider: null,
   connections: ['subscription', 'api'], models: ['opus'], source: 'builtin' }], piPending: false };
-const adapter = vi.hoisted(() => ({ config: vi.fn(), catalog: vi.fn(), add: vi.fn(), remove: vi.fn(), setDefault: vi.fn(), setThinking: vi.fn(), toast: vi.fn() }));
+const adapter = vi.hoisted(() => ({ config: vi.fn(), catalog: vi.fn(), connections: vi.fn(), add: vi.fn(), remove: vi.fn(), setDefault: vi.fn(), setThinking: vi.fn(), toast: vi.fn() }));
 vi.mock('@/lib/trpc', () => {
   const mutation = (fn: (input: unknown) => unknown) => ({ mutationOptions: (options: object) => ({ ...options, mutationFn: (input: unknown) => fn(input) }) });
   return { useTRPC: () => ({
     config: { get: { queryOptions: () => ({ queryKey: ['config'], queryFn: adapter.config }), queryFilter: () => ({ queryKey: ['config'] }) } },
+    connections: { list: { queryOptions: () => ({ queryKey: ['connections'], queryFn: adapter.connections }) } },
     models: { catalog: { queryOptions: () => ({ queryKey: ['catalog'], queryFn: adapter.catalog }) },
       favorites: { add: mutation(adapter.add), remove: mutation(adapter.remove) }, setDefault: mutation(adapter.setDefault), setThinking: mutation(adapter.setThinking) },
   }) };
@@ -37,6 +38,7 @@ async function mount() {
 beforeEach(() => {
   vi.clearAllMocks();
   adapter.config.mockResolvedValue(snapshot); adapter.catalog.mockResolvedValue(catalog);
+  adapter.connections.mockResolvedValue([{ id: 'api', backend: 'claude', provider: null, kind: 'key', label: 'API' }]);
   adapter.add.mockResolvedValue({ changed: true }); adapter.remove.mockResolvedValue({ changed: true });
   adapter.setDefault.mockResolvedValue({ changed: true });
   adapter.setThinking.mockResolvedValue({ changed: true });
@@ -138,5 +140,15 @@ describe('model settings writes', () => {
     expect(invalidate).not.toHaveBeenCalled();
     expect(adapter.toast).toHaveBeenCalledWith(expect.objectContaining({ title: expect.stringContaining('denied'), tone: 'failed' }));
     act(() => view.unmount());
+  });
+});
+
+describe('default connection', () => {
+  it('offers the connections serving the default model and pins one onto the default selection', async () => {
+    await mount();
+    await vi.waitFor(() => expect(controller.connectionControl?.options.map(option => option.value)).toEqual(['', 'subscription', 'api']));
+    expect(controller.connectionControl?.value).toBe('subscription');
+    await act(async () => { controller.setDefaultConnection('api'); });
+    expect(adapter.setDefault.mock.calls[0]?.[0]).toEqual({ selection: { ...snapshot.models.default, connection: 'api' } });
   });
 });

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { ConfigSnapshot, ModelCatalogSnapshot, ModelRef } from '@cortex-agent/ui-contract';
-import { buildModelFacts, catalogModels, defaultModelOptions, favoriteThinkingControl, modelOptionLabel, thinkingFromValue } from './models-panel-vm';
+import {
+  buildModelFacts, catalogModels, defaultConnectionControl, defaultModelOptions, favoriteThinkingControl, modelOptionLabel,
+  thinkingFromValue,
+} from './models-panel-vm';
 import { modelKey } from '@/lib/model-selection';
 
 const ref: ModelRef = { backend: 'pi', provider: 'deepseek', model: 'flash' };
@@ -72,5 +75,33 @@ describe('model settings derivations', () => {
     const config = { ...snapshot, models: { ...snapshot.models, favorites: [] } };
     expect(defaultModelOptions(config, null)).toEqual([snapshot.models.default]);
     expect(defaultModelOptions(snapshot, catalog)).toHaveLength(3);
+  });
+});
+
+describe('default connection', () => {
+  const opus = { backend: 'claude' as const, provider: null, model: 'opus' };
+  const accounts: ModelCatalogSnapshot = { piPending: false, routes: [
+    { backend: 'claude', provider: null, endpoint: 'anthropic', connections: ['subscription', 'school'], models: ['opus'], source: 'builtin' },
+  ] };
+  const onDefault = { models: { default: { ...opus, thinking: null, connection: null }, favorites: [], memory: {} } } as unknown as ConfigSnapshot;
+
+  it('offers the connections serving the default model, accounts by their label', () => {
+    const control = defaultConnectionControl(onDefault, accounts, { school: 'School' }, 'Default ({connection})');
+    expect(control).toEqual({
+      value: '',
+      options: [
+        { value: '', label: 'Default (subscription)' },
+        { value: 'subscription', label: 'subscription' },
+        { value: 'school', label: 'School' },
+      ],
+    });
+    const pinned = { models: { ...onDefault.models, default: { ...opus, thinking: null, connection: 'school' } } } as ConfigSnapshot;
+    expect(defaultConnectionControl(pinned, accounts, {}, 'Default ({connection})')?.value).toBe('school');
+  });
+
+  it('offers nothing when one connection or none serves the default model', () => {
+    expect(defaultConnectionControl(onDefault, catalog, {}, 'Default ({connection})')).toBeNull();
+    expect(defaultConnectionControl(snapshot, accounts, {}, 'Default ({connection})')).toBeNull();
+    expect(defaultConnectionControl(onDefault, null, {}, 'Default ({connection})')).toBeNull();
   });
 });

@@ -16,7 +16,7 @@ function controller(): ModelsController {
     loading: false, error: null, catalogOpen: true, catalogModels: [{ ...ref, model: 'pro' }],
     catalogPending: false, catalogError: null, pending: false,
     catalog: { piPending: false, routes: [], thinkingLevels: { pi: ['off', 'high', 'xhigh'], claude: ['high'] } },
-    setCatalogOpen: vi.fn(), setDefault: vi.fn(), setThinking: vi.fn(), add: vi.fn(), remove: vi.fn(),
+    setCatalogOpen: vi.fn(), setDefault: vi.fn(), setDefaultConnection: vi.fn(), connectionControl: null, setThinking: vi.fn(), add: vi.fn(), remove: vi.fn(),
   };
 }
 

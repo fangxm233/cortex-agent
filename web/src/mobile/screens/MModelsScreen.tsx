@@ -21,12 +21,16 @@ const ROW_BUTTON: CSSProperties = {
 function DefaultModel({ c }: { c: ModelsController }) {
   const L = useVocab();
   const current = c.snapshot?.models.default;
+  const connection = c.connectionControl;
   return <MSettingsSection><div style={{ padding: PAD }}>
     <MSettingsSelect label={L.stDefaultModel} value={current ? modelKey(current) : ''}
       disabled={c.pending || !c.options.length} onValueChange={c.setDefault}
       options={[{ value: '', label: L.stChooseModel, disabled: true },
         ...c.options.map(ref => ({ value: modelKey(ref), label: modelOptionLabel(ref) }))]} />
-  </div></MSettingsSection>;
+  </div>{connection ? <div data-default-connection style={{ padding: PAD }}>
+    <MSettingsSelect label={L.wbConnection} value={connection.value} disabled={c.pending}
+      options={connection.options} onValueChange={value => c.setDefaultConnection(value || null)} />
+  </div> : null}</MSettingsSection>;
 }
 
 function FavoriteRow({ fact, onOpen }: { fact: ModelFact; onOpen: (key: string) => void }) {

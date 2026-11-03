@@ -9,16 +9,30 @@ import { useModelsController, type ModelsController } from '@/features/settings/
 import { favoriteThinkingControl, groupModelFacts, modelOptionLabel, thinkingFromValue, type ModelFact } from '@/features/settings/vm/models-panel-vm';
 import { SLinkAction, SMeta, SNotice, SRow, SRowGroup, SSection, SSubheading, S_CONTROL_STYLE } from '@/features/settings/ui/settings-ui';
 
+const DEFAULT_CONTROL_STYLE = { ...S_CONTROL_STYLE, width: 300, maxWidth: '100%' };
+
+/** Shown only while more than one connection can run the default model. */
+function DefaultConnectionRow({ controller: c }: { controller: ModelsController }) {
+  const L = useVocab();
+  const control = c.connectionControl;
+  if (!control) return null;
+  return <SRow data-default-connection title={L.wbConnection} control={
+    <Select aria-label={L.wbConnection} value={control.value} disabled={c.pending} options={control.options}
+      popupClassName="settings-surface settings-select-popup" style={DEFAULT_CONTROL_STYLE}
+      onValueChange={value => c.setDefaultConnection(value || null)} />
+  } />;
+}
+
 function DefaultModelRow({ controller: c }: { controller: ModelsController }) {
   const L = useVocab();
   const current = c.snapshot?.models.default;
   return <SRowGroup><SRow title={L.stDefaultModel} desc={L.stModelDefaultNote} control={
     <Select aria-label={L.stDefaultModel} value={current ? modelKey(current) : ''}
       disabled={c.pending || !c.options.length} placeholder={L.stChooseModel}
-      popupClassName="settings-surface settings-select-popup" style={{ ...S_CONTROL_STYLE, width: 300, maxWidth: '100%' }}
+      popupClassName="settings-surface settings-select-popup" style={DEFAULT_CONTROL_STYLE}
       options={c.options.map(ref => ({ value: modelKey(ref), label: modelOptionLabel(ref) }))}
       onValueChange={c.setDefault} />
-  } /></SRowGroup>;
+  } /><DefaultConnectionRow controller={c} /></SRowGroup>;
 }
 
 function FavoriteThinking({ c, fact }: { c: ModelsController; fact: ModelFact }) {

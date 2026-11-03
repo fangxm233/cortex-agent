@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { EngineSelection } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { defaultConnectionFor, hasRoute, selectionForModel } from '@/lib/model-selection';
+import {
+  connectionName, connectionNames, defaultConnectionFor, hasRoute, selectionForModel,
+} from '@/lib/model-selection';
 import { useToastOptional } from '@/design';
 import { fmt, useVocab } from '@/i18n';
 import {
@@ -83,11 +85,16 @@ function useSelectionData(input: SessionSelectionInput, open: boolean) {
   const trpc = useTRPC();
   const config = useQuery(trpc.config.get.queryOptions({}));
   const catalogQuery = useQuery(trpc.models.catalog.queryOptions({}, { enabled: open }));
+  // Account ids are slugs of their labels; the picker shows the label.
+  const connections = useQuery(trpc.connections.list.queryOptions({}, { enabled: open }));
   const transition = resolveTransitionSelection(input.currentSelection, input.pendingCreatedSession, input.sessionId);
   const selection = input.isDraft ? input.draftSelection.selection : transition;
   const agentName = (input.isDraft ? input.draftSelection.agentName
     : resolveTransitionAgent(input.currentAgent, input.pendingCreatedSession, input.sessionId)) ?? null;
-  return { config: config.data, catalogQuery, effective: selection ?? config.data?.models.default ?? EMPTY_ENGINE, agentName };
+  return {
+    config: config.data, catalogQuery, names: connectionNames(connections.data),
+    effective: selection ?? config.data?.models.default ?? EMPTY_ENGINE, agentName,
+  };
 }
 
 function selectionOptions(data: ReturnType<typeof useSelectionData>, hasHistory: boolean, L: ReturnType<typeof useVocab>) {
@@ -97,16 +104,18 @@ function selectionOptions(data: ReturnType<typeof useSelectionData>, hasHistory:
   const agents = data.config?.agents ?? [];
   const thinkingOptions = buildThinkingOptions(catalog, effective);
   const fallback = defaultConnectionFor(catalog, effective);
-  const connectionDefault = fallback ? fmt(L.wbConnectionDefault, { connection: fallback }) : L.wbThinkingDefault;
-  const connectionOptions = buildConnectionOptions(catalog, effective, connectionDefault);
+  const connectionDefault = fallback
+    ? fmt(L.wbConnectionDefault, { connection: connectionName(data.names, fallback) }) : L.wbThinkingDefault;
+  const connectionOptions = buildConnectionOptions(catalog, effective, connectionDefault, data.names);
   const copy = { model: L.wbModel, thinking: L.wbThinking, connection: L.wbConnection, default: L.wbThinkingDefault, connectionDefault };
   return {
     models, catalog, agents, effective, agentName, hasHistory,
     favoriteOptions: buildFavoriteOptions(models, effective, { hasHistory, catalog }),
     modelGroups: groupModelOptions(buildModelOptions(catalog, models, effective, { hasHistory }), effective.backend),
     thinkingOptions, connectionOptions, agentOptions: buildAgentOptions(agents, { agentName }),
-    rootRows: selectionRootRows(effective, copy,
-      { hasThinking: thinkingOptions.length > 1, hasConnections: connectionOptions.length > 0 }),
+    rootRows: selectionRootRows(effective, copy, {
+      hasThinking: thinkingOptions.length > 1, hasConnections: connectionOptions.length > 0, connectionNames: data.names,
+    }),
     modelsReady: !data.catalogQuery.isLoading && !data.catalogQuery.data?.piPending,
     catalogLoading: data.catalogQuery.isLoading,
   };

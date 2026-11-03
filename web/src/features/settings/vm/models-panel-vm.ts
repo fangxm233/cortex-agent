@@ -1,5 +1,9 @@
 import type { ConfigSnapshot, ModelCatalogSnapshot, ModelRef } from '@cortex-agent/ui-contract';
-import { modelKey, modelLabel } from '@/lib/model-selection';
+import { fmt } from '@/i18n/fmt';
+import {
+  connectionName, defaultConnectionFor, modelKey, modelLabel, type ConnectionNames,
+} from '@/lib/model-selection';
+import { buildConnectionOptions } from '@/features/session/list/selection-menu';
 
 export interface ModelFact {
   ref: ModelRef;
@@ -70,4 +74,27 @@ export function groupModelFacts(facts: ModelFact[]): [string, ModelFact[]][] {
     groups.set(label, [...(groups.get(label) ?? []), fact]);
   }
   return [...groups];
+}
+
+export interface DefaultConnectionControl {
+  /** '' follows the default connection. */
+  value: string;
+  options: { value: string; label: string }[];
+}
+
+/** The connection choice for the default model, offered under the same rule as the composer's:
+ *  only when more than one connection serves it. `defaultLabel` is the "Default ({connection})" copy. */
+export function defaultConnectionControl(
+  snapshot: Pick<ConfigSnapshot, 'models'>, catalog: ModelCatalogSnapshot | null, names: ConnectionNames, defaultLabel: string,
+): DefaultConnectionControl | null {
+  const current = snapshot.models.default;
+  if (!current) return null;
+  const fallback = defaultConnectionFor(catalog, current);
+  const followLabel = fmt(defaultLabel, { connection: fallback ? connectionName(names, fallback) : '—' });
+  const options = buildConnectionOptions(catalog, current, followLabel, names);
+  if (options.length === 0) return null;
+  return {
+    value: current.connection ?? '',
+    options: options.map(option => ({ value: option.id ?? '', label: option.label })),
+  };
 }

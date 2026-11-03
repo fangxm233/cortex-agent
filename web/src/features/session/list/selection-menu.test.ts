@@ -130,6 +130,17 @@ describe('thinking and connection options', () => {
     expect(buildConnectionOptions(local, { ...current, model: 'qwen-coder' }, 'Default')).toEqual([]);
     expect(buildConnectionOptions(local, current, 'Default').map((option) => option.id)).toEqual([null, 'subscription', 'api', 'qwen']);
   });
+
+  it('names an account by its label, in the options and on the root row', () => {
+    const accounts = { ...catalog, routes: [{ ...catalog.routes[0], connections: ['subscription', 'api', 'school'] }] };
+    const names = { school: 'School' };
+    const onSchool = { ...current, connection: 'school' };
+    expect(buildConnectionOptions(accounts, onSchool, 'Default', names).map((option) => [option.id, option.label, option.active]))
+      .toEqual([[null, 'Default', false], ['subscription', 'subscription', false], ['api', 'api', false], ['school', 'School', true]]);
+    const copy = { model: 'Model', thinking: 'Thinking', connection: 'Connection' };
+    expect(selectionRootRows(onSchool, copy, { hasThinking: false, hasConnections: true, connectionNames: names })[1].value)
+      .toBe('School');
+  });
 });
 
 describe('complete selection changes', () => {
