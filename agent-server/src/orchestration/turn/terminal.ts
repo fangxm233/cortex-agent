@@ -109,7 +109,7 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
  *  it) and `rate-limited` (queued for auto-resume) are not the end of the conversation's turn. */
 export type AgentErrorOutcome = 'superseded' | 'cancelled' | 'rate-limited' | 'failed';
 
-export async function handleAgentError({ error, channel, adapter, statusMsg, startTime, executionId, sessionId = null, effectiveSessionId = null, threadAnchorId = null, userMessageTs = null, userMessage = null }: { error: { message: string; cancelled?: boolean; rateLimitProvider?: string }; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; sessionId?: string | null; effectiveSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; userMessage?: string | null }): Promise<AgentErrorOutcome> {
+export async function handleAgentError({ error, channel, adapter, statusMsg, startTime, executionId, sessionId = null, effectiveSessionId = null, threadAnchorId = null, userMessageTs = null, userMessage = null }: { error: { message: string; cancelled?: boolean; rateLimitProvider?: string; rateLimitRoute?: string }; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; sessionId?: string | null; effectiveSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; userMessage?: string | null }): Promise<AgentErrorOutcome> {
   // Status and identity both display the stable track ID. The backend ID remains only a resume
   // target; it must never replace the channel binding or registry key.
   const { elapsedStr, elapsedS } = computeElapsed(startTime);
@@ -139,8 +139,10 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
   // userMessage is available (direct/TUI turns) — edit callers without it fall through to the
   // normal error path.
   if (userMessage && isApiRateLimitError(error.message)
-    && isProviderRateLimited(error.rateLimitProvider)) {
-    recordDirectResume({ provider: error.rateLimitProvider, channel, trackSessionId: sessionId, userMessage });
+    && isProviderRateLimited(error.rateLimitProvider, error.rateLimitRoute)) {
+    recordDirectResume({
+      provider: error.rateLimitProvider, route: error.rateLimitRoute, channel, trackSessionId: sessionId, userMessage,
+    });
     const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionId, elapsedStr });
     await sealQuietly(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionId, isDm: true }));
     return 'rate-limited';
@@ -245,7 +247,9 @@ export async function handleDefaultAgentResult({ result, channel, adapter, statu
   if (result?.rateLimited) {
     // Record the interrupted conversation so it auto-resumes when the rate-limit window
     // resets (rate-limit-throttle onResume → resume-dispatcher).
-    recordDirectResume({ provider: result.rateLimitProvider, channel, trackSessionId: sessionId, userMessage });
+    recordDirectResume({
+      provider: result.rateLimitProvider, route: result.rateLimitRoute, channel, trackSessionId: sessionId, userMessage,
+    });
     const { elapsedStr } = computeElapsed(startTime);
     const rateLimitText = renderTurnStatus({ kind: 'rate-limited' }, { sessionId, elapsedStr });
     await sealQuietly(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionId, isDm: true }));

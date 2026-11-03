@@ -60,7 +60,7 @@ describe('the login command of an account', () => {
   });
 
   it('logs in on the account dir, leaves the legacy token alone and recovers the account', async () => {
-    const login = vi.fn(async () => ({ loggedIn: true, authMethod: 'claude.ai', apiProvider: null }));
+    const login = vi.fn(async (_options: unknown, _deps?: unknown) => ({ loggedIn: true, authMethod: 'claude.ai', apiProvider: null }));
     const removeLegacyToken = vi.fn(async () => {});
     const recovered: unknown[] = [];
     await loginClaudeSubscription({ prompt: async () => 'code', notify: () => {} }, {

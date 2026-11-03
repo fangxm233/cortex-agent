@@ -164,6 +164,9 @@ export interface AgentResult {
   /** Opaque provider key used by provider-scoped throttle and resume bookkeeping. Set by the
    *  run layer for every attempt, including successful turns whose continuation may fail. */
   rateLimitProvider?: string;
+  /** The route (connection) the attempt ran on; with `rateLimitProvider` it names the one throttle
+   *  entry — one account — the result is filed under. */
+  rateLimitRoute?: string;
   planFilePath: string | null;
   enteredPlanMode: boolean;
   exitedPlanMode: boolean;

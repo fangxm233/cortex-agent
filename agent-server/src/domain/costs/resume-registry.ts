@@ -1,4 +1,5 @@
 import { createLogger } from '@core/log.js';
+import { throttleKeyBlocked } from './throttle-key.js';
 
 const log = createLogger('resume-registry');
 
@@ -48,7 +49,7 @@ function fireChange(): void {
 }
 
 function entryIsReady(entry: ResumeEntry, active: Set<string>): boolean {
-  return entry.provider ? !active.has(entry.provider) : active.size === 0;
+  return entry.provider ? !throttleKeyBlocked(entry.provider, active) : active.size === 0;
 }
 
 function takeReadyFrom(map: Map<string, ResumeEntry>, active: Set<string>): ResumeEntry[] {

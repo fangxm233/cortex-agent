@@ -55,6 +55,25 @@ test('system.rateLimitStatus returns active provider windows without collapsing 
   assert.equal(status.providers[0].windows[0].utilization, 0.97);
   assert.equal(status.providers[0].windows[1].label, 'Sonnet');
   assert.deepEqual(status.providers.map((provider) => provider.waitingSessions), [1, 1]);
+  assert.deepEqual(status.providers.map((provider) => [provider.route, provider.key]),
+    [['plan', 'anthropic::plan'], ['subscription', 'openai-codex::subscription']]);
+});
+
+test('system.rateLimitStatus lists each account of a provider on its own row', async () => {
+  await initRateLimitThrottle(adapterStub(), persistenceStub());
+  const resetsAt = Math.floor(Date.now() / 1000) + 900;
+  for (const mode of ['school', 'subscription']) {
+    await handleRateLimitEvent(
+      { rateLimitType: 'five_hour', utilization: 0.97, resetsAt },
+      { provider: 'anthropic', displayName: 'Anthropic', mode },
+    );
+  }
+  await initResumeRegistry({ save: async () => {}, load: async () => [] });
+  recordResume({ kind: 'direct', provider: 'anthropic::school', channel: 'C1', userMessage: 'a', recordedAt: 1 });
+
+  const status = await handleSystemRateLimitStatus({});
+  assert.deepEqual(status.providers.map((provider) => [provider.key, provider.waitingSessions]),
+    [['anthropic::school', 1], ['anthropic::subscription', 0]]);
 });
 
 test('system.rateLimitStatus returns no placeholder when throttle is inactive', async () => {

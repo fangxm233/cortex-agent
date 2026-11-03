@@ -1483,8 +1483,15 @@ export interface RateLimitWindowInfo {
   activatedAt: number;
 }
 
+/** One throttled route of a provider: an account (or other connection), or — with no route — an
+ *  outage of the whole provider. */
 export interface RateLimitProviderInfo {
   provider: string;
+  /** The connection the limit belongs to; absent for a provider-wide outage. */
+  route?: string;
+  /** `provider::route`, or the bare provider without a route: unique per row, and what
+   *  `system.clearRateLimit` takes to clear this row alone. */
+  key?: string;
   displayName: string;
   waitingSessions: number;
   windows: RateLimitWindowInfo[];

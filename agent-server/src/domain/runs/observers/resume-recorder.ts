@@ -1,5 +1,6 @@
 import { recordResume } from '../../costs/resume-registry.js';
 import { isProviderRateLimited } from '../../costs/rate-limit-throttle.js';
+import { throttleKey } from '../../costs/throttle-key.js';
 
 /** A direct (interactive conversation) resume candidate.
  *
@@ -9,6 +10,8 @@ import { isProviderRateLimited } from '../../costs/rate-limit-throttle.js';
 export interface DirectResumeInput {
   /** The provider the interrupted attempt was attributed to. */
   provider: string | null | undefined;
+  /** The route (connection) it ran on; the entry waits for that route's throttle alone. */
+  route?: string | null;
   channel: string;
   /** Stable Cortex tracking id, not the backend session id. Null when the turn had no track record. */
   trackSessionId: string | null;
@@ -28,10 +31,10 @@ export interface DirectResumeInput {
  * and "failed" wording without asking the throttle a second time.
  */
 export function recordDirectResume(input: DirectResumeInput): boolean {
-  if (!isProviderRateLimited(input.provider)) return false;
+  if (!isProviderRateLimited(input.provider, input.route)) return false;
   recordResume({
     kind: 'direct',
-    provider: input.provider ?? null,
+    provider: input.provider ? throttleKey(input.provider, input.route) : null,
     channel: input.channel,
     trackSessionId: input.trackSessionId,
     userMessage: input.userMessage,

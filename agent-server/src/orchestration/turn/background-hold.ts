@@ -242,9 +242,10 @@ export async function holdBackgroundContinuation(
     if (kind === 'rate-limited') {
       // Record for auto-resume when the rate-limit window resets. Both surfaces did this; the web
       // one also needs the answer, to tell a pause from a terminal failure.
-      const provider = cont?.rateLimitProvider ?? base?.rateLimitProvider ?? null;
+      const attributed = cont?.rateLimitProvider ? cont : base;
       resumable = recordDirectResume({
-        provider, channel, trackSessionId: opts.sessionId, userMessage: opts.userMessage,
+        provider: attributed?.rateLimitProvider ?? null, route: attributed?.rateLimitRoute,
+        channel, trackSessionId: opts.sessionId, userMessage: opts.userMessage,
       });
     }
     try {

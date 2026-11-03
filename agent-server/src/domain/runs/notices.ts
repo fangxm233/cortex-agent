@@ -103,8 +103,8 @@ export class AttemptNoticeTracker {
     this.emit(displayText, undefined, 'error');
   }
 
-  private emitAutoResume(provider: string | undefined): boolean {
-    if (!this.ctx.isUserInitiated || !isProviderRateLimited(provider)) return false;
+  private emitAutoResume(provider: string | undefined, route?: string): boolean {
+    if (!this.ctx.isUserInitiated || !isProviderRateLimited(provider, route)) return false;
     // Paused, not failed — the held card would misreport the outcome.
     this.heldError = null;
     if (this.synthesize && this.emit && !this.attemptHasErrorNotice) {
@@ -119,6 +119,7 @@ export class AttemptNoticeTracker {
       message?: unknown;
       cancelled?: boolean;
       rateLimitProvider?: string;
+      rateLimitRoute?: string;
     } | null | undefined;
     if (value?.cancelled) return;
     const message = typeof value?.message === 'string' && value.message.length > 0
@@ -126,12 +127,12 @@ export class AttemptNoticeTracker {
       : String(error);
     const resumableDirectError = this.ctx.trigger !== 'edit-retry'
       && isApiRateLimitError(message)
-      && this.emitAutoResume(value?.rateLimitProvider);
+      && this.emitAutoResume(value?.rateLimitProvider, value?.rateLimitRoute);
     if (!resumableDirectError) this.emitTerminal(message);
   }
 
   emitTerminalRateLimit(result: AgentResult): void {
-    if (this.emitAutoResume(result.rateLimitProvider)) return;
+    if (this.emitAutoResume(result.rateLimitProvider, result.rateLimitRoute)) return;
     const detail = result.rateLimitMessage;
     if (typeof detail === 'string' && detail.startsWith('API Error:')) this.emitTerminal(detail);
     else this.emitTerminal(t('status.rateLimitedExhausted'), t('status.rateLimitedExhausted'));

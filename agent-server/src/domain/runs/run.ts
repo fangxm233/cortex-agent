@@ -294,18 +294,22 @@ export class AgentRunImpl implements AgentRun {
     this.onForegroundError(failure);
   }
 
-  /** Stamp the selected provider onto a result that did not name one. */
+  /** Stamp the selected provider and route onto a result that did not name them. */
   private attribute(result: RunResult): RunResult {
     const provider = attemptProviderOrNull(this.attemptValue.config);
     if (!provider || result.rateLimitProvider) return result;
-    return { ...result, rateLimitProvider: provider };
+    return { ...result, rateLimitProvider: provider, rateLimitRoute: routeName(this.attemptValue.config) };
   }
 
   private attributeError(error: unknown): Error {
     const failure = asError(error);
     const provider = attemptProviderOrNull(this.attemptValue.config);
     if (provider && isRetryableError(failure)) {
-      (failure as Error & { rateLimitProvider?: string }).rateLimitProvider ??= provider;
+      const attributed = failure as Error & { rateLimitProvider?: string; rateLimitRoute?: string };
+      if (!attributed.rateLimitProvider) {
+        attributed.rateLimitProvider = provider;
+        attributed.rateLimitRoute = routeName(this.attemptValue.config);
+      }
     }
     return failure;
   }

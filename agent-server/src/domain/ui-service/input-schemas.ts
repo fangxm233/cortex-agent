@@ -769,7 +769,8 @@ export const systemRestartInput = z.object({
 });
 
 export const systemClearRateLimitInput = z.object({
-  /** Provider key to clear; omit to clear every throttled provider. */
+  /** A row's `key` clears that route alone; a bare provider clears every route of it; omit to clear
+   *  everything. */
   provider: z.string().optional(),
 });
 

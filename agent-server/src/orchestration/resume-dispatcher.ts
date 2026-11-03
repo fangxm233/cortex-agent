@@ -4,6 +4,7 @@ import { buildResumeReminder } from '@core/resume-reminder.js';
 import type { EventBus } from '@events/index.js';
 import { takeReadyResumes, type ResumeEntry } from '@domain/costs/resume-registry.js';
 import { getThrottleState } from '@domain/costs/rate-limit-throttle.js';
+import { throttleKey } from '@domain/costs/throttle-key.js';
 import { agentRunner } from './agent-runner.js';
 import { deliverToSession } from './session-gateway.js';
 import { acquireSessionUse } from '@domain/sessions/session-use.js';
@@ -33,7 +34,7 @@ export interface ResumeDeps {
 function defaultDeps(): ResumeDeps {
   return {
     takeReady: takeReadyResumes,
-    activeProviders: () => getThrottleState().providers.map((provider) => provider.provider),
+    activeProviders: () => getThrottleState().providers.map((entry) => throttleKey(entry.provider, entry.route)),
     route: (ctx) => agentRunner.route(ctx),
     // Subagent children ride on their parent's channel and outlive its turn; counting them read an
     // idle conversation as busy, which dropped its direct resume.
