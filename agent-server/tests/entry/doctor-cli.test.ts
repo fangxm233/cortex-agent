@@ -55,7 +55,7 @@ function greenDeps(over: Partial<DoctorDeps> = {}): DoctorDeps {
       piRuntime: { available: true, version: '0.82.1', entry: '/pi/index.js', error: null },
     }),
     defaultSelection: () => ({ backend: 'claude', connection: 'subscription' }),
-    claudeKeyConnections: () => [],
+    claudeConnections: () => [],
     ...over,
   };
 }

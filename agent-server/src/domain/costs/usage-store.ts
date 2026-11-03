@@ -138,11 +138,12 @@ export class UsageStore {
     return canonicalRecords(await this.persistence.load());
   }
 
-  /** Omit `billing` to match the first row of a provider regardless of billing kind. */
-  async get(provider: string, billing?: UsageBilling): Promise<ProviderUsage | null> {
+  /** Omit `billing` to match the first row of a provider regardless of billing kind; `route`
+   *  names an account's row, and is omitted for the provider's default login. */
+  async get(provider: string, billing?: UsageBilling, route?: string): Promise<ProviderUsage | null> {
     const records = await this.list();
     if (billing === undefined) return records.find((record) => record.provider === provider) ?? null;
-    const key = usageRecordKey({ provider, billing });
+    const key = usageRecordKey({ provider, billing, route });
     return records.find((record) => usageRecordKey(record) === key) ?? null;
   }
 

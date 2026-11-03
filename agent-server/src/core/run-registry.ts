@@ -37,6 +37,8 @@ export interface RunningExecution {
   kill: () => boolean;
   startTime: number;
   backend: string;
+  /** The Claude account the run is signed in as; absent for the default login or a key. */
+  account?: string | null;
   /** The live `AgentRun` that owns this execution — the mid-turn injection target. */
   run?: SteerableRun;
   /** Stable Cortex track session id used by registry/history/query surfaces. */
@@ -97,6 +99,7 @@ export class RunRegistry {
       kill: exec.kill,
       startTime: Date.now(),
       backend: exec.backend,
+      account: exec.account ?? null,
       run: exec.run,
       trackSessionId: exec.trackSessionId ?? null,
       backendSessionId: exec.backendSessionId ?? null,

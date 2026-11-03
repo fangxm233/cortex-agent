@@ -253,7 +253,7 @@ export class AgentRunImpl implements AgentRun {
       },
     });
     this.current = current;
-    this.registerAttempt(current);
+    this.registerAttempt(current, attemptAccount(attempt));
     this.announcePluginWarnings(current.spec);
     return current;
   }
@@ -391,13 +391,14 @@ export class AgentRunImpl implements AgentRun {
 
   // ── wiring ─────────────────────────────────────────────────────────────
 
-  private registerAttempt(attempt: RunAttempt): void {
+  private registerAttempt(attempt: RunAttempt, account: string | null): void {
     this.registry.register({
       channel: this.request.context.channel,
       executionId: this.executionId,
       kind: this.request.context.executionKind,
       kill: () => attempt.kill(),
       backend: attempt.backend,
+      account,
       run: this,
       trackSessionId: this.request.session.sessionId,
       backendSessionId: attempt.backendSessionId ?? this.request.session.backendSessionId,
