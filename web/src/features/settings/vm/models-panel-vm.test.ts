@@ -86,7 +86,7 @@ describe('default connection', () => {
   const onDefault = { models: { default: { ...opus, thinking: null, connection: null }, favorites: [], memory: {} } } as unknown as ConfigSnapshot;
 
   it('offers the connections serving the default model, accounts by their label', () => {
-    const control = defaultConnectionControl(onDefault, accounts, { school: 'School' }, 'Default ({connection})');
+    const control = defaultConnectionControl(onDefault, accounts, { school: 'School' }, { withConnection: 'Default ({connection})', plain: 'Default' });
     expect(control).toEqual({
       value: '',
       options: [
@@ -96,12 +96,22 @@ describe('default connection', () => {
       ],
     });
     const pinned = { models: { ...onDefault.models, default: { ...opus, thinking: null, connection: 'school' } } } as ConfigSnapshot;
-    expect(defaultConnectionControl(pinned, accounts, {}, 'Default ({connection})')?.value).toBe('school');
+    expect(defaultConnectionControl(pinned, accounts, {}, { withConnection: 'Default ({connection})', plain: 'Default' })?.value).toBe('school');
+  });
+
+  it('offers a PI default model\'s accounts beside a plain Default', () => {
+    const flash = { backend: 'pi' as const, provider: 'deepseek', model: 'flash' };
+    const pi: ModelCatalogSnapshot = { piPending: false, routes: [
+      { backend: 'pi', provider: 'deepseek', endpoint: 'deepseek', connections: ['deepseek', 'ds-work'], models: ['flash'], source: 'pi' },
+    ] };
+    const config = { models: { default: { ...flash, thinking: null, connection: null }, favorites: [], memory: {} } } as unknown as ConfigSnapshot;
+    expect(defaultConnectionControl(config, pi, { 'ds-work': 'Work' }, { withConnection: 'Default ({connection})', plain: 'Default' }))
+      .toEqual({ value: '', options: [{ value: '', label: 'Default' }, { value: 'ds-work', label: 'Work' }] });
   });
 
   it('offers nothing when one connection or none serves the default model', () => {
-    expect(defaultConnectionControl(onDefault, catalog, {}, 'Default ({connection})')).toBeNull();
-    expect(defaultConnectionControl(snapshot, accounts, {}, 'Default ({connection})')).toBeNull();
-    expect(defaultConnectionControl(onDefault, null, {}, 'Default ({connection})')).toBeNull();
+    expect(defaultConnectionControl(onDefault, catalog, {}, { withConnection: 'Default ({connection})', plain: 'Default' })).toBeNull();
+    expect(defaultConnectionControl(snapshot, accounts, {}, { withConnection: 'Default ({connection})', plain: 'Default' })).toBeNull();
+    expect(defaultConnectionControl(onDefault, null, {}, { withConnection: 'Default ({connection})', plain: 'Default' })).toBeNull();
   });
 });

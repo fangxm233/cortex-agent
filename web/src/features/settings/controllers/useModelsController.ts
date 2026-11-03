@@ -94,7 +94,9 @@ export function useModelsController(initialSnapshot?: ConfigSnapshot) {
   const names = useConnectionNames(L.wbConnectionSubscription);
   return {
     snapshot, facts, options, loading: config.isLoading, error: config.error,
-    connectionControl: snapshot ? defaultConnectionControl(snapshot, catalog.data ?? null, names, L.wbConnectionDefault) : null,
+    connectionControl: snapshot ? defaultConnectionControl(snapshot, catalog.data ?? null, names, {
+      withConnection: L.wbConnectionDefault, plain: L.wbThinkingDefault,
+    }) : null,
     catalog: catalog.error ? null : catalog.data ?? null,
     catalogOpen, setCatalogOpen, catalogModels: catalogModels(catalog.data ?? null),
     catalogPending: catalog.isLoading || !!catalog.data?.piPending, catalogError: catalog.error,

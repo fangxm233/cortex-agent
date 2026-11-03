@@ -2,15 +2,13 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { EngineSelection } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import {
-  connectionName, defaultConnectionFor, hasRoute, selectionForModel,
-} from '@/lib/model-selection';
+import { hasRoute, selectionForModel } from '@/lib/model-selection';
 import { useConnectionNames } from '@/lib/useConnectionNames';
 import { useToastOptional } from '@/design';
-import { fmt, useVocab } from '@/i18n';
+import { useVocab } from '@/i18n';
 import {
   agentChange, buildAgentOptions, buildConnectionOptions, buildModelOptions, buildFavoriteOptions,
-  buildThinkingOptions, connectionChange, groupModelOptions, selectionRootRows, thinkingChange,
+  buildThinkingOptions, defaultConnectionLabel, connectionChange, groupModelOptions, selectionRootRows, thinkingChange,
   type ModelOption, type SelectionPane,
 } from '@/features/session/list/selection-menu';
 import {
@@ -103,9 +101,9 @@ function selectionOptions(data: ReturnType<typeof useSelectionData>, hasHistory:
   const catalog = data.catalogQuery.data ?? null;
   const agents = data.config?.agents ?? [];
   const thinkingOptions = buildThinkingOptions(catalog, effective);
-  const fallback = defaultConnectionFor(catalog, effective);
-  const connectionDefault = fallback
-    ? fmt(L.wbConnectionDefault, { connection: connectionName(data.names, fallback) }) : L.wbThinkingDefault;
+  const connectionDefault = defaultConnectionLabel(catalog, effective, data.names, {
+    withConnection: L.wbConnectionDefault, plain: L.wbThinkingDefault,
+  });
   const connectionOptions = buildConnectionOptions(catalog, effective, connectionDefault, data.names);
   const copy = { model: L.wbModel, thinking: L.wbThinking, connection: L.wbConnection, default: L.wbThinkingDefault, connectionDefault };
   return {
