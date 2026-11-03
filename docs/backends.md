@@ -440,6 +440,19 @@ banked resets and rate-limit windows; a metered PI account's spend has its own
 row, such as **DeepSeek (Work)**. An account at its limit pauses only the work
 that runs on it.
 
+**Moving on a limit.** With **Switch accounts when rate-limited** on
+(**Settings → Advanced**, the [`accountFailover`](./configuration.md#configsettingsjson)
+setting, off by default), a conversation whose login is rate-limited runs on
+another login of the same provider instead of waiting: the default login or
+another account, billed the same way, able to run the model and not limited
+itself. A run that ends on a rate limit continues on it at once. The web chat
+says which login the conversation moved to the first time it moves; the
+conversation keeps its own selection and returns to its login once that login
+recovers. Key connections never take part, a subscription never moves to an API
+key, and a run already moved that hits a limit again waits for its login to
+reset. When every candidate is limited, the conversation waits as it would with
+the setting off.
+
 ## Custom providers
 
 A custom provider is an endpoint PI does not ship a definition for: a local
