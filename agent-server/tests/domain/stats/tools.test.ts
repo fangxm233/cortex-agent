@@ -188,6 +188,25 @@ describe('aggregateTools', () => {
     expect(tools.series[0]!.values).toHaveLength(30);
   });
 
+  it('merges built-in tool names across case, _ and -, showing the most-called spelling', () => {
+    const at = hour(NOW - HOUR);
+    const spelled: ToolCell[] = [
+      { sessionId: 's1', hour: at, kind: 'tool', name: 'WebFetch', count: 4 },
+      { sessionId: 's2', hour: at, kind: 'tool', name: 'Web_fetch', count: 3 },
+      { sessionId: 's2', hour: at, kind: 'tool', name: 'Web-search', count: 5 },
+      { sessionId: 's1', hour: at, kind: 'tool', name: 'WebSearch', count: 2 },
+      { sessionId: 's1', hour: at, kind: 'skill', name: 'paper-draft', count: 1 },
+      { sessionId: 's1', hour: at, kind: 'skill', name: 'paperdraft', count: 1 },
+    ];
+    const tools = aggregateTools({ ready: true, cells: spelled }, query, NOW, projectOf);
+    expect(tools.ranking).toEqual([
+      { name: 'WebFetch', count: 7, colorSlot: 0 }, { name: 'Web-search', count: 7, colorSlot: 1 },
+    ]);
+    expect(tools.series.map((s) => s.key)).toEqual(['WebFetch', 'Web-search']);
+    const skills = aggregateTools({ ready: true, cells: spelled }, { ...query, kind: 'skill' }, NOW, projectOf);
+    expect(skills.distinct).toBe(2);
+  });
+
   it('filters by project and kind with colour slots fixed by the 90-day rank', () => {
     const tools = aggregateTools({ ready: true, cells }, { ...query, projectId: 'p2' }, NOW, projectOf);
     expect(tools.ranking).toEqual([{ name: 'Read', count: 10, colorSlot: 2 }, { name: 'Bash', count: 5, colorSlot: 1 }]);

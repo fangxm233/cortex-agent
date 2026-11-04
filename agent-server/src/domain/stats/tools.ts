@@ -10,11 +10,18 @@ const RANKING_LIMIT = 10;
 /** Calls in a session the registry no longer knows count toward the default project. */
 export const DEFAULT_PROJECT = 'general';
 
-/** Names are merged case-insensitively; each shows as its most-called spelling. */
+/** Names merge case-insensitively; built-in tool names also ignore `_` and `-`, so PI's `web_fetch`
+ *  and Claude's `WebFetch` are one tool. Skill and MCP names keep their separators. */
+function mergeKey(cell: ToolCell): string {
+  const lower = cell.name.toLowerCase();
+  return cell.kind === 'tool' ? lower.replace(/[_-]/g, '') : lower;
+}
+
+/** Each merged name shows as its most-called spelling. */
 function displayNames(cells: readonly ToolCell[]): Map<string, string> {
   const spellings = new Map<string, Map<string, number>>();
   for (const cell of cells) {
-    const key = cell.name.toLowerCase();
+    const key = mergeKey(cell);
     if (!spellings.has(key)) spellings.set(key, new Map());
     addTo(spellings.get(key)!, cell.name, cell.count);
   }
@@ -23,7 +30,7 @@ function displayNames(cells: readonly ToolCell[]): Map<string, string> {
 
 function countsByName(cells: readonly ToolCell[]): Map<string, number> {
   const totals = new Map<string, number>();
-  for (const cell of cells) addTo(totals, cell.name.toLowerCase(), cell.count);
+  for (const cell of cells) addTo(totals, mergeKey(cell), cell.count);
   return totals;
 }
 
@@ -41,7 +48,7 @@ export function aggregateTools(
   const values: KeyedValues = new Map();
   for (const cell of scoped) {
     const index = bucketIndex(period, cell.hour * HOUR_MS);
-    if (index >= 0) addValue(values, cell.name.toLowerCase(), index, cell.count, period.starts.length);
+    if (index >= 0) addValue(values, mergeKey(cell), index, cell.count, period.starts.length);
   }
   const totals = new Map([...values].map(([key, row]) => [key, row.reduce((acc, value) => acc + value, 0)]));
   const series = topSeries(values, slots, { limit: SERIES_LIMIT, buckets: period.starts.length, withRemainder: false });
