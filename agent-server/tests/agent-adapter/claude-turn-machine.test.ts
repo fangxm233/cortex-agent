@@ -182,13 +182,17 @@ test('a non-JSON line is ignored and does not settle anything', () => {
 
 // --- quota / rate limits ---
 
-test('a rate-limit result resolves (not rejects) and is flagged rateLimited', async () => {
+test.each([
+  "You've hit your limit · resets 5pm",
+  "You've hit your session limit · resets 1am (America/Denver)",
+  "You've hit your weekly limit · resets Nov 7",
+])('a rate-limit result resolves (not rejects) and is flagged rateLimited: %s', async (message) => {
   const { machine } = makeMachine();
   const { promise } = startTurn(machine);
-  machine.handleLine(result({ is_error: true, result: "You've hit your limit · resets 5pm" }));
+  machine.handleLine(result({ is_error: true, result: message }));
   const value = await promise;
   assert.equal(value.rateLimited, true);
-  assert.match(value.rateLimitMessage, /hit your limit/);
+  assert.equal(value.rateLimitMessage, message);
 });
 
 test('rate_limit_event is reported to the host under the session connection, turn or no turn', async () => {

@@ -213,7 +213,7 @@ function rateLimitResultMessage(resultData: any): string | null {
   if (!resultData?.is_error || typeof resultData.result !== 'string') return null;
   const message = resultData.result;
   const normalized = message.toLowerCase();
-  return normalized.includes('hit your limit')
+  return /hit your (?:[\w-]+ )?limit/.test(normalized)
     || normalized.includes('rate limit')
     || normalized.includes('rate_limit')
     || normalized.includes('too many requests')
