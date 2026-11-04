@@ -108,6 +108,7 @@ test.each([
   'getaddrinfo EAI_AGAIN api.deepseek.com', 'network request timed out', 'Connection error.',
   'Codex error: An error occurred while processing your request. You can retry your request. Request ID: req_123',
   'You have hit your ChatGPT usage limit (prolite plan). Try again in ~7737 min.',
+  "You've hit your session limit · resets 1am (America/Denver)", "You've hit your weekly limit · resets Nov 7",
   "ENOSPC: no space left on device, write", 'EMFILE: too many open files, open', 'spawn ENFILE',
   'read EAGAIN',
 ])('classifies transient provider failure: %s', message => {

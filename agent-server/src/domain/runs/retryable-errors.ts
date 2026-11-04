@@ -1,7 +1,8 @@
 import { classifyAuthError } from '../auth/auth-events.js';
 
-// "usage limit" is how PI's openai-codex provider reports a spent ChatGPT plan (usage_limit_reached).
-const RATE_LIMIT_ERROR = /rate[ _]limit|usage[ _]limit|overloaded|529|too many requests|quota/i;
+// "usage limit" is how PI's openai-codex provider reports a spent ChatGPT plan (usage_limit_reached);
+// "hit your … limit" is Claude Code's plan limit ("You've hit your session limit · resets 1am").
+const RATE_LIMIT_ERROR = /rate[ _]limit|usage[ _]limit|hit your (?:[\w-]+ )?limit|overloaded|529|too many requests|quota/i;
 
 export function isApiRateLimitError(errorMessage: string | null | undefined): boolean {
   return !!errorMessage && RATE_LIMIT_ERROR.test(errorMessage);
