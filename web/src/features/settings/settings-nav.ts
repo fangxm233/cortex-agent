@@ -7,6 +7,7 @@ export type SettingsSectionKey =
   | 'models'
   | 'budget'
   | 'usage'
+  | 'stats'
   | 'machines'
   | 'environments'
   | 'plugins'
@@ -39,6 +40,7 @@ const NAV_LABEL_KEYS: Record<SettingsSectionKey, keyof Vocab> = {
   models: 'stNavModels',
   budget: 'stNavBudget',
   usage: 'stNavUsage',
+  stats: 'stNavStats',
   machines: 'stNavMachines',
   environments: 'stNavEnvironments',
   plugins: 'stNavPlugins',
@@ -64,6 +66,7 @@ const NAV_ICONS: Record<SettingsSectionKey, string> = {
   hooks: 'M9.5 17H7.5a5 5 0 0 1 0-10h2M14.5 7h2a5 5 0 0 1 0 10h-2M8.5 12h7',
   budget: 'M3.5 8.5a2 2 0 0 1 2-2h11M3.5 8.5v8a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-13a2 2 0 0 1-2-2zM16.8 13.5h.01',
   usage: 'M3.34 19a10 10 0 1 1 17.32 0M12 14l4-4',
+  stats: 'M3 3v16a2 2 0 0 0 2 2h16M8 17v-4M13 17V6M18 17V9.5',
   machines: 'M4 4.5h16v5.5H4zM4 14h16v5.5H4zM7.5 7.2h.01M7.5 16.8h.01M11 7.2h5M11 16.8h5',
   privacy: 'M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6zM9 12l2 2 4-4',
   advanced: 'M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6z',
@@ -78,13 +81,13 @@ const GROUP_LABEL_KEYS: Record<SettingsGroupKey, keyof Vocab> = {
 };
 
 // Grouping follows what a section is *about*, not which file backs it: the four surfaces the user
-// looks at and types into, the five that configure how the agent runs, the three that account for
+// looks at and types into, the five that configure how the agent runs, the four that account for
 // what it consumes, and the system pages: the escape hatch and privacy. Order inside a group is
 // most- to least-visited.
 const NAV_GROUPS: { key: SettingsGroupKey; keys: SettingsSectionKey[] }[] = [
   { key: 'workspace', keys: ['appearance', 'accounts', 'platform', 'notifications'] },
   { key: 'agent', keys: ['models', 'environments', 'plugins', 'mcp', 'hooks'] },
-  { key: 'resources', keys: ['budget', 'usage', 'machines'] },
+  { key: 'resources', keys: ['budget', 'usage', 'stats', 'machines'] },
   { key: 'system', keys: ['advanced', 'privacy'] },
 ];
 

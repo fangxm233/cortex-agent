@@ -5,7 +5,7 @@ import { useElementWidth } from './useElementWidth';
 export type ChartInsets = Omit<Frame, 'width' | 'height'>;
 
 // Tooltips open beside the hovered bucket and flip to its left near the right edge.
-const TIP_OFFSET = 14;
+const TIP_OFFSET = 8;
 const TIP_ROOM = 230;
 
 function nextIndex(key: string, current: number | null, buckets: number): number | null | undefined {
@@ -27,7 +27,8 @@ export function ChartFrame(props: {
   ariaLabel: string;
   dim?: boolean;
   indexAt: (x: number, frame: Frame, buckets: number) => number | null;
-  anchorX: (index: number, frame: Frame) => number;
+  /** The hovered bucket's horizontal extent; the tooltip sits just outside it. */
+  anchor: (index: number, frame: Frame) => [number, number];
   tooltip: (index: number) => ReactNode;
   children: (frame: Frame, active: number | null) => ReactNode;
 }) {
@@ -45,8 +46,8 @@ export function ChartFrame(props: {
     event.preventDefault();
     setActive(next);
   };
-  const anchor = shown === null ? 0 : props.anchorX(shown, frame);
-  const flip = anchor + TIP_OFFSET + TIP_ROOM > width;
+  const [from, to] = shown === null ? [0, 0] : props.anchor(shown, frame);
+  const flip = to + TIP_OFFSET + TIP_ROOM > width;
   return (
     <div ref={ref} className={props.dim ? 'stats-chart stats-dim' : 'stats-chart'} tabIndex={0}
       role="group" aria-label={props.ariaLabel} onKeyDown={onKey} onBlur={() => setActive(null)}>
@@ -56,7 +57,7 @@ export function ChartFrame(props: {
       </svg>
       {shown !== null ? (
         <div className="stats-tip" data-stats-tip={shown} role="status"
-          style={flip ? { right: Math.max(0, width - anchor + TIP_OFFSET) } : { left: anchor + TIP_OFFSET }}>
+          style={flip ? { right: Math.max(0, width - from + TIP_OFFSET) } : { left: to + TIP_OFFSET }}>
           {props.tooltip(shown)}
         </div>
       ) : null}

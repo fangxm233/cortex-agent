@@ -20,7 +20,7 @@ const EMPTY_SNAPSHOT: ConfigSnapshot = {
 const SECTION_PATH: Partial<Record<SettingsSectionKey, string>> = {
   appearance: '/m/settings/appearance', platform: '/m/settings/platform',
   accounts: '/m/settings/accounts', models: '/m/settings/models', budget: '/m/settings/budget',
-  usage: '/m/settings/usage', machines: '/m/machines', mcp: '/m/settings/mcp',
+  usage: '/m/settings/usage', stats: '/m/settings/stats', machines: '/m/machines', mcp: '/m/settings/mcp',
   notifications: '/m/settings/notifications', hooks: '/m/settings/hooks', advanced: '/m/settings/advanced',
   privacy: '/m/settings/privacy',
 };

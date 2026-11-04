@@ -27,6 +27,7 @@ describe('mobile route manifest', () => {
     ['plan', '/m/session/session-1/plan/request-2', { sessionId: 'session-1', requestId: 'request-2' }],
     ['settingsAccounts', '/m/settings/accounts', {}],
     ['settingsModels', '/m/settings/models', {}],
+    ['settingsStats', '/m/settings/stats', {}],
     ['memoryFile', '/m/memory/file', {}],
   ])('matches %s from a concrete path', (id, pathname, params) => {
     const match = matchMobileRoute(`${pathname}/`);
@@ -39,6 +40,7 @@ describe('mobile route manifest', () => {
     ['/m/session/session-1/plan/request-2', '/m/session/session-1'],
     ['/m/settings/accounts', '/m/settings'],
     ['/m/settings/models', '/m/settings'],
+    ['/m/settings/stats', '/m/settings'],
     ['/m/memory/file', '/m/memory'],
   ])('resolves %s to semantic parent %s with inherited params', (pathname, parent) => {
     expect(mobileRouteParentPath(pathname)).toBe(parent);

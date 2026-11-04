@@ -191,6 +191,21 @@ export function windowLabel(window: StatsWindow, locale: string): string {
   return dateFormat(locale, options).formatRange(from, to);
 }
 
+/** Bucket starts of a period, for a read that carries only its window (tool activity). Days step
+ *  by calendar day, so a DST change does not shift the labels. */
+export function windowStarts(window: StatsWindow): number[] {
+  if (window.bucket === 'hour') {
+    const count = Math.max(0, Math.round((window.end - window.start) / HOUR_MS));
+    return Array.from({ length: count }, (_, i) => window.start + i * HOUR_MS);
+  }
+  const count = Math.max(0, Math.round((window.end - window.start) / (24 * HOUR_MS)));
+  return Array.from({ length: count }, (_, i) => {
+    const day = new Date(window.start);
+    day.setDate(day.getDate() + i);
+    return day.getTime();
+  });
+}
+
 /** Show every n-th axis label so at most `maxLabels` fit. */
 export function labelStride(count: number, maxLabels: number): number {
   return Math.max(1, Math.ceil(count / Math.max(1, maxLabels)));

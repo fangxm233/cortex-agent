@@ -27,7 +27,10 @@ export function StackedBarChart(props: {
   return (
     <ChartFrame height={props.height ?? 200} insets={INSETS} buckets={buckets} ariaLabel={props.ariaLabel} dim={props.dim}
       indexAt={barIndexAt}
-      anchorX={(index, frame) => stackLayout(values, mask, frame, buckets).columns[index]?.slotX ?? 0}
+      anchor={(index, frame) => {
+        const column = stackLayout(values, mask, frame, buckets).columns[index];
+        return column ? [column.x, column.x + column.width] : [0, 0];
+      }}
       tooltip={(index) => {
         const rows = tooltipRows(props.series, props.hidden, index);
         return (

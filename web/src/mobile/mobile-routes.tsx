@@ -20,6 +20,7 @@ import { MAccountsScreen } from './screens/MAccountsScreen';
 import { MHooksScreen } from './screens/MHooksScreen';
 import { MDaemonScreen } from './screens/MDaemonScreen';
 import { MUsageScreen } from './screens/MUsageScreen';
+import { MStatsScreen } from './screens/MStatsScreen';
 import { MAppearanceScreen } from './screens/MAppearanceScreen';
 import { MPlatformScreen } from './screens/MPlatformScreen';
 import { MModelsScreen } from './screens/MModelsScreen';
@@ -52,6 +53,7 @@ const MOBILE_ROUTE_ELEMENTS: Readonly<Record<MobileRouteId, ReactNode>> = {
   settingsPrivacy: <MPrivacyScreen />,
   settingsHooks: <MHooksScreen />,
   settingsUsage: <MUsageScreen />,
+  settingsStats: <MStatsScreen />,
   daemon: <MDaemonScreen />,
 };
 

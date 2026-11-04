@@ -228,8 +228,10 @@
 .stats-list-row + .stats-list-detail,
 .stats-list > * + * { border-top: 1px solid var(--proto-line-2); }
 .stats-list-main { flex: 1; min-width: 0; }
-.stats-list-main > div:first-child { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.stats-list-main > div + div { font-size: 11.5px; color: var(--proto-muted-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stats-list-main > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stats-list-main > span:first-child { font-size: 13px; font-weight: 500; color: var(--proto-ink); }
+.stats-list-main > span + span { font-size: 11.5px; color: var(--proto-muted-2); }
 .stats-list-end { flex: none; text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; }
-.stats-list-end > div + div { font-size: 11.5px; color: var(--proto-muted-2); }
+.stats-list-end > span { display: block; }
+.stats-list-end > span + span { font-size: 11.5px; color: var(--proto-muted-2); }
 .stats-list-detail { padding: 10px 12px 14px; background: var(--proto-line-soft); }

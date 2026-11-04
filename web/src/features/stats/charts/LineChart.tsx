@@ -24,7 +24,10 @@ export function LineChart(props: {
   return (
     <ChartFrame height={props.height ?? 180} insets={INSETS} buckets={buckets} ariaLabel={props.ariaLabel} dim={props.dim}
       indexAt={lineIndexAt}
-      anchorX={(index, frame) => lineX(index, frame, buckets)}
+      anchor={(index, frame) => {
+        const x = lineX(index, frame, buckets);
+        return [x - 4, x + 4];
+      }}
       tooltip={(index) => (
         <TooltipBody title={props.titles[index] ?? ''} rows={tooltipRows(props.series, props.hidden, index, true)} format={props.format} />
       )}>
