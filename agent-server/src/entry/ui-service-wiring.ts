@@ -17,7 +17,6 @@ import {
 } from '@domain/agents/index.js';
 import { getSubagentChildStatuses } from '@domain/agents/subagent/registry.js';
 import { getCostSummary } from '@domain/costs/cost-tracker.js';
-import { statsQuotaWindows, statsTools, statsUsage } from '@domain/stats/index.js';
 import * as executionRegistry from '@domain/executions/registry.js';
 import { projectStore } from '@domain/projects/index.js';
 import { getOnlineDevices, isDeviceOnline, sendCommand } from '@domain/remote/client-manager.js';
@@ -41,6 +40,7 @@ import { rewindWebSession } from '../orchestration/session-rewind.js';
 import { createSessionDeletion } from '@orch/session-deletion.js';
 import { snapshotInlineMedia } from '@orch/inline-media.js';
 import { moveDraftAttachments } from './draft-attachments.js';
+import { buildStatsService } from './stats-wiring.js';
 
 export interface UiServiceWiring {
   adapter: PlatformAdapter;
@@ -65,7 +65,7 @@ export function buildUiService(w: UiServiceWiring): UiService {
     approvalsPath: path.join(CONTEXT_DIR, 'PENDING_APPROVALS.md'),
     runningExecutions: sessionStates,
     costSummary: getCostSummary,
-    stats: { usage: statsUsage, tools: statsTools, quotaWindows: statsQuotaWindows },
+    stats: buildStatsService(),
     conversationHistory,
     getSubagentChildStatuses,
     pendingInjections: pendingInjectionRepo,

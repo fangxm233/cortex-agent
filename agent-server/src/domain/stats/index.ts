@@ -1,50 +1,85 @@
-// Stats page queries. Contract stubs: each returns an empty but well-formed result until the
-// aggregations land.
-import type {
-  StatsQuotaWindows, StatsRange, StatsToolKind, StatsTools, StatsTotals, StatsUsage, StatsWindow,
-} from './types.js';
+// Stats page queries: token usage from the cost ledger, tool activity from the conversation-history
+// tool index, and quota-window history from usage observations. The aggregations are pure; this
+// service only reads their inputs through injected sources, so tests and the daemon differ in
+// wiring alone.
+import type { CostEntry } from '@domain/costs/cost-tracker.js';
+import type { UsageWindowRecord } from '@domain/costs/usage-window-history.js';
+import type { StatsQuotaWindowsQuery, StatsToolsQuery, StatsUsageQuery } from './query.js';
+import { aggregateQuotaWindows, type QuotaLedgerRow } from './quota-windows.js';
+import type { ToolIndexSnapshot } from './tool-index.js';
+import { DEFAULT_PROJECT, aggregateTools } from './tools.js';
+import type { StatsQuotaWindows, StatsTools, StatsUsage } from './types.js';
+import { aggregateUsage, usageRow, usageSlots, type SessionInfo, type UsageRow } from './usage.js';
+import { RETENTION_MS } from './window.js';
 
 export type * from './types.js';
+export type { StatsQuotaWindowsQuery, StatsToolsQuery, StatsUsageQuery } from './query.js';
 
-export interface StatsUsageQuery {
-  range: StatsRange;
-  page: number;
-  projectId: string | null;
+export interface StatsSession extends SessionInfo {
+  sessionId: string;
 }
 
-export interface StatsToolsQuery extends StatsUsageQuery {
-  kind: StatsToolKind;
-}
-
-export interface StatsQuotaWindowsQuery {
-  provider: string | null;
+/** The account a ledger entry ran on: the same attribution the Usage page's rows use. */
+export interface StatsAttribution {
+  provider: string;
+  billing: 'subscription' | 'api';
   route: string | null;
 }
 
-function emptyTotals(): StatsTotals {
-  return { input: 0, output: 0, cacheWrite: 0, cacheRead: 0, total: 0, runs: 0, requests: 0, costUsd: 0 };
+export interface StatsSources {
+  readLedger: () => Promise<readonly CostEntry[]>;
+  listSessions: () => Promise<readonly StatsSession[]>;
+  toolIndex: { snapshot: () => Promise<ToolIndexSnapshot> };
+  quotaRecords: () => Promise<readonly UsageWindowRecord[]>;
+  /** A fresh attributor per query, so its lookups reflect the current credential inventory. */
+  attributor: () => (entry: CostEntry) => StatsAttribution | null;
+  /** The name an account shows under, read once per query. */
+  accountLabels: () => Promise<(provider: string, route: string | null) => string>;
+  now?: () => number;
 }
 
-function emptyWindow(range: StatsRange, page: number): StatsWindow {
-  const now = Date.now();
-  return { range, page, bucket: range === '24h' ? 'hour' : 'day', start: now, end: now, hasOlder: false };
+export interface StatsService {
+  usage: (query: StatsUsageQuery) => Promise<StatsUsage>;
+  tools: (query: StatsToolsQuery) => Promise<StatsTools>;
+  quotaWindows: (query: StatsQuotaWindowsQuery) => Promise<StatsQuotaWindows>;
 }
 
-export async function statsUsage(query: StatsUsageQuery): Promise<StatsUsage> {
+async function usageRows(sources: StatsSources): Promise<UsageRow[]> {
+  return (await sources.readLedger()).flatMap((entry) => usageRow(entry) ?? []);
+}
+
+async function sessionMap(sources: StatsSources): Promise<Map<string, StatsSession>> {
+  return new Map((await sources.listSessions()).map((session) => [session.sessionId, session]));
+}
+
+function quotaLedger(entries: readonly CostEntry[], attribute: (entry: CostEntry) => StatsAttribution | null): QuotaLedgerRow[] {
+  return entries.flatMap((entry) => {
+    const row = usageRow(entry);
+    const account = row ? attribute(entry) : null;
+    if (!row || account?.billing !== 'subscription') return [];
+    return [{ at: row.at, provider: account.provider, route: account.route, source: row.source, cost: row.cost }];
+  });
+}
+
+export function createStatsService(sources: StatsSources): StatsService {
+  const now = sources.now ?? Date.now;
   return {
-    window: emptyWindow(query.range, query.page), totals: emptyTotals(), previous: null, buckets: [],
-    series: { model: [], project: [], source: [] }, groups: { model: [], project: [], source: [] },
-    sessions: [], sessionCount: 0, runs: { model: [], source: [] }, projects: [],
+    usage: async (query) => {
+      const [rows, sessions] = await Promise.all([usageRows(sources), sessionMap(sources)]);
+      return aggregateUsage(rows, query, now(), (sessionId) => sessions.get(sessionId) ?? null);
+    },
+    tools: async (query) => {
+      const [snapshot, sessions] = await Promise.all([sources.toolIndex.snapshot(), sessionMap(sources)]);
+      return aggregateTools(snapshot, query, now(), (sessionId) => sessions.get(sessionId)?.projectId ?? DEFAULT_PROJECT);
+    },
+    quotaWindows: async (query) => {
+      const [entries, records, labelOf] = await Promise.all([sources.readLedger(), sources.quotaRecords(), sources.accountLabels()]);
+      const at = now();
+      const retained = entries.flatMap((entry) => usageRow(entry) ?? []).filter((row) => row.at >= at - RETENTION_MS);
+      return aggregateQuotaWindows({
+        records, ledger: quotaLedger(entries, sources.attributor()), sourceSlots: usageSlots(retained).source,
+        labelOf, query, now: at,
+      });
+    },
   };
-}
-
-export async function statsTools(query: StatsToolsQuery): Promise<StatsTools> {
-  return {
-    window: emptyWindow(query.range, query.page), kind: query.kind, ready: false,
-    total: 0, distinct: 0, series: [], ranking: [],
-  };
-}
-
-export async function statsQuotaWindows(_query: StatsQuotaWindowsQuery): Promise<StatsQuotaWindows> {
-  return { accounts: [], account: null, periods: { fiveHour: [], weekly: [] }, recordingSince: null };
 }
