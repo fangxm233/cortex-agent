@@ -26,6 +26,7 @@ const ROUTES = [
   { id: 'settingsPrivacy', path: '/m/settings/privacy', parent: 'settings' },
   { id: 'settingsHooks', path: '/m/settings/hooks', parent: 'settings' },
   { id: 'settingsUsage', path: '/m/settings/usage', parent: 'settings' },
+  { id: 'settingsStats', path: '/m/settings/stats', parent: 'settings' },
   { id: 'daemon', path: '/m/daemon', parent: 'settings' },
 ] as const;
 

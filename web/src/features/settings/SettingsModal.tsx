@@ -18,6 +18,7 @@ import { AppearancePanel } from '@/features/settings/panels/AppearancePanel';
 import { AccountsPanel } from '@/features/settings/panels/AccountsPanel';
 import { PluginsPanel } from '@/features/settings/panels/PluginsPanel';
 import { UsagePanel } from '@/features/settings/panels/UsagePanel';
+import { StatsPanel } from '@/features/settings/panels/StatsPanel';
 import { PrivacyPanel } from '@/features/settings/panels/PrivacyPanel';
 import { SettingsHeaderSlotContext } from '@/features/settings/ui/settings-kit';
 import { useConfigSnapshot } from '@/features/settings/controllers/useConfigSnapshot';
@@ -306,11 +307,12 @@ type IndependentPanelProps = Pick<
   'section' | 'onClose' | 'onPanelDirtyChange'
 >;
 
-type IndependentPanelRenderer = () => JSX.Element;
+type IndependentPanelRenderer = (props: IndependentPanelProps) => JSX.Element;
 
 const INDEPENDENT_PANEL_RENDERERS: Partial<Record<SettingsSectionKey, IndependentPanelRenderer>> = {
   appearance: () => <AppearancePanel />,
   usage: () => <UsagePanel />,
+  stats: (props) => <StatsPanel onClose={props.onClose} />,
   plugins: () => <PluginsPanel />,
   privacy: () => <PrivacyPanel />,
 };
@@ -321,7 +323,7 @@ function IndependentSettingsPanel(props: IndependentPanelProps) {
     return <AccountsPanel onLogin={openLogin} />;
   }
   const render = INDEPENDENT_PANEL_RENDERERS[props.section];
-  return render ? render() : null;
+  return render ? render(props) : null;
 }
 
 function ConfiguredSettingsPanel(props: SectionContentProps) {
