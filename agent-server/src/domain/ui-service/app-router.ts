@@ -53,6 +53,9 @@ import {
   noteActionInput,
   notesClearCompletedInput,
   costSummaryInput,
+  statsUsageInput,
+  statsToolsInput,
+  statsQuotaWindowsInput,
   executionsCancelInput,
   waitpointsCancelInput,
   scheduleActionInput,
@@ -399,6 +402,14 @@ function costRouter(service: UiService) {
   return router({ summary: makeQuery(service, 'cost.summary', costSummaryInput) });
 }
 
+function statsRouter(service: UiService) {
+  return router({
+    usage: makeQuery(service, 'stats.usage', statsUsageInput),
+    tools: makeQuery(service, 'stats.tools', statsToolsInput),
+    quotaWindows: makeQuery(service, 'stats.quotaWindows', statsQuotaWindowsInput),
+  });
+}
+
 function configRouter(service: UiService) {
   return router({
     get: makeQuery(service, 'config.get', configGetInput),
@@ -480,6 +491,7 @@ export function createAppRouter(service: UiService) {
     issues: issuesRouter(service),
     notes: notesRouter(service),
     cost: costRouter(service),
+    stats: statsRouter(service),
     config: configRouter(service),
     models: modelsRouter(service),
     auth: authRouter(service),

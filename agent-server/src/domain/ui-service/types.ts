@@ -15,6 +15,9 @@ export type { EngineSelection, ModelRef } from '@domain/agents/engine-selection.
 import type { queryInputSchemas, mutateInputSchemas } from './input-schemas.js';
 import type { Project, CreateProjectResult } from '@domain/projects/index.js';
 import type { CostSummary } from '@domain/costs/cost-tracker.js';
+import type {
+  StatsQuotaWindows, StatsQuotaWindowsQuery, StatsTools, StatsToolsQuery, StatsUsage, StatsUsageQuery,
+} from '@domain/stats/index.js';
 import type { ProviderUsage } from '@domain/costs/usage-store.js';
 export type {
   ProviderUsage, UsageBilling, UsageFreshness, UsageResetCredit, UsageResetCredits, UsageWindow,
@@ -1693,6 +1696,9 @@ export interface QueryReturnMap {
   'issues.list': IssueInfo[];
   'notes.list': NoteInfo[];
   'cost.summary': CostSummary;
+  'stats.usage': StatsUsage;
+  'stats.tools': StatsTools;
+  'stats.quotaWindows': StatsQuotaWindows;
   'config.get': ConfigSnapshot;
   'auth.status': AuthStatusSnapshot;
   'auth.flowState': LoginFlowState | null;
@@ -2018,6 +2024,12 @@ export interface UiServiceDeps {
    *  re-deriving "running" from the executions index and the hold registry separately. */
   runningExecutions: SessionStateReader;
   costSummary: (projectId?: string | null) => Promise<CostSummary>;
+  /** The Stats page's three reads. */
+  stats: {
+    usage: (query: StatsUsageQuery) => Promise<StatsUsage>;
+    tools: (query: StatsToolsQuery) => Promise<StatsTools>;
+    quotaWindows: (query: StatsQuotaWindowsQuery) => Promise<StatsQuotaWindows>;
+  };
   /**
    * Registry of connected cortex-client devices (from remote/client-manager) plus the
    * static machine config (from remote/machine-registry getMachineRegistry). Injected at the

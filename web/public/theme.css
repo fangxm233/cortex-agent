@@ -286,6 +286,18 @@
   --m-fail-border: #eed3d0;
   --m-gray: oklch(calc(0.961 + 0.45 * var(--bg-light)) calc(0.0041 * var(--bg-chroma)) var(--bg-hue));
   --m-gray-ink: var(--proto-muted-2);
+
+  /* Chart categorical palette (Stats page): eight slots in fixed order plus the neutral remainder
+     grey. Each theme has its own validated steps; a chart never cycles or derives a ninth hue. */
+  --viz-1: #2a78d6;
+  --viz-2: #eb6834;
+  --viz-3: #1baf7a;
+  --viz-4: #eda100;
+  --viz-5: #e87ba4;
+  --viz-6: #008300;
+  --viz-7: #4a3aa7;
+  --viz-8: #e34948;
+  --viz-other: #b4b6c2;
 }
 
 [data-theme='dark'] {
@@ -466,6 +478,16 @@
   --m-fail-border: #4a2e2b;
   --m-gray: oklch(calc(0.288 + 0.45 * var(--bg-light)) calc(0.018 * var(--bg-chroma)) var(--bg-hue));
   --m-gray-ink: var(--proto-muted-2);
+
+  --viz-1: #3987e5;
+  --viz-2: #d95926;
+  --viz-3: #199e70;
+  --viz-4: #c98500;
+  --viz-5: #d55181;
+  --viz-6: #008300;
+  --viz-7: #9085e9;
+  --viz-8: #e66767;
+  --viz-other: #5d5f6b;
 }
 
 /* ── Glass level ──────────────────────────────────────────────────────────────

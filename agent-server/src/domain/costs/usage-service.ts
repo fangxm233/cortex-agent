@@ -645,7 +645,7 @@ function daemonAccountLabels(): AccountLabel[] {
 }
 
 /** A ledger row's account: a stored account of the row's backend (and, on PI, of its provider). */
-function daemonAccountOf(ref: SelectionRef): string | null {
+export function daemonAccountOf(ref: SelectionRef): string | null {
   if (!ref.connection) return null;
   const owns = (account: AccountConnection): boolean => account.backend === ref.backend && account.id === ref.connection
     && (account.backend === 'claude' || account.provider === ref.provider);

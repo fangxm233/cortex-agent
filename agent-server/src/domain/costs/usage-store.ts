@@ -1,5 +1,6 @@
 import { AsyncMutex } from '@core/async-mutex.js';
 import { providerStateRepo } from '@store/provider-state-repo.js';
+import { usageWindowHistory } from './usage-window-history.js';
 
 export type UsageFreshness = 'live' | 'stale' | 'never' | 'unsupported';
 
@@ -129,10 +130,18 @@ const defaultPersistence: UsagePersistence = {
   save: (records) => providerStateRepo.setProviderUsage(records),
 };
 
+/** Where every quota reading is also offered, to keep its history (best-effort, never throws). */
+export interface UsageObserver {
+  observe(records: readonly ProviderUsage[]): void;
+}
+
 export class UsageStore {
   private readonly mutationMutex = new AsyncMutex();
 
-  constructor(private readonly persistence: UsagePersistence = defaultPersistence) {}
+  constructor(
+    private readonly persistence: UsagePersistence = defaultPersistence,
+    private readonly observer?: UsageObserver,
+  ) {}
 
   async list(): Promise<ProviderUsage[]> {
     return canonicalRecords(await this.persistence.load());
@@ -148,6 +157,7 @@ export class UsageStore {
   }
 
   async update(record: ProviderUsage): Promise<void> {
+    this.observer?.observe([record]);
     await this.mutationMutex.run(async () => {
       const records = canonicalRecords(await this.persistence.load());
       const key = usageRecordKey(record);
@@ -167,6 +177,7 @@ export class UsageStore {
    * incoming values, which are authoritative for the cycle.
    */
   async commit(records: ProviderUsage[]): Promise<void> {
+    this.observer?.observe(records);
     await this.mutationMutex.run(async () => {
       const stored = new Map(
         canonicalRecords(await this.persistence.load()).map((record) => [usageRecordKey(record), record]),
@@ -181,4 +192,4 @@ export class UsageStore {
   }
 }
 
-export const usageStore = new UsageStore();
+export const usageStore = new UsageStore(defaultPersistence, usageWindowHistory);

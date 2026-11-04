@@ -62,6 +62,23 @@ export const costSummaryInput = z.object({
   projectId: z.string().nullish(),
 });
 
+const statsRange = z.enum(['24h', '7d', '30d', '90d']);
+
+export const statsUsageInput = z.object({
+  range: statsRange,
+  page: z.number().int().min(0).max(400).optional(),
+  projectId: z.string().nullish(),
+});
+
+export const statsToolsInput = statsUsageInput.extend({
+  kind: z.enum(['tool', 'skill', 'mcp']).optional(),
+});
+
+export const statsQuotaWindowsInput = z.object({
+  provider: z.string().nullish(),
+  route: z.string().nullish(),
+});
+
 export const configGetInput = z.object({});
 
 export const authStatusInput = z.object({});
@@ -839,6 +856,9 @@ export const queryInputSchemas = {
   'issues.list': issuesListInput,
   'notes.list': notesListInput,
   'cost.summary': costSummaryInput,
+  'stats.usage': statsUsageInput,
+  'stats.tools': statsToolsInput,
+  'stats.quotaWindows': statsQuotaWindowsInput,
   'config.get': configGetInput,
   'auth.status': authStatusInput,
   'auth.flowState': authFlowStateInput,

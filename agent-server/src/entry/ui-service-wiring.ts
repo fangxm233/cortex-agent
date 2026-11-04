@@ -40,6 +40,7 @@ import { rewindWebSession } from '../orchestration/session-rewind.js';
 import { createSessionDeletion } from '@orch/session-deletion.js';
 import { snapshotInlineMedia } from '@orch/inline-media.js';
 import { moveDraftAttachments } from './draft-attachments.js';
+import { buildStatsService } from './stats-wiring.js';
 
 export interface UiServiceWiring {
   adapter: PlatformAdapter;
@@ -64,6 +65,7 @@ export function buildUiService(w: UiServiceWiring): UiService {
     approvalsPath: path.join(CONTEXT_DIR, 'PENDING_APPROVALS.md'),
     runningExecutions: sessionStates,
     costSummary: getCostSummary,
+    stats: buildStatsService(),
     conversationHistory,
     getSubagentChildStatuses,
     pendingInjections: pendingInjectionRepo,

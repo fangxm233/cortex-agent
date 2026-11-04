@@ -34,7 +34,7 @@ export interface LedgerSpendRow {
   spend: SpendFigures | null;
 }
 
-interface Attribution {
+export interface Attribution {
   provider: string;
   /** Null: a row filed before connections existed, whose connection is unknown. */
   connection: string | null;
@@ -94,6 +94,15 @@ function attribute(entry: CostEntry, lookups: Lookups): Attribution | null {
   const billing = connection === null ? 'api' : usageBilling(lookups.billingOf(ref));
   const route = connection === null ? null : lookups.accountOf(ref);
   return { provider: entry.provider || 'anthropic', connection, billing, route };
+}
+
+/** The usage row each ledger entry lands on — provider, billing and account — with the lookups
+ *  memoized for one pass over the ledger. */
+export function ledgerAttributor(
+  billingOf: BillingOf, accountOf: AccountOf = () => null,
+): (entry: CostEntry) => Attribution | null {
+  const lookups: Lookups = { billingOf: memo(billingOf), accountOf: memo(accountOf) };
+  return (entry) => attribute(entry, lookups);
 }
 
 interface Windows {
@@ -158,12 +167,12 @@ export function ledgerSpend(
   entries: readonly CostEntry[], billingOf: BillingOf, now: Date, accountOf: AccountOf = () => null,
 ): LedgerSpendRow[] {
   const windows = windowsAt(now);
-  const lookups: Lookups = { billingOf: memo(billingOf), accountOf: memo(accountOf) };
+  const attributeEntry = ledgerAttributor(billingOf, accountOf);
   const rows = new Map<string, Accumulator>();
   for (const entry of entries) {
     const at = Date.parse(entry.timestamp);
     if (!(at >= windows.ledgerStart)) continue;
-    const attribution = attribute(entry, lookups);
+    const attribution = attributeEntry(entry);
     if (attribution) addEntry(accumulator(rows, attribution), entry, at, windows, attribution.connection);
   }
   return [...rows.values()].filter((row) => row.recent).map(settle);
