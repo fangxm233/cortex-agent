@@ -188,7 +188,7 @@ describe('aggregateTools', () => {
     expect(tools.series[0]!.values).toHaveLength(30);
   });
 
-  it('merges built-in tool names across case, _ and -, showing the most-called spelling', () => {
+  it('merges built-in tool names across case, _ and -, showing the most-called spelling (snake_case in lower case)', () => {
     const at = hour(NOW - HOUR);
     const spelled: ToolCell[] = [
       { sessionId: 's1', hour: at, kind: 'tool', name: 'WebFetch', count: 4 },
@@ -200,9 +200,9 @@ describe('aggregateTools', () => {
     ];
     const tools = aggregateTools({ ready: true, cells: spelled }, query, NOW, projectOf);
     expect(tools.ranking).toEqual([
-      { name: 'WebFetch', count: 7, colorSlot: 0 }, { name: 'Web-search', count: 7, colorSlot: 1 },
+      { name: 'WebFetch', count: 7, colorSlot: 0 }, { name: 'web-search', count: 7, colorSlot: 1 },
     ]);
-    expect(tools.series.map((s) => s.key)).toEqual(['WebFetch', 'Web-search']);
+    expect(tools.series.map((s) => s.key)).toEqual(['WebFetch', 'web-search']);
     const skills = aggregateTools({ ready: true, cells: spelled }, { ...query, kind: 'skill' }, NOW, projectOf);
     expect(skills.distinct).toBe(2);
   });

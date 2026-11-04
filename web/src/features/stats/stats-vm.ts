@@ -562,8 +562,10 @@ export interface SessionRowView {
   runs: string;
 }
 
-function sessionLabel(row: StatsSessionRow): string {
-  return row.label?.trim() || row.sessionId.slice(0, 8);
+/** First-message titles can carry inline markdown (`**alap**`, `` `code` ``); show the text only. */
+export function sessionLabel(row: Pick<StatsSessionRow, 'label' | 'sessionId'>): string {
+  const text = row.label?.replace(/(\*\*|__|`)/g, '').trim();
+  return text || row.sessionId.slice(0, 8);
 }
 
 function shareItems(items: readonly StatsShare[], dimension: 'model' | 'source', L: Vocab): ShareItemView[] {

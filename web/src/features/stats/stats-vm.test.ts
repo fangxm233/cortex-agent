@@ -3,7 +3,7 @@ import type { StatsQuotaPeriod, StatsSeries, StatsTotals, StatsUsage } from '@co
 import { en, zh } from '@/i18n';
 import {
   accountFromKey, accountKey, barIndexAt, buildKpis, buildSessionRow, cacheHitRate, dimensionSeries, formatCost,
-  formatShare, formatTick, formatTokens, hiddenMask, keyLabel, labelStride, legendItems, lineIndexAt, lineLayout,
+  formatShare, formatTick, formatTokens, hiddenMask, keyLabel, labelStride, sessionLabel, legendItems, lineIndexAt, lineLayout,
   niceTicks, pointDelta, quotaRows, rankRows, relativeDelta, roundedTopPath, showMore, slotColor, sparkPaths,
   stackLayout, toggleId, tooltipRows, typeSeries, usageSeries, windowLabel, type ChartFrame,
 } from './stats-vm';
@@ -142,6 +142,11 @@ describe('scales', () => {
     expect(niceTicks(3, true)).toEqual([0, 1, 2, 3]);
     expect(niceTicks(2, true)).toEqual([0, 1, 2]);
     expect(niceTicks(290, true)).toEqual([0, 100, 200, 300]);
+  });
+
+  it('shows session titles without inline markdown', () => {
+    expect(sessionLabel({ label: '接手 **alap**（`ALAP`）', sessionId: 'abcdef123456' })).toBe('接手 alap（ALAP）');
+    expect(sessionLabel({ label: ' ** ', sessionId: 'abcdef123456' })).toBe('abcdef12');
   });
 
   it('thins axis labels to fit', () => {

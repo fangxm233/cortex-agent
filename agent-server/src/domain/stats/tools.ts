@@ -17,13 +17,19 @@ function mergeKey(cell: ToolCell): string {
   return cell.kind === 'tool' ? lower.replace(/[_-]/g, '') : lower;
 }
 
+/** The index stores built-in names capitalized; snake_case ones (PI's `web_fetch`, `remote_bash`)
+ *  read best in their own lower case. */
+function displaySpelling(cell: ToolCell): string {
+  return cell.kind === 'tool' && /[_-]/.test(cell.name) ? cell.name.toLowerCase() : cell.name;
+}
+
 /** Each merged name shows as its most-called spelling. */
 function displayNames(cells: readonly ToolCell[]): Map<string, string> {
   const spellings = new Map<string, Map<string, number>>();
   for (const cell of cells) {
     const key = mergeKey(cell);
     if (!spellings.has(key)) spellings.set(key, new Map());
-    addTo(spellings.get(key)!, cell.name, cell.count);
+    addTo(spellings.get(key)!, displaySpelling(cell), cell.count);
   }
   return new Map([...spellings].map(([key, counts]) => [key, rankKeys(counts)[0]!]));
 }
