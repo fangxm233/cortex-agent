@@ -25,6 +25,7 @@ import { handleApprovalsList } from './query/approvals.js';
 import { handleIssuesList } from './query/issues.js';
 import { handleNotesList } from './query/notes.js';
 import { handleCostSummary } from './query/cost.js';
+import { handleStatsQuotaWindows, handleStatsTools, handleStatsUsage } from './query/stats.js';
 import { handlePlatformSettingsSet } from './mutate/platform-settings.js';
 import { handleConfigGet } from './query/config.js';
 import { handleAuthFlowState, handleAuthStatus } from './query/auth.js';
@@ -159,6 +160,9 @@ export const queryHandlers = {
   'issues.list': (deps, params) => handleIssuesList(deps, params),
   'notes.list': (deps, params) => handleNotesList(deps, params),
   'cost.summary': (deps, params) => handleCostSummary(deps, params),
+  'stats.usage': (deps, params) => handleStatsUsage(deps, params),
+  'stats.tools': (deps, params) => handleStatsTools(deps, params),
+  'stats.quotaWindows': (deps, params) => handleStatsQuotaWindows(deps, params),
   'config.get': (deps, params) => handleConfigGet(deps, params),
   'auth.status': (deps, params) => handleAuthStatus(params, deps.getAuthStatus),
   'auth.flowState': (deps, params) => handleAuthFlowState(params, deps.authLogin?.getState),

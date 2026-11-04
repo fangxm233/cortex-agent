@@ -17,6 +17,7 @@ import {
 } from '@domain/agents/index.js';
 import { getSubagentChildStatuses } from '@domain/agents/subagent/registry.js';
 import { getCostSummary } from '@domain/costs/cost-tracker.js';
+import { statsQuotaWindows, statsTools, statsUsage } from '@domain/stats/index.js';
 import * as executionRegistry from '@domain/executions/registry.js';
 import { projectStore } from '@domain/projects/index.js';
 import { getOnlineDevices, isDeviceOnline, sendCommand } from '@domain/remote/client-manager.js';
@@ -64,6 +65,7 @@ export function buildUiService(w: UiServiceWiring): UiService {
     approvalsPath: path.join(CONTEXT_DIR, 'PENDING_APPROVALS.md'),
     runningExecutions: sessionStates,
     costSummary: getCostSummary,
+    stats: { usage: statsUsage, tools: statsTools, quotaWindows: statsQuotaWindows },
     conversationHistory,
     getSubagentChildStatuses,
     pendingInjections: pendingInjectionRepo,

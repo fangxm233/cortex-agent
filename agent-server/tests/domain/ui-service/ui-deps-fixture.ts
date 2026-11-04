@@ -1,5 +1,6 @@
 import { EventBus } from '../../../src/events/event-bus.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
+import { statsQuotaWindows, statsTools, statsUsage } from '../../../src/domain/stats/index.js';
 
 type NestedDep = 'sessionStore' | 'conversationHistory' | 'clientRegistry' | 'pendingInjections';
 
@@ -38,6 +39,7 @@ export function makeUiDeps(overrides: UiDepsOverrides = {}): UiServiceDeps {
     approvalsPath: '/tmp/nonexistent-approvals.md',
     runningExecutions: { getAll: () => [] } as any,
     costSummary: async () => ({ today: 0, week: 0, month: 0, total: 0, byMode: {} as any, byProject: {}, byTrigger: {}, bySource: {}, byBackend: {}, tokens: {} as any, entryCount: 0, unpricedCount: 0, dailyBudget: 0, monthlyBudget: 0, budgetScope: 'global' as const, forecastToday: 0, dailyCost: [], byTriggerScoped: {} }),
+    stats: { usage: statsUsage, tools: statsTools, quotaWindows: statsQuotaWindows },
     bus: new EventBus(),
     createDirectSession: async () => ({ sessionId: '', channel: '' }),
     adoptScheduledSession: async () => null,
