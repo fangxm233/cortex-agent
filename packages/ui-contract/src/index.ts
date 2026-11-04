@@ -4,4 +4,6 @@
 export type * from '@cortex-agent/server/dist/domain/ui-service/types.js';
 // The cost.summary return DTO lives in the costs domain, not the ui-service barrel.
 export type { CostSummary } from '@cortex-agent/server/dist/domain/costs/cost-tracker.js';
+// The stats.* return DTOs live in the stats domain.
+export type * from '@cortex-agent/server/dist/domain/stats/types.js';
 export type { AppRouter } from './app-router.js';
