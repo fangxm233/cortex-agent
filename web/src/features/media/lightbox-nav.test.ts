@@ -1,18 +1,53 @@
 import { describe, expect, it } from 'vitest';
-import { arrowStep, swipeStep } from './lightbox-nav';
+import { arrowStep, releaseStep, strokeAxis, trackOffset } from './lightbox-nav';
 
-describe('swipeStep', () => {
-  const at = (x: number, y = 0): { x: number; y: number } => ({ x, y });
-
-  it('moves to the next item on a left swipe and the previous on a right swipe', () => {
-    expect(swipeStep(at(300), at(200))).toBe(1);
-    expect(swipeStep(at(200), at(300))).toBe(-1);
+describe('strokeAxis', () => {
+  it('stays undecided inside the slop', () => {
+    expect(strokeAxis(4, 3)).toBeNull();
   });
 
-  it('ignores short strokes and mostly vertical ones', () => {
-    expect(swipeStep(at(300), at(250))).toBe(0);
-    expect(swipeStep(at(300, 0), at(200, 80))).toBe(0);
-    expect(swipeStep(at(300, 0), at(200, 60))).toBe(1);
+  it('locks to the dominant axis once the stroke leaves the slop', () => {
+    expect(strokeAxis(-20, 5)).toBe('x');
+    expect(strokeAxis(6, 20)).toBe('y');
+  });
+});
+
+describe('trackOffset', () => {
+  it('follows the finger where the group has a neighbour', () => {
+    expect(trackOffset(-80, 1, 3)).toBe(-80);
+    expect(trackOffset(80, 1, 3)).toBe(80);
+  });
+
+  it('resists past either end of the group', () => {
+    expect(Math.abs(trackOffset(100, 0, 3))).toBeLessThan(100);
+    expect(Math.abs(trackOffset(-100, 2, 3))).toBeLessThan(100);
+    expect(trackOffset(-100, 0, 3)).toBe(-100);
+  });
+});
+
+describe('releaseStep', () => {
+  const W = 400;
+
+  it('moves on after a drag past a fifth of the width', () => {
+    expect(releaseStep(-100, 0, W, 0, 3)).toBe(1);
+    expect(releaseStep(100, 0, W, 1, 3)).toBe(-1);
+  });
+
+  it('springs back from a short slow drag', () => {
+    expect(releaseStep(-60, -0.1, W, 0, 3)).toBe(0);
+  });
+
+  it('moves on after a short quick flick', () => {
+    expect(releaseStep(-40, -0.8, W, 0, 3)).toBe(1);
+  });
+
+  it('springs back when the release flicks against the drag', () => {
+    expect(releaseStep(-150, 0.8, W, 0, 3)).toBe(0);
+  });
+
+  it('never steps past either end', () => {
+    expect(releaseStep(150, 0, W, 0, 3)).toBe(0);
+    expect(releaseStep(-150, 0, W, 2, 3)).toBe(0);
   });
 });
 

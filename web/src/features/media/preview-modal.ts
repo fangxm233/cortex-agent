@@ -27,7 +27,9 @@ export function usePreviewModalChrome(onClose: () => void): void {
 export interface PreviewHost<T extends PreviewItem> {
   /** The item the modal shows, if any. */
   item: T | null;
-  /** Where `item` sits in the group it was opened from; a lone item is 0 of 1. */
+  /** The group `item` was opened from (just `item` when opened alone); empty while closed. */
+  items: readonly T[];
+  /** Where `item` sits in `items`. */
   index: number;
   count: number;
   /** Opens `next` in the modal — or, while the dock is open, opens (or focuses) its dock tab.
@@ -78,5 +80,6 @@ export function usePreviewHost<T extends PreviewItem>(): PreviewHost<T> {
         setShown(null);
       }
     : undefined;
-  return { item, index: shown?.index ?? 0, count: shown?.items.length ?? 0, open, step, close, pin };
+  const items = shown?.items ?? [];
+  return { item, items, index: shown?.index ?? 0, count: items.length, open, step, close, pin };
 }
