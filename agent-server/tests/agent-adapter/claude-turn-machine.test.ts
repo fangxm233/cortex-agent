@@ -86,6 +86,10 @@ const taskNotification = (id: string, status = 'completed') =>
   line({ type: 'system', subtype: 'task_notification', task_id: id, status, summary: 'done' });
 const replay = (text: string) =>
   line({ type: 'user', isReplay: true, message: { role: 'user', content: text } });
+const notificationEcho = (id: string) => line({
+  type: 'user', isReplay: true, origin: { kind: 'task-notification' },
+  message: { role: 'user', content: `<task-notification>\n<task-id>${id}</task-id>\n</task-notification>` },
+});
 
 // --- turn start / end ---
 
@@ -322,6 +326,48 @@ test('a notification-turn result arriving on a user turn is ignored; the real re
   machine.handleLine(assistant('real work'));
   machine.handleLine(result());
   assert.equal((await promise).finalOutput, 'real work');
+});
+
+// 2026-11-04 (rr-latency): a background command finished mid-turn, the CLI folded its notification
+// into the running loop, and the loop's one result — 162 turns of the user's work — carried
+// origin task-notification. Ignoring it left the turn open until a manual Stop.
+test('once the prompt is consumed, a result tagged task-notification settles the user turn', () => {
+  const { machine } = makeMachine();
+  const { outcome } = startTurn(machine);
+  machine.handleLine(replay('hello'));
+  machine.handleLine(taskStarted('bg1'));
+  machine.handleLine(assistant('working'));
+  machine.handleLine(taskNotification('bg1'));
+  machine.handleLine(notificationEcho('bg1'));
+  machine.handleLine(assistant('final answer'));
+  machine.handleLine(result({ origin: { kind: 'task-notification' }, num_turns: 162 }));
+  assert.equal(outcome.settled, true);
+  assert.equal(outcome.value.finalOutput, 'final answer');
+});
+
+test('a notification echo is not the prompt: a task-notification result before the prompt echo stays ignored', () => {
+  const { machine } = makeMachine();
+  const { outcome } = startTurn(machine);
+  machine.handleLine(notificationEcho('bg0'));
+  machine.handleLine(replay('<task-notification>\n<task-id>bg1</task-id>\n</task-notification>'));
+  machine.handleLine(result({ origin: { kind: 'task-notification' }, num_turns: 0 }));
+  assert.equal(outcome.settled, false);
+});
+
+test('a turn registered over an open user turn settles that turn with what it produced', async () => {
+  const { machine } = makeMachine();
+  const first = startTurn(machine);
+  machine.handleLine(replay('hello'));
+  machine.handleLine(assistant('partial work'));
+
+  const second = startTurn(machine);
+  assert.equal(first.outcome.settled, true);
+  assert.equal(first.outcome.value.finalOutput, 'partial work');
+  assert.equal(first.outcome.value.total_cost_usd, null, 'the loop result, and its cost, belong to the new turn');
+
+  machine.handleLine(assistant('combined answer'));
+  machine.handleLine(result({ num_turns: 5 }));
+  assert.equal((await second.promise).finalOutput, 'combined answer');
 });
 
 test('a subagent end reaches the open turn first, and the background sink once the turn is gone', async () => {

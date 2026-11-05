@@ -228,10 +228,11 @@ class ClaudeSession implements TurnHost {
     this.alive = false;
     clearActivePlanFile(this.sessionId);
     this.turns.abortTurnOnProcessClose(code, this.stderr);
-    // Waiting-window case (no active turn, background tasks pending): the held status would
-    // otherwise wait forever — any process death (restart / crash / kill / timeout) must
-    // seal it. No-op when nothing is pending; always releases the sink (session is gone).
-    this.turns.notifyBgInterrupted();
+    // The process is gone, so nothing can reach the background sink again: a run still held on it
+    // must end now. Forced, because a graceful exit reports its running tasks stopped first and
+    // the run would otherwise look owed nothing and wait forever (2026-11-04, account failover).
+    // A run that already ended ignores it; the sink is released either way.
+    this.turns.notifyBgInterrupted(true);
     this.onSelfClose?.(this.sessionKey, this);
   }
 
@@ -313,7 +314,8 @@ class ClaudeSession implements TurnHost {
     this.startTurnIdleTimer();
 
     const result = await turnPromise;
-    this.clearTurnIdleTimer();
+    // A displaced turn settles while the turn that displaced it runs; the watchdog is that turn's.
+    if (!this.turns.currentTurn) this.clearTurnIdleTimer();
     this.resetIdleTimer();
     return result;
   }
