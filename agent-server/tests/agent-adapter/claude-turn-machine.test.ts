@@ -349,7 +349,8 @@ test('a notification echo is not the prompt: a task-notification result before t
   const { machine } = makeMachine();
   const { outcome } = startTurn(machine);
   machine.handleLine(notificationEcho('bg0'));
-  machine.handleLine(result({ origin: { kind: 'task-notification' }, num_turns: 3 }));
+  machine.handleLine(replay('<task-notification>\n<task-id>bg1</task-id>\n</task-notification>'));
+  machine.handleLine(result({ origin: { kind: 'task-notification' }, num_turns: 0 }));
   assert.equal(outcome.settled, false);
 });
 

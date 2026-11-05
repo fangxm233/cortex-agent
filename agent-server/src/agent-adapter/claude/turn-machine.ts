@@ -330,7 +330,7 @@ export class ClaudeTurnMachine {
     const text = extractReplayText(data);
     if (text === null) return; // a tool_result carrier
     const head = this.pendingInjections[0];
-    if (!head || head.prompt !== text) { this.notePromptEcho(data); return; }
+    if (!head || head.prompt !== text) { this.notePromptEcho(data, text); return; }
     this.pendingInjections.shift();
     // Consumed with no turn in flight ⇒ this is the post-result outcome: the CLI is starting a turn
     // of its own. Arm the spontaneous-turn capture before its first assistant line arrives.
@@ -340,9 +340,11 @@ export class ClaudeTurnMachine {
   }
 
   /** An echo that is not an injection is the open turn's own prompt being read — unless it is a
-   *  background notification the CLI folded into the loop, which says nothing about the prompt. */
-  private notePromptEcho(data: any): void {
-    if (this.currentTurn && data.origin?.kind !== 'task-notification') this.currentTurn.promptConsumed = true;
+   *  background notification the CLI folded into the loop, which says nothing about the prompt.
+   *  Older CLIs echo those without `origin` (2026-08-21 logs), hence the text check. */
+  private notePromptEcho(data: any, text: string): void {
+    const notification = data.origin?.kind === 'task-notification' || text.startsWith('<task-notification>');
+    if (this.currentTurn && !notification) this.currentTurn.promptConsumed = true;
   }
 
   /** `uuid` is the echo's: the id of the transcript entry the message was written as. */
