@@ -34,6 +34,8 @@ import {
 import { ClaudeContextUsageTracker } from './context-usage.js';
 import { activeClaudeCaptureRegistry } from './active-capture-registry.js';
 import { reportSystemLine } from './system-lines.js';
+import { toolResultText } from './tool-result-text.js';
+import { foregroundCallbacks, freshTurnState, type TurnStreams } from './turn-state.js';
 
 const log = createLogger('claude-bridge');
 
@@ -94,6 +96,9 @@ export interface PendingTurn {
   /** True for a synthetic turn opened to capture a background-task continuation
    *  (the spontaneous turn the CLI emits after a run_in_background task finishes). */
   spontaneous?: boolean;
+  /** Set by the prompt's `--replay-user-messages` echo: the CLI has read this turn's prompt, so
+   *  every result from here on is this turn's, whatever its origin. */
+  promptConsumed?: boolean;
 }
 
 /** The two subagent line shapes §17 G4-SA6 admits. A replay echo is the CLI's delivery ack for an
@@ -110,52 +115,6 @@ function subagentAttribution(data: any): ToolUseSubagent | undefined {
     description: typeof data?.task_description === 'string' ? data.task_description : null,
     model: typeof data?.message?.model === 'string' ? data.message.model : null,
   };
-}
-
-/** Longest serialization one unrecognised result block may contribute. */
-const RESULT_BLOCK_JSON_LIMIT = 1000;
-
-function formatByteSize(bytes: number): string {
-  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${bytes} B`;
-}
-
-/**
- * One `tool_result` content block as a line of transcript text.
- *
- * Text passes through; everything else is DESCRIBED, never serialized. `Read` on an image answers
- * with `[{type:'image', source:{type:'base64', data:<~500 KB>}}]`, and stringifying that put the
- * entire payload into the tool_result event — which becomes a debug transcript row, a subagent
- * notice pushed into the PARENT session's stream (`domain/agents/subagent/runner.ts`, not gated on
- * debug) and a capture-log line. One image read cost ~0.5 MB on each of those paths; the model's
- * own context never carried it, only Cortex's transcript did.
- */
-export function describeResultBlock(item: any): string {
-  if (typeof item === 'string') return item;
-  if (!item || typeof item !== 'object') return '';
-  if (item.type === 'text' && typeof item.text === 'string') return item.text;
-  if (item.type === 'image' || item.type === 'document') {
-    const source = (item.source ?? {}) as Record<string, unknown>;
-    const mime = typeof source.media_type === 'string' ? source.media_type : item.type;
-    // base64 → bytes: the magnitude is the point, so no decode is worth its cost here.
-    if (typeof source.data === 'string') return `[${mime}, ${formatByteSize(Math.floor((source.data.length * 3) / 4))}]`;
-    if (typeof source.url === 'string') return `[${mime}, ${source.url}]`;
-    return `[${mime}]`;
-  }
-  const json = JSON.stringify(item) ?? '';
-  return json.length > RESULT_BLOCK_JSON_LIMIT
-    ? `${json.slice(0, RESULT_BLOCK_JSON_LIMIT)}… [${json.length - RESULT_BLOCK_JSON_LIMIT} more chars]`
-    : json;
-}
-
-/** Flatten a `tool_result` block's content to the string shape every sink expects. Shared by the
- *  in-turn path and the orphan-subagent path so the two cannot drift. */
-function toolResultText(block: any): string {
-  if (typeof block.content === 'string') return block.content;
-  if (Array.isArray(block.content)) return block.content.map(describeResultBlock).join('\n');
-  if (block.content == null) return '';
-  return describeResultBlock(block.content);
 }
 
 function subagentActivityKind(data: any): SubagentActivityKind | null {
@@ -179,6 +138,11 @@ export function extractReplayText(data: any): string | null {
     .filter((b: any) => b?.type === 'text' && typeof b.text === 'string')
     .map((b: any) => b.text as string);
   return parts.length ? parts.join('') : null;
+}
+
+/** A stdout line as JSON; undefined when it is not JSON. */
+function parseLine(line: string): any {
+  try { return JSON.parse(line); } catch { return undefined; }
 }
 
 /**
@@ -262,7 +226,7 @@ export class ClaudeTurnMachine {
     try { sink.onResult(result); } catch (e) { log.warn('bg-interrupted sink onResult threw:', (e as Error).message); }
   }
 
-  createTurnStreams(userMessage: string): { rawStream: Writable; txtStream: Writable; pairKey: string | null; releaseCapture: (() => void) | null } {
+  createTurnStreams(userMessage: string): TurnStreams {
     if (!this.host.captureTranscriptLogs) {
       const sink = () => new Writable({ write(_chunk, _encoding, done) { done(); } });
       return { rawStream: sink(), txtStream: sink(), pairKey: null, releaseCapture: null };
@@ -279,37 +243,26 @@ export class ClaudeTurnMachine {
     return { rawStream, txtStream, pairKey: ts, releaseCapture };
   }
 
-  registerTurn(resolve: any, reject: any, streams: { rawStream: Writable; txtStream: Writable; pairKey: string | null; releaseCapture: (() => void) | null }, options: any): void {
+  registerTurn(resolve: any, reject: any, streams: TurnStreams, options: any): void {
     clearActivePlanFile(this.host.sessionId);
-    this.currentTurn = {
-      resolve, reject,
-      resultData: null,
-      planFilePath: null,
-      enteredPlanMode: false,
-      exitedPlanMode: false,
-      finalOutput: null,
-      longestOutput: null,
-      turnCount: 0,
-      subagentTurnCount: 0,
-      capturePairKey: streams.pairKey,
-      releaseCapture: streams.releaseCapture,
-      onProgress: options.onProgress || null,
-      onAssistantMessage: options.onAssistantMessage || null,
-      onAssistantDelta: options.onAssistantDelta || null,
-      onAssistantThinking: options.onAssistantThinking || null,
-      onAssistantThinkingDelta: options.onAssistantThinkingDelta || null,
-      onToolUse: options.onToolUse || null,
-      onToolResult: options.onToolResult || null,
-      onCompact: options.onCompact || null,
-      onModelFallback: options.onModelFallback || null,
-      onApiRetry: options.onApiRetry || null,
-      onContextUsage: options.onContextUsage || null,
-      onSubagentActivity: options.onSubagentActivity || null,
-      onSubagentEnd: options.onSubagentEnd || null,
-      rawStream: streams.rawStream,
-      txtStream: streams.txtStream,
-      killed: false,
-    };
+    this.displaceOpenTurn();
+    this.currentTurn = { resolve, reject, ...freshTurnState(streams), ...foregroundCallbacks(options) };
+  }
+
+  /**
+   * A turn is registering while a user turn is still open: a second run reached this session
+   * mid-turn. The CLI folds the new prompt into its running loop and emits one result, which now
+   * belongs to the new turn. Settle the open turn with what it produced so far — overwritten
+   * silently, its run never ended and kept the session busy (2026-11-04).
+   */
+  private displaceOpenTurn(): void {
+    const turn = this.currentTurn;
+    if (!turn || turn.spontaneous) return;
+    log.info(`New turn on ${this.host.sessionId.substring(0, 8)} while a user turn is open; settling the open one`);
+    turn.txtStream.write('[displaced by a new turn — the loop result goes to that turn]\n');
+    const result = extractResult(null, this.host.sessionId, 0, '',
+      turn.planFilePath, turn.enteredPlanMode, turn.exitedPlanMode, turn.finalOutput, turn.longestOutput);
+    this.settleResultTurn(turn, {}, result);
   }
 
   private deliverContinuation(delivery: ContinuationDelivery): void {
@@ -375,15 +328,21 @@ export class ClaudeTurnMachine {
    */
   private handleReplayEcho(data: any): void {
     const text = extractReplayText(data);
+    if (text === null) return; // a tool_result carrier
     const head = this.pendingInjections[0];
-    // Anything else is the turn's own prompt (or a tool_result carrier).
-    if (text === null || !head || head.prompt !== text) return;
+    if (!head || head.prompt !== text) { this.notePromptEcho(data); return; }
     this.pendingInjections.shift();
     // Consumed with no turn in flight ⇒ this is the post-result outcome: the CLI is starting a turn
     // of its own. Arm the spontaneous-turn capture before its first assistant line arrives.
     const foldedIntoTurn = !!this.currentTurn;
     if (!foldedIntoTurn) this.injectionContinuationArmed = true;
     this.ackDelivered(head.text, foldedIntoTurn, data.uuid);
+  }
+
+  /** An echo that is not an injection is the open turn's own prompt being read — unless it is a
+   *  background notification the CLI folded into the loop, which says nothing about the prompt. */
+  private notePromptEcho(data: any): void {
+    if (this.currentTurn && data.origin?.kind !== 'task-notification') this.currentTurn.promptConsumed = true;
   }
 
   /** `uuid` is the echo's: the id of the transcript entry the message was written as. */
@@ -630,103 +589,133 @@ export class ClaudeTurnMachine {
     if (!line) return;
     this.host.resetIdleTimer();
     this.host.bumpTurnIdleTimer();
-
-    let parsed: any;
-    let isJson = false;
-    try { parsed = JSON.parse(line); isJson = true; } catch { /* handled below */ }
-
+    const parsed = parseLine(line);
     // `stream_event` lines are the token-level preview of a block the CLI will also deliver
     // complete. They dominate stdout once --include-partial-messages is on (measured: 74-86% of
     // all lines), and everything they carry is repeated verbatim by the complete event, so they
     // are deliberately kept out of the per-turn raw jsonl and the daemon log. Handled first, and
     // separately, because everything below is about complete events.
-    if (isJson && parsed?.type === 'stream_event') {
+    if (parsed?.type === 'stream_event') {
       this.handleStreamEvent(parsed);
       return;
     }
+    this.currentTurn?.rawStream?.write(line + '\n');
+    if (this.handleCompleteLine(line, parsed)) log.info('stream:', line.substring(0, 200));
+  }
 
-    if (this.currentTurn?.rawStream) this.currentTurn.rawStream.write(line + '\n');
-
+  /** One complete line; a line that is not JSON, or that a handler choked on, is kept raw in the
+   *  turn transcript. False when a result consumed it — results are not echoed to the daemon log. */
+  private handleCompleteLine(line: string, parsed: any): boolean {
     try {
-      const data = parsed;
-      if (!isJson) throw new Error('not json');
-      // A compaction boundary invalidates the old provider-call cursor before the turn hears of it.
-      if (data.type === 'system' && data.subtype === 'compact_boundary') this.emitContextUsage(data);
-      reportSystemLine(this.currentTurn, data);
-      if (data.type === 'rate_limit_event' && data.rate_limit_info) {
-        this.host.reportRateLimit(data.rate_limit_info, {
-          provider: 'anthropic', displayName: 'Anthropic', mode: this.host.connection,
-        }).catch(e => log.error('handleRateLimitEvent error:', e));
-      }
-      // `--replay-user-messages` echo: the CLI's delivery ack for an injected message.
-      // Handled here and nowhere else — it is deliberately NOT fed to turn bookkeeping, background
-      // tracking, or conversation history (a `user` record there would shift every later turn
-      // index and break edit/rewind). Replays are inert for every other consumer.
-      if (data.type === 'user' && data.isReplay) this.handleReplayEcho(data);
-      if (data.type === 'user' && !data.isReplay && this.currentTurn) this.handleToolResultEvent(this.currentTurn, data);
-      // Track background-task lifecycle on every line (even with no active turn) so the
-      // pending count stays accurate across the turn boundary.
-      this.bgTracker.observe(data);
-      // Authoritative end-of-subagent, forwarded whether or not a turn is open: a subagent can
-      // finish inside its parent turn as easily as beside it, and `subagentEndFor` is consuming,
-      // so the signal is emitted exactly once either way.
-      const subagentEnd = this.bgTracker.subagentEndFor(data);
-      if (subagentEnd) {
-        // In-turn first: a subagent that finishes while its parent turn is still open has no
-        // background-turn sink to reach (one is registered only when the turn ends holding background
-        // work), and `subagentEndFor` is consuming — dropping it here loses the end for good.
-        const inTurn = this.currentTurn?.onSubagentEnd;
-        if (inTurn) {
-          try { inTurn(subagentEnd.parentToolUseId, subagentEnd.status); }
-          catch (e) { log.warn('onSubagentEnd threw:', (e as Error).message); }
-        } else {
-          this.deliverContinuation(
-            s => s.onSubagentEnd?.(subagentEnd.parentToolUseId, subagentEnd.status),
-          );
-        }
-      }
-      // A backgrounded subagent keeps working after its parent turn closed, and the CLI keeps
-      // streaming its lines. With no turn open the branches above skip them, so route them to the
-      // background-turn sink here — otherwise the whole tail of a background agent's trajectory
-      // (tool calls AND its final report) is received and then dropped.
-      if (!this.currentTurn && routeLine(this.bgTracker, data) === 'subagent-orphan') {
-        this.handleOrphanSubagentLine(data);
-      }
-      // No active turn, and the model just started speaking anyway: either a background task
-      // finished (bgTracker armed) or an injected message was consumed after this turn's result
-      // Both make the CLI open a turn of its own — open a synthetic turn for it so its
-      // output is routed (to backgroundTurnSink) instead of being dropped.
-      if (!this.currentTurn && this.backgroundTurnSink && data.type === 'assistant'
-          && (this.injectionContinuationArmed || routeLine(this.bgTracker, data) === 'open-continuation')) {
-        const fromInjection = this.injectionContinuationArmed;
-        this.injectionContinuationArmed = false;
-        this.openContinuationTurn(fromInjection);
-      }
-      if (data.type === 'result' && this.currentTurn) {
-        // A task-notification turn's result can only settle a spontaneous turn. When it lands on
-        // a user turn it is the CLI closing a notification turn of its own — on `--resume` it
-        // reports background work orphaned by the previous process and emits a 0-turn result
-        // BEFORE reading the prompt on stdin. Settling here resolved the user turn empty in ~2s
-        // and dropped the minutes of real work that followed (2026-09-06 investigation).
-        if (isContinuationResult(data) && !this.currentTurn.spontaneous) {
-          log.info(`Ignoring notification-turn result on user turn ${this.host.sessionId.substring(0, 8)} (num_turns=${data.num_turns ?? '?'})`);
-          this.currentTurn.txtStream.write('[notification-turn result ignored — user turn still open]\n');
-          return;
-        }
-        this.emitContextUsage(data);
-        this.handleResultEvent(this.currentTurn, data);
-        return;
-      }
-      if (data.type === 'assistant' && this.currentTurn) this.handleAssistantEvent(this.currentTurn, data);
-      // Emitted last so the census event trails the normalized events the same line already
-      // produced, keeping contiguous tool batches contiguous for the ATIF grouper.
-      this.emitSubagentActivity(data);
-      const formatted = formatEvent(data);
-      if (formatted && this.currentTurn?.txtStream) this.currentTurn.txtStream.write(formatted + '\n');
+      if (parsed === undefined) throw new Error('not json');
+      return this.handleEvent(parsed);
     } catch {
-      if (this.currentTurn?.txtStream) this.currentTurn.txtStream.write(`[raw] ${line}\n`);
+      this.currentTurn?.txtStream?.write(`[raw] ${line}\n`);
+      return true;
     }
-    log.info('stream:', line.substring(0, 200));
+  }
+
+  private handleEvent(data: any): boolean {
+    this.observeLine(data);
+    this.routeTurnlessLine(data);
+    if (data.type === 'result' && this.currentTurn) {
+      this.handleTurnResult(this.currentTurn, data);
+      return false;
+    }
+    if (data.type === 'assistant' && this.currentTurn) this.handleAssistantEvent(this.currentTurn, data);
+    // Emitted last so the census event trails the normalized events the same line already
+    // produced, keeping contiguous tool batches contiguous for the ATIF grouper.
+    this.emitSubagentActivity(data);
+    const formatted = formatEvent(data);
+    if (formatted) this.currentTurn?.txtStream?.write(formatted + '\n');
+    return true;
+  }
+
+  /** The bookkeeping every complete line feeds, whether or not a turn is open. */
+  private observeLine(data: any): void {
+    // A compaction boundary invalidates the old provider-call cursor before the turn hears of it.
+    if (data.type === 'system' && data.subtype === 'compact_boundary') this.emitContextUsage(data);
+    reportSystemLine(this.currentTurn, data);
+    if (data.type === 'rate_limit_event' && data.rate_limit_info) {
+      this.host.reportRateLimit(data.rate_limit_info, {
+        provider: 'anthropic', displayName: 'Anthropic', mode: this.host.connection,
+      }).catch(e => log.error('handleRateLimitEvent error:', e));
+    }
+    this.observeUserLine(data);
+    // Track background-task lifecycle on every line (even with no active turn) so the
+    // pending count stays accurate across the turn boundary.
+    this.bgTracker.observe(data);
+    this.forwardSubagentEnd(data);
+  }
+
+  private observeUserLine(data: any): void {
+    if (data.type !== 'user') return;
+    // `--replay-user-messages` echo: the CLI's delivery ack for an injected message.
+    // Handled here and nowhere else — it is deliberately NOT fed to turn bookkeeping, background
+    // tracking, or conversation history (a `user` record there would shift every later turn
+    // index and break edit/rewind). Replays are inert for every other consumer.
+    if (data.isReplay) this.handleReplayEcho(data);
+    else if (this.currentTurn) this.handleToolResultEvent(this.currentTurn, data);
+  }
+
+  /** Authoritative end-of-subagent, forwarded whether or not a turn is open: a subagent can
+   *  finish inside its parent turn as easily as beside it, and `subagentEndFor` is consuming,
+   *  so the signal is emitted exactly once either way. */
+  private forwardSubagentEnd(data: any): void {
+    const end = this.bgTracker.subagentEndFor(data);
+    if (!end) return;
+    // In-turn first: a subagent that finishes while its parent turn is still open has no
+    // background-turn sink to reach (one is registered only when the turn ends holding background
+    // work), and `subagentEndFor` is consuming — dropping it here loses the end for good.
+    const inTurn = this.currentTurn?.onSubagentEnd;
+    if (!inTurn) {
+      this.deliverContinuation(s => s.onSubagentEnd?.(end.parentToolUseId, end.status));
+      return;
+    }
+    try { inTurn(end.parentToolUseId, end.status); }
+    catch (e) { log.warn('onSubagentEnd threw:', (e as Error).message); }
+  }
+
+  private routeTurnlessLine(data: any): void {
+    if (this.currentTurn) return;
+    // A backgrounded subagent keeps working after its parent turn closed, and the CLI keeps
+    // streaming its lines. With no turn open the turn branches skip them, so route them to the
+    // background-turn sink here — otherwise the whole tail of a background agent's trajectory
+    // (tool calls AND its final report) is received and then dropped.
+    if (routeLine(this.bgTracker, data) === 'subagent-orphan') this.handleOrphanSubagentLine(data);
+    if (this.startsContinuation(data)) {
+      const fromInjection = this.injectionContinuationArmed;
+      this.injectionContinuationArmed = false;
+      this.openContinuationTurn(fromInjection);
+    }
+  }
+
+  /** No active turn, and the model just started speaking anyway: either a background task
+   *  finished (bgTracker armed) or an injected message was consumed after this turn's result.
+   *  Both make the CLI open a turn of its own — open a synthetic turn for it so its
+   *  output is routed (to backgroundTurnSink) instead of being dropped. */
+  private startsContinuation(data: any): boolean {
+    return !!this.backgroundTurnSink && data.type === 'assistant'
+      && (this.injectionContinuationArmed || routeLine(this.bgTracker, data) === 'open-continuation');
+  }
+
+  /**
+   * A result with a turn open. A task-notification result settles a user turn only once the CLI
+   * has read that turn's prompt. Before the prompt echo it is the CLI closing a notification turn
+   * of its own — on `--resume` it reports background work orphaned by the previous process and
+   * emits a 0-turn result BEFORE reading the prompt on stdin; settling there resolved the user turn
+   * empty in ~2s and dropped the minutes of real work that followed (2026-09-06). After the echo,
+   * a notification is folded into the same loop as the prompt and the loop's one result carries
+   * that origin; ignoring it left a 162-turn user turn open until a manual Stop (2026-11-04).
+   */
+  private handleTurnResult(turn: PendingTurn, data: any): void {
+    if (isContinuationResult(data) && !turn.spontaneous && !turn.promptConsumed) {
+      log.info(`Ignoring notification-turn result on user turn ${this.host.sessionId.substring(0, 8)} (num_turns=${data.num_turns ?? '?'})`);
+      turn.txtStream.write('[notification-turn result ignored — user turn still open]\n');
+      return;
+    }
+    this.emitContextUsage(data);
+    this.handleResultEvent(turn, data);
   }
 
   private closeTurnLogs(turn: PendingTurn) {

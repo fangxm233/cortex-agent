@@ -120,6 +120,25 @@ test('run: a later run on the same engine ends a run held for background work an
   assert.equal(backgroundResults(secondEvents).length, 1, 'the continuation landed on the later run');
 });
 
+// 2026-11-04 (rr-latency): a Stop dropped the channel's queue entry while a queued wake still ran,
+// so the next wake opened a second run on the same engine mid-turn. The CLI folded that prompt into
+// its running loop and emitted one result; the first run's turn was overwritten and never settled.
+test('run: a later run started over an open foreground turn ends the first run and owns the loop result', async (t) => {
+  const { engine, session, run: first, done: firstDone } = engineRun(t, { awaitBackground: 'hold' });
+  session.handleLine(ASSISTANT_CONT);
+
+  const second = engine.run({ text: 'next' }, { awaitBackground: 'hold' });
+  const { done: secondDone } = collectRun(second);
+  const firstSettled = await first.settled;
+  await firstDone;
+  assert.equal(firstSettled.finalOutput, 'Background task done: DONE');
+
+  session.handleLine(RESULT_FIRST);
+  const secondSettled = await second.settled;
+  await secondDone;
+  assert.equal(secondSettled.total_cost_usd, 0.02, 'the loop cost is counted once, on the later run');
+});
+
 test('run: spontaneous continuation normalizes a temporary 429 into a rate-limited background result', async (t) => {
   const { session, run, events, done } = engineRun(t, { awaitBackground: 'hold' });
 
@@ -271,6 +290,26 @@ test('handleProcessClose: nothing pending → sink released silently (no interru
 
   assert.equal(backgroundResults(events).length, 0, 'no interrupted delivery for a clean close');
   assert.equal(session.backgroundTurnSink, null, 'sink still released (session is gone)');
+});
+
+// 2026-11-04 (rr-latency): account failover retired the engine of a run held for one background
+// task. On its graceful exit the CLI reported that task stopped, so nothing looked pending and the
+// close released the sink silently — the held run never ended and its session showed running.
+test('handleProcessClose: tasks the CLI stops on its way out still end a held run', async (t) => {
+  const { session, events, done } = engineRun(t, { awaitBackground: 'hold' });
+
+  session.handleLine(TASK_STARTED);
+  session.handleLine(RESULT_FIRST);
+  await tick();
+  session.handleLine(JSON.stringify({ type: 'system', subtype: 'task_updated', task_id: 'b6vp8rywx', patch: { status: 'killed' } }));
+  session.handleLine(JSON.stringify({ type: 'system', subtype: 'task_notification', task_id: 'b6vp8rywx', status: 'stopped', summary: 'stopped' }));
+  session.handleProcessClose(0);
+  await tick();
+
+  const results = backgroundResults(events);
+  assert.equal(results.length, 1, 'the held run is told its engine is gone');
+  assert.equal(results[0].result.backgroundInterrupted, true);
+  await done;
 });
 
 test('handleProcessClose: crash mid-continuation (spontaneous turn open) → backgroundInterrupted result', async (t) => {
