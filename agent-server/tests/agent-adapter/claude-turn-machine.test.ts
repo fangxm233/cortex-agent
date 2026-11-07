@@ -435,6 +435,59 @@ test('an injection ack carries the echoed uuid as the transcript entry it is wri
   await promise;
 });
 
+test('injections the CLI drained together into one newline-joined message are each acknowledged', async () => {
+  const { machine } = makeMachine();
+  const acks: unknown[] = [];
+  machine.setInjectionAckSink({ onDelivered: (m) => acks.push(m) });
+  const { promise } = startTurn(machine);
+
+  machine.injectUserMessage({ text: 'first\nreport' });
+  machine.injectUserMessage({ text: 'second' });
+  machine.handleLine(line({ type: 'user', isReplay: true, uuid: 'u-9', message: { role: 'user', content: 'first\nreport\nsecond' } }));
+  assert.deepEqual(acks, [
+    { text: 'first\nreport', foldedIntoTurn: true, position: { before: 'u-9' } },
+    { text: 'second', foldedIntoTurn: true, position: { before: 'u-9' } },
+  ]);
+  assert.equal(machine.holdsIdle(), false);
+
+  machine.handleLine(result());
+  await promise;
+});
+
+test('after a merged echo, the next injection is still acknowledged by its own echo', async () => {
+  const { machine } = makeMachine();
+  const acks: string[] = [];
+  machine.setInjectionAckSink({ onDelivered: (m) => acks.push(m.text) });
+  const { promise } = startTurn(machine);
+
+  machine.injectUserMessage({ text: 'a' });
+  machine.injectUserMessage({ text: 'b' });
+  machine.injectUserMessage({ text: 'c' });
+  machine.handleLine(replay('a\nb'));
+  machine.handleLine(replay('c'));
+  assert.deepEqual(acks, ['a', 'b', 'c']);
+
+  machine.handleLine(result());
+  await promise;
+});
+
+test('an echo that only begins like the queued injections acknowledges none of them', async () => {
+  const { machine } = makeMachine();
+  const acks: string[] = [];
+  machine.setInjectionAckSink({ onDelivered: (m) => acks.push(m.text) });
+  const { promise } = startTurn(machine);
+
+  machine.injectUserMessage({ text: 'a' });
+  machine.injectUserMessage({ text: 'b' });
+  machine.handleLine(replay('a\nbx'));
+  machine.handleLine(replay('a\nb\nc'));
+  assert.deepEqual(acks, []);
+  assert.equal(machine.holdsIdle(), true);
+
+  machine.handleLine(result());
+  await promise;
+});
+
 test('an injection consumed after the result opens an injected-message continuation turn', async () => {
   const { machine } = makeMachine();
   const { sink, events, texts, wakes } = makeSink();
