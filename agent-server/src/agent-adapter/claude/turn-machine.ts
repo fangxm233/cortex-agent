@@ -140,6 +140,22 @@ export function extractReplayText(data: any): string | null {
   return parts.length ? parts.join('') : null;
 }
 
+/**
+ * How many queued injections, from the head, a replay echo delivers; 0 when it is none of them.
+ * The CLI drains everything queued when it next reads input and joins the prompts with "\n" into
+ * one user message (CLI 2.1.280, 2026-11-07), so one echo can carry several injections.
+ */
+function echoedInjectionCount(pending: readonly { prompt: string }[], text: string): number {
+  let joined: string | null = null;
+  for (let count = 1; count <= pending.length; count++) {
+    const prompt = pending[count - 1].prompt;
+    joined = joined === null ? prompt : `${joined}\n${prompt}`;
+    if (joined === text) return count;
+    if (joined.length >= text.length) return 0;
+  }
+  return 0;
+}
+
 /** A stdout line as JSON; undefined when it is not JSON. */
 function parseLine(line: string): any {
   try { return JSON.parse(line); } catch { return undefined; }
@@ -184,7 +200,7 @@ export class ClaudeTurnMachine {
   /** Set by orchestration to receive spontaneous background-task continuation turns. */
   backgroundTurnSink: BackgroundTurnSink | null = null;
   /** Messages injected into an in-flight turn that the CLI has not echoed back yet, in write
-   *  order. Each is popped by its `--replay-user-messages` echo (the delivery ack). */
+   *  order. Each is popped by the `--replay-user-messages` echo that carries it (the delivery ack). */
   private pendingInjections: { prompt: string; text: string }[] = [];
   /** Set by orchestration to receive injection delivery acks. */
   private injectionAck: InjectionAckSink | null = null;
@@ -324,19 +340,20 @@ export class ClaudeTurnMachine {
   /**
    * Handle a `--replay-user-messages` echo. The CLI echoes EVERY user message, so most echoes are
    * the turn's own opening prompt and must be ignored; only an echo matching the head of the
-   * pending-injection queue is a delivery ack. Nothing else in the system reads these events.
+   * pending-injection queue, alone or joined with the injections after it, is a delivery ack.
+   * Nothing else in the system reads these events.
    */
   private handleReplayEcho(data: any): void {
     const text = extractReplayText(data);
     if (text === null) return; // a tool_result carrier
-    const head = this.pendingInjections[0];
-    if (!head || head.prompt !== text) { this.notePromptEcho(data, text); return; }
-    this.pendingInjections.shift();
+    const count = echoedInjectionCount(this.pendingInjections, text);
+    if (count === 0) { this.notePromptEcho(data, text); return; }
+    const delivered = this.pendingInjections.splice(0, count);
     // Consumed with no turn in flight ⇒ this is the post-result outcome: the CLI is starting a turn
     // of its own. Arm the spontaneous-turn capture before its first assistant line arrives.
     const foldedIntoTurn = !!this.currentTurn;
     if (!foldedIntoTurn) this.injectionContinuationArmed = true;
-    this.ackDelivered(head.text, foldedIntoTurn, data.uuid);
+    for (const injection of delivered) this.ackDelivered(injection.text, foldedIntoTurn, data.uuid);
   }
 
   /** An echo that is not an injection is the open turn's own prompt being read — unless it is a
