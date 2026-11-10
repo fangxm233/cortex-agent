@@ -46,6 +46,8 @@ Claude Code 会话按 engine key 池化以复用（`SessionEngines`，`domain/ru
 
 Cortex 启动的每个 `claude` 进程都以 `CLAUDE_CONFIG_DIR=$CORTEX_HOME/data/claude` 运行，这是 Cortex 自己的 Claude Code 配置目录，因此它的 transcript、用户设置、plugin 和登录都与使用 `~/.claude` 的终端 `claude` 分开。pinned 基准测试 trial 保留其自身环境指定的配置目录。该目录、从 `~/.claude/settings.json` 的一次性 seed，以及 plugin 安装命令见[配置 → Claude Code 配置目录](./configuration.md#claude-code-config-directory)。session-retention 协调器让该目录的 `cleanupPeriodDays` 与运行时设置 `sessionRetentionDays` 保持一致，其余键保持原样。
 
+Cortex 启动 `claude` 时关闭了 Claude Code 自带的自动更新，因此 CLI 会一直停在已安装的版本，直到主动更新。**设置 → 高级 → 更新** 显示已安装和最新的 Claude Code 版本，并对服务器所用的 `claude` 运行 `claude update`，无论它是原生安装还是通过包管理器安装。当模型需要更新的 Claude Code（`Claude Code X does not support this model; version Y or newer is required`）时，Web 对话里的错误卡片带有 **更新 Claude Code** 按钮；Slack、飞书和没有对话的运行则按所需版本各发一条管理通知。更新完成后，每个空闲会话在下一回合换到新的 `claude` 进程并恢复其 transcript；正在运行的回合在它启动时的进程上跑完。失败的消息不会自动重发。
+
 ## PI {#pi}
 
 PI 在 Cortex 服务器进程内运行。引擎（`@earendil-works/pi-coding-agent`）打包在发布的服务器包中，因此既不需要单独安装 `pi` 命令行，也没有 PI 进程需要看管。`agent-server/src/core/pi-sdk.ts` 每个守护进程只导入一次 SDK——在第一次 PI 会话或 provider 扫描时导入，因为入口会拉起全部 provider 客户端——之后所有 PI 会话都由这一个句柄创建。
