@@ -184,7 +184,8 @@ Provider 用量采集和记忆索引重建是 daemon 自有的作业。它们不
 会话上下文或 `cortex_context` 解析出会话所属项目，然后在添加调度时传入 `--project <id>`。
 如果用户要求使用当前项目但取不到项目，应询问用哪个项目，而不是回退到 `general`。不能保证
 Bash 带有会话专属的环境变量，在 PI 上也是如此。创建时不传模型相关标志会保存配置的默认选择，
-它可能与当前会话不同。`--model` 选择模型，`--thinking` 指定其后端原生档位。
+它可能与当前会话不同。`--model` 选择模型，`--thinking` 指定其后端原生档位。shell 带有该 agent 会话的
+`CORTEX_SESSION_ID` 时，除会话自己的模型外，`--model` 指定的模型必须通过[委托策略](./configuration.md#delegation-policy)。
 
 每条消息都必须自包含：触发的会话需要知道项目、run、机器和文件路径，而不是引用创建调度时的对话。
 

@@ -15,7 +15,7 @@ $CORTEX_HOME/
 │   ├── .env                      # Secrets, platform credentials, startup variables
 │   ├── settings.json             # Runtime behavior settings (hot-reloaded)
 │   ├── preferences.json          # UI language for system messages (`!lang`)
-│   ├── models.json             # Default engine and favorite models
+│   ├── models.json             # Default engine, favorite models, delegation policy
 │   ├── connections.json          # Provider keys and endpoints Cortex owns (owner-only)
 │   ├── environments/             # Execution environments — one JSON per environment
 │   ├── machines.json             # Machine registry for remote clients
@@ -78,7 +78,7 @@ Outside `$CORTEX_HOME`, PI keeps its own logins and API keys in
    For every key it defines, it overrides the legacy environment
    variable of the same setting.
 4. **`$CORTEX_HOME/config/models.json`** is cached and watched for changes
-   to the default engine selection and favorite models.
+   to the default engine selection, favorite models, and delegation policy.
 5. **`$CORTEX_HOME/.claude/settings.json`** is the Cortex-scaffolded
    Claude Code project settings file. Claude Code may also read
    `<spawn cwd>/.claude/settings.local.json`, `<spawn cwd>/.claude/settings.json`,
@@ -418,9 +418,10 @@ connection or account.
 ## models.json
 
 Located at `$CORTEX_HOME/config/models.json`. It stores the default engine
-selection and a list of favorite models. **Settings → Models** manages the
-default and favorites; the composer's full model list also lets you star or
-unstar models. For backend details, see [backends.md](./backends.md).
+selection, a list of favorite models, and the
+[delegation policy](#delegation-policy) for the models agents may pick
+themselves. **Settings → Models** manages all three; the composer's full model
+list also lets you star or unstar models. For backend details, see [backends.md](./backends.md).
 
 ### Schema
 
@@ -436,7 +437,8 @@ unstar models. For backend details, see [backends.md](./backends.md).
   "favorites": [
     { "backend": "claude", "provider": null, "model": "opus" },
     { "backend": "pi", "provider": "deepseek", "model": "deepseek-v4-pro" }
-  ]
+  ],
+  "delegation": { "allow": "favorites", "deny": ["openai/*-pro"] }
 }
 ```
 
@@ -451,11 +453,43 @@ unstar models. For backend details, see [backends.md](./backends.md).
 | `default.thinking` | string or null | yes | Backend-native reasoning level; `null` uses the backend's default |
 | `default.connection` | string or null | yes | Claude: a connection id (`subscription`, or a Claude connection in [`connections.json`](#configconnectionsjson) such as `api` or a relay) or `null` to use the default connection each run. PI: the id of one of the provider's [accounts](./backends.md#accounts), or `null` for the provider's own login |
 | `favorites` | object[] | yes | Ordered model references, each with `backend`, `provider`, and `model`. Each model identity occurs at most once |
+| `delegation` | object | no | Which models agents may name when they delegate; see [Delegation policy](#delegation-policy) |
 
 Favorites store model identities, not thinking levels or connections. The default
 need not be a favorite, and the favorites list may be empty. `thinking` accepts
 `low`/`medium`/`high`/`xhigh`/`max` on Claude and
 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max` on PI.
+
+### Delegation policy
+
+`delegation` decides which models an agent may name on its own when it
+delegates: the `model` of an [`agent`](./backends.md#subagents) task, of a
+[`worker_spawn`](./team.md) call, or of a `cortex schedule --model` run from a
+shell that carries the agent session's `CORTEX_SESSION_ID`. It covers only
+models the agent names. A child that names none runs on what it would get
+anyway — the role's `model`, the parent's own model, or the backend default —
+and naming the parent's own model counts the same as inheriting it.
+
+`allow` is the base set: `"favorites"` (the default and the favorites), `"all"`
+(every model), or a list of patterns. `deny` is a list of patterns removed from
+that base. A pattern matches the name an agent writes — the bare model id for
+Claude (`claude-opus-5-5[1m]`), `provider/model` for PI (`openai/gpt-5-pro`) —
+ignoring case, with `*` as the only wildcard. A thinking suffix is not part of
+the name.
+
+Without a `delegation` entry the policy is
+`{ "allow": "favorites", "deny": [] }`; a host with no `models.json` restricts
+nothing. A field that does not parse falls back to its default rather than
+failing the file.
+
+The model lists in the `agent` and `worker_spawn` tool descriptions show only
+the models the policy admits, plus the session's own Claude model. A call that
+names any other model is refused before any child, worker, or schedule is
+created, and the refusal lists the models the agent may use instead; omitting
+`model` always works. The lists are fixed when a session starts, while the
+check reads the file at each call, so an edit applies to the next call in every
+session and to the lists of sessions started after it. **Settings → Models →
+Models agents can pick** edits this entry.
 
 ### Selection resolution
 
@@ -1160,7 +1194,7 @@ polling mode as it uses with filesystem events.
 |---|---|---|
 | `.env` | Environment variables | `$CORTEX_HOME/config/.env` |
 | `settings.json` | Runtime behavior settings (hot-reloaded) | `$CORTEX_HOME/config/settings.json` |
-| `models.json` | Default engine and favorite models | `$CORTEX_HOME/config/models.json` |
+| `models.json` | Default engine, favorite models, delegation policy | `$CORTEX_HOME/config/models.json` |
 | `connections.json` | Provider keys and endpoints Cortex owns | `$CORTEX_HOME/config/connections.json` |
 | `environments/` | Execution environments — one JSON per environment | `$CORTEX_HOME/config/environments/` |
 | `machines.json` | Machine registry | `$CORTEX_HOME/config/machines.json` |

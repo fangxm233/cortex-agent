@@ -92,9 +92,9 @@ PI provider 名称与 Cortex 后端名称相互独立。特别地，`openai-code
 
 当 `$CORTEX_HOME/config/agents/` 尚不存在时，Cortex 私有 PI agent 目录内 `agents/` 目录中的角色会在启动时被移入其中，该目录随后被改名为 `agents.migrated`，这样在那里做的修改不会悄无声息地毫无效果。
 
-**模型如何选定。** 模型依次取任务显式给出的 `model`、角色的 `model`，最后是父端自己的模型——但最后一项仅在子端与父端运行同一后端时适用，因为 Claude 的模型 id 对 PI 毫无意义，PI 的 `provider/model` 对 Claude 亦然。Claude 子端没有显式模型或同后端父端模型时，使用 Claude 后端默认值（配置默认值属于 Claude 时用它，否则用第一个 Claude 收藏）。Claude 子端沿用 Claude 父端的连接；PI 父端创建 Claude 子端时使用该 Claude 默认值的连接，需要事先配置 Claude 默认值或收藏。
+**模型如何选定。** 模型依次取任务显式给出的 `model`、角色的 `model`，最后是父端自己的模型——但最后一项仅在子端与父端运行同一后端时适用，因为 Claude 的模型 id 对 PI 毫无意义，PI 的 `provider/model` 对 Claude 亦然。Claude 子端没有显式模型或同后端父端模型时，使用 Claude 后端默认值（配置默认值属于 Claude 时用它，否则用第一个 Claude 收藏）。Claude 子端沿用 Claude 父端的连接；PI 父端创建 Claude 子端时使用该 Claude 默认值的连接，需要事先配置 Claude 默认值或收藏。任务显式指定的模型必须通过[委托策略](./configuration.md#delegation-policy)；指定了策略不允许的模型时，整个调用在任何子任务启动前失败，并列出可以改用的模型。角色的模型和父端的模型从不检查。
 
-**调用方能看到什么。** `subagent_type`、`model` 与 `backend` 三个字段的描述在注册工具时按本机实际拥有的内容生成，而不是写死。角色取自实时的角色表——内置角色叠加上 `$CORTEX_HOME/config/agents/`——因此你新增的角色在下一个会话就会出现。Claude 模型 id 来自 Cortex 内置的 Anthropic 模型表，再加上守护进程当前的模型。PI 父端读取自己的实时模型注册表；Claude 父端读不到，因为它的 MCP 工具运行在没有 PI SDK 的 sidecar 进程里，所以守护进程把自己缓存扫描到的 provider/model 对经 spawn 环境传下去。缓存为空只意味着暂时还列不出 PI 模型——不会为了装饰一次 Claude spawn 而触发扫描。角色和模型各自有字符预算，超出部分渲染为 `(+N more)`。这些列表是快照，会话中途不会变化；它们是提示而非白名单：未列出的模型 id 仍会被接受并透传。一无所知时，描述回退到通用措辞，工具不会因为缺少 catalog 而失败。
+**调用方能看到什么。** `subagent_type`、`model` 与 `backend` 三个字段的描述在注册工具时按本机实际拥有的内容生成，而不是写死。角色取自实时的角色表——内置角色叠加上 `$CORTEX_HOME/config/agents/`——因此你新增的角色在下一个会话就会出现。模型由守护进程提供：它把模型目录中的 Claude 模型和缓存的 PI 扫描得到的 provider/model 对经 spawn 环境交给每个会话，只保留[委托策略](./configuration.md#delegation-policy)允许的部分；会话自己的 Claude 模型总会列出。缓存为空只意味着暂时还列不出 PI 模型——不会为了装饰一次 spawn 而触发扫描。角色和模型各自有字符预算，超出部分渲染为 `(+N more)`。这些列表是快照，会话中途不会变化。策略本身在调用指定模型时检查，因此列表只是指引而非关卡：`"allow": "all"` 时，未列出的模型 id 仍会被接受并透传。一无所知时，描述回退到通用措辞，工具不会因为缺少 catalog 而失败。
 
 **隔离。** `pi` 子端是一个不写 transcript、headless 运行的嵌套进程内会话。`claude` 子端是一次冻结的一次性 `claude` 运行：没有可恢复的会话、没有钩子、没有环境规则、没有 transcript 日志。无论哪种，子端的 MCP 面都是去掉委派工具后的 `cortex-core` bundle，因此不能继续向下扇出。
 

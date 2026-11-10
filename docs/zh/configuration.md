@@ -13,7 +13,7 @@ $CORTEX_HOME/
 │   ├── .env                      # 密钥、平台凭据、启动变量
 │   ├── settings.json             # 运行时行为设置（热更新）
 │   ├── preferences.json          # 系统消息的界面语言（`!lang`）
-│   ├── models.json             # 默认引擎与收藏模型
+│   ├── models.json             # 默认引擎、收藏模型、委托策略
 │   ├── connections.json          # Cortex 自己保管的 provider 密钥与端点（仅属主可读写）
 │   ├── environments/             # 执行环境——每个环境一个 JSON
 │   ├── machines.json             # 远程客户端机器注册表
@@ -63,7 +63,7 @@ $CORTEX_HOME/
 1. **内置默认值**（`agent-server/defaults/`）随 npm 包一起发布，为每个配置文件提供回退值。内置的插件、钩子、规则、子智能体角色与系统提示词直接从这里原地读取，`$CORTEX_HOME` 中你的文件叠加在它们之上（见[内置资源与你的覆盖](#built-in-assets-and-your-overrides)）。
 2. **`$CORTEX_HOME/config/.env`** 在守护进程启动时通过 `dotenv` 加载。启动环境中已有的变量优先于文件，worker 继承 daemon 的环境。
 3. **`$CORTEX_HOME/config/settings.json`** 保存运行时行为设置。它被缓存，文件变化时重新读取，每个设置在各自的使用点生效。对它定义的每个键，它的优先级高于同一设置的旧环境变量。
-4. **`$CORTEX_HOME/config/models.json`** 缓存并监视文件变化，用于读取默认引擎与收藏模型。
+4. **`$CORTEX_HOME/config/models.json`** 缓存并监视文件变化，用于读取默认引擎、收藏模型与委托策略。
 5. **`$CORTEX_HOME/.claude/settings.json`** 是 Cortex 脚手架生成的 Claude Code 项目设置文件。Claude Code 还可能读取 `<spawn cwd>/.claude/settings.local.json`、`<spawn cwd>/.claude/settings.json`，以及它的用户设置文件；对 Cortex 启动的每个 `claude`，这个文件是 `$CORTEX_HOME/data/claude/settings.json`（见 [Claude Code 配置目录](#claude-code-config-directory)）。终端的 `~/.claude/settings.json` 不会被读取。
 
 `.env` 文件支持标准的 `KEY=VALUE` 语法和 `#` 注释。已在 shell 中设置的环境变量优先于 `.env` 文件（dotenv 默认行为）。
@@ -276,7 +276,7 @@ id 须匹配 `^[a-zA-Z0-9_-]+$`，`subscription` 为保留名；Claude 账号也
 
 ## models.json {#modelsjson}
 
-位于 `$CORTEX_HOME/config/models.json`，保存默认引擎选择和收藏模型列表。**设置 → 模型** 管理默认模型与收藏；输入框的完整模型列表也可以用星标收藏或取消收藏。后端详情见 [backends.md](./backends.md)。
+位于 `$CORTEX_HOME/config/models.json`，保存默认引擎选择、收藏模型列表，以及 agent 可以自行指定哪些模型的[委托策略](#delegation-policy)。**设置 → 模型** 管理这三项；输入框的完整模型列表也可以用星标收藏或取消收藏。后端详情见 [backends.md](./backends.md)。
 
 ### 模式 {#schema}
 
@@ -292,7 +292,8 @@ id 须匹配 `^[a-zA-Z0-9_-]+$`，`subscription` 为保留名；Claude 账号也
   "favorites": [
     { "backend": "claude", "provider": null, "model": "opus" },
     { "backend": "pi", "provider": "deepseek", "model": "deepseek-v4-pro" }
-  ]
+  ],
+  "delegation": { "allow": "favorites", "deny": ["openai/*-pro"] }
 }
 ```
 
@@ -307,8 +308,19 @@ id 须匹配 `^[a-zA-Z0-9_-]+$`，`subscription` 为保留名；Claude 账号也
 | `default.thinking` | string 或 null | 是 | 后端原生思考档位；`null` 使用后端默认值 |
 | `default.connection` | string 或 null | 是 | Claude：连接 id（`subscription`，或 [`connections.json`](#configconnectionsjson) 中的某个 Claude 连接，如 `api` 或中转），或 `null` 表示每次运行使用默认连接。PI：该 provider 某个[账号](./backends.md#accounts)的 id，或 `null` 表示 provider 自己的登录 |
 | `favorites` | object[] | 是 | 按顺序存放模型引用，每项包含 `backend`、`provider`、`model`。同一模型身份最多出现一次 |
+| `delegation` | object | 否 | agent 委托时可以自行指定哪些模型；见[委托策略](#delegation-policy) |
 
 收藏只保存模型身份，不保存思考档位或连接。默认模型不必在收藏中，收藏列表也可以为空。Claude 的 `thinking` 接受 `low`/`medium`/`high`/`xhigh`/`max`；PI 接受 `off`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`。
+
+### 委托策略 {#delegation-policy}
+
+`delegation` 决定 agent 委托时可以自己指定哪些模型：[`agent`](./backends.md#subagents) 任务的 `model`、[`worker_spawn`](./team.md) 的 `model`，以及在带有该 agent 会话 `CORTEX_SESSION_ID` 的 shell 里运行的 `cortex schedule --model`。它只管 agent 写出来的模型。没有指定模型的子任务照常使用它本来会用的模型——角色的 `model`、父端自己的模型或后端默认值；指定父端自己的模型等同于继承。
+
+`allow` 是基础集合：`"favorites"`（默认模型与收藏）、`"all"`（全部模型），或一组匹配规则。`deny` 是一组从基础集合中去掉的规则。规则匹配的是 agent 写出的名字——Claude 为裸模型 id（`claude-opus-5-5[1m]`），PI 为 `provider/model`（`openai/gpt-5-pro`）——不区分大小写，`*` 是唯一的通配符。思考档位后缀不算名字的一部分。
+
+没有 `delegation` 项时，策略为 `{ "allow": "favorites", "deny": [] }`；没有 `models.json` 的主机不做任何限制。某个字段无法解析时回退到它的默认值，不会让整个文件失效。
+
+`agent` 和 `worker_spawn` 工具描述里的模型列表只列出策略允许的模型，外加会话自己的 Claude 模型。调用若指定了其他模型，会在创建任何子任务、worker 或定时任务之前被拒绝，拒绝信息会列出 agent 可以改用的模型；不写 `model` 总是可行。列表在会话启动时就已确定，而检查在每次调用时读取文件，因此修改对所有会话的下一次调用立即生效，对列表则从之后启动的会话开始生效。**设置 → 模型 → Agent 可选模型** 编辑的就是这一项。
 
 ### 引擎选择解析 {#selection-resolution}
 
@@ -658,7 +670,7 @@ init 还会在 `config/machines.json`、`config/preferences.json` 和 `data/agen
 |---|---|---|
 | `.env` | 环境变量 | `$CORTEX_HOME/config/.env` |
 | `settings.json` | 运行时行为设置（热更新） | `$CORTEX_HOME/config/settings.json` |
-| `models.json` | 默认引擎与收藏模型 | `$CORTEX_HOME/config/models.json` |
+| `models.json` | 默认引擎、收藏模型、委托策略 | `$CORTEX_HOME/config/models.json` |
 | `connections.json` | Cortex 自己保管的 provider 密钥与端点 | `$CORTEX_HOME/config/connections.json` |
 | `environments/` | 执行环境——每个环境一个 JSON | `$CORTEX_HOME/config/environments/` |
 | `machines.json` | 机器注册表 | `$CORTEX_HOME/config/machines.json` |
