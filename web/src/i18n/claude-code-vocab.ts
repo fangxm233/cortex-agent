@@ -1,0 +1,33 @@
+export const claudeCodeEn = {
+  claudeCodeTitle: 'Claude Code',
+  claudeCodeVersions: 'Installed {installed} · latest {latest}',
+  claudeCodeUpToDate: 'Up to date · {installed}',
+  claudeCodeChecking: 'Checking…',
+  claudeCodeUpdating: 'Updating…',
+  claudeCodeCheck: 'Check',
+  claudeCodeUpdate: 'Update',
+  claudeCodeFailNotInstalled: 'Claude Code was not found on the server.',
+  claudeCodeFailLookup: 'Could not check the latest version.',
+  claudeCodeFailUpdate: 'Update did not complete.',
+  noticeClaudeUpdate: 'Update Claude Code',
+  noticeClaudeUpdating: 'Updating…',
+  noticeClaudeUpdated: 'Updated to {version}',
+  noticeClaudeUpdateRetry: 'Update failed · retry',
+};
+
+export const claudeCodeZh: Record<keyof typeof claudeCodeEn, string> = {
+  claudeCodeTitle: 'Claude Code',
+  claudeCodeVersions: '当前 {installed} · 最新 {latest}',
+  claudeCodeUpToDate: '已是最新 · {installed}',
+  claudeCodeChecking: '正在检查…',
+  claudeCodeUpdating: '正在更新…',
+  claudeCodeCheck: '检查更新',
+  claudeCodeUpdate: '更新',
+  claudeCodeFailNotInstalled: '服务器上未找到 Claude Code。',
+  claudeCodeFailLookup: '无法获取最新版本。',
+  claudeCodeFailUpdate: '更新未完成。',
+  noticeClaudeUpdate: '更新 Claude Code',
+  noticeClaudeUpdating: '更新中…',
+  noticeClaudeUpdated: '已更新到 {version}',
+  noticeClaudeUpdateRetry: '更新失败 · 重试',
+};

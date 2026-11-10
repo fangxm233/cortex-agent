@@ -3,6 +3,7 @@ import { nativeShellEn, nativeShellZh } from './native-shell-vocab';
 import { commonEn, commonZh } from './common-vocab';
 import { timeEn, timeZh } from './time-vocab';
 import { updateCheckEn, updateCheckZh } from './update-check-vocab';
+import { claudeCodeEn, claudeCodeZh } from './claude-code-vocab';
 import { platformEn, platformZh } from './platform-settings-vocab';
 import { pluginEn, pluginZh } from './plugins-vocab';
 import { setupEn, setupZh } from './provider-setup-vocab';
@@ -41,6 +42,7 @@ export const en = {
   ...onboardingEn,
   ...platformEn,
   ...updateCheckEn,
+  ...claudeCodeEn,
   ...uiAuthEn,
   ...windowActionsEn,
   ...nativeShellEn,
@@ -81,6 +83,7 @@ export const zh: Record<keyof Vocab, string> = {
   ...onboardingZh,
   ...platformZh,
   ...updateCheckZh,
+  ...claudeCodeZh,
   ...uiAuthZh,
   ...windowActionsZh,
   ...nativeShellZh,

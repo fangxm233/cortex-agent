@@ -19,6 +19,7 @@ import {
   Toggle,
 } from '@/features/settings/ui/settings-ui';
 import { AppUpdateRow, useAppUpdateController } from './AppUpdateCard';
+import { ClaudeCodeUpdateRow } from './ClaudeCodeUpdateRow';
 import { AutostartRow } from './AutostartCard';
 import { UninstallRow, useUninstallController } from './UninstallCard';
 import { UiSignOutRow } from './UiSignOutCard';
@@ -461,8 +462,8 @@ function renderAdvancedRow(row: AdvancedRow, ctx: AdvancedRowContext): ReactNode
 function AdvancedSectionView({ section, ctx, extra }: {
   section: AdvancedSection;
   ctx: AdvancedRowContext;
-  /** A row this section lists on some clients only, already known to be shown. */
-  extra?: ReactNode;
+  /** Rows this section adds beyond its settings; an array so each gets its own divider. */
+  extra?: ReactNode[] | null;
 }) {
   const L = useVocab();
   return (
@@ -508,12 +509,15 @@ export function AdvancedPanelView({ snapshot, pending, onToggle, onSet }: Advanc
   const ctx: AdvancedRowContext = {
     settings: indexSettings(snapshot.settings), env: indexEnv(snapshot.env), pending, onToggle, onSet,
   };
-  const appUpdateRow = appUpdate.prefs ? <AppUpdateRow controller={appUpdate} /> : null;
+  const updateRows = [
+    appUpdate.prefs ? <AppUpdateRow key="app" controller={appUpdate} /> : null,
+    <ClaudeCodeUpdateRow key="claude-code" />,
+  ];
   return (
     <>
       {ADVANCED_SECTIONS.map((section) => (
         <AdvancedSectionView key={section.key} section={section} ctx={ctx}
-          extra={section.key === 'updates' ? appUpdateRow : null} />
+          extra={section.key === 'updates' ? updateRows : null} />
       ))}
       <DeviceSection />
     </>

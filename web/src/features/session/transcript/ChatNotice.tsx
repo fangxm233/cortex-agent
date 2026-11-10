@@ -3,6 +3,7 @@ import { MENU_FOCUS } from '@/design/MenuChrome';
 import type { AuthNoticeAction, ChatNoticeLevel, NoticeAction } from '@cortex-agent/ui-contract';
 import { useOptionalLoginFlow } from '@/features/auth/LoginFlowProvider';
 import { useVocab, useVocabOptional, type Vocab } from '@/i18n';
+import { ClaudeUpdateNoticeButton } from '@/features/claude-code-update/ClaudeUpdateNoticeButton';
 
 export interface NoticeTone {
   bg: string;
@@ -66,6 +67,9 @@ function NoticeActionButton({
   onAction?: (action: NoticeAction) => void;
 }) {
   const L = useVocab();
+  if (action.kind === 'update-claude-code') {
+    return <ClaudeUpdateNoticeButton required={action.required} style={(disabled) => actionButtonStyle(tone.fg, disabled)} />;
+  }
   if (!onAction) return null;
   return (
     <button
