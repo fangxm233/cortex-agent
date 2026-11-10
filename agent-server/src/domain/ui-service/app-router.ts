@@ -127,6 +127,9 @@ import {
   systemCheckUpdateInput,
   systemApplyUpdateInput,
   systemSkipUpdateInput,
+  systemClaudeCodeInput,
+  systemCheckClaudeCodeInput,
+  systemUpdateClaudeCodeInput,
 } from './input-schemas.js';
 import type { queryInputSchemas, mutateInputSchemas } from './input-schemas.js';
 import type {
@@ -397,6 +400,9 @@ function systemRouter(service: UiService) {
     applyUpdate: makeMutation(service, 'system.applyUpdate', systemApplyUpdateInput),
     skipUpdate: makeMutation(service, 'system.skipUpdate', systemSkipUpdateInput),
     version: makeQuery(service, 'system.version', systemVersionInput),
+    claudeCode: makeQuery(service, 'system.claudeCode', systemClaudeCodeInput),
+    checkClaudeCode: makeMutation(service, 'system.checkClaudeCode', systemCheckClaudeCodeInput),
+    updateClaudeCode: makeMutation(service, 'system.updateClaudeCode', systemUpdateClaudeCodeInput),
   });
 }
 

@@ -12,6 +12,7 @@ import {
 import { useConfigSnapshot } from '@/features/settings/controllers/useConfigSnapshot';
 import { useUiSignOut } from '@/features/settings/controllers/useUiSignOut';
 import { MNativeNotificationsCard } from './MNativeNotificationsCard';
+import { MClaudeCodeRow } from './MClaudeCodeRow';
 import {
   NOTIFY_SETTINGS,
   durationDraftFromMs, durationDraftToMs, durationUnits, numberSettingLoaded, parseNumberSettingDraft,
@@ -207,6 +208,7 @@ function AdvancedSectionCard(props: { section: AdvancedSection; ctx: AdvancedRow
   const render = (row: AdvancedRow) => (ADVANCED_ROW_VIEWS[row.kind] as AdvancedRowView<AdvancedRow['kind']>)(row, props.ctx);
   return <MSettingsSection title={L[props.section.titleKey]}>
     {visibleAdvancedRows(props.section, props.ctx.env).map(render)}
+    {props.section.key === 'updates' ? <MClaudeCodeRow /> : null}
   </MSettingsSection>;
 }
 

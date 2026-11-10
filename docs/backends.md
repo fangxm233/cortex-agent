@@ -110,6 +110,19 @@ from `~/.claude/settings.json`, and the plugin install command are described in
 The session-retention coordinator keeps that directory's `cleanupPeriodDays` equal
 to the `sessionRetentionDays` runtime setting, preserving every other key.
 
+Cortex starts `claude` with Claude Code's own auto-updater switched off, so the
+CLI stays at the version installed until it is updated deliberately.
+**Settings → Advanced → Updates** shows the installed and latest Claude Code
+versions and runs `claude update` for the `claude` the server uses, whether it
+was installed natively or through a package manager. When a model needs a newer
+Claude Code (`Claude Code X does not support this model; version Y or newer is
+required`), the error card in a Web chat carries an **Update Claude Code**
+button; Slack, Feishu and runs without a chat get one admin notice per required
+version instead. After an update, each idle session moves to a new `claude`
+process on its next turn and resumes its transcript; a turn that is running
+finishes on the process it started with. The failed message is not re-sent
+automatically.
+
 ## PI
 
 PI runs inside the Cortex server process. The engine

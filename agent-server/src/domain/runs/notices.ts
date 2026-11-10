@@ -15,6 +15,7 @@ import type { AgentResult, ChatNoticeLevel, NoticeAction } from '@core/types/age
 import type { ToolUseSubagent } from '../../agent-adapter/normalize/event-types.js';
 import { isApiRateLimitError } from './retryable-errors.js';
 import { isProviderRateLimited } from '../costs/rate-limit-throttle.js';
+import { claudeUpdateNoticeAction } from '../system/claude-code-required.js';
 
 /** `API Error:` prose is the backend reporting its own failure, not the agent talking. */
 export function assistantNoticeLevel(text: string): ChatNoticeLevel | undefined {
@@ -79,7 +80,12 @@ export class AttemptNoticeTracker {
     // Subagent attribution travels with the line: this wrapper sits on EVERY assistant message
     // (tool calls bypass it), so dropping the argument here silently untags a subagent's prose
     // while its tool calls stay attributed.
-    this.emit?.(text, blockId, level, action, subagent);
+    this.emit?.(text, blockId, level, action ?? this.errorAction(text, level), subagent);
+  }
+
+  /** A web error card that says Claude Code is too old offers the update right on the card. */
+  private errorAction(text: string, level?: ChatNoticeLevel): NoticeAction | undefined {
+    return level === 'error' && this.synthesize ? claudeUpdateNoticeAction(text) : undefined;
   }
 
   /** Release a held rate-limit card. Every settle path calls this except the resumable one,
@@ -102,7 +108,7 @@ export class AttemptNoticeTracker {
     this.flushHeldError();
     if (!this.synthesize || !this.emit || this.attemptHasErrorNotice) return;
     this.attemptHasErrorNotice = true;
-    this.emit(displayText, undefined, 'error');
+    this.emit(displayText, undefined, 'error', claudeUpdateNoticeAction(message));
   }
 
   private emitAutoResume(provider: string | undefined, route?: string): boolean {

@@ -29,8 +29,12 @@ export type { UsageResetResult } from '@domain/costs/account-reset.js';
 export type { ResetProvider, ResetStatus } from '@domain/costs/reset-account.js';
 import type { ServerUpdateStatus } from '@domain/system/update-ui-state.js';
 import type { SystemUpdateCheckResult } from '@domain/system/server-update-coordinator.js';
+import type { ClaudeCodeStatus } from '@domain/system/claude-code-update.js';
 export type { SystemUpdateCheckResult } from '@domain/system/server-update-coordinator.js';
 export type { ServerUpdateState, ServerUpdateStatus } from '@domain/system/update-ui-state.js';
+export type {
+  ClaudeCodeFailure, ClaudeCodeStatus, ClaudeCodeUpdateState,
+} from '@domain/system/claude-code-update.js';
 import type { EventBus } from '@events/index.js';
 import type { SessionStateReader } from '@core/session-state.js';
 import type { SettingSnapshotEntry } from '@core/settings-spec.js';
@@ -1727,6 +1731,7 @@ export interface QueryReturnMap {
   'system.notices': SystemNotices;
   'system.updateStatus': SystemUpdateStatus;
   'system.version': SystemVersion;
+  'system.claudeCode': ClaudeCodeStatus;
 }
 
 /** Mutate args are exactly what the op's zod schema parses to. */
@@ -1816,6 +1821,8 @@ export interface MutateReturnMap {
   'system.checkUpdate': SystemUpdateCheckResult;
   'system.applyUpdate': SystemUpdateDecisionReturn;
   'system.skipUpdate': SystemUpdateDecisionReturn;
+  'system.checkClaudeCode': ClaudeCodeStatus;
+  'system.updateClaudeCode': ClaudeCodeStatus;
 }
 
 export type QueryParams<S extends QueryScope> = QueryParamMap[S];

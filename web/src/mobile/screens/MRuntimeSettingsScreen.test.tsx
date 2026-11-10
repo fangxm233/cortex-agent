@@ -1,6 +1,11 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('@/features/claude-code-update/useClaudeCodeUpdate', () => ({
+  useClaudeCodeUpdate: () => ({
+    status: { installed: '2.1.322', latest: '2.1.322', state: 'idle', checkedAt: 'x' }, busy: false, check: vi.fn(), update: vi.fn(),
+  }),
+}));
 import type { ConfigSnapshot, SystemNoticeEntry } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 

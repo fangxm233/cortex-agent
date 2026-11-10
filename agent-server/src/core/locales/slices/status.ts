@@ -29,6 +29,10 @@ export const statusEn = {
   'notify.rateLimitAutoResume': 'Rate limited — this chat will resume automatically when the limit resets.',
   'notify.rateLimitFailover': 'Rate limited — this chat continues on another account now.',
   'notify.accountFailover': '${from} is rate-limited, so this chat now runs on ${to}. It goes back to ${from} once the limit resets.',
+  // --- Claude Code too old for the model ---
+  'notify.claudeUpdateRequired.title': 'Claude Code update required',
+  'notify.claudeUpdateRequired.body': 'Claude Code ${installed} cannot run this model; ${required} or newer is required. Update it in Settings > Advanced > Updates.',
+  'notify.claudeUpdateRequired.bodyGeneric': 'Claude Code needs an update to run this model. Update it in Settings > Advanced > Updates.',
   // --- Authentication-required notification ---
   'notify.authRequired.title': 'Authentication required',
   'notify.authRequired.body': 'Authentication for ${provider} failed (${kind}). ${guidance}',
@@ -87,6 +91,10 @@ export const statusZh: Record<keyof typeof statusEn, string> = {
   'notify.rateLimitAutoResume': '触发限流，解除后此对话将自动续跑。',
   'notify.rateLimitFailover': '触发限流，此对话马上换一个账号继续。',
   'notify.accountFailover': '${from} 已限流，此对话已切到 ${to}；${from} 恢复后会自动切回。',
+  // --- Claude Code too old for the model ---
+  'notify.claudeUpdateRequired.title': '需要更新 Claude Code',
+  'notify.claudeUpdateRequired.body': 'Claude Code ${installed} 不支持此模型，需要 ${required} 或更新版本。请在 设置 > 高级 > 更新 中更新。',
+  'notify.claudeUpdateRequired.bodyGeneric': '运行此模型需要更新 Claude Code。请在 设置 > 高级 > 更新 中更新。',
   // --- Authentication-required notification ---
   'notify.authRequired.title': '需要重新认证',
   'notify.authRequired.body': '${provider} 的认证已失效（${kind}）。${guidance}',

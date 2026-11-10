@@ -13,6 +13,7 @@ import { isRetryableError } from './retryable-errors.js';
 import { NO_SPEND, countSpend, spendOfResult, type RunSpend } from './spend.js';
 import type { EngineSelection } from '../agents/engine-selection.js';
 import { publishAuthRecovered, publishAuthRequired, classifyAuthError } from '../auth/auth-events.js';
+import { noticeClaudeUpdateRequired } from '../system/claude-code-required.js';
 import {
   attemptAccount, attemptAuthType, attemptProvider, attemptProviderOrNull, rateLimitedResult, shouldSkipAttempt,
 } from './fallback.js';
@@ -317,6 +318,7 @@ export class AgentRunImpl implements AgentRun {
     const failure = this.attributeError(error);
     this.notices.emitTerminalError(failure);
     this.publishAuthOutcome(null, failure, attempt);
+    noticeClaudeUpdateRequired(failure.message, this.request.context.channel);
     void current.settled.catch(() => undefined);
     this.onForegroundError(failure);
   }
