@@ -17,6 +17,8 @@ export type ModelRef = Pick<EngineSelection, 'backend' | 'provider' | 'model'>;
 export interface ModelsFile {
   default: EngineSelection;
   favorites: ModelRef[];
+  /** Which models agents may name when they delegate, as written; read by `parseDelegationPolicy`. */
+  delegation?: unknown;
 }
 
 export function modelKey(ref: ModelRef): string {

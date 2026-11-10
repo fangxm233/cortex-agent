@@ -1,7 +1,8 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
-  claudeModelOptions, describeModelCatalog, describeSubagent, hostModelOptions, type SubagentModelOption,
+  claudeModelOptions, decodeHandedModels, describeModelCatalog, describeSubagent, hostModelOptions,
+  type SubagentModelOption,
 } from '../../src/core/agents/subagent/catalog.js';
 import {
   SUBAGENT_BACKEND_DESCRIPTION, SUBAGENT_MODEL_DESCRIPTION,
@@ -67,6 +68,15 @@ test('host assembly shares discovered choices, parent inclusion and empty-cache 
   assert.equal(describeModelCatalog(hostModelOptions(catalog)),
     ' Known models — claude: discovered, parent; pi: cached/pi-model.');
   assert.deepEqual(hostModelOptions({}), claudeModelOptions());
-  assert.deepEqual(hostModelOptions({ claudeModel: 'parent', subagentClaudeModels: [], subagentPiModels: [] }),
+  assert.deepEqual(hostModelOptions({ claudeModel: 'parent', subagentClaudeModels: null, subagentPiModels: [] }),
     claudeModelOptions('parent'));
+  assert.deepEqual(hostModelOptions({ claudeModel: 'parent', subagentClaudeModels: [], subagentPiModels: [] }),
+    [{ backend: 'claude', id: 'parent' }], 'a handed-down empty list lists none but the parent');
+});
+
+test('only an unset or blank handed list falls back; an empty one is kept', () => {
+  assert.equal(decodeHandedModels(undefined), null);
+  assert.equal(decodeHandedModels(''), null);
+  assert.deepEqual(decodeHandedModels('[]'), []);
+  assert.deepEqual(decodeHandedModels(JSON.stringify([{ backend: 'claude', id: 'x' }])), [{ backend: 'claude', id: 'x' }]);
 });

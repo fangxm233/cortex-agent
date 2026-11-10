@@ -7,7 +7,7 @@ import { useTRPC } from '@/lib/trpc';
 import { modelKey, selectionForModel } from '@/lib/model-selection';
 import { useConnectionNames } from '@/lib/useConnectionNames';
 import {
-  buildModelFacts, catalogModels, defaultConnectionControl, defaultModelOptions,
+  buildModelFacts, catalogModels, defaultConnectionControl, defaultModelOptions, type DelegationPolicy,
 } from '@/features/settings/vm/models-panel-vm';
 
 function useModelWrites() {
@@ -25,7 +25,8 @@ function useModelWrites() {
   const remove = useMutation(trpc.models.favorites.remove.mutationOptions(effects));
   const setDefault = useMutation(trpc.models.setDefault.mutationOptions(effects));
   const setThinking = useMutation(trpc.models.setThinking.mutationOptions(effects));
-  return { add, remove, setDefault, setThinking };
+  const setDelegation = useMutation(trpc.models.setDelegation.mutationOptions(effects));
+  return { add, remove, setDefault, setThinking, setDelegation };
 }
 
 function useModelsResources(initialSnapshot?: ConfigSnapshot) {
@@ -80,6 +81,7 @@ function useModelActions(resources: ReturnType<typeof useModelsResources>, optio
     setThinking: (ref: ModelRef, thinking: string | null) => run(() => writes.setThinking.mutateAsync({ ref, thinking })),
     add: (ref: ModelRef) => run(() => writes.add.mutateAsync({ ...ref, provider: ref.provider ?? undefined })),
     remove: (ref: ModelRef) => run(() => writes.remove.mutateAsync({ ...ref, provider: ref.provider ?? undefined })),
+    setDelegation: (policy: DelegationPolicy) => run(() => writes.setDelegation.mutateAsync(policy)),
   };
 }
 

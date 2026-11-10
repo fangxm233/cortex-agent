@@ -14,7 +14,7 @@ const snapshot = { models: { default: { ...ref, connection: 'subscription', thin
 const catalog = { routes: [{ endpoint: 'deepseek', backend: 'pi', provider: 'deepseek',
   connections: [], models: ['flash', 'new-model'], source: 'pi' }, { endpoint: 'anthropic', backend: 'claude', provider: null,
   connections: ['subscription', 'api'], models: ['opus'], source: 'builtin' }], piPending: false };
-const adapter = vi.hoisted(() => ({ config: vi.fn(), catalog: vi.fn(), connections: vi.fn(), status: vi.fn(), add: vi.fn(), remove: vi.fn(), setDefault: vi.fn(), setThinking: vi.fn(), toast: vi.fn() }));
+const adapter = vi.hoisted(() => ({ config: vi.fn(), catalog: vi.fn(), connections: vi.fn(), status: vi.fn(), add: vi.fn(), remove: vi.fn(), setDefault: vi.fn(), setThinking: vi.fn(), setDelegation: vi.fn(), toast: vi.fn() }));
 vi.mock('@/lib/trpc', () => {
   const mutation = (fn: (input: unknown) => unknown) => ({ mutationOptions: (options: object) => ({ ...options, mutationFn: (input: unknown) => fn(input) }) });
   return { useTRPC: () => ({
@@ -22,7 +22,7 @@ vi.mock('@/lib/trpc', () => {
     connections: { list: { queryOptions: () => ({ queryKey: ['connections'], queryFn: adapter.connections }) } },
     auth: { status: { queryOptions: () => ({ queryKey: ['auth.status'], queryFn: adapter.status }) } },
     models: { catalog: { queryOptions: () => ({ queryKey: ['catalog'], queryFn: adapter.catalog }) },
-      favorites: { add: mutation(adapter.add), remove: mutation(adapter.remove) }, setDefault: mutation(adapter.setDefault), setThinking: mutation(adapter.setThinking) },
+      favorites: { add: mutation(adapter.add), remove: mutation(adapter.remove) }, setDefault: mutation(adapter.setDefault), setThinking: mutation(adapter.setThinking), setDelegation: mutation(adapter.setDelegation) },
   }) };
 });
 vi.mock('@/design', () => ({ useToast: () => ({ toast: adapter.toast }) }));
@@ -47,6 +47,17 @@ beforeEach(() => {
   adapter.add.mockResolvedValue({ changed: true }); adapter.remove.mockResolvedValue({ changed: true });
   adapter.setDefault.mockResolvedValue({ changed: true });
   adapter.setThinking.mockResolvedValue({ changed: true });
+  adapter.setDelegation.mockResolvedValue({ changed: true });
+});
+
+describe('delegation policy writes', () => {
+  it('writes the whole policy, then refreshes config', async () => {
+    const { view, invalidate } = await mount();
+    await act(async () => controller.setDelegation({ allow: 'favorites', deny: ['openai/*-pro'] }));
+    expect(adapter.setDelegation).toHaveBeenCalledWith({ allow: 'favorites', deny: ['openai/*-pro'] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['config'] });
+    act(() => view.unmount());
+  });
 });
 
 describe('favorite thinking writes', () => {

@@ -256,23 +256,27 @@ child without an explicit or same-backend parent model uses the Claude-backend
 default (the configured default if Claude, otherwise the first Claude favorite).
 A Claude child runs on its Claude parent's connection; a PI parent starting a
 Claude child uses that Claude default's connection and requires a Claude default or favorite to be configured.
+A model the task names must pass the
+[delegation policy](./configuration.md#delegation-policy); a call naming one
+the policy refuses fails before any child starts and lists the models allowed
+instead. The role's model and the parent's are never checked.
 
 **What the caller can see.** The `subagent_type`, `model`, and `backend` field
 descriptions are rendered at tool-registration time rather than hardcoded, from
 what this host actually has. Roles come from the live role table — the built-in
 roles with `$CORTEX_HOME/config/agents/` laid over them — so a role you add shows
-up in the next session. Claude model ids come from Cortex's shipped table of
-Anthropic models, plus the daemon's current model. A PI parent reads its
-own live model registry; a Claude parent cannot, because its MCP tool runs in a
-sidecar process that has no PI SDK, so the daemon passes down the provider/model
-pairs of its cached scan through the spawn environment. A cold cache simply
-means no PI models are listed yet — the scan is never provoked just to decorate
-a Claude spawn. Roles and
-models each have a character budget, and overflow renders as `(+N more)`. The
-lists are a snapshot, so they do not change mid-session, and they are hints
-rather than a whitelist: an unlisted model id is still accepted and passed
-through. When nothing is known, the descriptions fall back to the generic
-wording, so the tool never fails over a missing catalog.
+up in the next session. Models come from the daemon, which hands each session
+the Claude models of its model catalog and the provider/model pairs of its
+cached PI scan through the spawn environment, keeping only those the
+[delegation policy](./configuration.md#delegation-policy) admits; the
+session's own Claude model is always listed. A cold cache simply means no PI
+models are listed yet — the scan is never provoked just to decorate a spawn.
+Roles and models each have a character budget, and overflow renders as
+`(+N more)`. The lists are a snapshot, so they do not change mid-session. The
+policy itself is checked when a call names a model, so the list is a guide
+rather than the gate: under `"allow": "all"` an unlisted model id is accepted
+and passed through. When nothing is known, the descriptions fall back to the
+generic wording, so the tool never fails over a missing catalog.
 
 **Isolation.** A `pi` child is a nested in-process session that writes no
 transcript and runs headless. A `claude` child is a frozen one-shot `claude`

@@ -368,6 +368,31 @@ test('backend precedence is task, then role, then the delegating parent', async 
   assert.equal(byDescription.get('from-parent'), 'claude');
 });
 
+test('a model the policy refuses fails the whole call before any child starts', async () => {
+  writeRole('general-purpose');
+  writeRole('pi-role', ['backend: pi']);
+  runSubagent.mockImplementation(async (req: any) => ok(req.task.description));
+  const checks: unknown[] = [];
+  const checkModel = (check: any) => {
+    checks.push(check);
+    if (check.model === 'openai/gpt-5-pro') throw new Error('Model "openai/gpt-5-pro" is not available for delegation.');
+  };
+  const parent = { ...parentIsClaude, model: 'claude-opus-5', provider: null };
+  assert.throws(() => startDaemonSubagentRun({
+    params: { parallel: [
+      task({ description: 'ok', model: 'claude-sonnet-5' }),
+      task({ description: 'unnamed', subagent_type: 'pi-role' }),
+      task({ description: 'refused', subagent_type: 'pi-role', model: 'openai/gpt-5-pro' }),
+    ] },
+    background: false, cwd: '/tmp', parent, sessionId: 's1', checkModel,
+  }), /not available for delegation/);
+  assert.equal(runSubagent.mock.calls.length, 0);
+  assert.deepEqual(checks, [
+    { backend: 'claude', model: 'claude-sonnet-5', parent: { backend: 'claude', provider: null, model: 'claude-opus-5' } },
+    { backend: 'pi', model: 'openai/gpt-5-pro', parent: { backend: 'claude', provider: null, model: 'claude-opus-5' } },
+  ]);
+});
+
 test('a task-level backend overrides the role\'s own', async () => {
   writeRole('pi-role', ['backend: pi']);
   runSubagent.mockImplementation(async (req: any) => ok(req.task.description));

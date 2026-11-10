@@ -1,7 +1,7 @@
 import type { EngineSelection } from '@domain/agents/engine-selection.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { parseMcpToolAllowlist, MCP_TOOL_ALLOWLIST_ENV } from '@core/mcp-tool-gate.js';
-import { decodeSubagentModels, type SubagentModelOption } from '@core/agents/subagent/catalog.js';
+import { decodeHandedModels, decodeSubagentModels, type SubagentModelOption } from '@core/agents/subagent/catalog.js';
 import { requestLoopbackJson } from '@core/loopback-http.js';
 import { mainPortUrl } from '@core/main-port.js';
 
@@ -23,9 +23,9 @@ export interface CortexToolContext {
   claudeModel: string | null;
   /** PI provider/model pairs the daemon cached; this process cannot scan PI itself. */
   subagentPiModels: SubagentModelOption[];
-  /** The Anthropic models the daemon discovered, handed down at spawn. Empty means "the sidecar
-   *  falls back to the shipped table". */
-  subagentClaudeModels: SubagentModelOption[];
+  /** The Anthropic models the daemon handed down at spawn. Null means "the sidecar falls back to
+   *  the shipped table"; an empty list means none. */
+  subagentClaudeModels: SubagentModelOption[] | null;
   scheduleTaskId: string | null;
   callbackSource: string | null;
   /** Daemon webhook root on the main port, e.g. `http://127.0.0.1:26789`. */
@@ -67,7 +67,7 @@ export function toolContextFromEnv(env: NodeJS.ProcessEnv = process.env): Cortex
     backend: optional(env.CORTEX_BACKEND),
     claudeModel: optional(env.CORTEX_CLAUDE_MODEL),
     subagentPiModels: decodeSubagentModels(env.CORTEX_SUBAGENT_PI_MODELS),
-    subagentClaudeModels: decodeSubagentModels(env.CORTEX_SUBAGENT_CLAUDE_MODELS),
+    subagentClaudeModels: decodeHandedModels(env.CORTEX_SUBAGENT_CLAUDE_MODELS),
     scheduleTaskId: optional(env.CORTEX_SCHEDULE_TASK_ID),
     callbackSource: optional(env.CORTEX_CALLBACK_SOURCE),
     // Always spawned by the server, which puts its port in the env.

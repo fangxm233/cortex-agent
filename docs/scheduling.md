@@ -204,7 +204,9 @@ but none is available, ask which project to use rather than falling back to
 `general`. Bash is not guaranteed to carry session-specific environment variables,
 including on PI. Creating a schedule without model flags stores the configured default
 selection, which may differ from the active session. Use `--model` to pick a model
-and `--thinking` to set its backend-native reasoning level.
+and `--thinking` to set its backend-native reasoning level. When the shell carries the
+agent session's `CORTEX_SESSION_ID`, a `--model` other than the session's own must pass the
+[delegation policy](./configuration.md#delegation-policy).
 
 Each message must be self-contained: the fired session needs the project, run,
 machine, and file paths, not references to the conversation that created it.

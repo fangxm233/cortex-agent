@@ -4,6 +4,7 @@ import {
   type SubagentRunView,
 } from '@domain/agents/subagent/registry.js';
 import { startDaemonSubagentRun } from '@domain/agents/subagent/service.js';
+import { checkDelegatedModel } from '@domain/agents/delegation.js';
 import { adoptForegroundRun, settleAdoptedRun } from './subagent-adopt.js';
 import { backgroundNoticeSink, parentNoticeSink } from './subagent-attribution.js';
 import { startBackgroundSubagentRun } from './subagent-delivery.js';
@@ -65,6 +66,7 @@ export async function handleSubagentWebhook(data: Record<string, any>): Promise<
         parentWorkspace: await parentWorkspaceFor(sessionId),
         parent,
         sessionId,
+        checkModel: checkDelegatedModel,
         // Explicit background work never belongs to the parent's active run. Foreground calls
         // retain live ingestion and the detached fallback used by adoption.
         onNotice: background

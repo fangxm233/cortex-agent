@@ -15,6 +15,8 @@ import {
 import { resolveModelRef } from '@domain/agents/models.js';
 import type { EngineSelection } from '@domain/agents/engine-selection.js';
 import { parseModelSpec, type ModelSpec } from '@core/agents/subagent/model-spec.js';
+import { delegationName, type CheckDelegatedModel } from '@core/agents/subagent/delegation-policy.js';
+import { checkDelegatedModel } from '@domain/agents/delegation.js';
 import { isRebuildHeld } from '@domain/system/rebuild-hold.js';
 import { deliverToSessionDetached, type DeliverToSessionOptions } from './session-gateway.js';
 import { orchestrationBus } from './runtime.js';
@@ -55,6 +57,8 @@ export interface TeamWebhookDeps {
   /** Complete a worker's selection from the lead's (see resolveSelection). */
   resolveSelection: typeof resolveDaemonSelection;
   applySelection: typeof applyChannelSelection;
+  /** Refuses a model the delegation policy does not admit. Absent: any model may be named. */
+  checkModel?: CheckDelegatedModel;
   interactions: Pick<InteractionRecords, 'get'>;
   answerQuestion: (requestId: string, answers: Record<string, string>) => Outcome;
   /** The question texts of a pending ask, or null when it has no live group. */
@@ -88,6 +92,7 @@ const defaultDeps: TeamWebhookDeps = {
   readSelection: (channel) => readChannelSelection(channel),
   resolveSelection: (layers, partial) => resolveDaemonSelection(layers, partial),
   applySelection: (request) => applyChannelSelection(request),
+  checkModel: (check) => checkDelegatedModel(check),
   interactions: interactionRecords,
   answerQuestion: (requestId, answers) => answerQuestion(requestId, answers, 'agent'),
   questionTexts: (requestId) => {
@@ -176,7 +181,17 @@ function resolveWorkerSelection(lead: Session, data: Record<string, any>, deps: 
     const allowed = resolution.allowed?.length ? ` (allowed: ${resolution.allowed.join(', ')})` : '';
     throw new TeamError(`cannot run the worker on that model: ${resolution.reason}${allowed}`);
   }
+  if (spec.model) checkWorkerModel(resolution.selection, own, deps);
   return resolution.selection;
+}
+
+/** A model the lead named, checked as resolved; its own model is the one it would inherit anyway. */
+function checkWorkerModel(selection: EngineSelection, own: EngineSelection, deps: TeamWebhookDeps): void {
+  try {
+    deps.checkModel?.({ backend: selection.backend, model: delegationName(selection), parent: own });
+  } catch (error) {
+    throw new TeamError((error as Error).message);
+  }
 }
 
 async function spawn(lead: Session, data: Record<string, any>, deps: TeamWebhookDeps): Promise<TeamWebhookReply> {

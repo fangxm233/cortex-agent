@@ -20,7 +20,10 @@ the one-shot `agent` tool. It cannot start workers of its own, so a team is one 
 A worker inherits its lead's project and copies the lead's complete engine selection:
 backend, provider, model, thinking, and connection. The lead can pass `backend` and `model`
 in the same format as the `agent` tool (`provider/model[:thinking]` for PI, a bare model id
-for Claude). On the same backend, only the named parts change. For another backend,
+for Claude). A model the lead names must pass the
+[delegation policy](./configuration.md#delegation-policy), or the spawn fails and lists the
+models it may use; copying the lead's own model is never refused. On the same backend, only
+the named parts change. For another backend,
 the worker starts from `models.json`'s default if it belongs to that backend, otherwise
 that backend's first favorite with its remembered settings. With neither available,
 creation fails and asks you to favorite a model on that backend. A Claude worker runs on

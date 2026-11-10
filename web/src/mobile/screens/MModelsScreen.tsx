@@ -6,10 +6,14 @@ import { modelKey } from '@/lib/model-selection';
 import { MButton, MC, MGroup, M_NUM } from '@/mobile/ui/kit';
 import { ProviderIcon } from '@/features/auth/ProviderIcon';
 import { useModelsController, type ModelsController } from '@/features/settings/controllers/useModelsController';
-import { favoriteThinkingControl, groupModelFacts, modelOptionLabel, thinkingFromValue, type ModelFact } from '@/features/settings/vm/models-panel-vm';
+import {
+  delegationMode, delegationModeOptions, favoriteThinkingControl, groupModelFacts, modelOptionLabel, policyWithMode,
+  thinkingFromValue, type DelegationMode, type ModelFact,
+} from '@/features/settings/vm/models-panel-vm';
+import { usePatternDraft } from '@/features/settings/controllers/usePatternDraft';
 import {
   MSET_INSET, MSET_SUB, MSET_TITLE, MSettingsFeedback, MSettingsGroupLabel, MSettingsPage, MSettingsRow,
-  MSettingsSection, MSettingsSelect, MSettingsSheet,
+  MSettingsField, MSettingsSection, MSettingsSelect, MSettingsSheet,
 } from './MSettingsControls';
 
 const PAD = `11px ${MSET_INSET}px`;
@@ -130,13 +134,41 @@ function Catalog({ c }: { c: ModelsController }) {
   <MButton compact variant="outline" onClick={() => c.setCatalogOpen(false)}>{L.cancel}</MButton></>;
 }
 
+function PatternField({ label, value, disabled, onCommit }: {
+  label: string; value: string[]; disabled: boolean; onCommit: (patterns: string[]) => void;
+}) {
+  const L = useVocab();
+  return <div style={{ padding: PAD }}>
+    <MSettingsField label={label} placeholder={L.stDelegationPatternHint} disabled={disabled}
+      {...usePatternDraft(value, onCommit)} />
+  </div>;
+}
+
+function Delegation({ c }: { c: ModelsController }) {
+  const L = useVocab();
+  const snapshot = c.snapshot;
+  const policy = snapshot?.models.delegation;
+  if (!snapshot || !policy) return null;
+  return <div data-delegation><MSettingsSection title={L.stDelegation} note={L.stDelegationNote}>
+    <div style={{ padding: PAD }}>
+      <MSettingsSelect label={L.stDelegationScope} value={delegationMode(policy)} disabled={c.pending}
+        options={delegationModeOptions(L)}
+        onValueChange={value => c.setDelegation(policyWithMode(policy, value as DelegationMode, snapshot))} />
+    </div>
+    {Array.isArray(policy.allow) && <PatternField label={L.stDelegationAllow} value={policy.allow}
+      disabled={c.pending} onCommit={allow => c.setDelegation({ ...policy, allow })} />}
+    <PatternField label={L.stDelegationDeny} value={policy.deny} disabled={c.pending}
+      onCommit={deny => c.setDelegation({ ...policy, deny })} />
+  </MSettingsSection></div>;
+}
+
 export function MModelsView({ controller: c, onBack }: { controller: ModelsController; onBack: () => void }) {
   const L = useVocab();
   const [openKey, setOpenKey] = useState<string | null>(null);
   const open = openKey === null ? undefined : c.facts.find(fact => fact.key === openKey);
   return <MSettingsPage title={L.stNavModels} onBack={onBack}>
     <MSettingsFeedback hint={c.loading ? L.stLoadingConfig : undefined} error={c.error?.message} />
-    {c.snapshot && <><DefaultModel c={c} /><Favorites c={c} onOpen={setOpenKey} /><Catalog c={c} /></>}
+    {c.snapshot && <><DefaultModel c={c} /><Favorites c={c} onOpen={setOpenKey} /><Catalog c={c} /><Delegation c={c} /></>}
     {open && <FavoriteSheet c={c} fact={open} onClose={() => setOpenKey(null)} />}
   </MSettingsPage>;
 }

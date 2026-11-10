@@ -246,6 +246,26 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+test('a model the delegation policy refuses fails the call before any child session starts', async () => {
+  const checks: unknown[] = [];
+  const harness = createHarness({}, { deps: { checkModel: (check) => {
+    checks.push(check);
+    throw new Error(`Model "${check.model}" is not available for delegation.`);
+  } } });
+  try {
+    await assert.rejects(harness.tool.execute(
+      'call-policy', singleParams({ model: 'openai/gpt-5-pro' }), undefined, undefined,
+      context(harness.root, { id: 'parent-model', provider: 'zai' }),
+    ), /not available for delegation/);
+    assert.equal(harness.calls.length, 0);
+    assert.deepEqual(checks, [{
+      backend: 'pi', model: 'openai/gpt-5-pro', parent: { backend: 'pi', provider: 'zai', model: 'parent-model' },
+    }]);
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test('single child runs on a nested session with the role scope, a stripped env, and usage', async () => {
   const harness = createHarness({ model: 'role-model', tools: 'read, grep' });
   try {

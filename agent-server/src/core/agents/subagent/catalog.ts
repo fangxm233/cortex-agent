@@ -22,16 +22,19 @@ export type SubagentModelEnvGetter = () => Record<string, string>;
 
 export interface HostModelCatalog {
   claudeModel?: string | null;
-  subagentClaudeModels?: SubagentModelOption[];
+  /** The Claude models the daemon handed down; null or absent when it handed none, and the shipped
+   *  table stands. An empty list means none. */
+  subagentClaudeModels?: SubagentModelOption[] | null;
   subagentPiModels?: SubagentModelOption[];
 }
 
 /** Identical assembly for MCP agent/worker and PI native agent; no registry or cache reads. */
 export function hostModelOptions(catalog: HostModelCatalog): SubagentModelOption[] {
-  return [
-    ...claudeModelOptions(catalog.claudeModel, (catalog.subagentClaudeModels ?? []).map(model => model.id)),
-    ...(catalog.subagentPiModels ?? []),
-  ];
+  const handed = catalog.subagentClaudeModels;
+  const claude = handed
+    ? withCurrentModel(handed.map(model => ({ backend: 'claude' as const, id: model.id })), catalog.claudeModel)
+    : claudeModelOptions(catalog.claudeModel);
+  return [...claude, ...(catalog.subagentPiModels ?? [])];
 }
 
 /** Short field descriptions; the model directory belongs to a tool description. */
@@ -92,14 +95,14 @@ export function claudeModelOptions(
   known: readonly string[] = ANTHROPIC_MODELS,
 ): SubagentModelOption[] {
   const ids = known.length > 0 ? known : ANTHROPIC_MODELS;
-  const options: SubagentModelOption[] = ids.map(
-    (id): SubagentModelOption => ({ backend: 'claude', id }),
-  );
+  return withCurrentModel(ids.map((id): SubagentModelOption => ({ backend: 'claude', id })), currentModel);
+}
+
+/** The parent's own model is always nameable: append it, last, when the list lacks it. */
+function withCurrentModel(options: SubagentModelOption[], currentModel?: string | null): SubagentModelOption[] {
   const current = currentModel?.trim();
-  if (current && !ids.includes(current)) {
-    options.push({ backend: 'claude', id: current });
-  }
-  return options;
+  if (!current || options.some(option => option.id === current)) return options;
+  return [...options, { backend: 'claude', id: current }];
 }
 
 /** Map discovered PI models to catalog entries, dropping entries that have no id to render. */
@@ -118,6 +121,12 @@ export function piModelOptions(
 
 export function encodeSubagentModels(models: SubagentModelOption[]): string {
   return JSON.stringify(models);
+}
+
+/** A list the daemon may or may not have handed down: unset or blank is null, anything else is
+ *  decoded like `decodeSubagentModels`. */
+export function decodeHandedModels(raw: string | undefined | null): SubagentModelOption[] | null {
+  return raw ? decodeSubagentModels(raw) : null;
 }
 
 /** Parse a persisted catalog defensively: malformed JSON, a non-array, or a bad entry is dropped

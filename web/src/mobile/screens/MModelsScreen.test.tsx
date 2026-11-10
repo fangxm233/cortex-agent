@@ -16,7 +16,7 @@ function controller(): ModelsController {
     loading: false, error: null, catalogOpen: true, catalogModels: [{ ...ref, model: 'pro' }],
     catalogPending: false, catalogError: null, pending: false,
     catalog: { piPending: false, routes: [], thinkingLevels: { pi: ['off', 'high', 'xhigh'], claude: ['high'] } },
-    setCatalogOpen: vi.fn(), setDefault: vi.fn(), setDefaultConnection: vi.fn(), connectionControl: null, setThinking: vi.fn(), add: vi.fn(), remove: vi.fn(),
+    setCatalogOpen: vi.fn(), setDefault: vi.fn(), setDefaultConnection: vi.fn(), connectionControl: null, setThinking: vi.fn(), add: vi.fn(), remove: vi.fn(), setDelegation: vi.fn(),
   };
 }
 
@@ -138,6 +138,24 @@ describe('mobile models', () => {
     const view = create(<LangProvider><MModelsView controller={c} onBack={vi.fn()} /></LangProvider>);
     expect(JSON.stringify(view.toJSON())).toContain(en.stNoFavorites);
     expect(view.root.findByType(MSelect).props.value).toBe(modelKey(ref));
+    view.unmount();
+  });
+});
+
+describe('mobile models agents can pick', () => {
+  it('shares the desktop policy controls', () => {
+    const c = { ...controller(), snapshot: { models: { ...snapshot.models,
+      delegation: { allow: ['deepseek/*'], deny: [] } } } as unknown as ConfigSnapshot };
+    const view = render(c);
+    const section = view.root.findByProps({ 'data-delegation': true });
+    expect(section.findByType(MSelect).props.value).toBe('custom');
+    const [allow, deny] = section.findAllByType('input');
+    expect(allow.props.value).toBe('deepseek/*');
+    act(() => deny.props.onChange({ target: { value: 'deepseek/*-pro' } }));
+    act(() => section.findAllByType('input')[1].props.onKeyDown({ key: 'Enter' }));
+    expect(c.setDelegation).toHaveBeenCalledWith({ allow: ['deepseek/*'], deny: ['deepseek/*-pro'] });
+    act(() => section.findByType(MSelect).props.onValueChange('favorites'));
+    expect(c.setDelegation).toHaveBeenLastCalledWith({ allow: 'favorites', deny: [] });
     view.unmount();
   });
 });

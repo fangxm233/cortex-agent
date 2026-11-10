@@ -6,7 +6,11 @@ import { ProviderIcon } from '@/features/auth/ProviderIcon';
 import { useVocab } from '@/i18n';
 import { matchesModelFilter, modelKey } from '@/lib/model-selection';
 import { useModelsController, type ModelsController } from '@/features/settings/controllers/useModelsController';
-import { favoriteThinkingControl, groupModelFacts, modelOptionLabel, thinkingFromValue, type ModelFact } from '@/features/settings/vm/models-panel-vm';
+import { usePatternDraft } from '@/features/settings/controllers/usePatternDraft';
+import {
+  delegationMode, delegationModeOptions, favoriteThinkingControl, groupModelFacts, modelOptionLabel, policyWithMode,
+  thinkingFromValue, type DelegationMode, type ModelFact,
+} from '@/features/settings/vm/models-panel-vm';
 import { SLinkAction, SMeta, SNotice, SRow, SRowGroup, SSection, SSubheading, S_CONTROL_STYLE } from '@/features/settings/ui/settings-ui';
 
 const DEFAULT_CONTROL_STYLE = { ...S_CONTROL_STYLE, width: 300, maxWidth: '100%' };
@@ -110,11 +114,46 @@ function Catalog({ controller: c }: { controller: ModelsController }) {
   </SSection>;
 }
 
+function PatternInput({ label, value, disabled, onCommit }: {
+  label: string; value: string[]; disabled: boolean; onCommit: (patterns: string[]) => void;
+}) {
+  const L = useVocab();
+  const draft = usePatternDraft(value, onCommit);
+  return <input className="settings-control" aria-label={label} placeholder={L.stDelegationPatternHint}
+    disabled={disabled} style={DEFAULT_CONTROL_STYLE} {...draft} />;
+}
+
+function DelegationSection({ controller: c }: { controller: ModelsController }) {
+  const L = useVocab();
+  const snapshot = c.snapshot;
+  const policy = snapshot?.models.delegation;
+  if (!snapshot || !policy) return null;
+  const mode = delegationMode(policy);
+  return <SSection label={L.stDelegation} data-delegation>
+    <SRowGroup>
+      <SRow title={L.stDelegationScope} desc={L.stDelegationNote} control={
+        <Select aria-label={L.stDelegationScope} value={mode} disabled={c.pending} options={delegationModeOptions(L)}
+          popupClassName="settings-surface settings-select-popup" style={DEFAULT_CONTROL_STYLE}
+          onValueChange={value => c.setDelegation(policyWithMode(policy, value as DelegationMode, snapshot))} />
+      } />
+      {Array.isArray(policy.allow) && <SRow title={L.stDelegationAllow} control={
+        <PatternInput label={L.stDelegationAllow} value={policy.allow} disabled={c.pending}
+          onCommit={allow => c.setDelegation({ ...policy, allow })} />
+      } />}
+      <SRow title={L.stDelegationDeny} control={
+        <PatternInput label={L.stDelegationDeny} value={policy.deny} disabled={c.pending}
+          onCommit={deny => c.setDelegation({ ...policy, deny })} />
+      } />
+    </SRowGroup>
+  </SSection>;
+}
+
 export function ModelsPanelView({ controller }: { controller: ModelsController }) {
   return <div className="settings-models" data-settings-panel="models" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
     <DefaultModelRow controller={controller} />
     <FavoriteGroups controller={controller} />
     <Catalog controller={controller} />
+    <DelegationSection controller={controller} />
   </div>;
 }
 

@@ -1,5 +1,7 @@
 import { setSubagentModelSource, subagentModelEnv } from '../../agent-adapter/claude/spawn-args.js';
 import { modelCatalog, routeFor } from '../models/catalog.js';
+import { checkDelegatedModel, delegableFilter } from '../agents/delegation.js';
+import { ANTHROPIC_MODELS } from '@core/anthropic-models.js';
 import { ClaudeAdapter } from '../../agent-adapter/claude/adapter.js';
 import { PIAdapter } from '../../agent-adapter/pi/adapter.js';
 import { createLogger } from '@core/log.js';
@@ -37,6 +39,7 @@ const PI_ADAPTER = new PIAdapter(undefined, PI_SESSIONS_DIR, {
   openBundledMcpServer,
   getSubagentModelEnv: subagentModelEnv,
   subagent: {
+    checkDelegatedModel,
     runForeignSubagent,
     // Late-bound on purpose: registering a background run reaches the delivery route in
     // `orchestration/`, which domain may not import. The composition root registers the real
@@ -67,13 +70,17 @@ async function scanPiModels(): Promise<PiDiscoveredModel[]> {
 
 setPiModelScan(scanPiModels);
 
-// Subagents are offered what the model catalog knows, read warm on every spawn.
+// Subagents are offered what the model catalog knows and the delegation policy admits, read warm
+// on every spawn.
 setSubagentModelSource(() => {
   const snapshot = modelCatalog.peek();
+  const admit = delegableFilter();
+  const claude = routeFor(snapshot, { backend: 'claude', provider: null })?.models ?? ANTHROPIC_MODELS;
   return {
     pi: snapshot.routes.filter((route) => route.backend === 'pi')
-      .flatMap((route) => route.models.map((id) => ({ provider: route.provider!, id }))),
-    claude: routeFor(snapshot, { backend: 'claude', provider: null })?.models ?? [],
+      .flatMap((route) => route.models.map((id) => ({ provider: route.provider!, id })))
+      .filter((model) => admit({ backend: 'pi', provider: model.provider, model: model.id })),
+    claude: claude.filter((id) => admit({ backend: 'claude', model: id })),
   };
 });
 

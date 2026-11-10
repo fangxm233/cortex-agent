@@ -10,6 +10,7 @@ import type { RunChildFn, SubagentTask } from '@core/agents/subagent/types.js';
 import { openChildWorkspace, prepareCleanTasks, withWorkspaceNote } from '@core/agents/subagent/workspace.js';
 import type { AgentRole } from '@core/agents/roles.js';
 import type { Backend } from '@core/types/agent-types.js';
+import { checkTaskModels, type CheckDelegatedModel } from '@core/agents/subagent/delegation-policy.js';
 
 export interface DaemonSubagentRequest {
   /** Exactly the object the model passed to the tool; validated here, not by the caller. */
@@ -29,6 +30,8 @@ export interface DaemonSubagentRequest {
   onSettled?: Parameters<typeof startSubagentRun>[0]['onSettled'];
   /** Called when a foreground run loses its last waiter. See StartSubagentRunOptions.onAbandon. */
   onAbandon?: Parameters<typeof startSubagentRun>[0]['onAbandon'];
+  /** Refuses a model the delegation policy does not admit. Absent: any model may be named. */
+  checkModel?: CheckDelegatedModel;
 }
 
 /**
@@ -44,6 +47,10 @@ export function startDaemonSubagentRun(request: DaemonSubagentRequest): Subagent
   });
   const roles = loadRoles();
   for (const task of invocation.tasks) findRole(roles, task.subagent_type);
+  const { parent } = request;
+  checkTaskModels(request.checkModel, invocation.tasks,
+    task => task.backend ?? findRole(roles, task.subagent_type).backend ?? parent.backend,
+    parent.model ? { backend: parent.backend, provider: parent.provider, model: parent.model } : null);
 
   return startSubagentRun({
     invocation,

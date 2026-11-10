@@ -1,5 +1,6 @@
 import type { StartBackgroundSubagent, StopBackgroundSubagent } from './background-subagent.js';
 import type { RunForeignSubagent } from './subagent.js';
+import type { CheckDelegatedModel } from '@core/agents/subagent/delegation-policy.js';
 
 /**
  * What the `agent` tool cannot do on its own.
@@ -12,6 +13,8 @@ import type { RunForeignSubagent } from './subagent.js';
  * degrades the tool honestly rather than reaching for a module default (D10).
  */
 export interface PiSubagentBridge {
+  /** The host's delegation policy over models a task names; absent, any model may be named. */
+  checkDelegatedModel?: CheckDelegatedModel;
   runForeignSubagent?: RunForeignSubagent;
   startBackgroundSubagent?: StartBackgroundSubagent;
   stopBackgroundSubagent?: StopBackgroundSubagent;

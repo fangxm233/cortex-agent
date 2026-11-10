@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import { mkdtempSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { addFavorite, removeFavorite, setDefaultModel, setModelThinking, handleModelsSetThinking } from '../../../src/domain/ui-service/mutate/models.js';
+import { addFavorite, removeFavorite, setDefaultModel, setDelegation, setModelThinking, handleModelsSetThinking } from '../../../src/domain/ui-service/mutate/models.js';
 import { modelsFavoriteInput, modelsSetDefaultInput, modelsSetThinkingInput } from '../../../src/domain/ui-service/input-schemas.js';
 import { getModelMemory, getChannelSelection, getSelectionDefault, reloadAgentState, rememberModelSelection, setChannelSelection, setSelectionDefault } from '../../../src/domain/agents/config.js';
 import { loadAgentState } from '../../../src/domain/agents/agent-state.js';
@@ -227,4 +227,22 @@ test('setThinking handler never invokes current-session mutation dependencies', 
   const invalid = await handleModelsSetThinking(deps, { ref, thinking: 'off' });
   assert.equal(invalid.ok, false);
   if (!invalid.ok) assert.equal(invalid.code, 'invalid-args');
+});
+
+test('the delegation policy is written whole, deduplicated, and a repeat is a no-op', async () => {
+  const dir = await seed({ future: { keep: true } });
+  assert.equal(await setDelegation(dir, { allow: 'favorites', deny: ['openai/*-pro', 'openai/*-pro'] }), true);
+  assert.deepEqual((await read(dir)).delegation, { allow: 'favorites', deny: ['openai/*-pro'] });
+  assert.deepEqual((await read(dir)).future, { keep: true });
+  assert.equal(await setDelegation(dir, { allow: 'favorites', deny: ['openai/*-pro'] }), false);
+  assert.equal(await setDelegation(dir, { allow: [' claude-* ', 'deepseek/*'], deny: [] }), true);
+  assert.deepEqual((await read(dir)).delegation, { allow: ['claude-*', 'deepseek/*'], deny: [] });
+  await assert.rejects(setDelegation(dir, { allow: 'some' as never, deny: [] }), { code: 'invalid-args' });
+  await assert.rejects(setDelegation(dir, { allow: 'all', deny: [''] }), { code: 'invalid-args' });
+});
+
+test('saving the default policy on a file without one records it explicitly', async () => {
+  const dir = await seed();
+  assert.equal(await setDelegation(dir, { allow: 'favorites', deny: [] }), true);
+  assert.deepEqual((await read(dir)).delegation, { allow: 'favorites', deny: [] });
 });
