@@ -149,3 +149,28 @@ test('a non-web run gets no synthesized prose, only the backend’s own lines', 
   assert.deepEqual(seen.map((s) => [s.text, s.level]), [[RATE_LIMIT_TEXT, 'error']],
     'the backend line passes through untouched and nothing is added');
 });
+
+const CLAUDE_TOO_OLD = "API Error: 400 Claude Code 2.1.280 does not support this model; version 2.1.290 or newer is required. Run 'claude update', or update the Claude desktop app, then try again.";
+
+test('a web error card for an outdated Claude Code offers the update', () => {
+  const seen: Seen[] = [];
+  makeTracker(seen).observe(CLAUDE_TOO_OLD, undefined, 'error');
+  assert.equal(seen.length, 1);
+  assert.deepEqual(seen[0].action, { kind: 'update-claude-code', required: '2.1.290' });
+});
+
+test('the terminal card carries the update when no line showed the error first', () => {
+  home.rl._testReset();
+  const seen: Seen[] = [];
+  makeTracker(seen).emitTerminalError(new Error(CLAUDE_TOO_OLD));
+  assert.equal(seen.length, 1);
+  assert.deepEqual(seen[0].action, { kind: 'update-claude-code', required: '2.1.290' });
+});
+
+test('other error cards and non-web channels get no update action', () => {
+  const seen: Seen[] = [];
+  makeTracker(seen).observe('API Error: 400 prompt is too long', undefined, 'error');
+  new AttemptNoticeTracker({ channel: 'slack:C1' }, (text, _b, level, action) => seen.push({ text, level, action }))
+    .observe(CLAUDE_TOO_OLD, undefined, 'error');
+  assert.deepEqual(seen.map((s) => s.action), [undefined, undefined]);
+});

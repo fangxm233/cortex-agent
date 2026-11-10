@@ -58,9 +58,10 @@ export interface AuthNoticeAction {
 /** A control the user can act on from a chat notice. Unlike AuthNoticeAction (an ephemeral
  *  live-tail hint) this is persisted with the message: the window it refers to can outlive a
  *  page reload by hours. */
-export interface NoticeAction {
-  kind: 'cancel-resume';
-}
+export type NoticeAction =
+  | { kind: 'cancel-resume' }
+  /** The backend's Claude Code is older than the model needs; `required` is the minimum version. */
+  | { kind: 'update-claude-code'; required?: string };
 
 /** One image a tool returned to the model (`Read` on a picture, a screenshot tool), as base64.
  *  Carried in memory on the tool-result event only, until the transcript sink writes it to disk —

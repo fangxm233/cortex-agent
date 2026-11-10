@@ -8,6 +8,7 @@ import {
   getServerUpdateStatus,
 } from '@domain/system/update-ui-state.js';
 import { isProcessAlive, readPidFile, touchRestartTrigger } from '@core/singleton-lock.js';
+import { claudeCodeUpdater } from '@domain/system/claude-code-update.js';
 import type {
   Result,
   UiServiceDeps,
@@ -17,6 +18,7 @@ import type {
   SystemRedeemUsageResetReturn,
   SystemRestartReturn,
   SystemUpdateDecisionReturn,
+  ClaudeCodeStatus,
   MutateArgs,
 } from '../types.js';
 
@@ -154,4 +156,20 @@ export async function handleSystemSkipUpdate(
 ): Promise<Result<SystemUpdateDecisionReturn>> {
   const accepted = answerServerUpdatePrompt('skip');
   return { ok: true, data: { accepted, status: getServerUpdateStatus() } };
+}
+
+// ── Claude Code CLI update ──────────────────────────────────────
+
+export async function handleSystemCheckClaudeCode(
+  _args: MutateArgs<'system.checkClaudeCode'>,
+): Promise<Result<ClaudeCodeStatus>> {
+  return { ok: true, data: await claudeCodeUpdater.check() };
+}
+
+/** Answers at once with the `updating` status; the client polls `system.claudeCode` until it settles. */
+export async function handleSystemUpdateClaudeCode(
+  _args: MutateArgs<'system.updateClaudeCode'>,
+): Promise<Result<ClaudeCodeStatus>> {
+  void claudeCodeUpdater.update();
+  return { ok: true, data: claudeCodeUpdater.getStatus() };
 }

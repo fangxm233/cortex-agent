@@ -11,6 +11,7 @@ import { getResumeCountsByProvider } from '@domain/costs/resume-registry.js';
 import { usageService } from '@domain/costs/usage-service.js';
 import { listSystemNotices, NOTICE_HISTORY_CAP } from '@domain/system/notice-history.js';
 import { getServerUpdateStatus } from '@domain/system/update-ui-state.js';
+import { claudeCodeUpdater } from '@domain/system/claude-code-update.js';
 import type {
   SystemDaemonStatus,
   DaemonProcessInfo,
@@ -20,6 +21,7 @@ import type {
   SystemNotices,
   SystemUpdateStatus,
   SystemVersion,
+  ClaudeCodeStatus,
   QueryParams,
 } from '../types.js';
 
@@ -162,4 +164,10 @@ export async function handleSystemVersion(
   _params: QueryParams<'system.version'>,
 ): Promise<SystemVersion> {
   return { version: CORTEX_VERSION };
+}
+
+export async function handleSystemClaudeCode(
+  _params: QueryParams<'system.claudeCode'>,
+): Promise<ClaudeCodeStatus> {
+  return claudeCodeUpdater.getStatus();
 }

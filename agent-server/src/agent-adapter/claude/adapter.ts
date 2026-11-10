@@ -35,6 +35,7 @@ import {
 import { ClaudeContextUsageTracker } from './context-usage.js';
 import { resolveClaudeCompactWindow } from './compact-window.js';
 import { validateClaudeSupplementalMcpConfig } from './mcp-config.js';
+import { claudeCliGeneration } from './cli-generation.js';
 
 const log = createLogger('claude-bridge');
 
@@ -147,7 +148,9 @@ export function claudeCompatibilityIdentity(compatibility: ClaudeSpawnCompatibil
 
 /** The resolved-spec identity: the compatibility record the pool would compare, serialized. */
 export function claudeSpecIdentity(spec: EngineSpec): string {
-  return claudeCompatibilityIdentity(compatibilityFromOptions(sessionOptionsFromSpec(spec)));
+  const identity = claudeCompatibilityIdentity(compatibilityFromOptions(sessionOptionsFromSpec(spec)));
+  const generation = claudeCliGeneration();
+  return generation === 0 ? identity : `${identity}#cli${generation}`;
 }
 
 /** Resolve per-session settings from the spawn cwd without falling through a pinned trial's config. */

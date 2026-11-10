@@ -48,6 +48,7 @@ import {
   handleSystemVersion,
   handleSystemNotices,
   handleSystemUpdateStatus,
+  handleSystemClaudeCode,
 } from './query/system.js';
 import {
   handleConfigSet,
@@ -113,6 +114,8 @@ import {
   handleSystemCheckUpdate,
   handleSystemApplyUpdate,
   handleSystemSkipUpdate,
+  handleSystemCheckClaudeCode,
+  handleSystemUpdateClaudeCode,
 } from './mutate/system.js';
 import {
   handleAuthAddAccount,
@@ -187,6 +190,7 @@ export const queryHandlers = {
   'system.notices': (_deps, params) => handleSystemNotices(params),
   'system.updateStatus': (_deps, params) => handleSystemUpdateStatus(params),
   'system.version': (_deps, params) => handleSystemVersion(params),
+  'system.claudeCode': (_deps, params) => handleSystemClaudeCode(params),
 } satisfies QueryHandlerMap;
 
 export const mutateHandlers = {
@@ -273,6 +277,8 @@ export const mutateHandlers = {
   'system.checkUpdate': handleSystemCheckUpdate,
   'system.applyUpdate': (_deps, args) => handleSystemApplyUpdate(args),
   'system.skipUpdate': (_deps, args) => handleSystemSkipUpdate(args),
+  'system.checkClaudeCode': (_deps, args) => handleSystemCheckClaudeCode(args),
+  'system.updateClaudeCode': (_deps, args) => handleSystemUpdateClaudeCode(args),
 } satisfies MutateHandlerMap;
 
 type AuditArgs = Record<string, unknown>;

@@ -138,6 +138,8 @@ export const systemUpdateStatusInput = z.object({});
 
 export const systemVersionInput = z.object({});
 
+export const systemClaudeCodeInput = z.object({});
+
 // ── Mutate input schemas ──────────────────────────────────────────
 
 /** An account connection id; absent or null is the provider's default login. */
@@ -819,6 +821,11 @@ export const systemApplyUpdateInput = z.object({});
 
 export const systemSkipUpdateInput = z.object({});
 
+// The server updates its one local `claude`; nothing to choose.
+export const systemCheckClaudeCodeInput = z.object({});
+
+export const systemUpdateClaudeCodeInput = z.object({});
+
 // approvals.request enqueues a high-privilege operation as a PENDING entry in
 // PENDING_APPROVALS.md instead of executing it (task b983 — the Web settings "approval gate").
 // The `kind` is a CLOSED enum and the server constructs ALL of the entry's prose; the browser
@@ -888,6 +895,7 @@ export const queryInputSchemas = {
   'system.notices': systemNoticesInput,
   'system.updateStatus': systemUpdateStatusInput,
   'system.version': systemVersionInput,
+  'system.claudeCode': systemClaudeCodeInput,
 } satisfies Record<string, z.ZodType>;
 
 export const mutateInputSchemas = {
@@ -974,4 +982,6 @@ export const mutateInputSchemas = {
   'system.checkUpdate': systemCheckUpdateInput,
   'system.applyUpdate': systemApplyUpdateInput,
   'system.skipUpdate': systemSkipUpdateInput,
+  'system.checkClaudeCode': systemCheckClaudeCodeInput,
+  'system.updateClaudeCode': systemUpdateClaudeCodeInput,
 } satisfies Record<string, z.ZodType>;
