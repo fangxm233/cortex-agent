@@ -628,6 +628,12 @@ export const modelsSetThinkingInput = z.object({ ref: modelRefInput, thinking: z
 
 export const modelsSetDefaultInput = z.object({ selection: engineSelectionInput }).strict();
 
+const modelPatternList = z.array(z.string().trim().min(1).max(200)).max(200);
+export const modelsSetDelegationInput = z.object({
+  allow: z.union([z.literal('all'), z.literal('favorites'), modelPatternList]),
+  deny: modelPatternList,
+}).strict();
+
 const componentByteLength = (value: string): boolean => new TextEncoder().encode(value).byteLength <= 255;
 const isSafeComponent = (value: string): boolean => value !== '.' && value !== '..'
   && !value.includes('/') && !value.includes('\\') && !value.includes('\0');
@@ -946,6 +952,7 @@ export const mutateInputSchemas = {
   'models.favorites.remove': modelsFavoriteInput,
   'models.setDefault': modelsSetDefaultInput,
   'models.setThinking': modelsSetThinkingInput,
+  'models.setDelegation': modelsSetDelegationInput,
   'plugins.assign': pluginsAssignInput,
   'plugins.skillWrite': pluginsSkillWriteInput,
   'plugins.skillCreate': pluginsSkillCreateInput,

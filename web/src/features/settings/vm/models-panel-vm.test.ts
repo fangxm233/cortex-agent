@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ConfigSnapshot, ModelCatalogSnapshot, ModelRef } from '@cortex-agent/ui-contract';
 import {
-  buildModelFacts, catalogModels, defaultConnectionControl, defaultModelOptions, favoriteThinkingControl, modelOptionLabel,
-  thinkingFromValue,
+  buildModelFacts, catalogModels, defaultConnectionControl, defaultModelOptions, delegationMode, favoriteThinkingControl,
+  modelOptionLabel, parsePatterns, policyWithMode, thinkingFromValue,
 } from './models-panel-vm';
 import { modelKey } from '@/lib/model-selection';
 
@@ -113,5 +113,23 @@ describe('default connection', () => {
     expect(defaultConnectionControl(onDefault, catalog, {}, { withConnection: 'Default ({connection})', plain: 'Default' })).toBeNull();
     expect(defaultConnectionControl(snapshot, accounts, {}, { withConnection: 'Default ({connection})', plain: 'Default' })).toBeNull();
     expect(defaultConnectionControl(onDefault, null, {}, { withConnection: 'Default ({connection})', plain: 'Default' })).toBeNull();
+  });
+});
+
+describe('delegation policy controls', () => {
+  it('reads the mode and seeds custom patterns from the configured models', () => {
+    const configured = { models: { ...snapshot.models,
+      favorites: [ref, { backend: 'claude', provider: null, model: 'opus' }] } } as ConfigSnapshot;
+    expect(delegationMode({ allow: 'favorites', deny: [] })).toBe('favorites');
+    expect(delegationMode({ allow: ['a*'], deny: [] })).toBe('custom');
+    expect(policyWithMode({ allow: 'favorites', deny: ['x'] }, 'custom', configured))
+      .toEqual({ allow: ['deepseek/flash', 'opus'], deny: ['x'] });
+    expect(policyWithMode({ allow: ['a*'], deny: [] }, 'custom', configured)).toEqual({ allow: ['a*'], deny: [] });
+    expect(policyWithMode({ allow: ['a*'], deny: ['x'] }, 'all', configured)).toEqual({ allow: 'all', deny: ['x'] });
+  });
+
+  it('splits typed patterns on commas and whitespace', () => {
+    expect(parsePatterns(' openai/*-pro,claude-opus-*  openai/*-pro ,, ')).toEqual(['openai/*-pro', 'claude-opus-*']);
+    expect(parsePatterns('')).toEqual([]);
   });
 });

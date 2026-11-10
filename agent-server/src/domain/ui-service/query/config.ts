@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import { readPlatformSettings } from '../platform-settings.js';
 import path from 'node:path';
 import { CONFIG_DIR } from '@core/paths.js';
+import { parseDelegationPolicy } from '@core/agents/subagent/delegation-policy.js';
 import { getSettingsSnapshot } from '@core/settings.js';
 import { getLocale } from '@core/i18n.js';
 import { langSource } from '@domain/system/preferences.js';
@@ -83,7 +84,7 @@ function parseBudget(raw: any): ConfigBudget | null {
 }
 
 function parseModels(raw: unknown): ConfigModels {
-  const file = raw as { default?: unknown; favorites?: unknown } | null;
+  const file = raw as { default?: unknown; favorites?: unknown; delegation?: unknown } | null;
   const selection = engineSelectionInput.safeParse(file?.default);
   const favorites = Array.isArray(file?.favorites) ? file.favorites : [];
   return {
@@ -92,6 +93,8 @@ function parseModels(raw: unknown): ConfigModels {
       const parsed = modelRefInput.safeParse(ref);
       return parsed.success ? [parsed.data] : [];
     }),
+    // As the daemon reads it: a host without models.json restricts nothing.
+    delegation: file ? parseDelegationPolicy(file.delegation) : { allow: 'all', deny: [] },
     memory: {},
   };
 }

@@ -20,7 +20,7 @@ function controller(): ModelsController {
     facts: [{ ref, key: modelKey(ref), thinking: 'high', current: true }], options: [ref],
     loading: false, error: null, catalogOpen: false, catalogModels: [], catalogPending: false, catalogError: null,
     catalog: { piPending: false, routes: [], thinkingLevels: { pi: ['off', 'high'], claude: ['high'] } },
-    pending: false, setCatalogOpen: vi.fn(), setDefault: vi.fn(), setDefaultConnection: vi.fn(), connectionControl: null, setThinking: vi.fn(), add: vi.fn(), remove: vi.fn(),
+    pending: false, setCatalogOpen: vi.fn(), setDefault: vi.fn(), setDefaultConnection: vi.fn(), connectionControl: null, setThinking: vi.fn(), add: vi.fn(), remove: vi.fn(), setDelegation: vi.fn(),
   };
 }
 function render(c: ModelsController) { return create(<LangProvider><ModelsPanelView controller={c} /></LangProvider>); }
@@ -133,4 +133,40 @@ describe('desktop models', () => {
     view.unmount();
   });
 
+});
+
+describe('models agents can pick', () => {
+  function withPolicy(delegation: ConfigSnapshot['models']['delegation']): ModelsController {
+    const c = controller();
+    return { ...c, snapshot: { models: { ...c.snapshot!.models, delegation } } as ConfigSnapshot };
+  }
+
+  it('is hidden when the server reports no policy', () => {
+    const view = render(controller());
+    expect(view.root.findAllByProps({ 'data-delegation': true })).toHaveLength(0);
+    view.unmount();
+  });
+
+  it('switches mode, seeding patterns from the configured models, and saves typed exclusions', () => {
+    const c = withPolicy({ allow: 'favorites', deny: [] });
+    const view = render(c);
+    const section = view.root.findByProps({ 'data-delegation': true });
+    const select = section.findByType('select');
+    expect(select.props.value).toBe('favorites');
+    act(() => select.props.onChange({ target: { value: 'custom' } }));
+    expect(c.setDelegation).toHaveBeenCalledWith({ allow: [`deepseek/${ref.model}`], deny: [] });
+
+    const [deny] = section.findAllByType('input');
+    act(() => deny.props.onChange({ target: { value: 'openai/*-pro, claude-opus-*' } }));
+    act(() => section.findAllByType('input')[0].props.onBlur());
+    expect(c.setDelegation).toHaveBeenLastCalledWith({ allow: 'favorites', deny: ['openai/*-pro', 'claude-opus-*'] });
+    view.unmount();
+  });
+
+  it('shows the allow patterns only for a custom policy', () => {
+    const view = render(withPolicy({ allow: ['claude-*'], deny: ['x'] }));
+    const inputs = view.root.findByProps({ 'data-delegation': true }).findAllByType('input');
+    expect(inputs.map(input => input.props.value)).toEqual(['claude-*', 'x']);
+    view.unmount();
+  });
 });

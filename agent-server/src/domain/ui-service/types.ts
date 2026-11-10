@@ -11,6 +11,8 @@ export type {
 
 import type { z } from 'zod';
 import type { EngineSelection, ModelRef } from '@domain/agents/engine-selection.js';
+import type { DelegationPolicy } from '@core/agents/subagent/delegation-policy.js';
+export type { DelegationPolicy, DelegationAllow } from '@core/agents/subagent/delegation-policy.js';
 export type { EngineSelection, ModelRef } from '@domain/agents/engine-selection.js';
 import type { queryInputSchemas, mutateInputSchemas } from './input-schemas.js';
 import type { Project, CreateProjectResult } from '@domain/projects/index.js';
@@ -763,6 +765,9 @@ export interface ConfigBudget {
 export interface ConfigModels {
   default: EngineSelection | null;
   favorites: ModelRef[];
+  /** Which models agents may name when they delegate; the default policy when the file has none.
+   *  Absent from a server that predates it. */
+  delegation?: DelegationPolicy;
   /** Per model: the thinking level last picked for it. */
   memory: Record<string, { thinking: string | null }>;
 }
@@ -1789,6 +1794,7 @@ export interface MutateReturnMap {
   'models.favorites.remove': ModelsMutationReturn;
   'models.setDefault': ModelsMutationReturn;
   'models.setThinking': ModelsMutationReturn;
+  'models.setDelegation': ModelsMutationReturn;
   'plugins.assign': PluginsAssignReturn;
   'plugins.skillWrite': PluginsSkillWriteReturn;
   'plugins.skillCreate': PluginsSkillReturn;

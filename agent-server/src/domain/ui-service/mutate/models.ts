@@ -13,7 +13,10 @@ import { modelsRepo, modelsWriteLock } from '@store/models-repo.js';
 import { resolveDaemonSelection } from '@domain/agents/model-selection.js';
 import { resolveSelection } from '@domain/agents/resolve-selection.js';
 import { getModelMemory, rememberModelSelection } from '@domain/agents/config.js';
-import { modelsFavoriteInput, modelsSetDefaultInput, modelsSetThinkingInput } from '../input-schemas.js';
+import {
+  modelsFavoriteInput, modelsSetDefaultInput, modelsSetDelegationInput, modelsSetThinkingInput,
+} from '../input-schemas.js';
+import { parseDelegationPolicy, type DelegationPolicy } from '@core/agents/subagent/delegation-policy.js';
 import type { UiServiceDeps, Result, ModelsMutationReturn, MutateArgs } from '../types.js';
 
 type RawModelsFile = ModelsFile & Record<string, unknown>;
@@ -149,6 +152,26 @@ export async function setModelThinking(
   });
 }
 
+function samePolicy(left: DelegationPolicy, right: DelegationPolicy): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+/** Replace the delegation policy; patterns are kept as written, minus blanks and repeats. */
+export async function setDelegation(configDir: string, args: MutateArgs<'models.setDelegation'>): Promise<boolean> {
+  const parsed = validate(() => modelsSetDelegationInput.parse(args));
+  const unique = (patterns: string[]) => [...new Set(patterns)];
+  const next: DelegationPolicy = {
+    allow: Array.isArray(parsed.allow) ? unique(parsed.allow) : parsed.allow,
+    deny: unique(parsed.deny),
+  };
+  return modelsWriteLock.run(async () => {
+    const raw = await readModelsFile(configDir);
+    if (raw.delegation !== undefined && samePolicy(parseDelegationPolicy(raw.delegation), next)) return false;
+    await writeModelsFile(configDir, { ...raw, delegation: next });
+    return true;
+  });
+}
+
 async function mutation(write: () => Promise<boolean>): Promise<Result<ModelsMutationReturn>> {
   try { return { ok: true, data: { changed: await write() } }; }
   catch (error) {
@@ -182,4 +205,10 @@ export async function handleModelsSetThinking(
   _deps: UiServiceDeps, args: MutateArgs<'models.setThinking'>,
 ): Promise<Result<ModelsMutationReturn>> {
   return mutation(() => setModelThinking(CONFIG_DIR, args));
+}
+
+export async function handleModelsSetDelegation(
+  _deps: UiServiceDeps, args: MutateArgs<'models.setDelegation'>,
+): Promise<Result<ModelsMutationReturn>> {
+  return mutation(() => setDelegation(CONFIG_DIR, args));
 }

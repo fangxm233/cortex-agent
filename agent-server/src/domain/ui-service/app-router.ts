@@ -89,6 +89,7 @@ import {
   modelsFavoriteInput,
   modelsSetDefaultInput,
   modelsSetThinkingInput,
+  modelsSetDelegationInput,
   modelsCatalogInput,
   machinesListInput,
   machineDetailInput,
@@ -338,6 +339,7 @@ function modelsRouter(service: UiService) {
     }),
     setDefault: makeMutation(service, 'models.setDefault', modelsSetDefaultInput),
     setThinking: makeMutation(service, 'models.setThinking', modelsSetThinkingInput),
+    setDelegation: makeMutation(service, 'models.setDelegation', modelsSetDelegationInput),
   });
 }
 

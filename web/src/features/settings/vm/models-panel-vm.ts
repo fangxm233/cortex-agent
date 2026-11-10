@@ -94,3 +94,39 @@ export function defaultConnectionControl(
     options: options.map(option => ({ value: option.id ?? '', label: option.label })),
   };
 }
+
+export type DelegationPolicy = NonNullable<ConfigSnapshot['models']['delegation']>;
+export type DelegationMode = 'favorites' | 'all' | 'custom';
+
+export function delegationMode(policy: DelegationPolicy): DelegationMode {
+  return Array.isArray(policy.allow) ? 'custom' : policy.allow;
+}
+
+/** The name agents write for a model: the bare id for Claude, provider/model for PI. */
+function delegationName(ref: ModelRef): string {
+  return ref.backend === 'pi' && ref.provider ? `${ref.provider}/${ref.model}` : ref.model;
+}
+
+/** Switching to custom patterns starts from the models agents could already name. */
+export function policyWithMode(policy: DelegationPolicy, mode: DelegationMode, snapshot: ConfigSnapshot): DelegationPolicy {
+  if (mode !== 'custom') return { ...policy, allow: mode };
+  if (Array.isArray(policy.allow)) return policy;
+  const { default: current, favorites } = snapshot.models;
+  const names = [...(current ? [current] : []), ...favorites].map(delegationName);
+  return { ...policy, allow: [...new Set(names)] };
+}
+
+/** Patterns as typed: separated by commas or whitespace, blanks and repeats dropped. */
+export function parsePatterns(text: string): string[] {
+  return [...new Set(text.split(/[\s,]+/).map(part => part.trim()).filter(Boolean))];
+}
+
+export function delegationModeOptions(copy: {
+  stDelegationFavorites: string; stDelegationAll: string; stDelegationCustom: string;
+}): Array<{ value: DelegationMode; label: string }> {
+  return [
+    { value: 'favorites', label: copy.stDelegationFavorites },
+    { value: 'all', label: copy.stDelegationAll },
+    { value: 'custom', label: copy.stDelegationCustom },
+  ];
+}

@@ -142,7 +142,7 @@ test('readConfigSnapshot maps models / machines / mcp / environments / hooks', a
   const { configDir } = await makeFixture();
   const snap = await readConfigSnapshot(configDir, [], LANG, null);
 
-  assert.deepEqual(snap.models, { default: selection, favorites, memory: {} });
+  assert.deepEqual(snap.models, { default: selection, favorites, delegation: { allow: 'favorites', deny: [] }, memory: {} });
   assert.equal(snap.selectionDefault, null);
   assert.equal('profiles' in snap, false);
 
@@ -176,7 +176,7 @@ test('readConfigSnapshot never exposes foreign fields from models.json', async (
     arbitrary: 'also-secret',
   }));
   const snap = await readConfigSnapshot(configDir, [], LANG, null);
-  assert.deepEqual(snap.models, { default: selection, favorites, memory: {} });
+  assert.deepEqual(snap.models, { default: selection, favorites, delegation: { allow: 'favorites', deny: [] }, memory: {} });
   assert.ok(!JSON.stringify(snap).includes('super-secret'));
   assert.ok(!JSON.stringify(snap).includes('also-secret'));
 });
@@ -188,7 +188,7 @@ test('readConfigSnapshot omits incomplete or unsupported engine choices', async 
     favorites: [{ backend: 'other', provider: null, model: 'old' }, { model: 'implicit' }, ...favorites],
   }));
   const snap = await readConfigSnapshot(configDir, [], LANG, null);
-  assert.deepEqual(snap.models, { default: null, favorites, memory: {} });
+  assert.deepEqual(snap.models, { default: null, favorites, delegation: { allow: 'favorites', deny: [] }, memory: {} });
 });
 
 test('config.get joins live model memory and the complete draft seed', async () => {
@@ -205,7 +205,7 @@ test('readConfigSnapshot returns null / empty when files are absent', async () =
   const snap = await readConfigSnapshot(path.join(root, 'config'), [], LANG, null);
   error.mockRestore();
   assert.equal(snap.budget, null);
-  assert.deepEqual(snap.models, { default: null, favorites: [], memory: {} });
+  assert.deepEqual(snap.models, { default: null, favorites: [], delegation: { allow: 'all', deny: [] }, memory: {} });
   assert.equal(snap.mcp, null);
   assert.deepEqual(snap.machines, []);
   assert.deepEqual(snap.hooks, []);
