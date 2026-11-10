@@ -414,6 +414,25 @@ test('spawn uses the lead record rather than old profile mocks or changed channe
   assert.deepEqual(w.applied[1], { ...own, channel: 'web:w2', seedDefault: false });
 });
 
+test('spawn checks a named model against the delegation policy, as resolved, before creating anything', async () => {
+  const w = world();
+  const checks: unknown[] = [];
+  w.deps.checkModel = (check) => {
+    checks.push(check);
+    if (check.model === 'openai/gpt-6') throw new Error('Model "openai/gpt-6" is not available for delegation.');
+  };
+  const refused = await call(w, { action: 'spawn', name: 'a', prompt: 'p', model: 'openai/gpt-6:low' });
+  assert.equal(refused.success, false);
+  assert.match(refused.error!, /not available for delegation/);
+  assert.equal(w.applied.length, 0);
+
+  await call(w, { action: 'spawn', name: 'b', prompt: 'p', model: 'claude-sonnet-5:high' });
+  assert.deepEqual(checks[1], { backend: 'claude', model: 'claude-sonnet-5', parent: w.selections.get('web:lead') });
+  await call(w, { action: 'spawn', name: 'c', prompt: 'p', backend: 'pi' });
+  assert.equal(checks.length, 2, 'a worker that names no model takes the configured default unchecked');
+  assert.equal(w.applied.length, 2);
+});
+
 test('spawn refuses a selection the rule rejects, and an unknown backend, creating nothing', async () => {
   const w = world();
   const unknownLevel = await call(w, { action: 'spawn', name: 'a', prompt: 'p', model: 'claude-opus-5:weird' });

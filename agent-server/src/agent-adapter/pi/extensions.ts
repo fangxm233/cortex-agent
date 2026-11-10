@@ -37,7 +37,8 @@ function sessionModelEnv(env: NodeJS.ProcessEnv, getSnapshot?: SubagentModelEnvG
   try { snapshot = getSnapshot?.() ?? {}; } catch { /* directory hints may fall back */ }
   return {
     ...env,
-    CORTEX_SUBAGENT_CLAUDE_MODELS: snapshot.CORTEX_SUBAGENT_CLAUDE_MODELS ?? '[]',
+    // Blank, not '[]': no Claude list handed down leaves the shipped table, an empty one lists none.
+    CORTEX_SUBAGENT_CLAUDE_MODELS: snapshot.CORTEX_SUBAGENT_CLAUDE_MODELS ?? '',
     CORTEX_SUBAGENT_PI_MODELS: snapshot.CORTEX_SUBAGENT_PI_MODELS ?? '[]',
   };
 }
@@ -76,6 +77,7 @@ export function createCortexExtensions(
         runForeignSubagent: hooks.subagent?.runForeignSubagent,
         startBackgroundSubagent: hooks.subagent?.startBackgroundSubagent,
         stopBackgroundSubagent: hooks.subagent?.stopBackgroundSubagent,
+        checkDelegatedModel: hooks.subagent?.checkDelegatedModel,
         openBundledMcpServer: hooks.openBundledMcpServer,
       }),
     },

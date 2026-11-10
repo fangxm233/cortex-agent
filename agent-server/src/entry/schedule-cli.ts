@@ -6,7 +6,7 @@ import {
 } from '@domain/scheduling/schedule-spec.js';
 import { addSchedule, pauseSchedule, resumeSchedule, updateSchedule } from '@domain/scheduling/schedule-ops.js';
 import { getScheduleHelp } from './cli-help.js';
-import { resolveScheduleSelection } from '@domain/scheduling/schedule-selection.js';
+import { checkAgentScheduleModel, resolveScheduleSelection } from '@domain/scheduling/schedule-selection.js';
 
 // `cortex schedule` shares schedule-ops with the daemon, which watches the file and re-arms changes.
 // Both writers hold the schedules.json lock across read-modify-write to preserve concurrent changes.
@@ -105,9 +105,11 @@ function found(task: ScheduleTask | null, id: string): Record<string, unknown> {
 
 async function runAdd({ flags }: Parsed, repo: Repo): Promise<object> {
   if (!flags.type) throw new UsageError('Missing --type.', [...SCHEDULE_TYPES]);
+  const selection = resolveScheduleSelection(flags.model, flags.thinking);
+  checkAgentScheduleModel(flags.model, selection);
   const spec = normalizeScheduleSpec({
     type: flags.type, message: flags.message, projectId: flags.project,
-    selection: resolveScheduleSelection(flags.model, flags.thinking),
+    selection,
     preCheck: flags.preCheck, interval: flags.interval, time: flags.time, dayOfWeek: flags.day, delay: flags.delay,
   });
   const allowed = TIMING_FLAGS[spec.type];
@@ -135,6 +137,7 @@ async function runEdit({ id, flags }: Parsed, repo: Repo): Promise<object> {
   const { model, thinking, ...fields } = flags;
   const patch: SchedulePatch = Object.assign({}, ...Object.entries(fields).map(([name, value]) => EDIT_FIELDS[name](value!)));
   const selection = resolveScheduleSelection(model, thinking, task?.selection);
+  checkAgentScheduleModel(model, selection);
   if (selection) patch.selection = selection;
   return { ok: true, schedule: found(await updateSchedule(repo, id, patch), id) };
 }

@@ -22,6 +22,7 @@ import { subagentChannel } from './child-events.js';
 import { subagentEndNotice } from '@core/agents/subagent/attribution.js';
 import { runPiChild } from './child-runner.js';
 import { selectChildModel, type ModelSpec } from '@core/agents/subagent/model-spec.js';
+import { checkTaskModels, type CheckDelegatedModel } from '@core/agents/subagent/delegation-policy.js';
 import type { SubagentNotice } from '@core/agents/subagent/types.js';
 import { openChildWorkspace, prepareCleanTasks, withWorkspaceNote } from '@core/agents/subagent/workspace.js';
 import { PI_CLEAN_WORKSPACE_ENV } from './session-options.js';
@@ -145,6 +146,8 @@ export interface SubagentToolDeps {
   startBackgroundSubagent?: StartBackgroundSubagent;
   /** Stops a backgrounded run by id. Absent: `agent_stop` is not registered at all. */
   stopBackgroundSubagent?: StopBackgroundSubagent;
+  /** Refuses a model the delegation policy does not admit. Absent: any model may be named. */
+  checkModel?: CheckDelegatedModel;
 }
 
 /**
@@ -327,6 +330,8 @@ function subagentExecutor(deps: SubagentToolDeps): ToolDefinition<SubagentParame
     const roles = loadRoles(deps.rolesDir);
     for (const task of invocation.tasks) findRole(roles, task.subagent_type);
     const context = { cwd: ctx.cwd, model: fallbackModel(ctx), parentWorkspace };
+    checkTaskModels(deps.checkModel, invocation.tasks, task => resolveBackend(task, findRole(roles, task.subagent_type)),
+      context.model && { backend: 'pi', provider: context.model.provider, model: context.model.id });
     const bindRunChild = (bound: SubagentToolDeps): RunChildFn => buildRunChild(context, bound, roles, toolCallId);
     if (params.run_in_background) {
       return startInBackground(deps, invocation, bindRunChild, toolCallId);

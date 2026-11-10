@@ -14,7 +14,7 @@ import { materializeMcpToolAllowlistConfigs } from '@core/config-generator.js';
 import { MCP_INFRASTRUCTURE_TIMEOUT_MS } from '@core/mcp-timeout.js';
 import { SUBAGENT_TOOLS } from '@core/mcp-tool-gate.js';
 import {
-  claudeModelOptions, encodeSubagentModels, piModelOptions,
+  encodeSubagentModels, piModelOptions, type SubagentModelOption,
 } from '@core/agents/subagent/catalog.js';
 import { anthropicModelDiscovery, anthropicModelIds } from '@core/anthropic-model-discovery.js';
 import { ANTHROPIC_MODELS } from '@core/anthropic-models.js';
@@ -438,8 +438,9 @@ function applyHostClaudeEnv(env: NodeJS.ProcessEnv, configDir?: string): void {
 /** The models a subagent may be pointed at, as the sidecar lists them. */
 export interface SubagentModelSource {
   pi: Array<{ provider: string; id: string }>;
-  /** Claude model ids; empty when nothing beyond the shipped table is known. */
-  claude: string[];
+  /** Claude model ids; null when the host has no list of its own and the sidecar's shipped table
+   *  stands. An empty list means none. */
+  claude: string[] | null;
 }
 
 /** Until the host wires its model catalog: the discovery caches alone, peeked, never refreshed. */
@@ -447,7 +448,7 @@ function discoveryModelSource(): SubagentModelSource {
   const discovered = anthropicModelDiscovery.get();
   return {
     pi: piProviderDiscovery.peekModels().map((model) => ({ provider: model.provider, id: model.model })),
-    claude: discovered.length > 0 ? anthropicModelIds(discovered) : [],
+    claude: discovered.length > 0 ? anthropicModelIds(discovered) : null,
   };
 }
 
@@ -472,9 +473,11 @@ export function subagentModelEnv(): Record<string, string> {
   const piModels = piModelOptions(source.pi.slice(0, MAX_SUBAGENT_PI_MODELS));
   if (piModels.length > 0) env.CORTEX_SUBAGENT_PI_MODELS = encodeSubagentModels(piModels);
   // Same hand-off for the Anthropic side: the sidecar has no credential of its own. A list that is
-  // just the shipped table writes nothing — the sidecar falls back to that table itself.
-  if (source.claude.length > 0 && !sameIds(source.claude, ANTHROPIC_MODELS)) {
-    const claudeModels = claudeModelOptions(null, source.claude).slice(0, MAX_SUBAGENT_CLAUDE_MODELS);
+  // just the shipped table writes nothing — the sidecar falls back to that table itself — while an
+  // empty one is written as such, so the sidecar lists none rather than the whole table.
+  if (source.claude && !sameIds(source.claude, ANTHROPIC_MODELS)) {
+    const claudeModels = source.claude.slice(0, MAX_SUBAGENT_CLAUDE_MODELS)
+      .map((id): SubagentModelOption => ({ backend: 'claude', id }));
     env.CORTEX_SUBAGENT_CLAUDE_MODELS = encodeSubagentModels(claudeModels);
   }
   return env;

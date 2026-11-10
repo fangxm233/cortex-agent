@@ -7,7 +7,7 @@ import { PI_AGENT_DIR } from './defaults.js';
 import { PI_HOME_AGENT_DIR_ENV } from './session-options.js';
 import { loadRoles } from '@core/agents/roles.js';
 import {
-  decodeSubagentModels, hostModelOptions, roleOptionsFrom, type SubagentCatalog,
+  decodeHandedModels, decodeSubagentModels, hostModelOptions, roleOptionsFrom, type SubagentCatalog,
 } from '@core/agents/subagent/catalog.js';
 import { createChildSession, type ChildSessionFactory } from './child-session.js';
 import type { SubagentNotice } from './event-parser.js';
@@ -15,6 +15,7 @@ import {
   createMcpBridgeDeps, installMcpBridge, type OpenBundledMcpServer,
 } from './mcp-bridge.js';
 import type { StartBackgroundSubagent, StopBackgroundSubagent } from './background-subagent.js';
+import type { CheckDelegatedModel } from '@core/agents/subagent/delegation-policy.js';
 import { createQuotaProbe } from './quota-probe.js';
 import { installImageFirst } from './image-first.js';
 import {
@@ -42,6 +43,8 @@ export interface ToolShimHooks {
    *  tool reports `run_in_background` unavailable and `agent_stop` is not registered at all. */
   startBackgroundSubagent?: StartBackgroundSubagent;
   stopBackgroundSubagent?: StopBackgroundSubagent;
+  /** Refuses a model the host's delegation policy does not admit; absent, any model may be named. */
+  checkDelegatedModel?: CheckDelegatedModel;
   /** Builds the in-process Cortex bundle server, for this session and for the children it spawns. */
   openBundledMcpServer?: OpenBundledMcpServer;
 }
@@ -88,7 +91,7 @@ function registerTodoWrite(pi: ExtensionAPI): void {
 function sessionCatalog(env: NodeJS.ProcessEnv, deps: SubagentToolDeps): SubagentCatalog {
   const models = hostModelOptions({
     claudeModel: env.CORTEX_CLAUDE_MODEL,
-    subagentClaudeModels: decodeSubagentModels(env.CORTEX_SUBAGENT_CLAUDE_MODELS),
+    subagentClaudeModels: decodeHandedModels(env.CORTEX_SUBAGENT_CLAUDE_MODELS),
     subagentPiModels: decodeSubagentModels(env.CORTEX_SUBAGENT_PI_MODELS),
   });
   try {
@@ -171,6 +174,7 @@ function registerRuntimeAgent(pi: ExtensionAPI, env: NodeJS.ProcessEnv, hooks: T
     runForeignSubagent: hooks.runForeignSubagent,
     startBackgroundSubagent: hooks.startBackgroundSubagent,
     stopBackgroundSubagent: hooks.stopBackgroundSubagent,
+    checkModel: hooks.checkDelegatedModel,
   };
   pi.on('session_start', (_event, ctx) => {
     sessionProvider = ctx.model?.provider ?? null;
