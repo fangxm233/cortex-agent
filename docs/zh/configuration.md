@@ -477,7 +477,7 @@ Web 与桌面 App、以及手机上，新对话的输入框里有一枚**干净*
 | `notifyCompaction` | boolean | `true` | 在 agent 的上下文被压缩时向会话发送一条提示。覆盖 Claude Code（print 模式）与 pi 两个后端 | `CORTEX_NOTIFY_COMPACTION` |
 | `showToolCalls` | boolean | `false` | 在 Slack 与飞书的回复中为每次工具调用发一行简短记录，连续调用同一工具时合并为一行。也可在 **设置 → 平台** 中设置 | `CORTEX_SHOW_TOOL_CALLS` |
 | `statusNewqButton` | boolean | `false` | 在状态消息上显示「New (quiet)」按钮（`=!newq`，跳过 pre-close 钩子） | `CORTEX_STATUS_NEWQ_BUTTON` |
-| `autoResume` | boolean | `true` | 当用量限制窗口重置后，自动继续被该限制中断的对话，并注入一条提示让其从中断处接着做。设为 `false` 可让被中断的工作保持暂停、由人工继续 | `CORTEX_AUTO_RESUME` |
+| `autoResume` | boolean | `true` | 当用量限制窗口重置后，自动继续被该限制中断的对话，并注入一条提示让其从中断处接着做。之后已经正常跑完新一轮的对话不再续跑。设为 `false` 可让被中断的工作保持暂停、由人工继续 | `CORTEX_AUTO_RESUME` |
 | `accountFailover` | boolean | `false` | 对话所用的登录被限流时，改用同一 provider 下另一个已登录的登录运行：provider 的默认登录或它的某个账号，计费方式相同（订阅不会改用 API key）、能跑当前模型、自身没被限流。不会用 key 连接。因限流结束的一轮会马上在这样的登录上续跑；所有登录都被限流时，任何一个先恢复就在它上面续跑。第一次切换时 Web 对话里会说明换到了哪个登录。会话保存的选择不变，原登录恢复后自动切回。切换后的第一次回复不走 prompt cache，用量更多。`autoResume` 与它无关：那是等同一个登录的限额重置后再续跑。也可在 **设置 → 高级** 中开关 | — |
 | `providerRateLimits` | object | `{}` | 按 provider 和额度窗口配置限流策略。Provider 条目包含由 `{ type, label?, enabled, threshold? }` 组成的 `windows` 数组；`threshold` 是大于 `0` 且不超过 `1` 的比率 | — |
 | `showThinking` | boolean | `true` | 采集模型返回的思考内容，在 Web 和手机聊天中显示。关闭后停止采集新的思考，已保存的行仍可见。Claude 请求思考摘要，PI 显示 provider 返回的文本 | `CORTEX_SHOW_THINKING` |
