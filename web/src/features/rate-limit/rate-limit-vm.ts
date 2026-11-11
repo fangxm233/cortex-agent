@@ -2,14 +2,15 @@ import type { ConnectionView, SystemRateLimitStatus } from '@cortex-agent/ui-con
 import type { Lang } from '@/i18n';
 import { fmt } from '@/i18n/fmt';
 import { pickVocab } from '@/i18n/lang';
-import { formatSpanPrecise } from '@/i18n/time-format';
+import { clockOrDate, formatSpanPrecise } from '@/i18n/time-format';
 import type { ConnectionNames } from '@/lib/model-selection';
 
 export interface RateLimitWindowView {
   type: string;
   typeLabel: string;
   resetsAt: number;
-  countdown: string;
+  /** Local wall-clock moment the window resets; the provider row already carries the countdown. */
+  resetLabel: string;
 }
 
 export interface RateLimitProviderView {
@@ -53,7 +54,7 @@ function buildWindow(window: RawRateLimitWindow, nowSec: number, lang: Lang): Ra
     type: window.type,
     typeLabel: window.label ?? formatWindowType(window.type),
     resetsAt: window.resetsAt,
-    countdown: formatRateLimitCountdown(window.resetsAt - nowSec, lang),
+    resetLabel: fmt(pickVocab(lang).rlResetsAt, { at: clockOrDate(window.resetsAt * 1000, nowSec * 1000, lang) }),
   };
 }
 

@@ -277,16 +277,18 @@ function ProjectSwitchSection({ props }: { props: MProjectViewProps }) {
 export function MProjectView(props: MProjectViewProps) {
   const copy = useVocabOptional();
   const trailing = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-      <MobileRateLimitStatus status={props.rateLimitStatus} onOpen={props.onOpenRateLimit} />
-      <div style={{ display: 'flex', alignItems: 'center', flex: 'none' }}>
-        <UsageKey label={copy.stNavUsage} onClick={props.onUsage} />
-        <SettingsGear label={copy.settings} onClick={props.onSettings} />
-      </div>
+    <div style={{ display: 'flex', alignItems: 'center', flex: 'none' }}>
+      <UsageKey label={copy.stNavUsage} onClick={props.onUsage} />
+      <SettingsGear label={copy.settings} onClick={props.onSettings} />
     </div>
   );
+  // The throttle pill gets its own line: the projects panel is too narrow to share the title row.
+  const below = props.rateLimitStatus
+    ? <MobileRateLimitStatus status={props.rateLimitStatus} onOpen={props.onOpenRateLimit} />
+    : undefined;
+  const header = <MTabHeader title={copy.projTitle} trailing={trailing} below={below} />;
   return (
-    <MScreen label="1e projects" floatingHeader header={<MTabHeader title={copy.projTitle} trailing={trailing} />}>
+    <MScreen label="1e projects" floatingHeader header={header}>
       <MScrollBody gap={0} padding={M_TAB_BODY_PADDING}>
         <PrimaryProjectSection props={props} />
         <ProjectSwitchSection props={props} />

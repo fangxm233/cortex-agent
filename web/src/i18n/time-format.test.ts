@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dayLabel, formatSpan, formatSpanOrDash, formatSpanPrecise, relTime, timeAgo, timeUntil } from './time-format';
+import { clockOrDate, dayLabel, formatSpan, formatSpanOrDash, formatSpanPrecise, relTime, timeAgo, timeUntil } from './time-format';
 
 const now = Date.parse('2026-07-15T12:00:00Z');
 const ago = (ms: number) => new Date(now - ms).toISOString();
@@ -51,5 +51,12 @@ describe('time-format', () => {
     expect(dayLabel(new Date(2026, 8, 25, 9, 0).getTime(), today, 'en')).toBe('Yesterday');
     expect(dayLabel(new Date(2026, 8, 24, 9, 0).getTime(), today, 'en')).toBe('Sep 24');
     expect(dayLabel(new Date(2026, 8, 24, 9, 0).getTime(), today, 'zh')).toBe('9月24日');
+  });
+
+  it('clockOrDate dates a moment only when it is not today', () => {
+    const now = new Date(2026, 10, 11, 0, 50).getTime();
+    expect(clockOrDate(new Date(2026, 10, 11, 4, 5).getTime(), now, 'en')).toBe('04:05');
+    expect(clockOrDate(new Date(2026, 10, 12, 2, 0).getTime(), now, 'en')).toBe('Nov 12 02:00');
+    expect(clockOrDate(new Date(2026, 10, 12, 2, 0).getTime(), now, 'zh')).toBe('11月12日 02:00');
   });
 });

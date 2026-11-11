@@ -94,7 +94,7 @@ export function MobileRateLimitStatus({
         color: MC.amberText,
         borderRadius: 'var(--r-pill)',
         padding: '3px 7px',
-        maxWidth: 190,
+        maxWidth: '100%',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
         whiteSpace: 'nowrap',
@@ -139,7 +139,7 @@ function ClearRateLimitButton({ target, mobile = false }: { target: string; mobi
   );
 }
 
-function ProviderWindows(props: { provider: RateLimitProviderView; recovers: string; muted: string }) {
+function ProviderWindows(props: { provider: RateLimitProviderView; muted: string }) {
   return props.provider.windows.map((window) => (
     <div
       key={`${window.type}:${window.typeLabel}:${window.resetsAt}`}
@@ -147,7 +147,7 @@ function ProviderWindows(props: { provider: RateLimitProviderView; recovers: str
     >
       <span style={{ font: `600 11px ${MONO}` }}>{window.typeLabel}</span>
       <span style={{ marginLeft: 'auto', font: `500 11px ${MONO}` }}>
-        {window.countdown} {props.recovers}
+        {window.resetLabel}
       </span>
     </div>
   ));
@@ -157,7 +157,6 @@ function ProviderDetails(props: {
   provider: RateLimitProviderView; index: number; mobile: boolean;
 }) {
   const { provider, index, mobile } = props;
-  const L = useVocab();
   const muted = mobile ? MC.muted : 'var(--proto-muted)';
   const line = mobile ? MC.hairline : 'var(--proto-line)';
   const amber = mobile ? MC.amberText : 'var(--pill-waiting-fg)';
@@ -171,7 +170,7 @@ function ProviderDetails(props: {
         </span>
       </div>
       <div style={{ marginTop: 4, color: muted, font: `500 11px ${MONO}` }}>{provider.waitingLabel}</div>
-      <ProviderWindows provider={provider} recovers={L.rlRecovers} muted={muted} />
+      <ProviderWindows provider={provider} muted={muted} />
     </div>
   );
 }

@@ -17,7 +17,7 @@ function status(): RateLimitView {
         recoveryCountdown: '5m',
         waitingLabel: '1 session waiting',
         windows: [
-          { type: 'outage', typeLabel: 'outage', resetsAt: 1_000, countdown: '5m' },
+          { type: 'outage', typeLabel: 'outage', resetsAt: 1_000, resetLabel: 'resets 00:16' },
         ],
       },
     ],

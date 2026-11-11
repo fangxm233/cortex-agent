@@ -131,3 +131,11 @@ export function dateTime(at: string | number | null | undefined): string | null 
   const d = new Date(t);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${clockTime(d)}`;
 }
+
+/** A moment ahead or behind as local wall clock, dated unless it falls today: `09:05 / Sep 24 09:05` · `09:05 / 9月24日 09:05`. */
+export function clockOrDate(ts: string | number, now: number, lang: TimeLang): string {
+  const d = new Date(ts);
+  if (startOfDay(d) === startOfDay(new Date(now))) return clockTime(d);
+  const L = words(lang);
+  return `${fmt(L.timeMonthDay, { month: L.timeMonths.split(',')[d.getMonth()], day: d.getDate() })} ${clockTime(d)}`;
+}
