@@ -87,7 +87,9 @@ let _adapter: PlatformAdapter | null = null;
 let _persistence: ThrottlePersistence | null = null;
 let _onResume: ((providers: string[]) => void) | null = null;
 let _onChange: (() => void) | null = null;
-let _noticeActions: ((provider: string) => Promise<ActionElement[]>) | null = null;
+/** Extra notice buttons for a provider's throttle on one window type. */
+type NoticeActionsResolver = (provider: string, windowType: string) => Promise<ActionElement[]>;
+let _noticeActions: NoticeActionsResolver | null = null;
 let _resumeTimer: ReturnType<typeof setTimeout> | null = null;
 let _resumeTimerGeneration = 0;
 const _providers = new Map<string, ProviderThrottleState>();
@@ -463,9 +465,9 @@ function shouldActivateQuota(info: RateLimitInfo, source: RateLimitSource): bool
   return policy.enabled && info.utilization >= thresholdFor(info.rateLimitType, policy.threshold);
 }
 
-async function extraNoticeActions(provider: string): Promise<ActionElement[]> {
+async function extraNoticeActions(provider: string, windowType: string): Promise<ActionElement[]> {
   try {
-    return (await _noticeActions?.(provider)) ?? [];
+    return (await _noticeActions?.(provider, windowType)) ?? [];
   } catch (error) {
     log.warn(`Rate-limit notice actions failed: ${(error as Error).message}`);
     return [];
@@ -477,7 +479,7 @@ async function notifyQuotaActivation(
 ): Promise<void> {
   log.info(`Throttle updated: provider=${source.provider}, type=${info.rateLimitType}, utilization=${info.utilization}, mode=${source.mode ?? '(none)'}`);
   if (!isNewProvider) return;
-  const actions = [...clearAction(entryKey(state)), ...await extraNoticeActions(source.provider)];
+  const actions = [...clearAction(entryKey(state)), ...await extraNoticeActions(source.provider, info.rateLimitType!)];
   sendDM(`${Icons.warning} ${t('notice.rateLimit.activated', { provider: noticeName(state), type: info.rateLimitType, pct: (info.utilization! * 100).toFixed(0), at: formatResetTime(info.resetsAt!), remaining: formatRemaining(info.resetsAt!) })}`, t('notice.rateLimit.title'), actions);
 }
 
@@ -626,7 +628,7 @@ async function releaseRecoveredQuota(provider: string, readings: QuotaReading[],
 }
 
 /** Extra buttons for a provider's throttle notice, after "Resume now". */
-function setRateLimitNoticeActions(resolver: ((provider: string) => Promise<ActionElement[]>) | null): void {
+function setRateLimitNoticeActions(resolver: NoticeActionsResolver | null): void {
   _noticeActions = resolver;
 }
 

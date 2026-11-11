@@ -23,6 +23,7 @@ import {
   resetOutcomeView,
   type ProviderLegacyFallbackView,
   type ProviderUsageView,
+  type UsageResetKindView,
   type UsageResetsView,
   type UsagePolicyTarget,
   usagePolicyTargetKey,
@@ -326,12 +327,12 @@ function LegacyFallbackNotice(props: {
   );
 }
 
-function ResetSummary({ resets }: { resets: UsageResetsView }) {
+function ResetSummary({ kind }: { kind: UsageResetKindView }) {
   const L = useVocab();
-  const expiry = resets.nextExpiresAt !== null && resets.nextExpiresIn !== null
-    ? <span title={isoTime(resets.nextExpiresAt)}>{` · ${fmt(L.usageResetsNextExpiry, { d: resets.nextExpiresIn })}`}</span>
+  const expiry = kind.nextExpiresAt !== null && kind.nextExpiresIn !== null
+    ? <span title={isoTime(kind.nextExpiresAt)}>{` · ${fmt(L.usageResetsNextExpiry, { d: kind.nextExpiresIn })}`}</span>
     : null;
-  return <span style={META_TEXT}>{fmt(L.usageResets, { n: resets.available })}{expiry}</span>;
+  return <span style={META_TEXT}>{kind.summary}{expiry}</span>;
 }
 
 function ResetOutcome({ attempt }: { attempt: UsageResetAttempt }) {
@@ -366,31 +367,51 @@ function ResetConfirm(props: { lines: string[]; onConfirm: () => void; onCancel:
   );
 }
 
-/** Banked resets on a Codex or Claude row; spending one always takes a second, explicit confirm. */
-function ResetCredits({ resets, reset }: { resets: UsageResetsView; reset: UsageResetState }) {
+interface ResetKindLineProps {
+  kind: UsageResetKindView;
+  canUse: boolean;
+  using: boolean;
+  disabled: boolean;
+  onUse: () => void;
+}
+
+function ResetKindLine(props: ResetKindLineProps) {
   const L = useVocab();
-  const [confirming, setConfirming] = useState(false);
+  return (
+    <div data-usage-reset-kind={props.kind.key} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, minHeight: 28 }}>
+      <ResetSummary kind={props.kind} />
+      {props.canUse
+        ? (
+          <SButton tone="neutral" data-usage-reset-use disabled={props.disabled}
+            onClick={props.onUse} style={{ marginLeft: 'auto' }}>
+            {props.using ? L.usageResetUsing : L.usageResetUse}
+          </SButton>
+        )
+        : null}
+    </div>
+  );
+}
+
+/** Banked resets on a Codex or Claude row, one line per kind; spending one always takes a
+ *  second, explicit confirm. */
+function ResetCredits({ resets, reset }: { resets: UsageResetsView; reset: UsageResetState }) {
+  const [confirming, setConfirming] = useState<string | null>(null);
   const attempt = resetAttemptFor(reset, resets.provider, resets.connection);
   const provider = resets.provider;
-  const canUse = provider !== null && resets.available > 0 && !confirming;
+  const pending = resets.kinds.find((kind) => kind.key === confirming);
   return (
     <div data-usage-resets={[provider ?? '', resets.connection].filter(Boolean).join(':')} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: ROW_STYLE.padding }}>
-      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, minHeight: 28 }}>
-        <ResetSummary resets={resets} />
-        <ResetOutcome attempt={attempt} />
-        {canUse
-          ? (
-            <SButton tone="neutral" data-usage-reset-use disabled={reset.isRedeeming}
-              onClick={() => setConfirming(true)} style={{ marginLeft: 'auto' }}>
-              {attempt.isRedeeming ? L.usageResetUsing : L.usageResetUse}
-            </SButton>
-          )
-          : null}
-      </div>
-      {confirming && provider
+      {resets.kinds.map((kind) => (
+        <ResetKindLine key={kind.key} kind={kind} disabled={reset.isRedeeming}
+          canUse={provider !== null && kind.available > 0 && confirming === null}
+          using={attempt.isRedeeming && attempt.creditId === kind.creditId}
+          onUse={() => setConfirming(kind.key)} />
+      ))}
+      <ResetOutcome attempt={attempt} />
+      {pending && provider
         ? (
-          <ResetConfirm lines={resets.confirm} onCancel={() => setConfirming(false)}
-            onConfirm={() => { setConfirming(false); reset.redeem(provider, resets.connection); }} />
+          <ResetConfirm lines={pending.confirm} onCancel={() => setConfirming(null)}
+            onConfirm={() => { setConfirming(null); reset.redeem(provider, resets.connection, pending.creditId); }} />
         )
         : null}
     </div>

@@ -56,18 +56,33 @@ export interface UsageWindowView {
   policy: UsageWindowPolicyView | null;
 }
 
+/**
+ * One kind of banked reset: the credits that clear the same windows. Claude holds full resets
+ * beside model launch resets that leave the all-models weekly limit alone.
+ */
+export interface UsageResetKindView {
+  /** The windows it clears, sorted and joined; '' when the provider does not say. */
+  key: string;
+  /** Kind name and count, e.g. `Full reset 1`. */
+  summary: string;
+  available: number;
+  /** The credit a reset of this kind spends. Null while the account holds one kind only: the
+   *  server then picks from its own live reading. */
+  creditId: string | null;
+  /** Earliest-expiring reset of the kind; null when only the count is known. */
+  nextExpiresAt: number | null;
+  nextExpiresIn: string | null;
+  /** What the confirm step says before a reset is spent, one paragraph per line. */
+  confirm: string[];
+}
+
 /** Banked rate-limit resets the account can spend (OpenAI Codex, Claude). */
 export interface UsageResetsView {
   /** The account a reset is spent on; null for a row that cannot spend one here. */
   provider: ResetProvider | null;
   /** The provider's named account the row belongs to; null on its default login. */
   connection: string | null;
-  available: number;
-  /** Earliest-expiring spendable reset; null when only the count is known. */
-  nextExpiresAt: number | null;
-  nextExpiresIn: string | null;
-  /** What the confirm step says before a reset is spent, one paragraph per line. */
-  confirm: string[];
+  kinds: UsageResetKindView[];
 }
 
 export interface UsageResetOutcomeView {
@@ -136,6 +151,8 @@ const RESET_OUTCOME_LABELS: Record<ResetStatus, keyof Vocab> = {
 const RESET_PROVIDERS: readonly string[] = ['openai-codex', 'anthropic'] satisfies ResetProvider[];
 
 const WEEKLY_WINDOW_TYPES = new Set(['seven_day', 'seven_day_overage_included']);
+/** The weekly window only a full Claude reset clears. */
+const ALL_MODELS_WEEKLY = 'seven_day';
 const RENDERABLE_WINDOW_TYPES = new Set(Object.keys(WINDOW_LABEL_KEYS));
 
 function target(provider: string, windowType?: string | null, windowLabel?: string | null): UsagePolicyTarget {
@@ -288,6 +305,12 @@ function resetProvider(record: ProviderUsage): ResetProvider | null {
     : null;
 }
 
+/** A window a reset clears, named after the row's own window of that type (e.g. `7 days (Fable)`). */
+function clearedWindowLabel(record: ProviderUsage, type: string, lang: Lang): string {
+  const labeled = record.windows.find((window) => window.type === type && window.label);
+  return windowLabel(labeled ?? { type }, lang);
+}
+
 /** Current use of the windows a reset clears (all shown windows when it does not say). */
 function clearedWindowUse(record: ProviderUsage, clears: string[], lang: Lang): string {
   return record.windows
@@ -297,15 +320,75 @@ function clearedWindowUse(record: ProviderUsage, clears: string[], lang: Lang): 
 }
 
 /** Claude names the windows a reset clears; while not at a limit the confirm shows current use. */
-function resetConfirm(record: ProviderUsage, next: UsageResetCredit | null, lang: Lang): string[] {
+function resetConfirm(record: ProviderUsage, clears: string[], lang: Lang): string[] {
   const L = pickVocab(lang);
   if (record.provider !== 'anthropic') return [L.usageResetConfirmBody];
-  const clears = next?.clears ?? [];
-  const windows = clears.map((type) => windowLabel({ type }, lang)).join(', ') || L.usageResetAllLimits;
+  const windows = clears.map((type) => clearedWindowLabel(record, type, lang)).join(', ') || L.usageResetAllLimits;
   const lines = [fmt(L.usageResetConfirmBodyClaude, { windows })];
   const usage = clearedWindowUse(record, clears, lang);
   if (record.resetCredits?.atLimit === false && usage) lines.push(fmt(L.usageResetNotAtLimit, { usage }));
   return lines;
+}
+
+/** Full, or named after the model whose weekly limit it clears. */
+function kindSummary(record: ProviderUsage, clears: string[], n: number, lang: Lang): string {
+  const L = pickVocab(lang);
+  if (clears.length === 0) return fmt(L.usageResets, { n });
+  if (clears.includes(ALL_MODELS_WEEKLY)) return fmt(L.usageResetKindFull, { n });
+  const model = record.windows.find((window) => clears.includes(window.type) && window.label)?.label
+    ?? clears.map((type) => clearedWindowLabel(record, type, lang)).join(', ');
+  return fmt(L.usageResetKindModel, { model, n });
+}
+
+function sortedClears(credit: UsageResetCredit): string[] {
+  return [...(credit.clears ?? [])].sort();
+}
+
+function expiryOrder(a: UsageResetCredit, b: UsageResetCredit): number {
+  return (a.expiresAt ?? Number.POSITIVE_INFINITY) - (b.expiresAt ?? Number.POSITIVE_INFINITY);
+}
+
+/** Credits grouped by the windows they clear, in order of each group's first credit. */
+function groupByClears(credits: UsageResetCredit[]): UsageResetCredit[][] {
+  const groups = new Map<string, UsageResetCredit[]>();
+  for (const credit of credits) {
+    const key = sortedClears(credit).join(',');
+    groups.set(key, [...(groups.get(key) ?? []), credit]);
+  }
+  return [...groups.values()];
+}
+
+interface ResetKindContext {
+  record: ProviderUsage;
+  /** Several kinds are held, so each names the credit it spends. */
+  pinCredit: boolean;
+  nowSec: number;
+  lang: Lang;
+}
+
+function kindView(group: UsageResetCredit[], ctx: ResetKindContext): UsageResetKindView {
+  const byExpiry = [...group].sort(expiryOrder);
+  const next = group.find((credit) => credit.id === ctx.record.resetCredits?.nextCreditId) ?? byExpiry[0];
+  const clears = sortedClears(group[0]);
+  const available = group.reduce((sum, credit) => sum + (credit.count ?? 1), 0);
+  const nextExpiresAt = byExpiry[0].expiresAt;
+  return {
+    key: clears.join(','),
+    summary: kindSummary(ctx.record, clears, available, ctx.lang),
+    available,
+    creditId: ctx.pinCredit ? next.id : null,
+    nextExpiresAt,
+    nextExpiresIn: nextExpiresAt === null ? null : formatUsageDuration(nextExpiresAt - ctx.nowSec, ctx.lang),
+    confirm: resetConfirm(ctx.record, clears, ctx.lang),
+  };
+}
+
+/** A count without spendable credits listed: one unnamed kind. */
+function countOnlyKind(record: ProviderUsage, available: number, lang: Lang): UsageResetKindView {
+  return {
+    key: '', summary: kindSummary(record, [], available, lang), available, creditId: null,
+    nextExpiresAt: null, nextExpiresIn: null, confirm: resetConfirm(record, [], lang),
+  };
 }
 
 /** Expired credits drop out locally, so a row read days ago does not offer a reset that lapsed. */
@@ -313,18 +396,12 @@ function buildResets(record: ProviderUsage, nowSec: number, lang: Lang): UsageRe
   const credits = record.resetCredits;
   if (!credits) return null;
   const live = credits.credits.filter((credit) => credit.expiresAt === null || credit.expiresAt > nowSec);
-  const nextExpiresAt = live[0]?.expiresAt ?? null;
-  const next = live.find((credit) => credit.id === credits.nextCreditId) ?? live[0] ?? null;
-  return {
-    provider: resetProvider(record),
-    connection: record.route ?? null,
-    available: credits.credits.length > 0
-      ? live.reduce((sum, credit) => sum + (credit.count ?? 1), 0)
-      : credits.availableCount,
-    nextExpiresAt,
-    nextExpiresIn: nextExpiresAt === null ? null : formatUsageDuration(nextExpiresAt - nowSec, lang),
-    confirm: resetConfirm(record, next, lang),
-  };
+  const groups = groupByClears(live);
+  const ctx: ResetKindContext = { record, pinCredit: groups.length > 1, nowSec, lang };
+  const kinds = groups.length > 0
+    ? groups.map((group) => kindView(group, ctx))
+    : [countOnlyKind(record, credits.credits.length > 0 ? 0 : credits.availableCount, lang)];
+  return { provider: resetProvider(record), connection: record.route ?? null, kinds };
 }
 
 export function resetOutcomeView(status: ResetStatus): UsageResetOutcomeView {

@@ -2,6 +2,7 @@ import { useState, type CSSProperties } from 'react';
 import type {
   ProviderLegacyFallbackView,
   UsageResetAttempt,
+  UsageResetKindView,
   UsageResetState,
   UsageResetsView,
   UsagePolicyControlsState,
@@ -299,9 +300,8 @@ function LegacyFallbackNotice(props: LegacyFallbackNoticeProps) {
   );
 }
 
-function resetSummary(resets: UsageResetsView, L: Vocab): string {
-  const count = fmt(L.usageResets, { n: resets.available });
-  return resets.nextExpiresIn === null ? count : `${count} · ${fmt(L.usageResetsNextExpiry, { d: resets.nextExpiresIn })}`;
+function resetSummary(kind: UsageResetKindView, L: Vocab): string {
+  return kind.nextExpiresIn === null ? kind.summary : `${kind.summary} · ${fmt(L.usageResetsNextExpiry, { d: kind.nextExpiresIn })}`;
 }
 
 function ResetOutcome({ attempt, L }: { attempt: UsageResetAttempt; L: Vocab }) {
@@ -326,29 +326,51 @@ function ResetConfirm(props: { L: Vocab; lines: string[]; onConfirm: () => void;
   );
 }
 
-/** Banked resets on a Codex or Claude row; spending one always takes a second, explicit confirm. */
+interface ResetKindLineProps {
+  L: Vocab;
+  kind: UsageResetKindView;
+  canUse: boolean;
+  using: boolean;
+  disabled: boolean;
+  onUse: () => void;
+}
+
+function ResetKindLine(props: ResetKindLineProps) {
+  return (
+    <div data-usage-reset-kind={props.kind.key} style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 32 }}>
+      <span style={META}>{resetSummary(props.kind, props.L)}</span>
+      {props.canUse
+        ? (
+          <MButton compact variant="outline" data-usage-reset-use disabled={props.disabled}
+            onClick={props.onUse} style={{ marginLeft: 'auto', height: 32 }}>
+            {props.using ? props.L.usageResetUsing : props.L.usageResetUse}
+          </MButton>
+        )
+        : null}
+    </div>
+  );
+}
+
+/** Banked resets on a Codex or Claude row, one line per kind; spending one always takes a
+ *  second, explicit confirm. */
 function ResetRow({ resets, reset, L }: { resets: UsageResetsView; reset: UsageResetState; L: Vocab }) {
-  const [confirming, setConfirming] = useState(false);
+  const [confirming, setConfirming] = useState<string | null>(null);
   const attempt = resetAttemptFor(reset, resets.provider, resets.connection);
   const provider = resets.provider;
+  const pending = resets.kinds.find((kind) => kind.key === confirming);
   return (
     <div data-usage-resets={[provider ?? '', resets.connection].filter(Boolean).join(':')} style={{ padding: '9px 0 0', borderTop: RULE }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 32 }}>
-        <span style={META}>{resetSummary(resets, L)}</span>
-        {provider !== null && resets.available > 0 && !confirming
-          ? (
-            <MButton compact variant="outline" data-usage-reset-use disabled={reset.isRedeeming}
-              onClick={() => setConfirming(true)} style={{ marginLeft: 'auto', height: 32 }}>
-              {attempt.isRedeeming ? L.usageResetUsing : L.usageResetUse}
-            </MButton>
-          )
-          : null}
-      </div>
+      {resets.kinds.map((kind) => (
+        <ResetKindLine key={kind.key} L={L} kind={kind} disabled={reset.isRedeeming}
+          canUse={provider !== null && kind.available > 0 && confirming === null}
+          using={attempt.isRedeeming && attempt.creditId === kind.creditId}
+          onUse={() => setConfirming(kind.key)} />
+      ))}
       <ResetOutcome attempt={attempt} L={L} />
-      {confirming && provider
+      {pending && provider
         ? (
-          <ResetConfirm L={L} lines={resets.confirm} onCancel={() => setConfirming(false)}
-            onConfirm={() => { setConfirming(false); reset.redeem(provider, resets.connection); }} />
+          <ResetConfirm L={L} lines={pending.confirm} onCancel={() => setConfirming(null)}
+            onConfirm={() => { setConfirming(null); reset.redeem(provider, resets.connection, pending.creditId); }} />
         )
         : null}
     </div>

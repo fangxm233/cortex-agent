@@ -277,38 +277,70 @@ describe('banked resets', () => {
     }], null, NOW, 'en');
 
     expect(vm.providers[0].resets).toEqual({
-      provider: 'openai-codex', connection: null, available: 2, nextExpiresAt: NOW + 29 * 86400 + 3 * 3600, nextExpiresIn: '29d 3h',
-      confirm: CODEX_CONFIRM,
+      provider: 'openai-codex', connection: null,
+      kinds: [{
+        key: '', summary: 'Banked resets 2', available: 2, creditId: null,
+        nextExpiresAt: NOW + 29 * 86400 + 3 * 3600, nextExpiresIn: '29d 3h', confirm: CODEX_CONFIRM,
+      }],
     });
   });
 
   it('falls back to the reported count when the credit list is unknown, and is absent without reset info', () => {
     const counted = buildUsageView([{ ...codex, resetCredits: { availableCount: 1, credits: [] } }], null, NOW, 'en');
     expect(counted.providers[0].resets).toEqual({
-      provider: 'openai-codex', connection: null, available: 1, nextExpiresAt: null, nextExpiresIn: null, confirm: CODEX_CONFIRM,
+      provider: 'openai-codex', connection: null,
+      kinds: [{
+        key: '', summary: 'Banked resets 1', available: 1, creditId: null,
+        nextExpiresAt: null, nextExpiresIn: null, confirm: CODEX_CONFIRM,
+      }],
     });
     expect(buildUsageView([codex], null, NOW, 'en').providers[0].resets).toBeNull();
   });
 
-  it('counts every reset a Claude grant holds and confirms with the windows the next one clears', () => {
+  const FULL = ['five_hour', 'seven_day', 'seven_day_overage_included'];
+  const FABLE = ['five_hour', 'seven_day_overage_included'];
+  const claudeWindows = [
+    { type: 'five_hour', utilization: 0.54, resetsAt: NOW + 2 * 3600 },
+    { type: 'seven_day', utilization: 0.31, resetsAt: NOW + 3 * 86400 },
+    { type: 'seven_day_overage_included', label: 'Fable', utilization: 0.76, resetsAt: NOW + 4 * 86400 },
+  ];
+
+  it('splits Claude resets by the windows they clear, each kind naming the credit it spends', () => {
     const vm = buildUsageView([{
       ...claude,
+      windows: claudeWindows,
       resetCredits: {
-        availableCount: 3,
+        availableCount: 4,
         atLimit: false,
-        nextCreditId: 'pick',
+        nextCreditId: 'full',
         credits: [
-          { id: 'soon', title: 'Reset', expiresAt: NOW + 86400, clears: ['five_hour'], count: 1 },
-          { id: 'pick', title: 'Reset', expiresAt: NOW + 9 * 86400, clears: ['five_hour', 'seven_day'], count: 2 },
+          { id: 'full', title: 'Full', expiresAt: NOW + 29 * 86400, clears: FULL, count: 1 },
+          { id: 'fable-6mo', title: 'Fable', expiresAt: NOW + 117 * 86400, clears: [...FABLE].reverse(), count: 1 },
+          { id: 'fable', title: 'Fable', expiresAt: NOW + 100 * 86400, clears: FABLE, count: 2 },
         ],
       },
     }], null, NOW, 'en');
 
-    expect(vm.providers[0].resets).toMatchObject({ provider: 'anthropic', available: 3, nextExpiresIn: '1d' });
-    expect(vm.providers[0].resets?.confirm).toEqual([
-      'Clears the 5 hours, 7 days limits for the whole account, claude.ai and every other device included. This cannot be undone.',
-      'Not at a limit right now: 5 hours 54% · 7 days 31%.',
+    const kinds = vm.providers[0].resets?.kinds ?? [];
+    expect(kinds.map((kind) => [kind.summary, kind.available, kind.creditId, kind.nextExpiresIn])).toEqual([
+      ['Full reset 1', 1, 'full', '29d'],
+      ['Fable reset 3', 3, 'fable', '100d'],
     ]);
+    expect(kinds[0].confirm[0]).toContain('Clears the 5 hours, 7 days, 7 days (Fable) limits');
+    expect(kinds[1].confirm).toEqual([
+      'Clears the 5 hours, 7 days (Fable) limits for the whole account, claude.ai and every other device included. This cannot be undone.',
+      'Not at a limit right now: 5 hours 54% · 7 days (Fable) 76%.',
+    ]);
+  });
+
+  it('leaves the pick to the server while the account holds one kind only', () => {
+    const vm = buildUsageView([{
+      ...claude,
+      windows: claudeWindows,
+      resetCredits: { availableCount: 1, atLimit: true, credits: [{ id: 'full', title: null, expiresAt: null, clears: FULL }] },
+    }], null, NOW, 'zh');
+
+    expect(vm.providers[0].resets?.kinds).toMatchObject([{ summary: '完整重置 1', creditId: null }]);
   });
 
   it('says nothing about current use while the Claude account is at a limit', () => {
@@ -317,7 +349,7 @@ describe('banked resets', () => {
       resetCredits: { availableCount: 1, atLimit: true, credits: [{ id: 'g', title: null, expiresAt: null }] },
     }], null, NOW, 'zh');
 
-    expect(vm.providers[0].resets?.confirm).toEqual([
+    expect(vm.providers[0].resets?.kinds[0].confirm).toEqual([
       '将清空整个账号的 用量 限额，claude.ai 与其他所有设备一并生效，且无法撤销。',
     ]);
   });
@@ -345,7 +377,7 @@ describe('banked resets', () => {
     const vm = buildUsageView([lab, { ...codex, billing: 'subscription' as const }, work, status[2]], null, NOW, 'en');
     const rows = Object.fromEntries(vm.providers.map((row) => [row.displayName, row]));
     expect(Object.keys(rows).sort()).toEqual(['DeepSeek', 'DeepSeek (Work)', 'OpenAI Codex', 'OpenAI Codex (Lab)']);
-    expect(rows['OpenAI Codex (Lab)'].resets).toMatchObject({ provider: 'openai-codex', connection: 'codex-lab', available: 1 });
+    expect(rows['OpenAI Codex (Lab)'].resets).toMatchObject({ provider: 'openai-codex', connection: 'codex-lab', kinds: [{ available: 1 }] });
     expect(rows['OpenAI Codex'].resets).toBeNull();
     expect(rows['DeepSeek (Work)'].key).not.toBe(rows.DeepSeek.key);
   });
