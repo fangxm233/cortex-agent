@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { EngineSelection } from '../../../src/domain/agents/engine-selection.js';
 import {
   _resetFailoverAnnouncements, announceFailover, failoverCandidate, preflightFailover, resumeFailover,
-  type FailoverDeps,
+  startsOnFreeLogin, type FailoverDeps,
 } from '../../../src/domain/runs/account-failover.js';
 
 const claude = (connection: string | null): EngineSelection => ({
@@ -69,6 +69,14 @@ describe('when failover applies', () => {
     expect(resumeFailover(claude('subscription'), { provider: 'anthropic', route: 'school' }, d)).toBeNull();
     expect(resumeFailover(pi(null), { provider: 'openai-codex', route: 'openai-codex' }, deps({ limited: ['openai-codex'] }))?.to)
       .toBe('codex-lab');
+  });
+
+  it('a waiting conversation can go on as soon as any of its logins is free', () => {
+    expect(startsOnFreeLogin(claude('school'), deps({ limited: ['school', 'subscription', 'lab'] }))).toBe(false);
+    expect(startsOnFreeLogin(claude('school'), deps({ limited: ['school', 'lab'] }))).toBe(true);
+    expect(startsOnFreeLogin(claude('school'), deps({ limited: ['subscription', 'lab'] }))).toBe(true);
+    expect(startsOnFreeLogin(claude('school'), deps({ limited: ['school'], metered: ['subscription', 'lab'] }))).toBe(false);
+    expect(startsOnFreeLogin(claude('school'), deps({ enabled: () => false, limited: ['school', 'lab'] }))).toBe(false);
   });
 
   it('is announced on the first run of a switch only, and again after going back', () => {

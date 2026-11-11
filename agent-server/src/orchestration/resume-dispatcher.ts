@@ -3,10 +3,13 @@ import { getSettings } from '@core/settings.js';
 import { buildResumeReminder } from '@core/resume-reminder.js';
 import type { EventBus } from '@events/index.js';
 import {
-  hasFailoverResume, requeueResume, takeReadyResumes, type ResumeEntry,
+  getResumeCount, pendingResumes, requeueResume, takeReadyResumes, type ResumeEntry,
 } from '@domain/costs/resume-registry.js';
 import { getThrottleState } from '@domain/costs/rate-limit-throttle.js';
 import { throttleKey } from '@domain/costs/throttle-key.js';
+import { startsOnFreeLogin } from '@domain/runs/account-failover.js';
+import { resolveRunSelection } from '@domain/runs/config-resolver.js';
+import { sessionStore } from '@store/session-registry-repo.js';
 import { agentRunner } from './agent-runner.js';
 import { deliverToSession } from './session-gateway.js';
 import { acquireSessionUse } from '@domain/sessions/session-use.js';
@@ -25,8 +28,11 @@ export function isAutoResumeEnabled(): boolean {
 }
 
 export interface ResumeDeps {
-  takeReady: (activeProviders: string[]) => ResumeEntry[];
+  takeReady: (activeProviders: string[], switchable: ReadonlySet<string>) => ResumeEntry[];
   activeProviders: () => string[];
+  pending: () => ResumeEntry[];
+  /** Whether a waiting conversation can go on now on a free login other than the one it hit. */
+  canContinue: (entry: ResumeEntry) => Promise<boolean>;
   route: (ctx: Parameters<typeof agentRunner.route>[0]) => Promise<void>;
   channelBusy: (channel: string) => boolean;
   acquireSessionUse: (sessionId: string) => Promise<(() => void) | null>;
@@ -39,6 +45,8 @@ function defaultDeps(): ResumeDeps {
   return {
     takeReady: takeReadyResumes,
     activeProviders: () => getThrottleState().providers.map((entry) => throttleKey(entry.provider, entry.route)),
+    pending: pendingResumes,
+    canContinue: sessionContinues,
     route: (ctx) => agentRunner.route(ctx),
     // Subagent children ride on their parent's channel and outlive its turn; counting them read an
     // idle conversation as busy, which dropped its direct resume.
@@ -53,20 +61,42 @@ function entryKey(e: ResumeEntry): string {
   return `direct ${e.channel}`;
 }
 
+/** Read from the session's selection now: the login the conversation hit may still be limited
+ *  while another of its logins is free. */
+async function sessionContinues(entry: ResumeEntry): Promise<boolean> {
+  if (!getSettings().accountFailover || !entry.trackSessionId) return false;
+  try {
+    const session = await sessionStore.getById(entry.trackSessionId);
+    return !!session && startsOnFreeLogin(resolveRunSelection({ channel: entry.channel, session }));
+  } catch (e) {
+    log.warn(`Failover check failed (${entryKey(entry)}): ${(e as Error).message}`);
+    return false;
+  }
+}
+
+async function switchableChannels(deps: ResumeDeps): Promise<Set<string>> {
+  const channels = new Set<string>();
+  for (const entry of deps.pending()) {
+    if (await deps.canContinue(entry)) channels.add(entry.channel);
+  }
+  return channels;
+}
+
 type ResumeDispatch = (adapter: PlatformAdapter) => Promise<void>;
 
 export function registerResumeWakeOnAgentSettle(
   bus: EventBus,
   adapter: PlatformAdapter,
   dispatch: ResumeDispatch = dispatchPendingResumes,
-  hasFailover: () => boolean = hasFailoverResume,
+  hasWaiting: () => boolean = () => getResumeCount() > 0,
 ): () => void {
   const wake = () => { void dispatch(adapter); };
   const completed = bus.subscribe('agent.completed', wake);
   const failed = bus.subscribe('agent.failed', wake);
   const superseded = bus.subscribe('agent.superseded', wake);
-  // An account-failover entry is ready the moment it is recorded; no window reset will wake it.
-  const changed = bus.subscribe('rate-limit.changed', () => { if (hasFailover()) wake(); });
+  // A waiting conversation may go on on another login the moment it is recorded or a login's
+  // state changes; no window reset of its own will wake it.
+  const changed = bus.subscribe('rate-limit.changed', () => { if (hasWaiting()) wake(); });
   return () => {
     completed.unsubscribe();
     failed.unsubscribe();
@@ -96,7 +126,8 @@ function skipBusy(entry: ResumeEntry, deps: ResumeDeps): void {
  *  Called after provider clears and during startup reconciliation. Never throws. */
 export async function dispatchPendingResumes(adapter: PlatformAdapter, overrides: Partial<ResumeDeps> = {}): Promise<void> {
   const deps = { ...defaultDeps(), ...overrides };
-  const entries = dispatchable(deps.takeReady(deps.activeProviders()));
+  const switchable = await switchableChannels(deps);
+  const entries = dispatchable(deps.takeReady(deps.activeProviders(), switchable));
   if (entries.length === 0) return;
   log.info(`Rate-limit window reset — resuming ${entries.length} interrupted target(s)`);
 

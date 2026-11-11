@@ -466,9 +466,8 @@ itself. A run that ends on a rate limit continues on it at once. The web chat
 says which login the conversation moved to the first time it moves; the
 conversation keeps its own selection and returns to its login once that login
 recovers. Key connections never take part, a subscription never moves to an API
-key, and a run already moved that hits a limit again waits for its login to
-reset. When every candidate is limited, the conversation waits as it would with
-the setting off.
+key. When every login is limited, the conversation waits and goes on as soon
+as any of them frees, its own or another, whichever resets first.
 
 ## Custom providers
 

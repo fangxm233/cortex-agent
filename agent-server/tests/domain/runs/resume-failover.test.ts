@@ -10,7 +10,7 @@ import {
   initRateLimitThrottle, handleRateLimitEvent, _testReset as throttleReset,
 } from '../../../src/domain/costs/rate-limit-throttle.js';
 import {
-  initResumeRegistry, hasFailoverResume, takeReadyResumes, _testReset as resumeReset,
+  initResumeRegistry, pendingResumes, takeReadyResumes, _testReset as resumeReset,
 } from '../../../src/domain/costs/resume-registry.js';
 import { MockAdapter } from '../../../src/platform/testing.js';
 
@@ -33,6 +33,8 @@ async function limit(...routes: string[]): Promise<void> {
 const failover = (enabled: boolean): FailoverDeps => ({
   enabled: () => enabled, logins: () => ['subscription', 'school'], billingOf: () => 'subscription',
 });
+
+const hasFailoverResume = () => pendingResumes().some((entry) => entry.failover === true);
 
 afterEach(() => { throttleReset(); resumeReset(); });
 
