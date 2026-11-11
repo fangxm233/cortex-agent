@@ -8,6 +8,7 @@ import { SessionStateLine, TranscriptStatusProvider } from './WorkLog';
 import { setWorkLogMode } from './work-log-pref';
 import { buildTranscriptRows } from './transcript-rows';
 import type { ChatRow } from './chat-row';
+import { LONG_FORM_CHARS } from './turn-layout';
 
 vi.mock('@/lib/trpc', () => ({ useTRPCClient: () => ({}) }));
 
@@ -70,16 +71,22 @@ describe.each([['desktop', false], ['mobile', true]])('turn layout in the %s str
     expect(text(notes[0])).toContain('Checking');
   });
 
-  it('keeps the running turn open, with its trailing text as the answer so far', () => {
+  it('keeps the running turn open, writing a short note in it and a long reply below it', () => {
     const running: ChatRow[] = [...turn.slice(0, 4), { kind: 'assistant', text: 'Writing it up', streaming: true }];
     mount(rows(running, true));
     const summary = byAttr('data-work-summary')[0];
     expect(text(summary)).toContain('Working');
     expect(summary.props['aria-expanded']).toBe(true);
     expect(byAttr('data-work-live')).toHaveLength(1);
+    // A short text after the work began is written in the log, where it stays if a tool call follows.
+    expect(byAttr('data-narration')).toHaveLength(2);
+    expect(byAttr('data-work-log-body')[0].findAll((n) => n.children.includes('Writing it up')).length).toBeGreaterThan(0);
+    // One long enough to be the reply sits below the log, where it will remain once the turn ends.
+    const reply = `Writing it up. ${'x'.repeat(LONG_FORM_CHARS)}`;
+    act(() => mounted.unmount());
+    mount(rows([...turn.slice(0, 4), { kind: 'assistant', text: reply, streaming: true }], true));
     expect(byAttr('data-narration')).toHaveLength(1);
-    // The text being written stays outside the log, where it will remain once the turn ends.
-    expect(byAttr('data-work-log-body')[0].findAll((n) => n.children.includes('Writing it up'))).toHaveLength(0);
+    expect(byAttr('data-work-log-body')[0].findAll((n) => n.children.includes(reply))).toHaveLength(0);
     expect(JSON.stringify(mounted.toJSON())).toContain('Writing it up');
   });
 

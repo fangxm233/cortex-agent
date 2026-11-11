@@ -30,9 +30,20 @@ describe('layoutTurns', () => {
     covers(rows, items);
   });
 
-  it('keeps the work open and the trailing text as the answer while the turn is live', () => {
+  it('writes a short note into the open work while the turn is live, and lets it out once the turn ends on it', () => {
     const rows = [user('go'), tools(3), say('checking the parser'), tools(2), say('Writing it up', { preview: true })];
-    expect(shape(layoutTurns(rows, { live: true }))).toEqual(['row:0:opener', 'work:1,2,3:live', 'row:4:answer']);
+    expect(shape(layoutTurns(rows, { live: true }))).toEqual(['row:0:opener', 'work:1,2,3,4:live']);
+    const settled = [...rows.slice(0, 4), say('Writing it up')];
+    expect(shape(layoutTurns(settled))).toEqual(['row:0:opener', 'work:1,2,3', 'row:4:answer']);
+  });
+
+  it('keeps the trailing text as the answer while live before any work, after a plan card, or once it reads long', () => {
+    const before = [user('why?'), thought(), say('Because', { preview: true })];
+    expect(shape(layoutTurns(before, { live: true }))).toEqual(['row:0:opener', 'row:1:plain', 'row:2:answer']);
+    const afterPlan = [user('go'), tools(1), plan(), say('On it', { preview: true })];
+    expect(shape(layoutTurns(afterPlan, { live: true }))).toEqual(['row:0:opener', 'work:1:live', 'row:2:pinned', 'row:3:answer']);
+    const long = [user('go'), tools(1), say('## Findings\nshort', { preview: true })];
+    expect(shape(layoutTurns(long, { live: true }))).toEqual(['row:0:opener', 'work:1:live', 'row:2:answer']);
   });
 
   it('moves the trailing text into the work as soon as the agent acts again', () => {
@@ -113,7 +124,7 @@ describe('layoutTurns', () => {
     const sub: ChatRow = { kind: 'subagent', id: 'a', agentType: 'explore', description: 'map', prompt: null, model: null, status: 'running', toolCount: 3, children: [] };
     const rows = [user('go'), tools(1), sub, say('Started a background explorer.')];
     expect(shape(layoutTurns(rows))).toEqual(['row:0:opener', 'row:1:plain', 'row:2:pinned', 'row:3:answer']);
-    expect(shape(layoutTurns(rows, { live: true }))).toEqual(['row:0:opener', 'work:1,2:live', 'row:3:answer']);
+    expect(shape(layoutTurns(rows, { live: true }))).toEqual(['row:0:opener', 'work:1,2,3:live']);
   });
 
   it('keeps unread messages pinned at the tail of the live turn', () => {
@@ -132,7 +143,7 @@ describe('layoutTurns', () => {
   it('keeps a live turn in the order it happened, cards included, and lifts the cards out once it settles', () => {
     const decision = say('', { decisions: [{ id: 'd1' } as never] });
     const rows = [user('go'), tools(1), say('recording the choices'), tools(1), decision, tools(1), say('next up')];
-    expect(shape(layoutTurns(rows, { live: true }))).toEqual(['row:0:opener', 'work:1,2,3,4,5:live', 'row:6:answer']);
+    expect(shape(layoutTurns(rows, { live: true }))).toEqual(['row:0:opener', 'work:1,2,3,4,5,6:live']);
     const more = [...rows, tools(1)];
     expect(shape(layoutTurns(more, { live: true }))).toEqual(['row:0:opener', 'work:1,2,3,4,5,6,7:live']);
     const done = [...more, say('All set.')];

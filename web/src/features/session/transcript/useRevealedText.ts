@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { stepReveal, rebaseReveal, revealedText } from './reveal-pacing';
+import { carryReveal, stepReveal, rebaseReveal, revealedText } from './reveal-pacing';
 
 // The rAF side of the smooth reveal — the frame loop that drives the pure `reveal-pacing` rule.
 // Shared by every chat that renders a live preview (the desktop MessageStream and the mobile chat
@@ -9,6 +9,11 @@ import { stepReveal, rebaseReveal, revealedText } from './reveal-pacing';
 // It deliberately sits in its own module rather than inside a stream component: whoever draws the
 // paced text must be the SAME component instance that later draws the committed text, and that is
 // only true if each surface owns the block component and merely borrows this hook.
+
+/** Each stream's paced preview as it stands on screen. A preview that changes place mid-stream (a
+ *  working note that grows into the reply leaves the work log) remounts, and its new instance picks
+ *  the reveal up from here instead of typing the text out again from nothing. */
+const onScreen = new Map<string, { text: string; revealed: number }>();
 
 const prefersReducedMotion = (): boolean =>
   typeof window !== 'undefined' &&
@@ -42,9 +47,10 @@ const prefersReducedMotion = (): boolean =>
  */
 export function useRevealedText(text: string, preview: boolean, streamKey?: string): string {
   const [reduceMotion] = useState(prefersReducedMotion);
-  const [shown, setShown] = useState<{ streamKey?: string; text: string; revealed: number }>(
-    () => ({ streamKey, text, revealed: 0 }),
-  );
+  const [shown, setShown] = useState<{ streamKey?: string; text: string; revealed: number }>(() => {
+    const carried = preview ? onScreen.get(streamKey ?? '') : undefined;
+    return { streamKey, text, revealed: carried ? carryReveal(carried.text, text, carried.revealed) : 0 };
+  });
 
   // Rebase before drawing anything, so what is on screen can never stop being a prefix of what has
   // arrived. Adjusting state during render is React's documented pattern for deriving state from
@@ -74,6 +80,16 @@ export function useRevealedText(text: string, preview: boolean, streamKey?: stri
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, [behind]);
+
+  useEffect(() => {
+    if (!paced) return;
+    const key = streamKey ?? '';
+    const entry = { text: shown.text, revealed: shown.revealed };
+    onScreen.set(key, entry);
+    return () => {
+      if (onScreen.get(key) === entry) onScreen.delete(key);
+    };
+  }, [paced, streamKey, shown]);
 
   return paced ? revealedText(text, revealed) : text;
 }

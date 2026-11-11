@@ -13,8 +13,11 @@ import { systemOriginDisplay } from './system-origin';
 //
 // Inside a segment every row is one of:
 // - the ANSWER: the last thing the agent said. While the segment is still being written this is
-//   only the trailing text, so the reply the reader is watching stream never moves; once a tool call
-//   follows it, it was a working note after all.
+//   only the trailing text, and only while it can still be the reply: before the agent has acted, or
+//   once it reads as long form. A short text written after the agent has acted is far more often a
+//   working note than the reply, so it is written into the open log where it will stay if a tool call
+//   follows; it steps out below the log only when the turn ends on it or it grows long. Showing it as
+//   the answer first made every note appear below the log and jump into it at the next tool call.
 // - PINNED: what the reader must see or act on, left in place: plan and question cards, notices,
 //   files and decisions the agent sent, a board it opened, a worker it started, a waitpoint it armed,
 //   a background agent still running after the turn ended, a long working note (a heading, a table,
@@ -29,9 +32,9 @@ import { systemOriginDisplay } from './system-origin';
 //
 // While the segment is still being written, the work keeps everything in the order it happened:
 // once it has begun, a pinned row that lands in it — a decision, a file, a long note — joins the open
-// log where it arrived, and only the reply being written sits below. Pinned rows that stayed below
-// the log made every working note written after one appear under it and then jump above it into
-// the log at the next tool call. When the segment settles the log folds and those rows step out
+// log where it arrived, and only a long reply being written sits below. Pinned rows that stayed
+// below the log made every working note written after one appear under it and then jump above it
+// into the log at the next tool call. When the segment settles the log folds and those rows step out
 // below it, as above. A plan or question card still splits the work, and messages the agent has not
 // read yet stay at the tail.
 //
@@ -138,8 +141,19 @@ function classify(row: ChatRow, live: boolean): Role {
 }
 
 /** Text and nothing else: pinned, if at all, only for its length. */
-function isNote(row: ChatRow): boolean {
+function isNote(row: ChatRow): row is Extract<ChatRow, { kind: 'assistant' }> {
   return row.kind === 'assistant' && !row.attachments?.length && !row.decisions?.length;
+}
+
+/** A log of the agent's actions is open before body[k]: one it did not close with a plan or
+ *  question card. Thoughts alone do not open one. */
+function workOpenBefore(rows: ChatRow[], body: number[], k: number, roles: Map<number, Role>): boolean {
+  for (let j = k - 1; j >= 0; j--) {
+    const row = rows[body[j]];
+    if (row.kind === 'interaction') return false;
+    if (isAction(row) && roles.get(body[j]) === 'process') return true;
+  }
+  return false;
 }
 
 /** The row the segment's answer is, or null. */
@@ -147,9 +161,13 @@ function answerOf(rows: ChatRow[], body: number[], roles: Map<number, Role>, liv
   for (let k = body.length - 1; k >= 0; k--) {
     const i = body[k];
     const row = rows[i];
-    // While it is still trailing, a long note is the reply so far too; it is pinned only once work
-    // follows it.
-    if (hasText(row)) return roles.get(i) === 'process' || (live && isNote(row)) ? i : null;
+    if (hasText(row)) {
+      // While it is still trailing, a long note is the reply so far too; it is pinned only once work
+      // follows it.
+      if (roles.get(i) !== 'process' && !(live && isNote(row))) return null;
+      // A short one written once the work is under way stays in the open log until the turn ends on it.
+      return live && isNote(row) && !isLongForm(row.text) && workOpenBefore(rows, body, k, roles) ? null : i;
+    }
     // Still being written: only a trailing text is the answer so far. Cards and messages after it do
     // not end it; anything the agent did after it does.
     if (live && roles.get(i) === 'process') return null;
