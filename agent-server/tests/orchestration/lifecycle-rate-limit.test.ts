@@ -1,9 +1,11 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { handleAgentError } from '../../src/orchestration/turn/terminal.js';
+import { handleAgentError, handleDefaultAgentResult } from '../../src/orchestration/turn/terminal.js';
 import { initRateLimitThrottle, handleRateLimitEvent, _testReset as throttleReset } from '../../src/domain/costs/rate-limit-throttle.js';
-import { initResumeRegistry, getResumeCount, takeReadyResumes, _testReset as resumeReset } from '../../src/domain/costs/resume-registry.js';
-import { MockAdapter } from '../../src/platform/testing.js';
+import {
+  initResumeRegistry, getResumeCount, pendingResumes, recordResume, takeReadyResumes, _testReset as resumeReset,
+} from '../../src/domain/costs/resume-registry.js';
+import { MockAdapter, MockOutputStream } from '../../src/platform/testing.js';
 
 const stub = { save: async () => {}, load: async () => null };
 const RL_MSG = "API Error: Server is temporarily limiting requests · This request would exceed your account's rate limit";
@@ -116,4 +118,41 @@ test('throttled + non-rate-limit error → normal error path, no resume', async 
 
   assert.equal(getResumeCount(), 0, 'no resume for a non-rate-limit error');
   assert.equal(adapter.posted.length, 1, 'error body posted');
+});
+
+function finishTurn(adapter: MockAdapter, channel: string, rateLimited: boolean) {
+  const stream = new MockOutputStream(adapter, { type: 'interactive-reply', conduit: channel, sessionId: '' });
+  return handleDefaultAgentResult({
+    result: {
+      sessionId: null, total_cost_usd: 0, num_turns: 1, rateLimited, finalOutput: 'ok',
+      ...(rateLimited ? { rateLimitProvider: 'provider-a', rateLimitRoute: 'plan' } : {}),
+    } as any,
+    channel, adapter: adapter as any, statusMsg: { conduit: channel, messageId: 's1' } as any,
+    startTime: Date.now(), userMessage: 'later', executionId: null, sessionId: null, threadAnchorId: null, messageTs: null,
+    callbacks: { onAssistantMsg: Object.assign(() => {}, { stream }) },
+  });
+}
+
+test('a turn that completes drops the resume its conversation still had queued', async (t) => {
+  t.onTestFinished(() => { throttleReset(); resumeReset(); });
+  const adapter = new MockAdapter({ adminChannel: 'admin' });
+  await initResumeRegistry({ save: async () => {}, load: async () => [] });
+  recordResume({ kind: 'direct', provider: 'provider-a', channel: 'C1', userMessage: 'old', recordedAt: 1 });
+  recordResume({ kind: 'direct', provider: 'provider-a', channel: 'C2', userMessage: 'other', recordedAt: 1 });
+
+  assert.equal(await finishTurn(adapter, 'C1', false), 'completed');
+
+  assert.deepEqual(pendingResumes().map((entry) => entry.channel), ['C2']);
+});
+
+test('a turn that ends on the limit again keeps its conversation queued, with the newer message', async (t) => {
+  t.onTestFinished(() => { throttleReset(); resumeReset(); });
+  const adapter = new MockAdapter({ adminChannel: 'admin' });
+  await initResumeRegistry({ save: async () => {}, load: async () => [] });
+  await activateThrottle(adapter);
+  recordResume({ kind: 'direct', provider: 'provider-a::plan', channel: 'C1', userMessage: 'old', recordedAt: 1 });
+
+  assert.equal(await finishTurn(adapter, 'C1', true), 'rate-limited');
+
+  assert.deepEqual(pendingResumes().map((entry) => entry.userMessage), ['later']);
 });

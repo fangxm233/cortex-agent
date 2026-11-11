@@ -16,6 +16,7 @@ import { resolveRunSelection } from '@domain/runs/config-resolver.js';
 
 import { maybeNotifyTurnComplete } from '../turn-notify.js';
 import { recordDirectResume } from '@domain/runs/observers/resume-recorder.js';
+import { removeDirectResume } from '@domain/costs/resume-registry.js';
 import { isApiRateLimitError } from '@domain/runs/retryable-errors.js';
 import { isProviderRateLimited } from '@domain/costs/rate-limit-throttle.js';
 import { durablePost, getOutboundQueue } from '@store/outbound-queue.js';
@@ -258,6 +259,9 @@ export async function handleDefaultAgentResult({ result, channel, adapter, statu
     await sealQuietly(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionId, isDm: true }));
     return 'rate-limited';
   }
+  // The conversation went on past the turn a limit cut off: replaying that turn would answer
+  // what has since been overtaken.
+  removeDirectResume(channel);
   await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, executionId, trackSessionId: sessionId, threadAnchorId, userMessageTs: messageTs, onAssistantMessage: callbacks.onAssistantMsg, holdBackground, request, resumeTarget });
   return 'completed';
 }
