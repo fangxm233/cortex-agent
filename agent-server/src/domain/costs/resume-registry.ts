@@ -55,12 +55,22 @@ function entryIsReady(entry: ResumeEntry, active: Set<string>): boolean {
   return entry.provider ? !throttleKeyBlocked(entry.provider, active) : active.size === 0;
 }
 
-function takeReadyFrom(map: Map<string, ResumeEntry>, active: Set<string>): ResumeEntry[] {
+/** Ready on its own login's reset, or — a channel that can go on on another free login — as a
+ *  failover, whose start auto-resume does not gate. */
+function takeable(entry: ResumeEntry, active: Set<string>, switchable: ReadonlySet<string>): ResumeEntry | null {
+  if (entryIsReady(entry, active)) return entry;
+  return switchable.has(entry.channel) ? { ...entry, failover: true } : null;
+}
+
+function takeReadyFrom(
+  map: Map<string, ResumeEntry>, active: Set<string>, switchable: ReadonlySet<string>,
+): ResumeEntry[] {
   const ready: ResumeEntry[] = [];
   for (const [key, entry] of map) {
-    if (!entryIsReady(entry, active)) continue;
+    const taken = takeable(entry, active, switchable);
+    if (!taken) continue;
     map.delete(key);
-    ready.push(entry);
+    ready.push(taken);
   }
   return ready;
 }
@@ -105,8 +115,8 @@ function requeueResume(entry: ResumeEntry): void {
   persist();
 }
 
-function hasFailoverResume(): boolean {
-  return [..._direct.values()].some((entry) => entry.failover === true);
+function pendingResumes(): ResumeEntry[] {
+  return snapshot();
 }
 
 /** Drop the queued resumes of deleted sessions. */
@@ -130,9 +140,11 @@ function removeDirectResume(channel: string): boolean {
   return true;
 }
 
-function takeReadyResumes(activeProviders: string[]): ResumeEntry[] {
+/** Take what may start now: entries whose login is no longer limited, and those of the
+ *  `switchable` channels, which can go on on another login. */
+function takeReadyResumes(activeProviders: string[], switchable: ReadonlySet<string> = new Set()): ResumeEntry[] {
   const active = new Set(activeProviders);
-  const ready = takeReadyFrom(_direct, active);
+  const ready = takeReadyFrom(_direct, active, switchable);
   if (ready.length > 0) {
     persist();
     fireChange();
@@ -170,7 +182,7 @@ export {
   initResumeRegistry,
   recordResume,
   requeueResume,
-  hasFailoverResume,
+  pendingResumes,
   removeDirectResume,
   removeDirectResumesForSessions,
   takeReadyResumes,

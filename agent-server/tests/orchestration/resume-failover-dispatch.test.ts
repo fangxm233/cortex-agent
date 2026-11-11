@@ -5,12 +5,14 @@ import { dispatchPendingResumes, registerResumeWakeOnAgentSettle } from '../../s
 import { EventBus } from '../../src/events/index.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import {
-  initResumeRegistry, _testReset as resumeReset, type ResumeEntry,
+  initResumeRegistry, pendingResumes, recordResume, _testReset as resumeReset, type ResumeEntry,
 } from '../../src/domain/costs/resume-registry.js';
 import {
-  handleRateLimitEvent, initRateLimitThrottle, _testReset as throttleReset,
+  clearThrottle, handleRateLimitEvent, initRateLimitThrottle, _testReset as throttleReset,
 } from '../../src/domain/costs/rate-limit-throttle.js';
 import { recordDirectResume } from '../../src/domain/runs/observers/resume-recorder.js';
+import { startsOnFreeLogin, type FailoverDeps } from '../../src/domain/runs/account-failover.js';
+import type { EngineSelection } from '../../src/domain/agents/engine-selection.js';
 import { updateSettings } from '../../src/core/settings.js';
 
 const entry = (channel: string, failover?: true): ResumeEntry => ({
@@ -57,6 +59,22 @@ describe('dispatching resumes', () => {
     expect(d.routed).toEqual(['web:wait', 'web:switch']);
   });
 
+  it('starts a waiting entry as soon as its conversation can go on on another login, auto-resume off', async () => {
+    await updateSettings({ autoResume: false });
+    await initResumeRegistry({ save: async () => {}, load: async () => [] });
+    recordResume(entry('web:wait'));
+    recordResume(entry('web:switch'));
+    const routed: string[] = [];
+    await dispatchPendingResumes(adapter, {
+      activeProviders: () => ['anthropic::school'],
+      canContinue: async (waiting) => waiting.channel === 'web:switch',
+      route: async (ctx) => { routed.push(ctx.channel); },
+      channelBusy: () => false, acquireSessionUse: async () => () => {}, delay: async () => {},
+    });
+    expect(routed).toEqual(['web:switch']);
+    expect(pendingResumes().map((waiting) => waiting.channel)).toEqual(['web:wait']);
+  });
+
   it('puts a failover entry back when its channel is busy, and drops any other as before', async () => {
     const d = deps([entry('web:wait'), entry('web:switch', true)], ['web:wait', 'web:switch']);
     await dispatchPendingResumes(adapter, d.overrides);
@@ -66,7 +84,7 @@ describe('dispatching resumes', () => {
 });
 
 describe('waking the dispatcher', () => {
-  it('wakes on a rate-limit change only while a failover entry waits', async () => {
+  it('wakes on a rate-limit change only while an entry waits', async () => {
     const bus = new EventBus();
     let pending = false;
     let wakes = 0;
@@ -101,5 +119,38 @@ describe('a failover resume, end to end through the queue', () => {
     }, { enabled: () => true, logins: () => ['subscription', 'school'], billingOf: () => 'subscription' });
     await vi.waitFor(() => expect(routed).toEqual(['web:c1']));
     stop();
+  });
+});
+
+describe('a resume queued while every login was limited', () => {
+  const school: EngineSelection = {
+    backend: 'claude', provider: null, model: 'claude-sonnet-4-6', thinking: null, connection: 'school',
+  };
+  const failover: FailoverDeps = { enabled: () => true, logins: () => ['subscription', 'school'], billingOf: () => 'subscription' };
+  const limit = (mode: string, minutes: number) => handleRateLimitEvent(
+    { rateLimitType: 'seven_day', utilization: 0.97, resetsAt: Math.floor(Date.now() / 1000) + minutes * 60 },
+    { provider: 'anthropic', displayName: 'Anthropic', mode },
+  );
+
+  it('goes on once another login frees, without waiting for its own', async () => {
+    const routed: string[] = [];
+    const dispatch = () => dispatchPendingResumes(adapter, {
+      route: async (ctx) => { routed.push(ctx.channel); },
+      channelBusy: () => false, acquireSessionUse: async () => () => {}, delay: async () => {},
+      canContinue: async () => startsOnFreeLogin(school, failover),
+    });
+    await initResumeRegistry({ save: async () => {}, load: async () => [] });
+    await initRateLimitThrottle(adapter, { save: async () => {}, load: async () => null } as never, () => { void dispatch(); });
+    await limit('school', 3000);
+    await limit('subscription', 60);
+    expect(recordDirectResume({
+      provider: 'anthropic', route: 'school', channel: 'web:c1', trackSessionId: null, userMessage: 'hi', selection: school,
+    }, failover)).toBe(true);
+    await dispatch();
+    expect(routed).toEqual([]);
+
+    await clearThrottle('anthropic::subscription');
+    await vi.waitFor(() => expect(routed).toEqual(['web:c1']));
+    expect(pendingResumes()).toEqual([]);
   });
 });

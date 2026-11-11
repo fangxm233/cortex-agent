@@ -147,3 +147,16 @@ test('removeDirectResume cancels one channel and leaves other entries queued', a
     ['keep me', 't'],
   );
 });
+
+test('a waiting entry whose conversation can switch logins is taken as a failover', async (t) => {
+  const mod = await freshModuleWithCleanup(t);
+  await mod.initResumeRegistry(makePersistenceStub() as any);
+  mod.recordResume({ kind: 'direct', provider: 'anthropic::school', channel: 'C1', userMessage: 'a', recordedAt: 1 });
+  mod.recordResume({ kind: 'direct', provider: 'anthropic::school', channel: 'C2', userMessage: 'b', recordedAt: 2 });
+
+  assert.deepEqual(mod.takeReadyResumes(['anthropic::school']), []);
+  const taken = mod.takeReadyResumes(['anthropic::school'], new Set(['C2']));
+  assert.deepEqual(taken.map((entry) => [entry.channel, entry.failover]), [['C2', true]]);
+  assert.deepEqual(mod.pendingResumes().map((entry) => entry.channel), ['C1']);
+  assert.equal(mod.takeReadyResumes([])[0]?.failover, undefined);
+});

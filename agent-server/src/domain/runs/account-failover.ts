@@ -84,6 +84,15 @@ export function resumeFailover(
   return failoverCandidate(selection, deps);
 }
 
+/** With failover on, whether a run of the selection would start on a free login now — its own or
+ *  another. A conversation waiting on a limit goes on as soon as this holds, whichever login it
+ *  hit; with failover off it waits for that login as before. */
+export function startsOnFreeLogin(selection: EngineSelection, deps: FailoverDeps = {}): boolean {
+  const d = resolved(deps);
+  if (!d.enabled()) return false;
+  return !d.isRateLimited(selection) || failoverCandidate(selection, d) !== null;
+}
+
 /** A login's name as the session shows it: the account's label, Claude's subscription by its
  *  name, a PI provider's default login by the provider. */
 export function loginLabel(selection: EngineSelection): string {
