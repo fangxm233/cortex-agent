@@ -474,6 +474,28 @@ describe('desktop Settings Usage panel banked resets', () => {
     act(() => renderer.unmount());
   });
 
+  it('offers each kind of Claude reset on its own line and spends the chosen kind\'s credit', () => {
+    currentUsage = withResets.map((record) => (record.provider === 'anthropic'
+      ? { ...record, resetCredits: { availableCount: 2, atLimit: true, credits: [
+        { id: 'full', title: null, expiresAt: NOW + 86400, clears: ['five_hour', 'seven_day', 'seven_day_overage_included'] },
+        { id: 'fable', title: null, expiresAt: NOW + 2 * 86400, clears: ['five_hour', 'seven_day_overage_included'] },
+      ] } }
+      : record));
+    const renderer = mount();
+    const claude = resetBlock(renderer, 'anthropic');
+    const useButtons = claude.findAll((node) => node.props['data-usage-reset-use'] === true, { deep: false });
+    expect(useButtons).toHaveLength(2);
+    const full = claude.findByProps({ 'data-usage-reset-kind': 'five_hour,seven_day,seven_day_overage_included' });
+    act(() => full.findByProps({ 'data-usage-reset-use': true }).props.onClick());
+    expect(resetBlock(renderer, 'anthropic').findAllByProps({ 'data-usage-reset-use': true })).toHaveLength(0);
+    act(() => resetBlock(renderer, 'anthropic').findByProps({ 'data-usage-reset-confirm-action': true }).props.onClick());
+
+    expect(harness.mutations.filter((entry) => entry.kind === 'system.redeemUsageReset')).toEqual([
+      { kind: 'system.redeemUsageReset', args: { provider: 'anthropic', creditId: 'full' } },
+    ]);
+    act(() => renderer.unmount());
+  });
+
   it('shows the count and earliest expiry per card, and the last outcome only on the card it was for', () => {
     currentUsage = withResets;
     harness.redeemResult = { provider: 'anthropic', status: 'nothing_to_reset', cleared: [], usage: withResets };
@@ -482,7 +504,7 @@ describe('desktop Settings Usage panel banked resets', () => {
     const text = JSON.stringify(renderer.toJSON());
     expect(text).toContain('Banked resets 1');
     expect(text).toContain('next expires in 3d');
-    expect(text).toContain('Banked resets 2');
+    expect(text).toContain('Full reset 2');
     expect(resetBlock(renderer, 'anthropic').findByProps({ 'data-usage-reset-outcome': 'nothing_to_reset' })).toBeTruthy();
     expect(resetBlock(renderer, 'openai-codex').findAllByProps({ 'data-usage-reset-outcome': 'nothing_to_reset' })).toHaveLength(0);
     act(() => renderer.unmount());

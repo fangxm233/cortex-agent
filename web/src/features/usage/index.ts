@@ -13,6 +13,7 @@ export {
   type ProviderLegacyFallbackView,
   type ProviderUsageView,
   type UsagePolicyTarget,
+  type UsageResetKindView,
   type UsageResetOutcomeView,
   type UsageResetsView,
   type UsageView,

@@ -708,25 +708,37 @@ reading taken after the sign-out arrives — a sign-in made outside Cortex shows
 up this way on the next collection.
 
 Each reading also lists the account's banked resets: how many are available
-and when the earliest one expires. An account reading never starts a
+and when the earliest one expires, per kind of reset when the account holds
+more than one kind (see below). An account reading never starts a
 throttle, but it lifts that provider's throttle windows that have fallen below
 their threshold, so a reset spent from another device also releases work
 Cortex paused.
 
 A banked reset applies to the whole account, on every device, and cannot be
 undone. A Codex reset restores the Codex usage windows and expires about 30
-days after it is granted. A Claude reset clears the windows its grant names —
-typically the five-hour, seven-day, and seven-day-including-overage limits —
-for claude.ai and every other Claude client as well. Cortex never spends a
-reset on its own. On the Codex and Anthropic cards in desktop and mobile
-Usage, **Reset** appears while a reset is available, spends it on that card's
-account, and asks for confirmation first; the Claude confirmation names the windows the reset
+days after it is granted. A Claude reset clears the windows its grant names,
+for claude.ai and every other Claude client as well. Claude grants come in
+kinds that differ in reach: a **full reset** clears the five-hour, seven-day
+and model weekly limits, while a model reset, such as a **Fable reset** from a
+model launch, clears only the five-hour limit and that model's weekly limit,
+leaving the all-models seven-day limit as it is. Cortex groups a Claude
+account's resets by the windows they clear and lists each kind on its own line
+with its count and earliest expiry.
+
+Cortex never spends a reset on its own. On the Codex and Anthropic cards in
+desktop and mobile Usage, each kind of reset the account holds has its own
+**Reset**, which spends a reset of that kind on that card's account and asks
+for confirmation first; the Claude confirmation names the windows the reset
 clears and, while the account is not at a limit, shows their current use.
-Cortex spends the reset the account offers next, otherwise the one that
-expires first. In chat, `!usage` shows the same count and expiry with a
-**Reset Codex** or **Reset Claude** button that posts a confirm prompt
-in the thread, and a Codex or Claude throttle notice carries that button next
-to **Resume now** while the account holds a reset. After a reset Cortex clears
+Within a kind, Cortex spends the reset the account offers next, otherwise the
+one that expires first. In chat, `!usage` shows the same counts and expiries.
+An account with one kind of reset gets a **Reset Codex** or **Reset Claude**
+button; a Claude account with several kinds gets one button per kind, such as
+**Full reset (Claude)** and **Fable reset (Claude)**. Each button posts a
+confirm prompt in the thread. A Codex or Claude throttle notice carries these
+buttons next to **Resume now** while the account holds a reset, limited to the
+kinds that clear the throttled window: a throttle on the all-models seven-day
+limit offers only the full reset. After a reset Cortex clears
 that provider's throttle, resumes the work it paused, and re-reads usage for a
 few seconds until the account shows the cleared windows restored. When the
 account declines — nothing to reset, a reset already used, a cooldown, or an

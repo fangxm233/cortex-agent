@@ -852,7 +852,11 @@ test('notice actions extend the activation notice after resume-now', async (t) =
   const mod = await freshModuleWithCleanup(t);
   await mod.initRateLimitThrottle(adapter, makePersistenceStub() as any);
   const extra = { type: 'button' as const, text: 'Reset Codex', actionId: 'cmd:usage:reset', value: '' };
-  mod.setRateLimitNoticeActions(async (provider) => (provider === 'openai-codex' ? [extra] : []));
+  const asked: string[][] = [];
+  mod.setRateLimitNoticeActions(async (provider, windowType) => {
+    asked.push([provider, windowType]);
+    return provider === 'openai-codex' ? [extra] : [];
+  });
 
   await mod.handleRateLimitEvent(
     { rateLimitType: 'codex_primary', utilization: 0.99, resetsAt: Math.floor(Date.now() / 1000) + 600 },
@@ -861,6 +865,7 @@ test('notice actions extend the activation notice after resume-now', async (t) =
 
   const notice = adapter.posted.find((post: any) => post.content.text.includes('throttle activated'));
   assert.deepEqual(notice?.actions.map((action: any) => action.actionId), ['rate-limit:clear', 'cmd:usage:reset']);
+  assert.deepEqual(asked, [['openai-codex', 'codex_primary']]);
 });
 
 test('a failing notice-action resolver still posts the notice with resume-now', async (t) => {

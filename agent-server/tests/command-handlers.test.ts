@@ -338,7 +338,7 @@ test('!usage shows banked resets and offers a reset button per provider only whi
   await new Promise(resolve => setImmediate(resolve));
   const post = withResets.adapter.posted[0].content;
   assert.match(post.text, /Banked resets: 1 · earliest expires 2027-01-21T/);
-  assert.match(post.text, /Banked resets: 1 · earliest expires 2027-01-19T/);
+  assert.match(post.text, /Full reset: 1 · earliest expires 2027-01-19T/);
   assert.deepEqual(actionButtons(post), [
     'cmd:usage:refresh=', 'cmd:usage:reset=openai-codex', 'cmd:usage:reset=anthropic',
   ]);
@@ -377,7 +377,7 @@ test('!usage reset takes a confirm click and reports the outcome in place of the
   const promptRef = { conduit: 'C-usage', messageId: 'prompt-1' };
   await adapter.simulateAction('cmd:usage:reset-confirm', 'openai-codex', { channelId: 'C-usage', messageRef: promptRef });
 
-  assert.deepEqual(calls, [['openai-codex']]);
+  assert.deepEqual(calls, [['openai-codex', undefined]]);
   assert.equal(adapter.updated.length, 2);
   assert.match(adapter.updated[0].content.text, /Using a Codex reset/);
   assert.match(adapter.updated[1].content.text, /Codex reset used[\s\S]*OpenAI Codex/);
@@ -428,13 +428,65 @@ test('!usage reset cancel and non-reset outcomes spend nothing extra and say why
 test('a throttle notice offers a reset only when the throttled account holds one', async () => {
   const status = (records: ProviderUsage[]) => ({ getStatus: async () => records });
   const ids = async (provider: string, records: ProviderUsage[]) => (
-    (await usageResetNoticeActions(provider, status(records))).map(action => `${action.actionId}=${action.value}`)
+    (await usageResetNoticeActions(provider, undefined, status(records))).map(action => `${action.actionId}=${action.value}`)
   );
   assert.deepEqual(await ids('openai-codex', [CODEX_WITH_RESETS]), ['cmd:usage:reset=openai-codex']);
   assert.deepEqual(await ids('anthropic', [CLAUDE_WITH_RESETS]), ['cmd:usage:reset=anthropic']);
   assert.deepEqual(await ids('openai-codex', [COMMAND_USAGE[1]]), []);
   assert.deepEqual(await ids('anthropic', [CODEX_WITH_RESETS]), []);
   assert.deepEqual(await ids('deepseek', [CODEX_WITH_RESETS, CLAUDE_WITH_RESETS]), []);
+});
+
+const CLAUDE_TWO_KINDS: ProviderUsage = {
+  ...COMMAND_USAGE[0],
+  windows: [...COMMAND_USAGE[0].windows, { type: 'seven_day_overage_included', label: 'Fable', utilization: 0.12, resetsAt: null }],
+  resetCredits: {
+    availableCount: 3,
+    atLimit: true,
+    nextCreditId: 'full-1',
+    credits: [
+      { id: 'full-1', title: 'Full', expiresAt: 1_800_400_000, clears: ['five_hour', 'seven_day', 'seven_day_overage_included'] },
+      { id: 'fable-1', title: 'Fable', expiresAt: 1_800_900_000, clears: ['five_hour', 'seven_day_overage_included'], count: 2 },
+    ],
+  },
+};
+
+test('!usage lists each kind of Claude reset with its own button', async () => {
+  const { adapter, dispatchCommand } = usageDispatcher([CLAUDE_TWO_KINDS], notReached);
+  dispatchCommand('!usage', 'C-usage', adapter);
+  await new Promise(resolve => setImmediate(resolve));
+  const post = adapter.posted[0].content;
+  assert.match(post.text, /• Full reset: 1 · earliest expires 2027-01-19T/);
+  assert.match(post.text, /• Fable reset: 2 · earliest expires 2027-01-25T/);
+  assert.doesNotMatch(post.text, /Banked resets/);
+  assert.deepEqual(actionButtons(post), [
+    'cmd:usage:refresh=', 'cmd:usage:reset=anthropic:full-1', 'cmd:usage:reset=anthropic:fable-1',
+  ]);
+});
+
+test('a kind button confirms that kind\'s windows and spends a credit of that kind', async () => {
+  const calls: unknown[][] = [];
+  const { adapter } = usageDispatcher([CLAUDE_TWO_KINDS], async (...args) => {
+    calls.push(args);
+    return { provider: 'anthropic', status: 'reset', cleared: [], usage: [CLAUDE_TWO_KINDS] };
+  });
+  await adapter.simulateAction('cmd:usage:reset', 'anthropic:fable-1', { channelId: 'C-usage' });
+  assert.match(adapter.posted[0].content.text, /clears the 5 hour, 7 day \(Fable\) limits/);
+  assert.deepEqual(adapter.posted[0].actions?.map(action => action.value), ['anthropic:fable-1', 'anthropic:fable-1']);
+
+  const promptRef = { conduit: 'C-usage', messageId: 'prompt-1' };
+  await adapter.simulateAction('cmd:usage:reset-confirm', 'anthropic:fable-1', { channelId: 'C-usage', messageRef: promptRef });
+  assert.deepEqual(calls, [['anthropic', 'fable-1']]);
+});
+
+test('a throttle notice offers only the kinds of reset that lift the limited window', async () => {
+  const status = { getStatus: async () => [CLAUDE_TWO_KINDS] };
+  const ids = async (windowType: string) => (
+    (await usageResetNoticeActions('anthropic', windowType, status)).map(action => action.value)
+  );
+  assert.deepEqual(await ids('seven_day'), ['anthropic:full-1']);
+  assert.deepEqual(await ids('seven_day_overage_included'), ['anthropic:full-1', 'anthropic:fable-1']);
+  assert.deepEqual(await ids('five_hour'), ['anthropic:full-1', 'anthropic:fable-1']);
 });
 
 // ── !budget: global + per-project forms ────────────────────────────

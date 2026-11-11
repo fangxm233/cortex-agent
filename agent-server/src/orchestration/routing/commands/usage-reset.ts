@@ -4,11 +4,14 @@ import { redeemUsageReset, type UsageResetResult } from '@domain/costs/account-r
 import {
   isResetProvider, RESET_PROVIDERS, type ResetProvider, type ResetStatus,
 } from '@domain/costs/reset-account.js';
+import { kindsClearing, resetCreditKinds, type ResetCreditKind } from '@domain/costs/reset-kinds.js';
 import { usageService } from '@domain/costs/usage-service.js';
-import { nextResetCredit, type ProviderUsage } from '@domain/costs/usage-store.js';
+import { nextResetCredit, type ProviderUsage, type UsageResetCredit } from '@domain/costs/usage-store.js';
 import type { ActionBinding, CommandActionRouter } from '@orch/interactions/command-action-router.js';
 import type { ActionContext, ActionElement } from '@platform/index.js';
-import { filteredRecords, formatPercent, formatUsageReport, windowLabel } from './usage-format.js';
+import {
+  clearedWindowLabel, filteredRecords, formatPercent, formatUsageReport, resetKindName, windowLabel,
+} from './usage-format.js';
 
 export type UsageResetRedeemer = (provider: ResetProvider, creditId?: string) => Promise<UsageResetResult>;
 
@@ -49,6 +52,27 @@ function hasResets(records: ProviderUsage[], provider: ResetProvider): boolean {
   return (resetRow(records, provider)?.resetCredits?.availableCount ?? 0) > 0;
 }
 
+function rowKinds(row: ProviderUsage | undefined): ResetCreditKind[] {
+  return row?.resetCredits ? resetCreditKinds(row.resetCredits) : [];
+}
+
+/** A reset action's value: the provider, then the credit to spend when the account holds more
+ *  than one kind of reset (credit ids never contain `:`). */
+interface ResetTarget {
+  provider: ResetProvider;
+  creditId?: string;
+}
+
+function targetValue(target: ResetTarget): string {
+  return target.creditId ? `${target.provider}:${target.creditId}` : target.provider;
+}
+
+function parseTarget(value: string): ResetTarget | null {
+  const [provider, creditId] = value.split(':', 2);
+  if (!isResetProvider(provider)) return null;
+  return creditId ? { provider, creditId } : { provider };
+}
+
 export function usageResetButton(provider: ResetProvider): ActionElement {
   return {
     type: 'button',
@@ -58,26 +82,48 @@ export function usageResetButton(provider: ResetProvider): ActionElement {
   };
 }
 
-/** One reset button per provider in the shown rows whose account holds a reset to spend. */
+function kindButton(provider: ResetProvider, row: ProviderUsage | undefined, kind: ResetCreditKind): ActionElement {
+  const name = resetKindName(row, kind.clears);
+  if (!name || !kind.credit) return usageResetButton(provider);
+  return {
+    type: 'button',
+    text: t('cmd.usage.resetKindButton', { kind: name, name: RESET_NAMES[provider] }),
+    actionId: USAGE_RESET_ACTION_ID,
+    value: targetValue({ provider, creditId: kind.credit.id }),
+  };
+}
+
+/** One button per offered kind while the account holds several kinds, else one plain button. */
+function resetButtonsFor(provider: ResetProvider, row: ProviderUsage | undefined, windowType?: string): ActionElement[] {
+  const kinds = rowKinds(row);
+  if (kinds.length <= 1) return [usageResetButton(provider)];
+  return kindsClearing(kinds, windowType).map((kind) => kindButton(provider, row, kind));
+}
+
+/** Reset buttons for each provider in the shown rows whose account holds a reset to spend. */
 export function usageResetButtons(records: ProviderUsage[], provider?: string): ActionElement[] {
   const shown = filteredRecords(records, provider);
   return RESET_PROVIDERS
     .filter((candidate) => hasResets(shown, candidate))
-    .map(usageResetButton);
+    .flatMap((candidate) => resetButtonsFor(candidate, resetRow(shown, candidate)));
 }
 
-/** A throttle notice's extra button, offered while the throttled account is known to hold a reset. */
+/** A throttle notice's extra buttons, offered while the throttled account is known to hold a
+ *  reset: only the kinds that lift the limited window. */
 export async function usageResetNoticeActions(
   provider: string,
+  windowType?: string,
   service: UsageStatusReader = usageService,
 ): Promise<ActionElement[]> {
   if (!isResetProvider(provider)) return [];
-  return hasResets(await service.getStatus(), provider) ? [usageResetButton(provider)] : [];
+  const records = await service.getStatus();
+  return hasResets(records, provider) ? resetButtonsFor(provider, resetRow(records, provider), windowType) : [];
 }
 
-function clearedWindows(row: ProviderUsage | undefined): string[] {
-  const credit = row?.resetCredits ? nextResetCredit(row.resetCredits) : null;
-  return credit?.clears ?? [];
+function chosenCredit(row: ProviderUsage | undefined, creditId?: string): UsageResetCredit | null {
+  const credits = row?.resetCredits;
+  if (!credits) return null;
+  return credits.credits.find((credit) => credit.id === creditId) ?? nextResetCredit(credits);
 }
 
 /** Current use of the windows the reset clears, for a confirm sent while not at a limit. */
@@ -89,10 +135,10 @@ function notAtLimitLine(row: ProviderUsage, clears: string[]): string {
   return t('cmd.usage.resetNotAtLimit', { usage: usage || t('cmd.usage.unavailable') });
 }
 
-export function usageResetConfirmText(provider: ResetProvider, records: ProviderUsage[]): string {
+export function usageResetConfirmText(provider: ResetProvider, records: ProviderUsage[], creditId?: string): string {
   const row = resetRow(records, provider);
-  const clears = clearedWindows(row);
-  const windows = clears.map((type) => windowLabel({ type })).join(', ') || t('cmd.usage.resetAllWindows');
+  const clears = chosenCredit(row, creditId)?.clears ?? [];
+  const windows = clears.map((type) => clearedWindowLabel(row, type)).join(', ') || t('cmd.usage.resetAllWindows');
   const lines = [t(CONFIRM_KEYS[provider], { windows })];
   if (row?.resetCredits?.atLimit === false) lines.push(notAtLimitLine(row, clears));
   return lines.join('\n');
@@ -105,12 +151,13 @@ async function postResetConfirm(
   ctx: ActionContext,
 ): Promise<void> {
   const adapter = router.getAdapter();
-  if (!adapter || !isResetProvider(ctx.value)) return;
+  const target = parseTarget(ctx.value);
+  if (!adapter || !target) return;
   const anchor = ctx.messageRef?.threadId ?? ctx.messageRef?.messageId;
   await adapter.postInteractive(
     { type: 'interactive-reply', conduit: ctx.messageRef?.conduit ?? ctx.channelId, sessionId: '' },
     {
-      text: usageResetConfirmText(ctx.value, await service.getStatus()),
+      text: usageResetConfirmText(target.provider, await service.getStatus(), target.creditId),
       actions: [
         { type: 'button', text: t('cmd.usage.resetConfirmButton'), actionId: 'cmd:usage:reset-confirm', value: ctx.value, style: 'danger' },
         { type: 'button', text: t('cmd.usage.resetCancelButton'), actionId: 'cmd:usage:reset-cancel', value: ctx.value },
@@ -120,10 +167,12 @@ async function postResetConfirm(
   );
 }
 
-export async function usageResetOutcomeText(provider: ResetProvider, redeem: UsageResetRedeemer): Promise<string> {
+export async function usageResetOutcomeText(
+  provider: ResetProvider, redeem: UsageResetRedeemer, creditId?: string,
+): Promise<string> {
   const name = RESET_NAMES[provider];
   try {
-    const result = await redeem(provider);
+    const result = await redeem(provider, creditId);
     const line = t(RESET_STATUS_KEYS[result.status], { name });
     const row = result.status === 'reset' ? resetRow(result.usage, provider) : undefined;
     return row ? `${line}\n\n${formatUsageReport([row])}` : line;
@@ -141,10 +190,11 @@ async function settlePrompt(router: CommandActionRouter, ctx: ActionContext, tex
 
 /** Step two: the buttons go first, so a second click finds nothing to press. */
 async function runReset(router: CommandActionRouter, redeem: UsageResetRedeemer, ctx: ActionContext): Promise<void> {
-  if (!isResetProvider(ctx.value)) return;
-  const name = RESET_NAMES[ctx.value];
+  const target = parseTarget(ctx.value);
+  if (!target) return;
+  const name = RESET_NAMES[target.provider];
   await settlePrompt(router, ctx, t('cmd.usage.resetRunning', { name }));
-  await settlePrompt(router, ctx, await usageResetOutcomeText(ctx.value, redeem));
+  await settlePrompt(router, ctx, await usageResetOutcomeText(target.provider, redeem, target.creditId));
 }
 
 export function usageResetActions(

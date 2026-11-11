@@ -24,27 +24,29 @@ export interface UsagePolicyDraft {
 
 /** Spending a banked usage reset: always an explicit, confirmed user action. */
 export interface UsageResetState {
-  /** Spends a reset of the provider's default login, or of the named account `connection`. */
-  redeem: (provider: ResetProvider, connection: string | null) => void;
-  /** The account of the running or last attempt in this view. */
+  /** Spends a reset of the provider's default login, or of the named account `connection`: the
+   *  given credit, else the one the server picks. */
+  redeem: (provider: ResetProvider, connection: string | null, creditId?: string | null) => void;
+  /** The account and credit of the running or last attempt in this view. */
   provider: ResetProvider | null;
   connection: string | null;
+  creditId: string | null;
   isRedeeming: boolean;
   /** Outcome of the last attempt in this view. */
   status: ResetStatus | null;
   error: { message: string } | null;
 }
 
-export type UsageResetAttempt = Pick<UsageResetState, 'isRedeeming' | 'status' | 'error'>;
+export type UsageResetAttempt = Pick<UsageResetState, 'isRedeeming' | 'creditId' | 'status' | 'error'>;
 
 /** The running or last attempt, as seen from one provider's card. */
 export function resetAttemptFor(
   reset: UsageResetState, provider: ResetProvider | null, connection: string | null = null,
 ): UsageResetAttempt {
   if (provider === null || reset.provider !== provider || reset.connection !== connection) {
-    return { isRedeeming: false, status: null, error: null };
+    return { isRedeeming: false, creditId: null, status: null, error: null };
   }
-  return { isRedeeming: reset.isRedeeming, status: reset.status, error: reset.error };
+  return { isRedeeming: reset.isRedeeming, creditId: reset.creditId, status: reset.status, error: reset.error };
 }
 
 export interface UsageFeatureState {
@@ -278,9 +280,12 @@ function useUsageReset(
     onSuccess: (data: SystemRedeemUsageResetReturn) => queryClient.setQueryData(statusKey, data.usage),
   }));
   return {
-    redeem: (provider, connection) => mutation.mutate({ provider, ...(connection ? { connection } : {}) }),
+    redeem: (provider, connection, creditId) => mutation.mutate({
+      provider, ...(connection ? { connection } : {}), ...(creditId ? { creditId } : {}),
+    }),
     provider: mutation.variables?.provider ?? null,
     connection: mutation.variables?.connection ?? null,
+    creditId: mutation.variables?.creditId ?? null,
     isRedeeming: mutation.isPending,
     status: mutation.data?.status ?? null,
     error: mutation.isError ? mutation.error : null,

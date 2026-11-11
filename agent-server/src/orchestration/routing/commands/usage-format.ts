@@ -1,5 +1,6 @@
 import { t } from '@core/i18n.js';
 import type { MessageKey } from '@core/locales/en.js';
+import { isFullResetKind, resetCreditKinds, type ResetCreditKind } from '@domain/costs/reset-kinds.js';
 import type { ProviderUsage, UsageFreshness, UsageWindow } from '@domain/costs/usage-store.js';
 
 const WINDOW_LABEL_KEYS = {
@@ -61,11 +62,42 @@ function earliestExpiry(record: ProviderUsage): number | null {
   return expiries.length > 0 ? Math.min(...expiries) : null;
 }
 
-function formatResetCredits(record: ProviderUsage): string | null {
-  if (!record.resetCredits) return null;
-  const earliest = earliestExpiry(record);
-  const expiry = earliest === null ? '' : t('cmd.usage.resetExpirySuffix', { time: formatEpoch(earliest) });
-  return t('cmd.usage.resetCreditsLine', { count: record.resetCredits.availableCount, expiry });
+function expirySuffix(expiresAt: number | null): string {
+  return expiresAt === null ? '' : t('cmd.usage.resetExpirySuffix', { time: formatEpoch(expiresAt) });
+}
+
+/** A window a reset clears, named after the row's own window of that type (e.g. `7 day (Fable)`). */
+export function clearedWindowLabel(record: ProviderUsage | undefined, type: string): string {
+  const labeled = record?.windows.find((window) => window.type === type && window.label);
+  return windowLabel(labeled ?? { type });
+}
+
+/** A reset kind's name: full, or the model whose weekly it clears. Null when the provider names no
+ *  windows, so every reset of the account is alike. */
+export function resetKindName(record: ProviderUsage | undefined, clears: string[]): string | null {
+  if (clears.length === 0) return null;
+  if (isFullResetKind({ clears })) return t('cmd.usage.resetKindFull');
+  const model = record?.windows.find((window) => clears.includes(window.type) && window.label)?.label;
+  const name = model ?? clears.map((type) => clearedWindowLabel(record, type)).join(', ');
+  return t('cmd.usage.resetKindModel', { model: name });
+}
+
+function formatResetKind(record: ProviderUsage, kind: ResetCreditKind): string {
+  const name = resetKindName(record, kind.clears);
+  const expiry = expirySuffix(kind.expiresAt);
+  return name === null
+    ? t('cmd.usage.resetCreditsLine', { count: kind.count, expiry })
+    : t('cmd.usage.resetKindLine', { kind: name, count: kind.count, expiry });
+}
+
+/** One line per reset kind; one count line when the provider does not tell kinds apart. */
+function formatResetCredits(record: ProviderUsage): string[] {
+  if (!record.resetCredits) return [];
+  const kinds = resetCreditKinds(record.resetCredits);
+  if (kinds.every((kind) => kind.clears.length === 0)) {
+    return [t('cmd.usage.resetCreditsLine', { count: record.resetCredits.availableCount, expiry: expirySuffix(earliestExpiry(record)) })];
+  }
+  return kinds.map((kind) => formatResetKind(record, kind));
 }
 
 function formatProvider(record: ProviderUsage): string[] {
@@ -75,8 +107,7 @@ function formatProvider(record: ProviderUsage): string[] {
     freshness: t(FRESHNESS_KEYS[record.freshness]),
   })];
   lines.push(...record.windows.map(formatWindow));
-  const resets = formatResetCredits(record);
-  if (resets) lines.push(resets);
+  lines.push(...formatResetCredits(record));
   const spend = formatSpend(record);
   if (spend) lines.push(spend);
   if (record.observedAt !== null) lines.push(t('cmd.usage.observedLine', { time: formatEpoch(record.observedAt) }));
