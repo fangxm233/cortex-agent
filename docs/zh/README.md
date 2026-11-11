@@ -242,4 +242,4 @@ pnpm --filter @cortex-agent/server test
 
 ## 许可证
 
-[MIT](https://github.com/fangxm233/cortex-agent/blob/main/LICENSE)
+[Apache 2.0](https://github.com/fangxm233/cortex-agent/blob/main/LICENSE)

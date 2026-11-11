@@ -316,4 +316,4 @@ a Rust toolchain. The server is organized in six layers, from core utilities to 
 
 ## License
 
-[MIT](https://github.com/fangxm233/cortex-agent/blob/main/LICENSE)
+[Apache 2.0](https://github.com/fangxm233/cortex-agent/blob/main/LICENSE)

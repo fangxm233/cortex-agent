@@ -2,7 +2,7 @@
   "name": "@cortex-agent/client",
   "version": "2026.10.15",
   "type": "module",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "description": "Cortex remote agent client — receives commands from @cortex-agent/server via WebSocket",
   "main": "dist/client.mjs",
   "bin": {
