@@ -242,4 +242,4 @@ pnpm --filter @cortex-agent/server test
 
 ## 许可证
 
-[Apache 2.0](https://github.com/fangxm233/cortex-agent/blob/main/LICENSE)
+Cortex 采用 [Cortex Non-Commercial License](https://github.com/fangxm233/cortex-agent/blob/main/LICENSE)：在 Apache License 2.0 条款之上附加非商用条件。任何人都可以免费下载、修改、分享，并用于个人学习、教学和学术研究；任何商业用途（包括在营利性公司内部使用）都需要另向作者取得授权。

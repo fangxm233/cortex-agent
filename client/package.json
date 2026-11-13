@@ -2,7 +2,7 @@
   "name": "@cortex-agent/client",
   "version": "2026.10.15",
   "type": "module",
-  "license": "Apache-2.0",
+  "license": "SEE LICENSE IN LICENSE",
   "description": "Cortex remote agent client — receives commands from @cortex-agent/server via WebSocket",
   "main": "dist/client.mjs",
   "bin": {
@@ -19,7 +19,7 @@
     "access": "public"
   },
   "scripts": {
-    "prepare": "cp ../README.md . && npm run build && npm run bundle",
+    "prepare": "cp ../README.md ../LICENSE . && npm run build && npm run bundle",
     "start": "node dist/client.mjs",
     "build": "tsc",
     "bundle": "node scripts/bundle.js",

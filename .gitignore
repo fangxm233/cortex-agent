@@ -53,9 +53,10 @@ client/cortex-agent-client-*.tgz
 # The workspace installs from pnpm-lock.yaml, and npm never ships a package's lockfile
 agent-server/package-lock.json
 client/package-lock.json
-# Each package's prepare script copies the root README in for its npm tarball
+# Each package's prepare script copies the root README (and LICENSE, for client) in for its npm tarball
 agent-server/README.md
 client/README.md
+client/LICENSE
 
 # Machine-specific (generated per host)
 AGENTS.local.md

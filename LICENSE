@@ -1,3 +1,56 @@
+                     Cortex Non-Commercial License
+
+Copyright 2026 fangxm233
+
+Cortex (the "Software") is licensed under the Apache License, Version 2.0,
+reproduced in full below, subject to the Non-Commercial Condition that
+follows. Where the two conflict, the Non-Commercial Condition controls. These
+combined terms are not the Apache License and are not endorsed by the Apache
+Software Foundation.
+
+NON-COMMERCIAL CONDITION
+
+1. Permitted use. Anyone may download, use, copy, modify, and share the
+   Software free of charge for Non-Commercial Purposes. A "Non-Commercial
+   Purpose" is any purpose that is not a Commercial Purpose, including
+   personal study, education, and academic research.
+
+2. Commercial use prohibited. Notwithstanding anything in the Apache License,
+   the rights granted under it do not include, and you are not granted, the
+   right to use, copy, modify, distribute, or sublicense the Software or any
+   Derivative Work of it for any Commercial Purpose. A "Commercial Purpose" is
+   any purpose intended for or directed toward commercial advantage or
+   monetary compensation, including without limitation:
+
+   (a) selling, licensing, renting, or otherwise charging for the Software or
+       a Derivative Work, or for hosting, support, warranty, or consulting
+       services related to it;
+   (b) offering the Software or its functionality as part of a paid product
+       or service, including hosted and software-as-a-service offerings;
+   (c) incorporating the Software into, or using it to develop, any
+       commercial product or service; and
+   (d) using the Software in the business operations of a for-profit entity
+       or in work performed for a fee.
+
+3. Sharing. The Software and Derivative Works may be distributed only free of
+   charge and only under these same terms. Every copy must include this
+   Non-Commercial Condition together with the Apache License text below. You
+   may not remove this Condition or license the Software or any Derivative
+   Work under terms that permit Commercial Purposes.
+
+4. Termination. Any use of the Software or a Derivative Work for a Commercial
+   Purpose automatically terminates all rights granted to you under these
+   terms.
+
+5. Commercial licensing. Commercial use requires a separate written license
+   from the copyright holder. Requests can be made through
+   https://github.com/fangxm233/cortex-agent.
+
+Capitalized terms not defined above have the meanings given in the Apache
+License.
+
+--------------------------------------------------------------------------------
+
 
                                  Apache License
                            Version 2.0, January 2004

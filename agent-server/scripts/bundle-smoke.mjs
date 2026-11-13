@@ -58,7 +58,7 @@ await check('Release manifest, entry points and license notices', () => {
   assert(!pkg.private && !pkg.devDependencies && typeof pkg.engines.node === 'string');
   assert.equal(Object.keys(pkg.bin).length, 5);
   for (const rel of [pkg.main, ...Object.values(pkg.bin), 'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.txt']) assert(fs.statSync(path.join(root, rel)).size > 0);
-  assert(fs.readFileSync(path.join(root, 'LICENSE'), 'utf8').includes('Apache License'));
+  assert(fs.readFileSync(path.join(root, 'LICENSE'), 'utf8').includes('Cortex Non-Commercial License'));
   assert(fs.readFileSync(path.join(root, 'THIRD_PARTY_NOTICES.txt'), 'utf8').includes('@earendil-works/pi-coding-agent'));
   assert(pkg.scripts.postinstall.includes('bundle-prune-browser.mjs') && pkg.scripts.postinstall.includes('postinstall-restart-trigger.mjs'));
   assert(!pkg.scripts.postinstall.includes('install-bundled-dependencies'));

@@ -10,7 +10,7 @@ keeps every result in plain files that outlast any session, and asks you only wh
 [![Release](https://img.shields.io/github/v/release/fangxm233/cortex-agent?filter=server-v*&label=release)](https://github.com/fangxm233/cortex-agent/releases)
 [![npm](https://img.shields.io/npm/v/@cortex-agent/server?label=npm)](https://www.npmjs.com/package/@cortex-agent/server)
 [![Docs](https://img.shields.io/badge/docs-fangxm233.github.io-4f46e5)](https://fangxm233.github.io/cortex-agent/)
-[![License](https://img.shields.io/github/license/fangxm233/cortex-agent)](https://github.com/fangxm233/cortex-agent/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/license-non--commercial-orange)](https://github.com/fangxm233/cortex-agent/blob/main/LICENSE)
 
 [Download](#download) · [Docs](https://fangxm233.github.io/cortex-agent/) · [中文](https://github.com/fangxm233/cortex-agent/blob/main/docs/zh/README.md)
 
@@ -316,4 +316,7 @@ a Rust toolchain. The server is organized in six layers, from core utilities to 
 
 ## License
 
-[Apache 2.0](https://github.com/fangxm233/cortex-agent/blob/main/LICENSE)
+Cortex is released under the [Cortex Non-Commercial License](https://github.com/fangxm233/cortex-agent/blob/main/LICENSE): the Apache License 2.0 terms
+with an added non-commercial condition. Anyone may download, modify, and share it and use it for
+personal study, education, and academic research free of charge. Any commercial use, including use
+inside a for-profit company, requires a separate license from the author.
