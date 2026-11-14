@@ -83,6 +83,19 @@ describe('cacheRefreshLaunch', () => {
     assert.ok(fork.transcriptPath.endsWith(`${SID}.jsonl`));
   });
 
+  test('carries no daemon webhook credential, so a tool the fork reaches for changes no Cortex state', () => {
+    const saved = process.env.CORTEX_WEBHOOK_TOKEN;
+    process.env.CORTEX_WEBHOOK_TOKEN = 'secret';
+    try {
+      const spec = engineSpecFixture({ sessionId: SID, resume: true, channel: 'web:abc', isUserInitiated: true });
+      assert.equal(claudeProcessLaunch({ ...launchFromSpec(spec), needsResume: true }).env.CORTEX_WEBHOOK_TOKEN, 'secret');
+      assert.equal('CORTEX_WEBHOOK_TOKEN' in cacheRefreshLaunch(spec).env, false);
+    } finally {
+      if (saved === undefined) delete process.env.CORTEX_WEBHOOK_TOKEN;
+      else process.env.CORTEX_WEBHOOK_TOKEN = saved;
+    }
+  });
+
   test('needs a backend session', () => {
     assert.throws(() => cacheRefreshLaunch(engineSpecFixture({ sessionId: null })), /backend session/);
   });

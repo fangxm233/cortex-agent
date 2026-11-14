@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import type { Readable, Writable } from 'node:stream';
+import { WEBHOOK_TOKEN_ENV } from '@core/auth.js';
 import type { EngineSpec } from '../types.js';
 import { claudeProcessLaunch, launchFromSpec } from './session-options.js';
 import { computeTranscriptPath, readRestoredSessionCost } from './transcript-path.js';
@@ -9,7 +10,7 @@ import { computeTranscriptPath, readRestoredSessionCost } from './transcript-pat
 // cache is read (which restarts its clock) without the session's own transcript changing. The fork
 // resumes the transcript, sends one short message, persists nothing, and is gone after its result.
 
-export const CACHE_REFRESH_PROMPT = '[Cortex cache refresh] Reply with exactly: ok';
+export const CACHE_REFRESH_PROMPT = '[Cortex cache refresh] Not a task. Do not call any tools. Reply with exactly: ok';
 export const CACHE_REFRESH_TIMEOUT_MS = 90_000;
 /** How long a fork may take to exit once its stdin closes, before it is killed. */
 const EXIT_GRACE_MS = 10_000;
@@ -73,8 +74,10 @@ export function forkRefreshArgs(args: readonly string[], sessionId: string): str
 
 /**
  * The fork's command line: the launch the session's next turn would spawn, resumed, without
- * hooks. Hooks run Cortex scripts against the session's identity and add nothing to the cached
- * prefix, which is the system prompt, the tools and the transcript.
+ * hooks and without the daemon's webhook token. Hooks run Cortex scripts against the session's
+ * identity and add nothing to the cached prefix, which is the system prompt, the tools and the
+ * transcript. `--max-turns 1` still runs a tool the reply reaches for, so the fork must hold no
+ * credential: a worker fork once called `mark_routine` and hid its session's next report.
  */
 export function cacheRefreshLaunch(spec: EngineSpec): CacheRefreshLaunch {
   const sessionId = spec.resume.backendSessionId;
@@ -84,6 +87,7 @@ export function cacheRefreshLaunch(spec: EngineSpec): CacheRefreshLaunch {
   const { args, env } = claudeProcessLaunch({
     channel: launch.channel, sessionId, needsResume: true, options,
   });
+  delete env[WEBHOOK_TOKEN_ENV];
   return {
     command: options.cliPath ?? 'claude',
     args: forkRefreshArgs(args, sessionId),

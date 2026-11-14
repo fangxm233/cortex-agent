@@ -144,7 +144,11 @@ function world(): World {
     // tests below decide "running" explicitly.
     describeTeam: (id) => describeTeam(id, { ...viewDeps, now: () => Number.MAX_SAFE_INTEGER }, listWorkers),
     held: () => w.held,
-    markRoutine: (id: string) => { w.routine.push(id); },
+    markRoutine: (id: string) => {
+      if (!w.running.has(id)) return false;
+      w.routine.push(id);
+      return true;
+    },
     now: () => 1000,
   };
   return w;
@@ -474,9 +478,19 @@ test('spawn and send say so while the server is about to restart, creating and d
   assert.equal(w.delivered.length, 1);
 });
 
+test('mark_routine outside a live turn marks nothing, so no later report is hidden', async () => {
+  const w = world();
+  await call(w, { action: 'spawn', name: 'alpha', prompt: 'p' });
+  const idle = await handleTeamWebhook({ action: 'routine', sessionId: 'w1' }, w.deps);
+  assert.equal(idle.success, false);
+  assert.match(idle.error!, /no turn in progress/);
+  assert.deepEqual(w.routine, []);
+});
+
 test('mark_routine is the one action a worker may call, and only a worker', async () => {
   const w = world();
   await call(w, { action: 'spawn', name: 'alpha', prompt: 'p' });
+  w.running.add('w1');
   const marked = await handleTeamWebhook({ action: 'routine', sessionId: 'w1' }, w.deps);
   assert.equal(marked.success, true);
   assert.match((marked.data as any).text, /does not wake it/);

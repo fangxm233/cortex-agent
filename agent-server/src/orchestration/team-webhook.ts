@@ -67,8 +67,9 @@ export interface TeamWebhookDeps {
   describeTeam: (leadSessionId: string) => Promise<WorkerView[]>;
   /** True while the server refuses new turns ahead of a restart. */
   held: () => boolean;
-  /** Mark the worker's current turn routine. */
-  markRoutine: (workerId: string) => void;
+  /** Mark the worker's current turn routine. False when it has no live turn: a mark made then
+   *  would attach to whichever turn ends next (a keep-warm fork once did this). */
+  markRoutine: (workerId: string) => boolean;
   now: () => number;
 }
 
@@ -104,7 +105,12 @@ const defaultDeps: TeamWebhookDeps = {
   ),
   describeTeam: (leadSessionId) => describeTeam(leadSessionId),
   held: () => isRebuildHeld(),
-  markRoutine: (workerId) => markTurnRoutine(workerId, sessionState(workerId).executionId),
+  markRoutine: (workerId) => {
+    const { executionId } = sessionState(workerId);
+    if (!executionId) return false;
+    markTurnRoutine(workerId, executionId);
+    return true;
+  },
   now: () => Date.now(),
 };
 
@@ -346,7 +352,7 @@ async function routine(data: Record<string, any>, deps: TeamWebhookDeps): Promis
   const sessionId = str(data.sessionId);
   const worker = sessionId ? await deps.sessions.getById(sessionId) : null;
   if (!isTeamWorker(worker)) throw new TeamError('mark_routine is only available to a team worker');
-  deps.markRoutine(worker!.sessionId);
+  if (!deps.markRoutine(worker!.sessionId)) throw new TeamError('no turn in progress: nothing was marked');
   return ok('Marked routine: your final reply this turn is recorded for the lead as a routine update '
     + 'and does not wake it. Keep that reply to one or two lines.');
 }
