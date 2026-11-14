@@ -18,7 +18,9 @@ import { DeskAskCard, DeskPlanCard } from '@/features/session/interaction/Intera
 import { DecisionList } from '@/features/session/interaction/DecisionRows';
 import type { DecisionItem } from '@cortex-agent/ui-contract';
 import { PlanReadOverlay } from '@/features/session/interaction/PlanReadOverlay';
-import { rewindStats, regenNoteIndexes, messageTimeLabel, assistantTurnCopyTargets, liveToolsIndex, systemOriginDisplay, systemOriginLabel } from './transcript-vm';
+import { rewindStats, regenNoteIndexes, messageTimeLabel, assistantTurnTargets, liveToolsIndex, systemOriginDisplay, systemOriginLabel, type TurnTarget } from './transcript-vm';
+import { TurnActions } from './TurnActions';
+import { QuotedMessageText } from './QuotedMessageText';
 import { useRevealedText } from './useRevealedText';
 import { useNarrationHandoff } from './narration-handoff';
 import { useEntryAnimation } from '@/design/Collapse';
@@ -156,7 +158,7 @@ function UserBubble({ text, attachments, ts, edited, actions = false, onStartEdi
               minWidth: 0,
             }}
           >
-            {text}
+            <QuotedMessageText text={text} />
           </div>
         </div>
       )}
@@ -194,20 +196,7 @@ function UserBubble({ text, attachments, ts, edited, actions = false, onStartEdi
   );
 }
 
-function TurnCopyAction({ text }: { text?: string }): JSX.Element | null {
-  if (!text) return null;
-  return (
-    <div
-      data-assistant-turn-copy="true"
-      className="pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100"
-      style={{ height: 26, marginTop: 4, display: 'flex', alignItems: 'center' }}
-    >
-      <MessageActions text={text} />
-    </div>
-  );
-}
-
-function AssistantBlock({ text, attachments, decisions, copyText, regen, preview, streamKey, ts, anchor, narration = false }: {
+function AssistantBlock({ text, attachments, decisions, turn, regen, preview, streamKey, ts, anchor, narration = false }: {
   text: string;
   /** Row index published to the DOM, where the jump to an unseen reply lands (see useUnseenJump). */
   anchor?: number;
@@ -217,7 +206,7 @@ function AssistantBlock({ text, attachments, decisions, copyText, regen, preview
   /** Decisions announced with this row (send_decision) — cards hang under the text. */
   decisions?: DecisionItem[];
   /** Present only on the final assistant row in a turn. */
-  copyText?: string;
+  turn?: TurnTarget;
   /** True → the「由编辑重新生成」footnote renders atop this block. */
   regen?: boolean;
   /** True → this is the block being written right now, so its text is revealed at a steady rate. */
@@ -251,7 +240,7 @@ function AssistantBlock({ text, attachments, decisions, copyText, regen, preview
       {shown.trim() && <ChatMediaProvider sessionId={streamKey} ts={ts}><ChatMarkdown text={shown} renderMath wideTables /></ChatMediaProvider>}
       {hasAttachments && <AgentFileGroup attachments={attachments!} />}
       {!!decisions && decisions.length > 0 && <DecisionList decisions={decisions} sessionId={streamKey} />}
-      <TurnCopyAction text={copyText} />
+      <TurnActions turn={turn} />
     </div>
   );
 }
@@ -370,7 +359,7 @@ export function InteractionRowCard({ row, actions }: {
   return <InteractionSummaryRow tone={v.tone} label={v.label} text={v.text} />;
 }
 
-function Row({ row, interactionActions, actions = false, assistantCopyText, onStartEdit, editDisabled, regen, streamKey, anchor, inWork = false, background = false, liveTools = false }: {
+function Row({ row, interactionActions, actions = false, turn, onStartEdit, editDisabled, regen, streamKey, anchor, inWork = false, background = false, liveTools = false }: {
   row: ChatRow;
   /** A tool run that is what the agent is doing right now (see liveToolsIndex). */
   liveTools?: boolean;
@@ -381,7 +370,8 @@ function Row({ row, interactionActions, actions = false, assistantCopyText, onSt
   interactionActions?: InteractionActions;
   /** True → user bubbles carry their copy/edit affordances (off for the rows around an open edit). */
   actions?: boolean;
-  assistantCopyText?: string;
+  /** The turn this row closes: its hover row copies / quotes the reply and shows when it landed. */
+  turn?: TurnTarget;
   onStartEdit?: () => void;
   editDisabled?: boolean;
   regen?: boolean;
@@ -401,7 +391,7 @@ function Row({ row, interactionActions, actions = false, assistantCopyText, onSt
       return (
         <div className="group" data-row={row.kind}>
           {board.row(row)}
-          <TurnCopyAction text={assistantCopyText} />
+          <TurnActions turn={turn} />
         </div>
       );
     case 'team-action':
@@ -411,7 +401,7 @@ function Row({ row, interactionActions, actions = false, assistantCopyText, onSt
       return (
         <div className="group" data-row={row.kind}>
           {team.row(row)}
-          <TurnCopyAction text={assistantCopyText} />
+          <TurnActions turn={turn} />
         </div>
       );
     case 'divider':
@@ -431,7 +421,7 @@ function Row({ row, interactionActions, actions = false, assistantCopyText, onSt
           <div className="group">
             <SystemHintRow origin={row.systemOrigin} text={row.text} ts={row.ts} pending={row.pending} debug={row.debug}
               expandable={systemOriginDisplay(row.systemOrigin) === 'expandable'} />
-            <TurnCopyAction text={assistantCopyText} />
+            <TurnActions turn={turn} />
           </div>
         );
       }
@@ -444,16 +434,16 @@ function Row({ row, interactionActions, actions = false, assistantCopyText, onSt
             sessionId={streamKey}
             live={liveTools}
           />
-          <TurnCopyAction text={assistantCopyText} />
+          <TurnActions turn={turn} />
         </div>
       );
     case 'assistant':
-      return <AssistantBlock text={row.text} attachments={row.attachments} decisions={row.decisions} copyText={assistantCopyText} regen={regen} preview={row.preview} streamKey={streamKey} ts={row.ts} anchor={anchor} narration={inWork} />;
+      return <AssistantBlock text={row.text} attachments={row.attachments} decisions={row.decisions} turn={turn} regen={regen} preview={row.preview} streamKey={streamKey} ts={row.ts} anchor={anchor} narration={inWork} />;
     case 'waitpoint':
       return (
         <div className="group" data-row={row.kind}>
           <WaitpointRow wait={row.wait} />
-          <TurnCopyAction text={assistantCopyText} />
+          <TurnActions turn={turn} />
         </div>
       );
     case 'notice':
@@ -465,14 +455,14 @@ function Row({ row, interactionActions, actions = false, assistantCopyText, onSt
             onNoticeAction={interactionActions?.cancelResume}
             noticeActionDone={interactionActions?.resumeCancelled}
           />
-          <TurnCopyAction text={assistantCopyText} />
+          <TurnActions turn={turn} />
         </div>
       );
     case 'interaction':
       return (
         <div className="group" style={{ display: 'flex', flexDirection: 'column' }}>
           <InteractionRowCard row={row} actions={interactionActions} />
-          <TurnCopyAction text={assistantCopyText} />
+          <TurnActions turn={turn} />
         </div>
       );
     case 'subagent':
@@ -501,7 +491,7 @@ function Row({ row, interactionActions, actions = false, assistantCopyText, onSt
               <ChatRows rows={row.children} interactionActions={interactionActions} streamKey={streamKey} turnCopy={false} />
             )}
           </SubagentBlock>
-          <TurnCopyAction text={assistantCopyText} />
+          <TurnActions turn={turn} />
         </div>
       );
     default:
@@ -542,9 +532,9 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const regenIdx = regenNoteIndexes(rows);
   const items = useMemo(() => (group ? layoutTurns(rows, { live }) : null), [rows, group, live]);
-  const copies = useMemo(() => {
-    if (!turnCopy) return new Map<number, string>();
-    const targets = assistantTurnCopyTargets(rows, { live });
+  const turns = useMemo(() => {
+    if (!turnCopy) return new Map<number, TurnTarget>();
+    const targets = assistantTurnTargets(rows, { live });
     return items ? copyHosts(items, targets, rows) : targets;
   }, [rows, items, turnCopy, live]);
   const liveTools = useMemo(() => liveToolsIndex(rows, live), [rows, live]);
@@ -565,7 +555,7 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
   // reply carries its index for the jump to an unseen one.
   const anchored = (row: ChatRow): boolean => row.kind === 'assistant' || (row.kind === 'user' && !row.systemOrigin);
   const anchorOf = (row: ChatRow, i: number): number | undefined => (anchors && anchored(row) ? i : undefined);
-  const rowEl = (i: number, withActions: boolean, opts: { copyText?: string; inWork?: boolean; background?: boolean } = {}): JSX.Element => {
+  const rowEl = (i: number, withActions: boolean, opts: { turn?: TurnTarget; inWork?: boolean; background?: boolean } = {}): JSX.Element => {
     const row = rows[i];
     return (
       <Row
@@ -573,7 +563,7 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
         row={row}
         interactionActions={interactionActions}
         actions={withActions}
-        assistantCopyText={opts.copyText}
+        turn={opts.turn}
         regen={withActions && regenIdx.has(i)}
         onStartEdit={withActions && edit && row.kind === 'user' && !row.systemOrigin && row.turnIndex !== undefined ? () => setEditingIdx(i) : undefined}
         editDisabled={edit?.running || edit?.busy}
@@ -589,7 +579,7 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
   /** The rows from `from` up to (not including) `to`: laid out as turns when grouping, else flat. */
   const range = (from: number, to: number, withActions: boolean): JSX.Element[] => {
     if (!items) {
-      return rows.slice(from, to).map((_, j) => rowEl(from + j, withActions, { copyText: withActions ? copies.get(from + j) : undefined }));
+      return rows.slice(from, to).map((_, j) => rowEl(from + j, withActions, { turn: withActions ? turns.get(from + j) : undefined }));
     }
     const out: JSX.Element[] = [];
     let prev: TurnItem | undefined;
@@ -599,15 +589,15 @@ export function ChatRows({ rows, interactionActions, edit, streamKey, turnCopy =
       const gap = itemGap(item, prev, rows);
       if (gap) out.push(<div key={`gap-${k}`} aria-hidden="true" style={{ height: gap, flex: 'none' }} />);
       prev = item;
-      const copyText = withActions ? copies.get(k) : undefined;
+      const turn = withActions ? turns.get(k) : undefined;
       if (item.kind === 'row') {
         const row = rows[item.index];
-        out.push(rowEl(item.index, withActions, { copyText, background: item.role === 'pinned' && row.kind === 'subagent' }));
+        out.push(rowEl(item.index, withActions, { turn, background: item.role === 'pinned' && row.kind === 'subagent' }));
         return;
       }
       out.push(
         <div key={item.key} className="group">
-          <WorkLog stats={item.stats} live={item.live} footer={<TurnCopyAction text={copyText} />}>
+          <WorkLog stats={item.stats} live={item.live} footer={<TurnActions turn={turn} />}>
             {item.indexes.map((i) => rowEl(i, withActions, { inWork: true }))}
           </WorkLog>
         </div>,
@@ -771,7 +761,7 @@ export function MessageStream({ rows, loading, fetched = !loading, readMark, int
   return (
     <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflow: 'auto', minHeight: 0, scrollbarGutter: 'stable both-edges' }}>
-        <div ref={contentRef} style={{ width: '100%', maxWidth: COLUMN_W, margin: '0 auto', padding: `${JUMP_MARGIN}px ${GUTTER}px 16px` }}>
+        <div ref={contentRef} data-chat-column="" style={{ width: '100%', maxWidth: COLUMN_W, margin: '0 auto', padding: `${JUMP_MARGIN}px ${GUTTER}px 16px` }}>
           <ChatRows rows={rows} start={win.start} interactionActions={interactionActions} edit={edit} streamKey={streamKey} anchors group live={live} />
           {team?.tail}
           <SessionStateLine running={live} offset={14} />

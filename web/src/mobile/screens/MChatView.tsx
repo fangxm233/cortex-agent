@@ -6,6 +6,7 @@ import { ContextUsageRing } from '@/features/session/composer/ContextUsageContro
 import { TranscriptLoadError } from '@/features/session/transcript/TranscriptLoadError';
 import { useRevealedText } from '@/features/session/transcript/useRevealedText';
 import { UnseenJumpPill } from '@/features/session/transcript/UnseenJumpPill';
+import { QuotedMessageText } from '@/features/session/transcript/QuotedMessageText';
 import { ChatNotice } from '@/features/session/transcript/ChatNotice';
 import { SubagentTranscriptDetail } from '@/features/session/transcript/SubagentTranscriptDetail';
 import { SubagentBlock } from '@/features/session/transcript/SubagentBlock';
@@ -426,7 +427,7 @@ function UserBubbleRow({ row, index, dimmed, ctx }: RowProps<'user'>): JSX.Eleme
           <span data-bubble-label="" style={{ fontSize: 12, fontWeight: 600, color: MC.muted }}>{systemOriginLabel(row.systemOrigin, L)}</span>
         )}
         <div {...(hold ?? {})} data-msg-bubble={hold ? index : undefined} style={userBubbleStyle(row.pending, !!hold, editingRow)}>
-          {row.text}
+          <QuotedMessageText text={row.text} />
         </div>
         {row.unsent && row.pendingId && <UnsentActions pendingId={row.pendingId} fontSize={13} />}
         {edited && <EditedNote onTap={ctx.onShowOriginal ? () => ctx.onShowOriginal!(edited) : undefined} />}

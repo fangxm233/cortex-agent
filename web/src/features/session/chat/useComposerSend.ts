@@ -12,6 +12,7 @@ import type { ModelOption } from '@/features/session/list/selection-menu';
 import type { DraftSelection } from '@/features/session/state/selected-session';
 import { runOptimisticMutation } from '@/features/session/transcript/optimistic-message';
 import type { OptimisticUserMessages } from '@/features/session/transcript/useOptimisticUserMessages';
+import { quoteMessage } from '@/features/session/transcript/message-quote';
 import { useSlashSkills } from '@/features/session/composer/useSlashSkills';
 import { useComposerDraft, type ComposerDraftScope, type ComposerDraftState } from './useComposerDraft';
 
@@ -49,6 +50,8 @@ export interface ComposerSendOptions extends ComposerDraftScope {
   onSlashFeedback: (key: SlashFeedbackKey) => void;
   /** The composer's text was consumed by a send or a command. */
   onConsumed?: () => void;
+  /** A quote the next send carries above its text (see message-quote); `onSent` drops it. */
+  quote?: { text: string; onSent: () => void } | null;
 }
 
 export interface ComposerSend extends ComposerDraftState {
@@ -164,7 +167,7 @@ export function useComposerSend(options: ComposerSendOptions): ComposerSend {
   };
 
   const sendText = (raw: string): void => {
-    const text = raw.trim();
+    const text = quoteMessage(options.quote?.text ?? '', raw.trim());
     const sent = draft.snapshot(text);
     if (!text && sent.attachments.length === 0) return;
     const sentKey = draft.draftKey;
@@ -179,6 +182,7 @@ export function useComposerSend(options: ComposerSendOptions): ComposerSend {
       onRejected: (entry) => options.optimistic.reject(entry.clientId),
     });
     draft.consume();
+    options.quote?.onSent();
     options.onConsumed?.();
     void mutation.then((result) => {
       if (result.ok || !result.restore) return;

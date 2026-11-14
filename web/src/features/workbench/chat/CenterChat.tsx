@@ -24,6 +24,7 @@ import { useTeamContext } from '@/features/team/useTeamContext';
 import { TeamCapsule } from '@/features/team/TeamRoster';
 import { TeamStreamProvider } from '@/features/team/TeamStreamRows';
 import { UnsentActionsProvider } from '@/features/session/transcript/UnsentActionsProvider';
+import { TurnQuoteContext, useTurnQuote } from '@/features/session/transcript/TurnActions';
 
 // CENTER CHAT pane — 1:1 rebuild from prototype.dc.html L103–395 (workspace-chat view). Task aba0
 // (S4 chat) makes the transcript body + composer send REAL, replacing 89e7's GAP-A (static transcript)
@@ -193,6 +194,7 @@ export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
   // The rail's session lists are already scoped to the current project, so a live session's own
   // project and the selected one agree; a draft has only the latter.
   const projectName = active?.projectId ?? currentProjectId ?? null;
+  const turnQuote = useTurnQuote(sessionId);
 
   return (
     <div
@@ -256,6 +258,7 @@ export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
             <BoardStreamProvider>
               <TranscriptStatusProvider backgroundRunning={chat.backgroundRunning} waitpoints={chat.waitpoints.waitpoints}>
                 <UnsentActionsProvider sessionId={sessionId || null}>
+                <TurnQuoteContext.Provider value={sessionId ? turnQuote.onQuote : null}>
                 <MessageStream
                   rows={rows}
                   loading={!!sessionId && chat.transcriptPending}
@@ -266,6 +269,7 @@ export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
                   streamKey={sessionId}
                   live={chat.running && !chat.backgroundRunning}
                 />
+                </TurnQuoteContext.Provider>
                 </UnsentActionsProvider>
               </TranscriptStatusProvider>
             </BoardStreamProvider>
@@ -296,6 +300,8 @@ export function CenterChat({ grow = 1, onOpenSettings, onOpenUsage }: {
           dropTargetRef={chatDropTargetRef}
           onOpenSettings={onOpenSettings}
           onOpenUsage={onOpenUsage}
+          quote={turnQuote.quote}
+          onClearQuote={turnQuote.clear}
           contextControl={(chat.compactAction || chat.contextUsage !== null) ? (
             <ContextUsageControl usage={chat.contextUsage} compactAction={chat.compactAction} />
           ) : undefined}

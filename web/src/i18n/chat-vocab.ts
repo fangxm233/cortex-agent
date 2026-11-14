@@ -283,6 +283,8 @@ export const messageEn = {
   msgUnsent: 'Not sent',
   msgUnsentSend: 'Send',
   msgUnsentEdit: 'Edit',
+  msgQuote: 'Quote',
+  msgQuoteRemove: 'Remove quote',
 };
 export const messageZh: Record<keyof typeof messageEn, string> = {
   msgEdit: '编辑消息',
@@ -304,4 +306,6 @@ export const messageZh: Record<keyof typeof messageEn, string> = {
   msgUnsent: '未发送',
   msgUnsentSend: '发送',
   msgUnsentEdit: '编辑',
+  msgQuote: '引用',
+  msgQuoteRemove: '移除引用',
 };

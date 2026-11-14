@@ -332,8 +332,8 @@ export function flatItems(rows: ChatRow[]): TurnItem[] {
 
 /** The item that hosts each turn's copy action: the last item of the segment holding the copy
  *  target, so the button stays under what the reader sees when the target is folded into work. */
-export function copyHosts(items: TurnItem[], targets: Map<number, string>, rows: ChatRow[]): Map<number, string> {
-  const out = new Map<number, string>();
+export function copyHosts<T>(items: TurnItem[], targets: Map<number, T>, rows: ChatRow[]): Map<number, T> {
+  const out = new Map<number, T>();
   if (targets.size === 0) return out;
   const segmentOf = new Map<number, number>();
   const lastOfSegment = new Map<number, number>();

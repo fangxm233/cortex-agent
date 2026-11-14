@@ -139,33 +139,51 @@ export function regenNoteIndexes(rows: ChatRow[]): Set<number> {
  * read yet (`pending`) belongs to that running turn rather than opening a new one.
  */
 export function assistantTurnCopyTargets(rows: ChatRow[], opts: { live?: boolean } = {}): Map<number, string> {
-  const targets = new Map<number, string>();
+  return new Map([...assistantTurnTargets(rows, opts)].map(([index, turn]) => [index, turn.text]));
+}
+
+/** What a finished turn offers under its last row: the whole reply, and when its last text landed. */
+export interface TurnTarget {
+  text: string;
+  ts?: string;
+}
+
+/** assistantTurnCopyTargets with each turn's reply time — the stamp the turn's action row shows. */
+export function assistantTurnTargets(rows: ChatRow[], opts: { live?: boolean } = {}): Map<number, TurnTarget> {
+  const targets = new Map<number, TurnTarget>();
   let texts: string[] = [];
+  let ts: string | undefined;
   let tailIndex: number | null = null;
   const flush = (): void => {
-    if (tailIndex != null) targets.set(tailIndex, texts.join('\n\n'));
+    if (tailIndex != null) targets.set(tailIndex, { text: texts.join('\n\n'), ...(ts ? { ts } : {}) });
     texts = [];
+    ts = undefined;
     tailIndex = null;
   };
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     if (row.kind === 'user') {
-      if (row.pending) continue;
-      // A lead's message to its worker opens a turn exactly like the human's own.
-      if (!row.systemOrigin || systemOriginDisplay(row.systemOrigin) === 'bubble') {
-        flush();
-        continue;
-      }
+      if (opensTurn(row)) flush();
       // Part of the turn it lands in, and eligible to be its LAST row — the button belongs under
       // the whole reply, hint lines included.
-      if (texts.length > 0) tailIndex = i;
+      else if (!row.pending && texts.length > 0) tailIndex = i;
       continue;
     }
-    if (row.kind === 'assistant' && row.text.length > 0) texts.push(row.text);
+    if (row.kind === 'assistant' && row.text.length > 0) {
+      texts.push(row.text);
+      ts = row.ts ?? ts;
+    }
     if (row.kind !== 'divider' && row.kind !== 'thinking' && texts.length > 0) tailIndex = i;
   }
   if (!opts.live) flush();
   return targets;
+}
+
+/** A human message opens a turn; so does a lead's message to its worker. A message the agent has
+ *  not read yet belongs to the running turn instead. */
+function opensTurn(row: Extract<ChatRow, { kind: 'user' }>): boolean {
+  if (row.pending) return false;
+  return !row.systemOrigin || systemOriginDisplay(row.systemOrigin) === 'bubble';
 }
 
 /** Rows that trail the stream without being what the agent is doing: messages it has not read

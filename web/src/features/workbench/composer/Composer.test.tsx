@@ -404,3 +404,18 @@ describe('Composer command browsing', () => {
     act(() => tree.unmount());
   });
 });
+
+describe('Composer quote', () => {
+  it('shows the quoted reply, sends it above the text as a blockquote, then drops it', () => {
+    harness.send.mockResolvedValue({ accepted: true, acceptedAt: 'now' });
+    harness.send.mockClear();
+    const onClearQuote = vi.fn();
+    const tree = mountComposer(() => {}, { running: false, quote: 'the plan\nstep two', onClearQuote });
+    expect(tree.root.findAllByProps({ 'data-composer-quote': '' })).toHaveLength(1);
+    act(() => tree.root.findByProps({ 'data-composer-input': true }).props.onChange({ target: { value: 'why?' } }));
+    act(() => tree.root.findByProps({ 'data-composer-input': true }).props.onKeyDown({ key: 'Enter', shiftKey: false, preventDefault: vi.fn() }));
+    expect(harness.send.mock.calls[0][0]).toMatchObject({ sessionId: 's1', text: '> the plan\n> step two\n\nwhy?' });
+    expect(onClearQuote).toHaveBeenCalledTimes(1);
+    act(() => tree.unmount());
+  });
+});

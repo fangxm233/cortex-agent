@@ -93,3 +93,10 @@ describe('visibleNavRows', () => {
     expect(visibleNavRows([], 500)).toEqual([]);
   });
 });
+
+describe('buildNavMarks with a quoted reply', () => {
+  it('previews what the human wrote under the quote', () => {
+    const [mark] = buildNavMarks([user('> the agent said this\n\nmy question')]);
+    expect(mark.title).toBe('my question');
+  });
+});

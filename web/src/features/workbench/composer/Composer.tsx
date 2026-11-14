@@ -16,6 +16,7 @@ import { SessionStatsModal } from './SessionStatsModal';
 import { sessionStatsView } from '@/features/session/list/session-stats';
 import { ComposerSendFailure } from './ComposerSendFailure';
 import { ComposerAttachmentChip } from './ComposerAttachmentChip';
+import { ComposerQuoteChip } from './ComposerQuoteChip';
 import { ActivityStrip } from '@/features/session/rail/ActivityStrip';
 import type { SessionWaitpoints } from '@/features/session/live/useSessionWaitpoints';
 import { ComposerActionRow, ComposerSlashMenu } from './ComposerActionRow';
@@ -85,6 +86,9 @@ export interface ComposerProps {
   dropTargetRef: RefObject<HTMLElement>;
   onOpenSettings?: () => void;
   onOpenUsage?: () => void;
+  /** A reply the user chose to quote (see TurnQuoteContext); the next send carries it. */
+  quote?: string | null;
+  onClearQuote?: () => void;
 }
 
 export function Composer({
@@ -113,6 +117,8 @@ export function Composer({
   dropTargetRef,
   onOpenSettings = () => {},
   onOpenUsage = () => {},
+  quote = null,
+  onClearQuote = () => {},
 }: ComposerProps): JSX.Element {
   const L = useVocab();
   const lang = useLang();
@@ -147,6 +153,7 @@ export function Composer({
     },
     onCreated: selectCreatedSession,
     onSendFailed: setSendError,
+    quote: quote ? { text: quote, onSent: onClearQuote } : null,
     onSlashFeedback: setSlashErrorKey,
     onConsumed: () => {
       setSlashOpen(false);
@@ -155,6 +162,8 @@ export function Composer({
     },
   });
   const { text: composer, setText: setComposer, uploads } = composerSend;
+  // Quoting is a step toward replying: the cursor goes where the reply is written.
+  useEffect(() => { if (quote) inputRef.current?.focus(); }, [quote]);
   useEffect(() => { setSlashErrorKey(null); }, [composer, composerSend.identity]);
   const slashSuggestions = slashOpen ? composerSend.slashSuggestions : [];
   // The highlight goes back to the first row whenever the typed text narrows or changes the list.
@@ -317,6 +326,8 @@ export function Composer({
               padding: '12px 12px 10px 16px',
             }}
           >
+            {quote && <ComposerQuoteChip text={quote} onRemove={onClearQuote} />}
+
             {/* Attachment chips row */}
             {hasAttachments && (
               <div

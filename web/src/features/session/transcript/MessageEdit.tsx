@@ -30,6 +30,15 @@ function EditIcon(): JSX.Element {
   );
 }
 
+function QuoteIcon(): JSX.Element {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--proto-muted)" strokeWidth="2.4" strokeLinejoin="round">
+      <path d="M4 5h5v6c0 3.5-1.5 6-5 8M4 11h5" />
+      <path d="M15 5h5v6c0 3.5-1.5 6-5 8M15 11h5" />
+    </svg>
+  );
+}
+
 /** Black tooltip bubble anchored above its parent (needs position:relative on the parent). */
 function TipBubble({ text, side = 'center' }: { text: string; side?: 'center' | 'right' }): JSX.Element {
   return (
@@ -46,63 +55,77 @@ function TipBubble({ text, side = 'center' }: { text: string; side?: 'center' | 
   );
 }
 
-/**
- * Bare message actions: copy, optional edit, and an optional composed action. Copy flips to a green
- * ✓ + tooltip for 1.5s; edit greys out while running. Attachment-only rows can hide copy.
- */
-export function MessageActions({ text, onEdit, editDisabled, showCopy = true, extraAction }: {
+const ACTION_BUTTON: React.CSSProperties = {
+  position: 'relative', width: 26, height: 26, borderRadius: 'var(--r-chip)', display: 'flex', alignItems: 'center',
+  justifyContent: 'center', border: 0, padding: 0, background: 'transparent', cursor: 'pointer',
+};
+
+/** Copy flips to a green ✓ + tooltip for 1.5s. */
+function CopyButton({ text }: { text: string }): JSX.Element {
+  const copy = useVocab();
+  const { copiedKey, copy: writeCopy } = useClipboardFeedback<true>(1500);
+  const copied = copiedKey === true;
+  return (
+    <button
+      type="button" className={MENU_FOCUS}
+      aria-label={copied ? copy.cmCopied : copy.cmCopy}
+      title={copied ? undefined : copy.cmCopy}
+      onClick={() => { void writeCopy(text, true); }}
+      style={{ ...ACTION_BUTTON, background: copied ? 'var(--proto-success-bg)' : 'transparent' }}
+    >
+      {copied && <TipBubble text={copy.cmCopied} />}
+      {copied ? <span style={{ color: 'var(--proto-success)', fontSize: 11, fontWeight: 700 }}>✓</span> : <CopyIcon />}
+    </button>
+  );
+}
+
+/** Greys out while a turn runs, and says why on hover. */
+function EditButton({ onEdit, disabled }: { onEdit: () => void; disabled?: boolean }): JSX.Element {
+  const copy = useVocab();
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      type="button" className={MENU_FOCUS}
+      disabled={disabled}
+      aria-label={disabled ? copy.msgEditDisabled : copy.msgEdit}
+      title={disabled ? undefined : copy.msgEdit}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onClick={disabled ? undefined : onEdit}
+      style={{ ...ACTION_BUTTON, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1 }}
+    >
+      {hover && disabled && <TipBubble text={copy.msgEditDisabled} side="right" />}
+      <EditIcon />
+    </button>
+  );
+}
+
+function QuoteButton({ onQuote }: { onQuote: () => void }): JSX.Element {
+  const copy = useVocab();
+  return (
+    <button type="button" className={MENU_FOCUS} aria-label={copy.msgQuote} title={copy.msgQuote} onClick={onQuote} style={ACTION_BUTTON}>
+      <QuoteIcon />
+    </button>
+  );
+}
+
+/** Bare message actions: copy, optional quote / edit, and an optional composed action.
+ *  Attachment-only rows can hide copy. */
+export function MessageActions({ text, onEdit, onQuote, editDisabled, showCopy = true, extraAction }: {
   text: string;
   /** Present → the edit button renders (user messages only). */
   onEdit?: () => void;
+  /** Present → the quote button renders (assistant turns only). */
+  onQuote?: () => void;
   editDisabled?: boolean;
   showCopy?: boolean;
   extraAction?: React.ReactNode;
 }): JSX.Element {
-  const copy = useVocab();
-  const { copiedKey, copy: writeCopy } = useClipboardFeedback<true>(1500);
-  const [editHover, setEditHover] = useState(false);
-  const copied = copiedKey === true;
-  const doCopy = (): void => { void writeCopy(text, true); };
-
   return (
     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 2, height: 26, flex: 'none' }}>
-      {copied && <TipBubble text={copy.cmCopied} />}
-      {editHover && editDisabled && <TipBubble text={copy.msgEditDisabled} side="right" />}
-      {showCopy && (
-        <button
-          type="button" className={MENU_FOCUS}
-          role="button"
-          aria-label={copied ? copy.cmCopied : copy.cmCopy}
-          title={copied ? undefined : copy.cmCopy}
-          onClick={doCopy}
-          style={{
-            width: 26, height: 26, borderRadius: 'var(--r-chip)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: 0, padding: 0, background: copied ? 'var(--proto-success-bg)' : 'transparent',
-            cursor: 'pointer',
-          }}
-        >
-          {copied ? <span style={{ color: 'var(--proto-success)', fontSize: 11, fontWeight: 700 }}>✓</span> : <CopyIcon />}
-        </button>
-      )}
-      {onEdit && (
-        <button
-          type="button" className={MENU_FOCUS}
-          role="button"
-          disabled={editDisabled}
-          aria-label={editDisabled ? copy.msgEditDisabled : copy.msgEdit}
-          title={editDisabled ? undefined : copy.msgEdit}
-          onMouseEnter={() => setEditHover(true)}
-          onMouseLeave={() => setEditHover(false)}
-          onClick={editDisabled ? undefined : onEdit}
-          style={{
-            width: 26, height: 26, borderRadius: 'var(--r-chip)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: 0, padding: 0, background: 'transparent',
-            cursor: editDisabled ? 'default' : 'pointer', opacity: editDisabled ? 0.5 : 1,
-          }}
-        >
-          <EditIcon />
-        </button>
-      )}
+      {showCopy && <CopyButton text={text} />}
+      {onQuote && <QuoteButton onQuote={onQuote} />}
+      {onEdit && <EditButton onEdit={onEdit} disabled={editDisabled} />}
       {extraAction}
     </div>
   );

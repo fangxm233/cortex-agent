@@ -1,5 +1,6 @@
 import type { AttachmentMeta } from '@/features/attachments/types';
 import type { ChatRow } from './transcript-vm';
+import { splitQuote } from './message-quote';
 
 /** How much of a line the preview card can show before it is cut with an ellipsis. */
 const TITLE_MAX = 88;
@@ -37,6 +38,13 @@ function clip(line: string, max: number): { text: string; cut: boolean } {
   return { text: `${line.slice(0, max).trimEnd()}…`, cut: true };
 }
 
+/** A prompt's non-blank lines. A quoted reply is the agent's words, so the mark previews what the
+ *  human wrote under it. */
+function promptLines(text: string): string[] {
+  const { quote, body } = splitQuote(text);
+  return (quote && body ? body : text).split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+}
+
 /** One mark per user message. Non-user rows carry no navigable identity: a reply is found by the
  *  prompt that caused it, which is also how the transcript is read. */
 export function buildNavMarks(rows: ChatRow[]): NavMark[] {
@@ -47,7 +55,7 @@ export function buildNavMarks(rows: ChatRow[]): NavMark[] {
     // is and jump the reader to a row they never wrote.
     if (row.kind !== 'user' || row.systemOrigin) return;
     const attachments: NavMarkAttachment[] = (row.attachments ?? []).map((a) => ({ name: a.name, type: a.type }));
-    const lines = row.text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+    const lines = promptLines(row.text);
     const first = lines[0] ?? attachments[0]?.name ?? '';
     const head = clip(first, TITLE_MAX);
     const body: string[] = [];
