@@ -20,6 +20,7 @@ import type { DecisionItem } from '@cortex-agent/ui-contract';
 import { PlanReadOverlay } from '@/features/session/interaction/PlanReadOverlay';
 import { rewindStats, regenNoteIndexes, messageTimeLabel, assistantTurnTargets, liveToolsIndex, systemOriginDisplay, systemOriginLabel, type TurnTarget } from './transcript-vm';
 import { TurnActions } from './TurnActions';
+import { SelectionQuote } from './SelectionQuote';
 import { QuotedMessageText } from './QuotedMessageText';
 import { useRevealedText } from './useRevealedText';
 import { useNarrationHandoff } from './narration-handoff';
@@ -226,6 +227,7 @@ function AssistantBlock({ text, attachments, decisions, turn, regen, preview, st
       className="group"
       data-chat-row={anchor}
       data-narration={narration ? 'true' : undefined}
+      data-quotable=""
       style={{
         position: 'relative', animation: entry,
         fontSize: narration ? 14 : 14.5, lineHeight: narration ? 1.7 : 1.75, color: narration ? 'var(--proto-ink-3)' : 'var(--proto-ink-2)',
@@ -729,6 +731,7 @@ export function MessageStream({ rows, loading, fetched = !loading, readMark, int
   readMark?: ReadMark;
   /** The foreground turn is running (not merely held open by background work). */
   live?: boolean }): JSX.Element {
+  const wrapRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const nav = useNavRail(scrollRef, rows, loading);
@@ -759,9 +762,10 @@ export function MessageStream({ rows, loading, fetched = !loading, readMark, int
   // The rail is a sibling of the scroll box, not a child: it marks the transcript's whole length, so
   // it must not travel with the part of it that happens to be on screen.
   return (
-    <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+    <div ref={wrapRef} style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <SelectionQuote wrapRef={wrapRef} scrollRef={scrollRef} />
       <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflow: 'auto', minHeight: 0, scrollbarGutter: 'stable both-edges' }}>
-        <div ref={contentRef} data-chat-column="" style={{ width: '100%', maxWidth: COLUMN_W, margin: '0 auto', padding: `${JUMP_MARGIN}px ${GUTTER}px 16px` }}>
+        <div ref={contentRef} style={{ width: '100%', maxWidth: COLUMN_W, margin: '0 auto', padding: `${JUMP_MARGIN}px ${GUTTER}px 16px` }}>
           <ChatRows rows={rows} start={win.start} interactionActions={interactionActions} edit={edit} streamKey={streamKey} anchors group live={live} />
           {team?.tail}
           <SessionStateLine running={live} offset={14} />

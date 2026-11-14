@@ -86,7 +86,7 @@ export interface ComposerProps {
   dropTargetRef: RefObject<HTMLElement>;
   onOpenSettings?: () => void;
   onOpenUsage?: () => void;
-  /** A reply the user chose to quote (see TurnQuoteContext); the next send carries it. */
+  /** Reply text the user chose to quote (see SelectionQuote); the next send carries it. */
   quote?: string | null;
   onClearQuote?: () => void;
 }

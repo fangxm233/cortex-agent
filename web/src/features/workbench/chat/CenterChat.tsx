@@ -24,7 +24,7 @@ import { useTeamContext } from '@/features/team/useTeamContext';
 import { TeamCapsule } from '@/features/team/TeamRoster';
 import { TeamStreamProvider } from '@/features/team/TeamStreamRows';
 import { UnsentActionsProvider } from '@/features/session/transcript/UnsentActionsProvider';
-import { TurnQuoteContext, useTurnQuote } from '@/features/session/transcript/TurnActions';
+import { TurnQuoteContext, useTurnQuote } from '@/features/session/transcript/SelectionQuote';
 
 // CENTER CHAT pane — 1:1 rebuild from prototype.dc.html L103–395 (workspace-chat view). Task aba0
 // (S4 chat) makes the transcript body + composer send REAL, replacing 89e7's GAP-A (static transcript)

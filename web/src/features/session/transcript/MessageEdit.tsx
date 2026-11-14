@@ -30,15 +30,6 @@ function EditIcon(): JSX.Element {
   );
 }
 
-function QuoteIcon(): JSX.Element {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--proto-muted)" strokeWidth="2.4" strokeLinejoin="round">
-      <path d="M4 5h5v6c0 3.5-1.5 6-5 8M4 11h5" />
-      <path d="M15 5h5v6c0 3.5-1.5 6-5 8M15 11h5" />
-    </svg>
-  );
-}
-
 /** Black tooltip bubble anchored above its parent (needs position:relative on the parent). */
 function TipBubble({ text, side = 'center' }: { text: string; side?: 'center' | 'right' }): JSX.Element {
   return (
@@ -100,23 +91,12 @@ function EditButton({ onEdit, disabled }: { onEdit: () => void; disabled?: boole
   );
 }
 
-function QuoteButton({ onQuote }: { onQuote: () => void }): JSX.Element {
-  const copy = useVocab();
-  return (
-    <button type="button" className={MENU_FOCUS} aria-label={copy.msgQuote} title={copy.msgQuote} onClick={onQuote} style={ACTION_BUTTON}>
-      <QuoteIcon />
-    </button>
-  );
-}
-
-/** Bare message actions: copy, optional quote / edit, and an optional composed action.
+/** Bare message actions: copy, optional edit, and an optional composed action.
  *  Attachment-only rows can hide copy. */
-export function MessageActions({ text, onEdit, onQuote, editDisabled, showCopy = true, extraAction }: {
+export function MessageActions({ text, onEdit, editDisabled, showCopy = true, extraAction }: {
   text: string;
   /** Present → the edit button renders (user messages only). */
   onEdit?: () => void;
-  /** Present → the quote button renders (assistant turns only). */
-  onQuote?: () => void;
   editDisabled?: boolean;
   showCopy?: boolean;
   extraAction?: React.ReactNode;
@@ -124,7 +104,6 @@ export function MessageActions({ text, onEdit, onQuote, editDisabled, showCopy =
   return (
     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 2, height: 26, flex: 'none' }}>
       {showCopy && <CopyButton text={text} />}
-      {onQuote && <QuoteButton onQuote={onQuote} />}
       {onEdit && <EditButton onEdit={onEdit} disabled={editDisabled} />}
       {extraAction}
     </div>
