@@ -468,6 +468,9 @@ export class AgentRunImpl implements AgentRun {
         return;
       case 'phase':
         if (event.phase === 'done') return;
+        // The engine also holds a run with no background task (an injected message read after the
+        // result). The notice stage tags prose with `phaseValue`, so it has to follow the engine.
+        if (event.phase === 'background') this.phaseValue = 'background';
         break;
       case 'engine_started':
         this.announceBackendSessionReset(event.backendSessionId);

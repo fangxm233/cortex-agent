@@ -94,3 +94,24 @@ test('a rate-limited foreground never opens a second attempt and keeps its backg
   assert.equal(seen.some(event => event.type === 'background_result'), true);
   assert.equal(seen.some(event => event.type === 'assistant_text' && event.text === 'background output'), true);
 });
+
+test('a continuation the engine opens without background tasks keeps its prose in the background phase', async () => {
+  const seen: RunEvent[] = [];
+  const run = new AgentRunImpl({
+    request: request(), observers: [{ onEvent: (event) => { seen.push(event); } }], executionId: 'exec-inject',
+    registry: new RunRegistry(), onTerminal: () => {}, startedAt: Date.now(),
+  });
+  run.start();
+  const attempt = attempts[attempts.length - 1];
+
+  // An injected message read after the result: the engine holds the run with no background task.
+  attempt.resolveForeground(result());
+  await tick();
+  attempt.emit({ type: 'phase', phase: 'background', pendingBackground: 0, undeliveredBackground: 0 });
+  attempt.emit({ type: 'assistant_text', text: 'reply to the injected message', phase: 'background' });
+
+  const prose = seen.find(event => event.type === 'assistant_text' && event.text === 'reply to the injected message');
+  assert.equal(prose?.type === 'assistant_text' && prose.phase, 'background');
+  attempt.settle(result());
+  await run.settled;
+});
