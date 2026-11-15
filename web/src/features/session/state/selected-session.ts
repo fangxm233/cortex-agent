@@ -4,8 +4,8 @@ export const DRAFT_SENTINEL = '__draft__';
 export interface DraftSelection {
   selection: EngineSelection | null;
   agentName?: string | null;
-  /** The session this draft creates works in its own folder without project context. Every new
-   *  draft starts with it off. */
+  /** The session this draft creates works in its own folder without project context. Kept with
+   *  the project's draft like its text; the session it creates consumes it. */
   clean?: boolean;
 }
 export interface PendingCreatedSession extends DraftSelection {
@@ -24,8 +24,9 @@ export function applyDraftSelection(current: DraftSelection, change: SelectionCh
   return { ...current, ...change };
 }
 
-/** Leaving a draft drops its clean choice, so the next draft starts with it off. */
-export function clearDraftClean(current: DraftSelection): DraftSelection {
+/** Set the draft's clean choice as stored for its scope; off leaves no field. */
+export function withDraftClean(current: DraftSelection, on: boolean): DraftSelection {
+  if (on) return current.clean ? current : { ...current, clean: true };
   if (current.clean === undefined) return current;
   const { clean: _clean, ...rest } = current;
   return rest;

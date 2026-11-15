@@ -14,6 +14,7 @@ import { runOptimisticMutation } from '@/features/session/transcript/optimistic-
 import type { OptimisticUserMessages } from '@/features/session/transcript/useOptimisticUserMessages';
 import { quoteMessage } from '@/features/session/transcript/message-quote';
 import { useSlashSkills } from '@/features/session/composer/useSlashSkills';
+import { saveDraftClean } from '@/features/session/composer/composer-draft';
 import { useComposerDraft, type ComposerDraftScope, type ComposerDraftState } from './useComposerDraft';
 
 export type SlashFeedbackKey = ReturnType<typeof slashFeedbackKey>;
@@ -154,11 +155,13 @@ export function useComposerSend(options: ComposerSendOptions): ComposerSend {
     });
   };
 
-  const onAccepted = (clientId: string, data: SendResult): void => {
+  const onAccepted = (clientId: string, data: SendResult, sentKey: string | null): void => {
     if (!('sessionId' in data)) {
       options.optimistic.accept(clientId, { acceptedAt: data.acceptedAt });
       return;
     }
+    // The created session took the draft's clean choice; the next draft starts without it.
+    saveDraftClean(sentKey, false);
     const follow = options.optimistic.accept(clientId, { acceptedAt: data.acceptedAt, createdSessionId: data.sessionId });
     queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
     if (!follow) return;
@@ -178,7 +181,7 @@ export function useComposerSend(options: ComposerSendOptions): ComposerSend {
       message: options.optimistic.prepare(text, sent.attachments),
       mutate: () => mutateSend(text, sent.attachments, sent.draftUploadId),
       onEnqueue: options.optimistic.enqueue,
-      onAccepted: (entry, data) => onAccepted(entry.clientId, data),
+      onAccepted: (entry, data) => onAccepted(entry.clientId, data, sentKey),
       onRejected: (entry) => options.optimistic.reject(entry.clientId),
     });
     draft.consume();

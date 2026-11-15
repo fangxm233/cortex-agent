@@ -5,6 +5,8 @@ import {
   serializeDraft,
   mergeDraftPrefill,
   mergeRestoredDraft,
+  loadDraftClean,
+  saveDraftClean,
   DRAFT_KEY_PREFIX,
   type ComposerDraft,
 } from './composer-draft';
@@ -16,6 +18,41 @@ const meta = (name: string): AttachmentMeta => ({
   size: 123,
   mimeType: 'image/png',
   type: 'image',
+});
+
+describe('draft clean choice', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const stubStorage = () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal('window', { localStorage: {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => { store.set(k, v); },
+      removeItem: (k: string) => { store.delete(k); },
+    } });
+    return store;
+  };
+
+  it('is kept per project draft, apart from its text, and turning it off removes it', () => {
+    const store = stubStorage();
+    const atlas = draftStorageKey({ isDraft: true, projectId: 'atlas' });
+    const orchard = draftStorageKey({ isDraft: true, projectId: 'orchard' });
+    saveDraftClean(atlas, true);
+    expect(loadDraftClean(atlas)).toBe(true);
+    expect(loadDraftClean(orchard)).toBe(false);
+    expect(store.has(atlas!)).toBe(false);
+    saveDraftClean(atlas, false);
+    expect(loadDraftClean(atlas)).toBe(false);
+    expect(store.size).toBe(0);
+  });
+
+  it('never applies to a running session', () => {
+    const store = stubStorage();
+    const session = draftStorageKey({ isDraft: false, sessionId: 's1' });
+    saveDraftClean(session, true);
+    saveDraftClean(null, true);
+    expect(store.size).toBe(0);
+    expect(loadDraftClean(session)).toBe(false);
+  });
 });
 
 describe('draftStorageKey', () => {

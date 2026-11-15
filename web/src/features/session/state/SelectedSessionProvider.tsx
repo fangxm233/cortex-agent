@@ -64,7 +64,7 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
   const selectedSessionId = resolvedSessionId
     ?? (currentProjectId && listsLoaded ? DRAFT_SENTINEL : null);
   const isDraft = selectedSessionId === DRAFT_SENTINEL;
-  const [draftSelection, setDraftSelection] = useDraftSelection(isDraft);
+  const [draftSelection, setDraftSelection] = useDraftSelection(isDraft, currentProjectId ?? 'general');
 
   // The most-recent fallback is a starting point, not a live value: latch it once both lists are in.
   // A stale override is replaced only when it provably belongs to another project, never while the

@@ -137,6 +137,37 @@ export function prefillProjectDraft(projectId: string, text: string): void {
   saveDraft(key, mergeDraftPrefill(loadDraft(key), text));
 }
 
+const CLEAN_KEY_PREFIX = 'cortex.composerDraftClean.';
+
+/** A new-session draft keeps its clean choice beside its text, under the same scope. */
+function draftCleanKey(draftKey: string | null): string | null {
+  if (!draftKey?.startsWith(`${DRAFT_KEY_PREFIX}new.`)) return null;
+  return CLEAN_KEY_PREFIX + draftKey.slice(DRAFT_KEY_PREFIX.length);
+}
+
+export function loadDraftClean(draftKey: string | null): boolean {
+  const key = draftCleanKey(draftKey);
+  if (!key) return false;
+  try {
+    return storage()?.getItem(key) === '1';
+  } catch {
+    return false;
+  }
+}
+
+/** Remember a draft's clean choice; off removes it, as does the session the draft creates. */
+export function saveDraftClean(draftKey: string | null, on: boolean): void {
+  const key = draftCleanKey(draftKey);
+  const s = key ? storage() : null;
+  if (!key || !s) return;
+  try {
+    if (on) s.setItem(key, '1');
+    else s.removeItem(key);
+  } catch {
+    // best-effort, like the draft text
+  }
+}
+
 /** Remove the persisted draft for a key (called on successful send). */
 export function clearDraft(key: string | null): void {
   if (!key) return;

@@ -267,6 +267,31 @@ describe('Composer clean mode', () => {
     act(() => clean.unmount());
   });
 
+  it('consumes the stored clean choice only when its session is created', async () => {
+    const cleanKey = 'cortex.composerDraftClean.new.local.general';
+    const store = new Map([[cleanKey, '1']]);
+    vi.stubGlobal('window', { localStorage: {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => { store.set(k, v); },
+      removeItem: (k: string) => { store.delete(k); },
+    } });
+    harness.draftSelection = { selection: null, agentName: null, clean: true };
+    harness.send.mockRejectedValueOnce(new Error('offline'));
+    const failed = mountComposer(() => {}, { isDraft: true, sessionId: '', running: false });
+    sendDraft(failed);
+    await act(async () => {});
+    expect(store.get(cleanKey)).toBe('1');
+    act(() => failed.unmount());
+
+    harness.send.mockResolvedValueOnce({ sessionId: 'new', acceptedAt: 'now' });
+    const created = mountComposer(() => {}, { isDraft: true, sessionId: '', running: false });
+    sendDraft(created);
+    await act(async () => {});
+    expect(store.has(cleanKey)).toBe(false);
+    act(() => created.unmount());
+    vi.unstubAllGlobals();
+  });
+
   it('shows a running clean session its workspace and nothing on other sessions', () => {
     const plain = mountComposer(() => {}, { currentClean: false });
     expect(plain.root.findAllByType('clean-toggle' as any)).toHaveLength(0);

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create } from 'react-test-renderer';
 import { SelectedSessionProvider, useSelectedSession } from './SelectedSessionProvider';
 import { DRAFT_SENTINEL } from './selected-session';
+import { draftStorageKey, saveDraftClean } from '@/features/session/composer/composer-draft';
 
 vi.mock('@tanstack/react-query', () => ({ useQuery: () => ({ data: undefined }) }));
 vi.mock('@/lib/trpc', () => ({
@@ -24,7 +25,10 @@ vi.mock('@/features/projects/useProjectSessions', () => ({
   }),
   useAllSessions: (origin: string) => ({ data: origin === 'direct' ? lists.sessions : [] }),
 }));
-vi.mock('@/features/session/composer/composer-draft', () => ({ prefillProjectDraft: vi.fn() }));
+vi.mock('@/features/session/composer/composer-draft', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/features/session/composer/composer-draft')>()),
+  prefillProjectDraft: vi.fn(),
+}));
 
 let rerender = () => {};
 let unmount = () => {};
@@ -176,15 +180,53 @@ describe('default project draft', () => {
     expect(api().pendingCreatedSession).toBeNull();
   });
 
-  it('carries a clean draft into the created session and starts the next draft off', () => {
-    const api = mount();
-    act(() => api().setDraftSelection({ clean: true }));
-    expect(api().draftSelection.clean).toBe(true);
-    act(() => api().selectCreatedSession('created'));
-    expect(api().pendingCreatedSession).toMatchObject({ sessionId: 'created', clean: true });
-    expect(api().draftSelection.clean).toBeUndefined();
-    act(() => api().setSelectedSession(DRAFT_SENTINEL));
-    expect(api().isDraft).toBe(true);
-    expect(api().draftSelection.clean).toBeUndefined();
+  describe('clean mode', () => {
+    const store = new Map<string, string>();
+    beforeEach(() => {
+      store.clear();
+      vi.stubGlobal('window', { localStorage: {
+        getItem: (k: string) => store.get(k) ?? null,
+        setItem: (k: string, v: string) => { store.set(k, v); },
+        removeItem: (k: string) => { store.delete(k); },
+      } });
+    });
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('carries a clean draft into the created session and starts the next draft off', () => {
+      const api = mount();
+      act(() => api().setDraftSelection({ clean: true }));
+      expect(api().draftSelection.clean).toBe(true);
+      act(() => api().selectCreatedSession('created'));
+      expect(api().pendingCreatedSession).toMatchObject({ sessionId: 'created', clean: true });
+      expect(api().draftSelection.clean).toBeUndefined();
+      // What the composer does once the draft's createAndSend is accepted.
+      saveDraftClean(draftStorageKey({ isDraft: true, projectId: 'p1' }), false);
+      act(() => api().setSelectedSession(DRAFT_SENTINEL));
+      expect(api().isDraft).toBe(true);
+      expect(api().draftSelection.clean).toBeUndefined();
+    });
+
+    it('keeps an unsent draft\'s choice, like its text, per project', () => {
+      lists.sessions = [session('other', 'p1', 1), session('elsewhere', 'p2', 1)];
+      const api = mount();
+      act(() => api().setSelectedSession(DRAFT_SENTINEL));
+      act(() => api().setDraftSelection({ clean: true }));
+      act(() => api().setSelectedSession('other'));
+      expect(api().draftSelection.clean).toBeUndefined();
+      act(() => api().setSelectedSession(DRAFT_SENTINEL));
+      expect(api().draftSelection.clean).toBe(true);
+
+      lists.projectId = 'p2';
+      rerender();
+      act(() => api().setSelectedSession(DRAFT_SENTINEL));
+      expect(api().isDraft).toBe(true);
+      expect(api().draftSelection.clean).toBeUndefined();
+
+      unmount();
+      lists.projectId = 'p1';
+      const remounted = mount();
+      act(() => remounted().setSelectedSession(DRAFT_SENTINEL));
+      expect(remounted().draftSelection.clean).toBe(true);
+    });
   });
 });

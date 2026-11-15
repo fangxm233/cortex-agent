@@ -163,7 +163,7 @@ export function MChatScreen(): JSX.Element {
   const addSystemLine = (line: string): void => setSystemLines((prev) => [...prev, line]);
 
   // ── engine + environment (1p) ──
-  const [draftSelection, setDraftSelection] = useDraftSelection(isDraft);
+  const [draftSelection, setDraftSelection] = useDraftSelection(isDraft, route.projectId ?? 'general');
   const [pendingCreatedSession, setPendingCreatedSession] = usePendingCreatedSession(active?.sessionId, isDraft, sessionId);
   const selection = useSessionSelection({
     sessionId, isDraft, hasHistory: chat.hasHistory,

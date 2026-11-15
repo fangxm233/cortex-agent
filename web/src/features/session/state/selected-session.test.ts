@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { EngineSelection, SessionInfo } from '@cortex-agent/ui-contract';
 import {
-  applyDraftSelection, clearDraftClean, deriveMostRecentSessionId, DRAFT_SENTINEL, EMPTY_DRAFT_SELECTION,
+  applyDraftSelection, deriveMostRecentSessionId, DRAFT_SENTINEL, EMPTY_DRAFT_SELECTION,
   resolveSelectedSessionId, resolveTransitionAgent, resolveTransitionClean, resolveTransitionSelection,
-  seedDraftSelection,
+  seedDraftSelection, withDraftClean,
   type PendingCreatedSession,
 } from './selected-session';
 
@@ -99,12 +99,14 @@ describe('resolveTransitionAgent', () => {
 });
 
 describe('clean mode', () => {
-  it('toggles on a draft and is dropped when the draft is left', () => {
+  it('toggles on a draft and follows the choice stored for its scope', () => {
     const on = applyDraftSelection({ selection: pi, agentName: 'research' }, { clean: true });
     expect(on).toEqual({ selection: pi, agentName: 'research', clean: true });
-    expect(clearDraftClean(on)).toEqual({ selection: pi, agentName: 'research' });
+    expect(withDraftClean(on, true)).toBe(on);
+    expect(withDraftClean(on, false)).toEqual({ selection: pi, agentName: 'research' });
     const off = { selection: pi };
-    expect(clearDraftClean(off)).toBe(off);
+    expect(withDraftClean(off, false)).toBe(off);
+    expect(withDraftClean(off, true)).toEqual({ selection: pi, clean: true });
   });
 
   it('is never seeded from the remembered selection', () => {

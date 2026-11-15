@@ -700,9 +700,10 @@ task that must start from nothing.
 The composer of a new conversation in the Web and desktop app, and on a phone,
 has a **Clean** toggle among its chips. It is off for every new
 conversation; turned on, the conversation is clean from its first message, for
-its whole life. A clean conversation keeps the mark where the toggle was (in the
-header on a phone), and opening it shows the workspace path to copy, or, in the
-desktop app, to open.
+its whole life. Like the unsent text, an unsent draft keeps the choice per
+project until its first message creates the conversation. A clean conversation
+keeps the mark where the toggle was (in the header on a phone), and opening it
+shows the workspace path to copy, or, in the desktop app, to open.
 
 When the conversation starts, Cortex creates its workspace,
 `$CORTEX_HOME/workspaces/<id>/` — the first eight characters of the session id,
