@@ -483,8 +483,15 @@ async function notifyQuotaActivation(
   sendDM(`${Icons.warning} ${t('notice.rateLimit.activated', { provider: noticeName(state), type: info.rateLimitType, pct: (info.utilization! * 100).toFixed(0), at: formatResetTime(info.resetsAt!), remaining: formatRemaining(info.resetsAt!) })}`, t('notice.rateLimit.title'), actions);
 }
 
-async function handleRateLimitEventLocked(info: RateLimitInfo, rawSource?: string | RateLimitSource): Promise<void> {
-  if (!info || !_persistence || !info.rateLimitType || !info.resetsAt) return;
+/** A rejection is the window at its limit: the CLI sends it without a utilization, and dropping it
+ *  left a login that was refusing requests looking free to failover and to the resume queue. */
+function withRejectionUtilization(info: RateLimitInfo): RateLimitInfo {
+  return info.status === 'rejected' && typeof info.utilization !== 'number' ? { ...info, utilization: 1 } : info;
+}
+
+async function handleRateLimitEventLocked(raw: RateLimitInfo, rawSource?: string | RateLimitSource): Promise<void> {
+  if (!raw || !_persistence || !raw.rateLimitType || !raw.resetsAt) return;
+  const info = withRejectionUtilization(raw);
   const source = normalizeSource(rawSource);
   if (!shouldActivateQuota(info, source)) return;
   const candidate = cloneProviders();

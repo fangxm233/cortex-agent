@@ -127,6 +127,35 @@ test('ignores events without resetsAt', async (t) => {
   assert.equal(mod.isThrottled(), false);
 });
 
+test('a rejection without utilization activates its route at full utilization', async (t) => {
+  const mod = await freshModuleWithCleanup(t);
+  await mod.initRateLimitThrottle(makeAdapterStub(), makePersistenceStub() as any);
+  const reset = Math.floor(Date.now() / 1000) + 300;
+
+  await mod.handleRateLimitEvent(
+    { status: 'rejected', rateLimitType: 'five_hour', resetsAt: reset },
+    { provider: 'anthropic', displayName: 'Anthropic', mode: 'school' },
+  );
+
+  assert.equal(mod.isProviderRateLimited('anthropic', 'school'), true);
+  assert.equal(mod.isProviderModeRateLimited('anthropic', 'subscription'), false);
+  const window = mod.getThrottleState().providers[0].windows[0];
+  assert.deepEqual([window.utilization, window.resetsAt], [1, reset]);
+});
+
+test('a rejection still respects a disabled window policy', async (t) => {
+  await updateSettings({ providerRateLimits: { anthropic: { enabled: false } } } as any);
+  const mod = await freshModuleWithCleanup(t);
+  await mod.initRateLimitThrottle(makeAdapterStub(), makePersistenceStub() as any);
+
+  await mod.handleRateLimitEvent(
+    { status: 'rejected', rateLimitType: 'five_hour', resetsAt: Math.floor(Date.now() / 1000) + 300 },
+    { provider: 'anthropic', displayName: 'Anthropic', mode: 'school' },
+  );
+
+  assert.equal(mod.isThrottled(), false);
+});
+
 test('activates throttle and persists state', async (t) => {
   const mod = await freshModuleWithCleanup(t);
   const persistence = makePersistenceStub();
