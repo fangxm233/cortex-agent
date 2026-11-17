@@ -1,0 +1,1448 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Agent workbench for auto research, self-improvement loops, and long-running work">
+      
+      
+        <meta name="author" content="Cortex Team">
+      
+      
+        <link rel="canonical" href="https://fangxm233.github.io/cortex-agent/zh/skills-and-plugins/">
+      
+      
+        <link rel="prev" href="../memory/">
+      
+      
+        <link rel="next" href="../scheduling/">
+      
+      
+        
+          <link rel="alternate" href="../../skills-and-plugins/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="zh">
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>技能与插件 - Cortex</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cortex-skills-and-plugins" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../" title="Cortex" class="md-header__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Cortex
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              技能与插件
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="选择当前语言">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../skills-and-plugins/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="zh" class="md-select__link">
+              中文
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../" title="Cortex" class="md-nav__button md-logo" aria-label="Cortex" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Cortex
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fangxm233/cortex-agent" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fangxm233/cortex-agent
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    快速入门
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    桌面应用
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    浏览器访问
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../slack-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Slack 设置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    配置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI 参考
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    后端
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    架构
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../team/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    团队模式
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    记忆
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    技能与插件
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    技能与插件
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#skills" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Skills
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supported-plugin-formats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        支持的插件格式
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#built-in-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        内置插件
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#portable-package-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        可移植插件包布局
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#portable-mcp-servers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Portable MCP servers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspecting-a-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        查看插件
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#managing-a-plugins-contents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        管理插件内容
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#assigning-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        分配插件
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#backend-loading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backend 加载
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#trust-and-administration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        信任与管理
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#skill-discovery-and-invocation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Skill 的发现与调用
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implementation-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        实现参考
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    调度
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../safety-and-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    安全与审批
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../telemetry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    遥测
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    钩子
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../waitpoints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    等待点
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cross-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    跨机器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent-browser/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent 浏览器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#skills" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Skills
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supported-plugin-formats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        支持的插件格式
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#built-in-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        内置插件
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#portable-package-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        可移植插件包布局
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#portable-mcp-servers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Portable MCP servers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspecting-a-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        查看插件
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#managing-a-plugins-contents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        管理插件内容
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#assigning-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        分配插件
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#backend-loading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backend 加载
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#trust-and-administration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        信任与管理
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#skill-discovery-and-invocation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Skill 的发现与调用
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implementation-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        实现参考
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="cortex-skills-and-plugins">Cortex 技能与插件<a class="headerlink" href="#cortex-skills-and-plugins" title="Permanent link">&para;</a></h1>
+<p>Cortex 用 skill 承载可复用的智能体指令，用插件承载可安装的能力包。插件可以只提供 skill；遵循可移植的 Agent Plugins 格式时，还可以同时提供 skill 和 Model Context Protocol（MCP）server。插件分配给<a href="../configuration/#execution-environments">执行环境</a>，每个被启动的 backend 只拿到其执行环境选定的那部分能力。</p>
+<h2 id="skills">Skills<a class="headerlink" href="#skills" title="Permanent link">&para;</a></h2>
+<p>一个 skill 就是一个以 <code>SKILL.md</code> 为入口的目录。其中的 YAML frontmatter 说明 skill 的适用场景，Markdown 正文则是 <code>Skill</code> 工具展开的指令。最小的可移植 skill 如下：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nn">---</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">summarize</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Use when a long artifact needs a concise technical summary</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="nn">---</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># Summarize</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="l l-Scalar l-Scalar-Plain">Read the complete artifact, preserve evidence links, and report the main result.</span>
+</code></pre></div>
+<p>frontmatter 中写了 <code>name</code> 时，它必须与目录名一致。可移植 skill 的名称只能由小写字母、数字和单个连字符组成——Settings 编辑器在新建或移动 skill 时会强制这一格式——而且 Cortex 只发现插件 <code>skills/</code> 目录的直接子目录。skill 可以在自己的目录下存放脚本、参考资料等配套文件。Cortex 只校验可移植 skill 的 frontmatter；legacy 插件包中的 skill 原样交给 backend。</p>
+<p>加载器刻意保持宽松。只有完全无法使用的 skill 才会被丢弃：frontmatter 无法解析、<code>name</code> 与目录名矛盾，或 <code>description</code> 为空。其余情况——缺少 <code>name</code>、名称不规范、<code>description</code> 过长、可选字段格式错误、<code>allowed-tools</code> 写成 YAML 列表，或者出现规范之外的键——都会照常加载，并在插件详情页上作为提示性问题列出。因为一个多余的 frontmatter 键而丢掉一个能用的 skill，比容忍这个键更糟，也更不容易察觉。</p>
+<h2 id="supported-plugin-formats">支持的插件格式<a class="headerlink" href="#supported-plugin-formats" title="Permanent link">&para;</a></h2>
+<p>Cortex 会清点它的<a href="#built-in-plugins">内置插件</a>，以及 <code>$CORTEX_HOME/plugins/</code> 下的每个直接子目录。它识别可移植的 Agent Plugins 1.0.0 Working Draft，以及现有的 Claude 兼容 legacy 布局。</p>
+<table>
+<thead>
+<tr>
+<th>格式</th>
+<th>Manifest</th>
+<th>Skills</th>
+<th>Cortex 可移植 MCP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Agent Plugins 1.0</td>
+<td>插件根目录下的 <code>plugin.json</code></td>
+<td>直接子目录 <code>skills/&lt;name&gt;/SKILL.md</code></td>
+<td>根目录 <code>mcp.json</code></td>
+</tr>
+<tr>
+<td>Legacy</td>
+<td><code>.claude-plugin/plugin.json</code></td>
+<td>直接子目录 <code>skills/&lt;name&gt;/SKILL.md</code></td>
+<td>不纳入目录，也不跨 backend 映射</td>
+</tr>
+</tbody>
+</table>
+<p>根目录的 <code>plugin.json</code> 优先。如果它存在但有致命的校验错误，Cortex 会把这个可移植插件包报告为无效，而不会退回到 legacy manifest。未知的顶层字段和非对象类型的 <code>extensions</code> 值会被报告并忽略，作为非致命异常处理。只有根目录没有 <code>plugin.json</code> 时，才会考虑 legacy manifest。可移植格式及其失败边界遵循 <a href="https://agent-plugins.org/specification">Agent Plugins 1.0.0 规范</a>，Cortex 则为已有安装保留 legacy 布局。</p>
+<p>Legacy 目录原样传给 backend。因此 Claude 可以解析 Claude 原生的文件，例如 legacy 插件包根目录下的 <code>.mcp.json</code>；这些 server 不会被 Cortex 清点、汇总或要求确认，也不会映射到 PI。如果 MCP 需要在 Settings 中可见，并在 Claude 与 PI 之间保持一致，请使用可移植的根目录 <code>mcp.json</code>。</p>
+<h2 id="built-in-plugins">内置插件<a class="headerlink" href="#built-in-plugins" title="Permanent link">&para;</a></h2>
+<p>Cortex 在安装目录的 <code>agent-server/defaults/plugins/</code> 下自带三个可移植插件：<code>cortex-system</code>（审批、定时任务、项目初始化、客户端管理、<a href="../agent-browser/">agent 浏览器</a>、学习用户偏好）、<code>cortex-board</code>（看板）和 <code>cortex-feishu</code>（飞书文档，在飞书会话中加载；开启 <code>settings.feishuSkillsInWeb</code> 后也在 web 会话中加载）。Cortex 直接从安装目录读取它们，从不复制到 <code>$CORTEX_HOME</code>，因此它们始终与正在运行的版本一致。</p>
+<p>如果 <code>$CORTEX_HOME/plugins/&lt;id&gt;/</code> 的目录名恰好是某个内置插件的 id，它就是该插件的用户层，而不是一个独立的插件。内置 manifest 依然生效，用户层逐项修改插件：</p>
+<ul>
+<li>带 <code>SKILL.md</code> 的 <code>skills/&lt;name&gt;/</code>，如果内置插件有同名 skill，则整体替换该 skill，连同配套文件；</li>
+<li>其他名称的 <code>skills/&lt;name&gt;/</code> 为插件新增一个 skill；</li>
+<li><code>mcp.json</code> 整体替换插件的 MCP 声明。</li>
+</ul>
+<p>从用户层删掉某个 skill 目录或 <code>mcp.json</code>，内置版本就会恢复。目录会标明每个 skill 的来源：内置、已修改（用用户的版本代替内置版本）或本地（用户自己的）。</p>
+<p>内置插件在每个加载 skill 的执行环境中都会加载。执行环境要关闭某个内置插件，只需在 <code>disabledPlugins</code> 中写上它的名字（见<a href="#assigning-plugins">分配插件</a>）。设置了 <code>"skills": false</code> 的执行环境只加载 <code>pluginDirs</code> 列出的插件；sealed home（<code>CORTEX_CONFIG_IMMUTABLE=1</code>，例如 benchmark 试验中）没有内置插件。</p>
+<h2 id="portable-package-layout">可移植插件包布局<a class="headerlink" href="#portable-package-layout" title="Permanent link">&para;</a></h2>
+<p>可移植插件包的结构如下：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>my-plugin/
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>├── plugin.json
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>├── skills/
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>│   └── summarize/
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>│       ├── SKILL.md
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>│       └── references/
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>└── mcp.json
+</code></pre></div>
+<p>最小的 manifest 会指定所支持的确切 schema：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">"$schema"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"my-plugin"</span><span class="p">,</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1.0.0"</span><span class="p">,</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Summarization skills and tools"</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="p">}</span>
+</code></pre></div>
+<p>Cortex 用随代码一起分发的本地 schema 校验 manifest，加载插件时不会去网上获取 schema。插件包的目录名是它在 Cortex 中用于分配的标识；manifest 中的 name 则提供可移植运行时的命名空间。插件包里的文件、manifest、skill 入口、相对插件路径的命令，以及基于插件根目录的工作目录，都必须位于解析后的插件根目录之内。<code>${PLUGIN_DATA}</code> 形式的工作目录则必须位于该插件的数据根目录之内。符号链接或其他等效的路径逃逸会在最窄的路径分量边界上被拒绝。</p>
+<p>可移植 manifest 无效时，插件无法被分配。无效的 skill 会被跳过，同一插件中其他有效的 skill 仍然可用。顶层 <code>mcp.json</code> 出错会禁用该插件的 MCP，但不影响有效的 skill；某个 MCP server 条目无效时只跳过这一条，其他有效的 server 保留。Plugins 页面会把这些问题展示出来，而不是悄悄隐藏。</p>
+<h2 id="portable-mcp-servers">Portable MCP servers<a class="headerlink" href="#portable-mcp-servers" title="Permanent link">&para;</a></h2>
+<p>可移植的 <code>mcp.json</code> 可以声明 stdio、Streamable HTTP 或 legacy HTTP+SSE 三种 server。其 schema 版本必须与 <code>plugin.json</code> 一致。</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">"$schema"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://agent-plugins.org/schemas/1.0.0/mcp.schema.json"</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">"mcpServers"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="nt">"local-tools"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">      </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"stdio"</span><span class="p">,</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">      </span><span class="nt">"command"</span><span class="p">:</span><span class="w"> </span><span class="s2">"./bin/server"</span><span class="p">,</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">      </span><span class="nt">"args"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"--data"</span><span class="p">,</span><span class="w"> </span><span class="s2">"${PLUGIN_DATA}"</span><span class="p">],</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">      </span><span class="nt">"env"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">        </span><span class="nt">"CONFIG"</span><span class="p">:</span><span class="w"> </span><span class="s2">"${PLUGIN_ROOT}/config.json"</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">      </span><span class="p">},</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">      </span><span class="nt">"cwd"</span><span class="p">:</span><span class="w"> </span><span class="s2">"${PLUGIN_ROOT}"</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">    </span><span class="p">},</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="w">    </span><span class="nt">"remote-tools"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="w">      </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"streamable-http"</span><span class="p">,</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="w">      </span><span class="nt">"url"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://tools.example.com/mcp"</span><span class="p">,</span>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="w">      </span><span class="nt">"headers"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="w">        </span><span class="nt">"X-Tenant"</span><span class="p">:</span><span class="w"> </span><span class="s2">"public"</span>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="w">      </span><span class="p">}</span>
+<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a><span class="p">}</span>
+</code></pre></div>
+<p>stdio 的 <code>command</code> 是单个可执行文件，而不是一条 shell 命令。它可以是不带路径的可执行文件名，也可以是位于插件目录内的 <code>./</code> 路径。Cortex 只在 <code>args</code>、环境变量值和 <code>cwd</code> 中展开 <code>${PLUGIN_ROOT}</code> 和 <code>${PLUGIN_DATA}</code>；这两个变量由 Cortex 自己提供，变量名也被保留。插件专属的持久数据目录是 <code>$CORTEX_HOME/data/plugin-data/&lt;plugin-id&gt;/</code>，只在某个被选中的 stdio server 实际落地时才创建。</p>
+<p>远程 server 必须使用 HTTPS，回环地址上的 HTTP 除外。包含凭据或 fragment 的 URL 会被拒绝，配置的 header 也绝不会被当作可移植的密钥机制。两个 backend 都会拒绝所有远程 MCP 重定向：PI 直接使用共享的、拒绝重定向的 fetch，Claude 则经由一个执行相同策略的本地 stdio 代理访问每个远程 server。这样可以防止配置的 header 和请求体被重放到重定向目标（<code>agent-server/src/agent-adapter/mcp-remote-fetch.ts</code>；<code>agent-server/src/agent-adapter/claude/remote-mcp-proxy.ts</code>）。Settings 界面对远程 server 只显示 origin 和 header 名称；对 stdio server 只显示可执行文件的 basename、参数个数和环境变量的键名。环境变量值和 header 值不会返回给浏览器。</p>
+<p>详细的传输与隔离规则来自 <a href="https://agent-plugins.org/client-implementers/mcp-runtime">Agent Plugins MCP 运行时约定</a>。Cortex 在 Claude 和 PI 上实现了全部三种声明的传输方式。</p>
+<h2 id="inspecting-a-plugin">查看插件<a class="headerlink" href="#inspecting-a-plugin" title="Permanent link">&para;</a></h2>
+<p>桌面端和浏览器工作台在 <strong>Settings → Plugins</strong> 提供插件目录。该页面读取的是当前连接的 Cortex server，因此其中的条目属于这台 server，而不是本地的桌面端安装。页面列出所有已安装的插件包，每个插件包打开后有三个标签页：Overview、Skills 和 MCP。<strong>New plugin</strong> 会创建一个本地可移植插件包——一个版本为 0.1.0 的 <code>plugin.json</code> 和一个空的 <code>skills/</code> 目录——名称不能与内置插件的 id 相同。</p>
+<p>Overview 展示插件包的身份与健康状况：格式、manifest 来源与元数据、磁盘位置、校验问题，以及启动时的作用域限制。它还列出当前引用该插件的执行环境，让这层关系从插件包一侧也能查到，但不由这个页面负责维护。</p>
+<h2 id="managing-a-plugins-contents">管理插件内容<a class="headerlink" href="#managing-a-plugins-contents" title="Permanent link">&para;</a></h2>
+<p>Skills 标签页列出插件包自带的 skill 及各自的描述和路径，并可以编辑。打开一个 skill 即进入它的 <code>SKILL.md</code>；保存时以打开时的 hash 为准，所以如果文件在编辑期间被别处改动，会产生冲突，而不是被悄悄覆盖。新 skill 从模板创建，需要填写名称和必填的描述；已有 skill 可以重命名或移动到另一个插件，移动时会改写 frontmatter 中的 <code>name</code>（只改 frontmatter），使其继续与目录一致。新建或移动的 skill 不能使用内置 skill 的名称。删除会移除 skill 目录及其下的全部内容。</p>
+<p>MCP 标签页以表单形式编辑 <code>mcp.json</code>。命令、参数、工作目录和 URL 可以正常读取和写回，但环境变量值和 header 不行：这个页面从来拿不到它们。每个已存储的键都显示为保持不变，替换某个键需要显式操作；你没有动过的键由服务端从磁盘上已有的内容合并回去，而你从表单中删掉的键也会从文件中删除。与 skill 编辑器不同，MCP 表单保存时不做冲突检查，以最后一次保存为准。Legacy 插件包根本不能声明 MCP server，因此它的 MCP 标签页提供的是格式转换——写入根目录的 <code>plugin.json</code>，同时保留 <code>.claude-plugin/plugin.json</code> 不动。保存内置插件的 MCP 表单时，<code>mcp.json</code> 会写入它的用户层。</p>
+<p>列表中会标出内置插件，每个 skill 也会显示它是内置、已修改还是本地。内置 skill 和其他 skill 一样可以打开和保存：保存时，带着你的修改把 skill 目录复制到 <code>$CORTEX_HOME/plugins/&lt;id&gt;/skills/&lt;name&gt;/</code>，由它替换内置 skill；之后该 skill 显示为已修改，并提供 <strong>Revert to built-in</strong> 操作，确认后删除你的版本。内置 skill 和已修改的 skill 不能移动、重命名或删除；对应按钮处于禁用状态并说明原因。内置插件同样不能删除：它的删除对话框会说明这一点，确认按钮始终禁用。你在内置插件中新增的 skill 属于你自己，可以移动和删除。本地插件包在没有任何执行环境引用它之后即可删除。</p>
+<h2 id="assigning-plugins">分配插件<a class="headerlink" href="#assigning-plugins" title="Permanent link">&para;</a></h2>
+<p>分配是执行环境的一个字段，而不是插件的属性，所以要在执行环境上编辑：打开 <strong>Settings → Environments</strong>，选中一个执行环境，再进入 Plugins 标签页（新建的执行环境保存之后才会出现该标签页）。每个执行环境只有一套插件集合，目录中的每个插件对应一个开关。内置插件带有标记且默认开启；关闭某个内置插件会把它记入该执行环境的 <code>disabledPlugins</code>，而开启的本地插件则列在 <code>pluginDirs</code> 中。</p>
+<p>保存时以执行环境文件的内容 hash 作为乐观并发控制的依据。如果该执行环境在磁盘上已被修改，Cortex 会刷新目标，而不是覆盖更新的文件。托管目录之外已有的插件路径会原样保留，并标为非托管。已经选中的无效目录条目可以移除，但不能新分配无效条目。</p>
+<p>添加一个至少含有一个有效根目录 <code>mcp.json</code> server 的可移植插件时，会弹出确认框，说明这会引入本地代码执行与网络访问方面的信任风险。添加这类可移植 MCP 必须经过确认，但确认既不是沙箱，也不是独立的授权边界。Reset 丢弃本地草稿，Save 则通过 <code>plugins.assign</code> 将其持久化。分配草稿有未保存修改时，Settings 弹窗会阻止切换分区和关闭。如果后台重新拉取得到的分配 hash 与当前不同，页面会保留用户的草稿、将其标为过期、禁用 Save，并要求先 Reset，而不是悄悄替换用户的修改（<code>web/src/features/settings/vm/plugin-assign-vm.ts</code>）。</p>
+<p>分配标签页和 JSON 正文编辑器写的是同一个文件，因此同一时刻只能有一方持有草稿：正文有未保存修改时，该标签页处于冻结状态。此外，分配也不是插件是否加载的最终决定。带作用域的插件在启动时还会再过滤一次，所以限定频道作用域的插件包会显示一条内联提示：无论怎么分配，超出该作用域都不会加载。</p>
+<p>分配结果保存在 <code>$CORTEX_HOME/config/environments/</code> 下该执行环境的 JSON 文件中，也可以直接写在文件里：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"researcher"</span><span class="p">,</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">"pluginDirs"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="s2">"plugins/my-plugin"</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="nt">"disabledPlugins"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">    </span><span class="s2">"cortex-feishu"</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="p">}</span>
+</code></pre></div>
+<p>该执行环境的会话先按顺序加载 <code>pluginDirs</code> 列出的插件，再加载 <code>disabledPlugins</code> 中未列出的所有内置插件。手动写进 <code>pluginDirs</code> 的内置插件会排在更靠前的位置；在 Plugins 标签页中保存时，文件会被重写，内置插件不写入 <code>pluginDirs</code>。设置了 <code>"skills": false</code> 时只看 <code>pluginDirs</code>。执行环境之间没有继承关系。</p>
+<p>相对路径基于 <code>$CORTEX_HOME</code> 解析；绝对路径作为非托管的 legacy 配置继续受支持。Settings 界面会把托管条目规范化为 <code>plugins/&lt;plugin-id&gt;</code>，非托管条目则原样保留。</p>
+<h2 id="backend-loading">Backend 加载<a class="headerlink" href="#backend-loading" title="Permanent link">&para;</a></h2>
+<p>Cortex 在启动 backend 时重新加载所选目录。Legacy 插件目录按其原路径交给 backend。可移植 skill 的配套文件树会经过路径包含校验、计算内容 hash，再复制到私有 snapshot 中。Claude 通过 <code>--plugin-dir</code> 获得每个可移植插件的兼容 projection；PI 则为每个 skill 获得一个 snapshot 目录，作为其进程内会话的附加 skill 路径，之后才是各个 legacy 目录。两个 backend 拿到的可移植 skill 路径都不会直接指向可变的已安装插件包（<code>agent-server/src/domain/plugins/skill-projection.ts</code>；<code>agent-server/src/domain/plugins/runtime.ts</code>）。每个 skill 都从其所属的层生成 projection：内置 skill 来自安装目录，已修改或本地的 skill 来自 <code>$CORTEX_HOME/plugins/&lt;id&gt;/</code>。</p>
+<p>可移植 MCP 声明统一经过一个与 backend 无关的规范化层。Claude 获得一份私有的补充配置，其中的远程条目是本地 stdio 代理，远程 URL 和 header 保存在另外的私有文件中。PI 的 MCP bridge 从会话请求中拿到规范化后的 server 条目，并自行建立每个连接（stdio、Streamable HTTP 或 SSE）。各组件在其声明的依赖边界上独立失败：无效或无法落地的 skill 会被略去，但不影响同一插件中的其他 skill 或有效的 MCP；插件级 <code>PLUGIN_DATA</code> 不可用时，略去共用它的 stdio server，同时保留远程 MCP 和 skill；远程和 stdio 进程的连接也与其他进程及内置工具相互独立（<code>agent-server/src/domain/plugins/runtime.ts</code>；<code>agent-server/src/agent-adapter/claude/mcp-config.ts</code>；<code>agent-server/src/agent-adapter/pi/mcp-bridge.ts</code>）。当选中的 skill 或 MCP server 无法落地时，web 会话会在这一轮显示一条警告，指出缺了什么以及原因。</p>
+<p>projection、snapshot 和私有 MCP 文件都位于 <code>$CORTEX_HOME/data/plugin-runtime/</code> 下。<code>$CORTEX_HOME</code> 本身可以经由符号链接到达（例如 home 被迁移到另一块磁盘）；但其下任何位置的符号链接都会被拒绝。每个 projection 和 snapshot 都按内容寻址：被某次启动复用的会被标记为在用，一周内没有任何启动用过的会被删除，下次需要时在同一路径重建。清理在选中了插件的启动过程中进行，每个 backend 每小时最多一次。</p>
+<p>能力指纹涵盖实际生效的插件路径、可移植 skill 内容、生成的 projection manifest，以及规范化后的 MCP 声明。Claude 池化会话只在能力指纹一致时才复用进程，因此分配变化以及上述输入的变化都会落到一个兼容的进程边界上。Legacy 插件包内容以及可执行文件字节等可移植包的辅助文件不计算内容 hash；只改动这些文件时，不保证会替换进程。选中的可移植插件如果 <code>plugin.json</code> 无效，就不会参与这次启动，本轮的提示会写出它的名字；具体问题列在 Plugins 页面上。两个选中的可移植插件提供同名 skill 时，在执行环境插件顺序中靠前的那个保留该 skill，另一个插件加载时不带这个 skill。两个选中的可移植插件的 manifest <code>name</code>（即命名空间）相同时，靠前的保留，后面的整个跳过；Plugins 页面会在每个使用该名称的插件包上标出冲突。这两种冲突记录在 daemon 日志中，而不是本轮的提示里。可移植插件与 legacy 插件提供同名 skill 时，两者都会传给 Claude，而 PI 只保留可移植插件中的那个。</p>
+<p>在显式的 <code>none</code> 组合下不加载可移植 MCP，subagent 则完全不加载插件——既没有 skill，也没有 MCP。这样可以把插件能力挡在那些有意只开放较窄工具集的执行模式之外。</p>
+<h2 id="trust-and-administration">信任与管理<a class="headerlink" href="#trust-and-administration" title="Permanent link">&para;</a></h2>
+<p><code>$CORTEX_HOME/plugins/</code> 下的一切都是管理员安装的代码。只分配来源和内容都可信的插件包：stdio MCP server 能以 backend 进程的账户执行本地代码，远程 MCP server 能通过网络接收工具数据。可移植 skill 会被复制到私有 snapshot，但 stdio 的命令、参数、工作目录和插件包数据仍然是由管理员控制、被信任的运行时输入，而不是沙箱边界。manifest 校验、路径包含检查、私有运行时文件、拒绝重定向和分配确认可以减少配置错误和密钥泄露，但并不会把插件行为放进沙箱。</p>
+<p>Plugins 页面管理插件清单和插件包内容，执行环境的 Plugins 标签页管理分配。其 MCP 清单和确认机制只适用于可移植的根目录 <code>mcp.json</code>；Claude 原生的 legacy <code>.mcp.json</code> 不在这套托管视图之内。安装、插件市场搜索、更新、OAuth、凭据录入、按工具的权限策略以及 MCP 实时健康检查都不在这部分功能的范围内。安装插件包的方式，是通过管理员控制的流程把它的目录放到 <code>$CORTEX_HOME/plugins/</code> 下。</p>
+<h2 id="skill-discovery-and-invocation">Skill 的发现与调用<a class="headerlink" href="#skill-discovery-and-invocation" title="Permanent link">&para;</a></h2>
+<p><code>!skills</code> 命令按插件分组，列出当前对话会加载的 skill，即其执行环境经作用域过滤后的插件。可移植插件显示目录接受的 skill；原样交给 backend 的目录（legacy 插件包，或 <code>$CORTEX_HOME/plugins/</code> 之外的路径）显示其中的 <code>skills/&lt;name&gt;/SKILL.md</code> 条目，如果它不是目录中的插件，则以配置的路径作为标签。Skills 视图以同样的方式列出所有目录插件的 skill。</p>
+<p>当 skill 的描述与任务相符时，智能体会自行通过 <code>Skill</code> 工具调用它。你也可以显式调用。在 Web UI 和桌面端中，在输入框键入 <code>/</code> 会弹出一个面板，列出 Cortex 的命令和当前对话加载的 skill；选中一个 skill 会按 backend 的格式插入调用——Claude 上是 <code>/&lt;namespace&gt;:&lt;skill&gt;</code>，其中命名空间是插件 manifest 中的 name，PI 上是 <code>/skill:&lt;skill&gt;</code>——消息按输入原样发给智能体。PI 只按名称本身解析 skill，因此两个插件提供同名 skill 时，在 PI 上只能用到第一个。</p>
+<p>每次成功的 <code>Skill</code> 调用都会由内置的 <code>session-activity-tracker</code> hook 记录为一条 <code>skill_use</code> 事件，写入 <code>$CORTEX_HOME/logs/session-activity/&lt;session_id&gt;.jsonl</code>（见 <a href="../hooks/#hook-scripts">hooks.md</a>）。</p>
+<h2 id="implementation-references">实现参考<a class="headerlink" href="#implementation-references" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>行为</th>
+<th>源码</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>目录优先级、内置层与用户层，以及窄范围校验</td>
+<td><code>agent-server/src/domain/plugins/catalog.ts</code></td>
+</tr>
+<tr>
+<td>内置插件集合，以及执行环境加载哪些插件</td>
+<td><code>agent-server/src/domain/plugins/builtin.ts</code></td>
+</tr>
+<tr>
+<td>可移植 MCP 校验与脱敏摘要</td>
+<td><code>agent-server/src/domain/plugins/mcp.ts</code></td>
+</tr>
+<tr>
+<td>启动时的 projection、规范化与指纹计算</td>
+<td><code>agent-server/src/domain/plugins/runtime.ts</code></td>
+</tr>
+<tr>
+<td>可移植 skill 的 frontmatter 校验</td>
+<td><code>agent-server/src/domain/plugins/skill.ts</code></td>
+</tr>
+<tr>
+<td>运行时 snapshot 清理</td>
+<td><code>agent-server/src/domain/plugins/runtime-gc.ts</code></td>
+</tr>
+<tr>
+<td>对话加载的 skill（<code>!skills</code>、斜杠命令面板）</td>
+<td><code>agent-server/src/domain/plugins/conversation-skills.ts</code></td>
+</tr>
+<tr>
+<td>执行环境插件分配的持久化</td>
+<td><code>agent-server/src/domain/ui-service/mutate/plugins.ts</code></td>
+</tr>
+<tr>
+<td>已连接 server 的插件目录与执行环境清单</td>
+<td><code>agent-server/src/domain/ui-service/query/plugins.ts</code></td>
+</tr>
+<tr>
+<td>Settings 中的插件包管理器</td>
+<td><code>web/src/features/settings/panels/PluginsPanel.tsx</code></td>
+</tr>
+<tr>
+<td>带路径包含校验的 skill 与插件用户层写入</td>
+<td><code>agent-server/src/domain/plugins/authoring.ts</code></td>
+</tr>
+<tr>
+<td>编辑操作与 MCP 密钥合并</td>
+<td><code>agent-server/src/domain/ui-service/mutate/plugin-packages.ts</code></td>
+</tr>
+<tr>
+<td>Settings 中的 skill 与 MCP 编辑器</td>
+<td><code>web/src/features/settings/panels/PluginSkillsTab.tsx</code>, <code>web/src/features/settings/panels/PluginMcpTab.tsx</code></td>
+</tr>
+<tr>
+<td>Settings 中的分配与 MCP 确认</td>
+<td><code>web/src/features/settings/panels/PluginAssignPanel.tsx</code></td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
