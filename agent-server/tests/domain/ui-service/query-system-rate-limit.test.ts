@@ -2,6 +2,7 @@ import { afterEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   _testReset,
+  activateOutageWindow,
   handleRateLimitEvent,
   initRateLimitThrottle,
   type RateLimitThrottleState,
@@ -74,6 +75,18 @@ test('system.rateLimitStatus lists each account of a provider on its own row', a
   const status = await handleSystemRateLimitStatus({});
   assert.deepEqual(status.providers.map((provider) => [provider.key, provider.waitingSessions]),
     [['anthropic::school', 1], ['anthropic::subscription', 0]]);
+});
+
+test('an outage row counts the sessions waiting on every account of its provider', async () => {
+  await initRateLimitThrottle(adapterStub(), persistenceStub());
+  await activateOutageWindow('anthropic', 600_000);
+  await initResumeRegistry({ save: async () => {}, load: async () => [] });
+  recordResume({ kind: 'direct', provider: 'anthropic::school', channel: 'C1', userMessage: 'a', recordedAt: 1 });
+  recordResume({ kind: 'direct', provider: 'anthropic::subscription', channel: 'C2', userMessage: 'b', recordedAt: 2 });
+  recordResume({ kind: 'direct', provider: 'openai-codex', channel: 'C3', userMessage: 'c', recordedAt: 3 });
+
+  const status = await handleSystemRateLimitStatus({});
+  assert.deepEqual(status.providers.map((provider) => [provider.key, provider.waitingSessions]), [['anthropic', 2]]);
 });
 
 test('system.rateLimitStatus returns no placeholder when throttle is inactive', async () => {

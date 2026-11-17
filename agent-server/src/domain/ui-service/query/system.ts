@@ -6,7 +6,7 @@ import { formatDuration } from '@core/format-duration.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import { isProcessAlive, readPidFile } from '@core/singleton-lock.js';
 import { getThrottleState } from '@domain/costs/rate-limit-throttle.js';
-import { throttleKey } from '@domain/costs/throttle-key.js';
+import { parseThrottleKey, throttleKey } from '@domain/costs/throttle-key.js';
 import { getResumeCountsByProvider } from '@domain/costs/resume-registry.js';
 import { usageService } from '@domain/costs/usage-service.js';
 import { listSystemNotices, NOTICE_HISTORY_CAP } from '@domain/system/notice-history.js';
@@ -125,6 +125,17 @@ function liveRebuildProgress(daemonPid: number | null, daemonAlive: boolean): Da
   return ownerAlive ? progress : null;
 }
 
+/** Sessions an entry holds: a route's own, plus those queued before routes were recorded (which
+ *  wait on every route); a route-less entry (an outage) holds every route's of its provider. */
+function waitingSessions(
+  waiting: ReturnType<typeof getResumeCountsByProvider>, provider: string, route?: string,
+): number {
+  const keys = route
+    ? [throttleKey(provider, route), provider]
+    : Object.keys(waiting).filter((key) => parseThrottleKey(key).provider === provider);
+  return keys.reduce((sum, key) => sum + (waiting[key]?.sessions ?? 0), 0);
+}
+
 export async function handleSystemRateLimitStatus(
   _params: QueryParams<'system.rateLimitStatus'>,
 ): Promise<SystemRateLimitStatus> {
@@ -136,8 +147,7 @@ export async function handleSystemRateLimitStatus(
       ...(provider.route ? { route: provider.route } : {}),
       key,
       displayName: provider.displayName,
-      // A session queued before routes were recorded waits on every route of its provider.
-      waitingSessions: (waiting[key]?.sessions ?? 0) + (provider.route ? waiting[provider.provider]?.sessions ?? 0 : 0),
+      waitingSessions: waitingSessions(waiting, provider.provider, provider.route),
       windows: provider.windows.map((window) => ({ ...window })),
     };
   });

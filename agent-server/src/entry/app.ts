@@ -563,7 +563,7 @@ installSigtermShutdown(shutdownHandles);
   () => { bus.publish({ type: 'rate-limit.changed' }); });
   // A Codex throttle notice also offers a banked reset when the account holds one; the button
   // opens the `!usage` confirm step, so spending one always takes a second click.
-  setRateLimitNoticeActions((provider, windowType) => usageResetNoticeActions(provider, windowType));
+  setRateLimitNoticeActions((provider, route, windowType) => usageResetNoticeActions(provider, route, windowType));
 
   // Rate-limit notices carry a "Resume now" button (Slack/Feishu interactive). Clicking it
   // clears the throttle early for that provider (or all when the value is empty) and dispatches

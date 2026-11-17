@@ -224,7 +224,7 @@ Web 和移动端输入框的引擎选择器在根层列出收藏模型，显示�
 
 Cortex 按 provider 和账号跟踪滚动用量窗口。provider 标识是不透明字符串，因此限流器可以跟踪任意数量的 provider，无需固定的 provider 枚举。provider 的每个账号——默认登录、具名[账号](#accounts)或 key 连接——各自保有窗口类型和重置时间，因此一个账号达到限额时，只暂停跑在它上面的工作，也不会阻塞恰好使用同名连接的另一个 provider。provider 服务本身故障时，它的所有账号一起暂停。限流状态里每个受限的账号一行，清除某一行只解除这个账号。
 
-这套策略在 [`config/settings.json`](./configuration.md#configsettingsjson) 中以 `providerRateLimits` 配置，它是一个以 provider id 为键的对象。每个 provider 可以有一个由 `{ type, label?, enabled, threshold? }` 条目组成的 `windows` 数组，因此 5 小时、weekly、含超额 weekly、Codex 主/次窗口以及带标签的模型窗口都能独立配置。`threshold` 是大于 `0` 且不超过 `1` 的比率；省略时，weekly 窗口（`seven_day`、`seven_day_overage_included`）使用 `0.95`，其他所有窗口（包括 `five_hour`）使用 `0.90`。精确窗口策略优先于可见且可清除的旧版 provider 回退。桌面端和移动端的用量页面编辑这些行；只统计花费的 provider 不显示额度控件。
+这套策略在 [`config/settings.json`](./configuration.md#configsettingsjson) 中以 `providerRateLimits` 配置，它是一个以 provider id 为键的对象。每个 provider 可以有一个由 `{ type, label?, enabled, threshold? }` 条目组成的 `windows` 数组，因此 5 小时、weekly、含超额 weekly、Codex 主/次窗口以及带标签的模型窗口都能独立配置。这些条目作用于该 provider 的所有账号；以 connection id 为键的 `accounts` 对象（默认登录为 `subscription`）可以给单个账号设置自己的 `windows`，对该账号优先生效。`threshold` 是大于 `0` 且不超过 `1` 的比率；省略时，weekly 窗口（`seven_day`、`seven_day_overage_included`）使用 `0.95`，其他所有窗口（包括 `five_hour`）使用 `0.90`。精确窗口策略优先于可见且可清除的旧版 provider 回退。桌面端和移动端的用量页面按账号编辑这些行；只统计花费的 provider 不显示额度控件。
 
 ### 为什么限额信号是注入而不是流式发送 {#why-a-rate-limit-signal-is-injected-not-streamed}
 
@@ -255,7 +255,7 @@ Cortex 按 provider 和账号跟踪滚动用量窗口。provider 标识是不透
 
 储备重置作用于整个账号、所有设备，且无法撤销。Codex 重置恢复 Codex 用量窗口，在发放约 30 天后过期。Claude 重置清空其授予项列出的窗口，对 claude.ai 及其他所有 Claude 客户端同样生效。Claude 的授予项分为作用范围不同的几种：**完整重置**清空 5 小时、7 天与模型周限额；模型重置（例如新模型发布时发放的 **Fable 重置**）只清空 5 小时限额与该模型的周限额，不动所有模型共用的 7 天限额。Cortex 按重置清空的窗口为 Claude 账号的重置分组，每种单独一行，列出数量与最早过期时间。
 
-Cortex 从不自行使用重置。在桌面端与移动端用量页面的 Codex 与 Anthropic 卡片上，账号持有的每种重置都有自己的 **重置**，用的是这张卡片所属账号的该种重置，并先请求确认；Claude 的确认会列出该重置将清空的窗口，并在账号未达限额时显示这些窗口的当前用量。同一种重置中，Cortex 使用账号下一个提供的重置，否则使用最早过期的那一个。在聊天中，`!usage` 显示同样的数量与过期时间。只有一种重置的账号带 **重置 Codex** 或 **重置 Claude** 按钮；持有多种重置的 Claude 账号每种一个按钮，例如 **完整重置（Claude）** 与 **Fable 重置（Claude）**。点击按钮会在线程中发出确认提示。账号持有重置时，Codex 或 Claude 限流通知会在 **立即恢复** 旁带上这些按钮，且只列出能清空受限窗口的种类：所有模型共用的 7 天限额触发的限流只提供完整重置。重置后，Cortex 清除该 provider 的限流、恢复它暂停的工作，并在几秒内反复读取用量，直到账号显示被清空的窗口已恢复。账号拒绝时——没有可重置的内容、重置已被使用、处于冷却期，或账号当前无法使用重置——不会消耗重置，Cortex 会说明属于哪种情况。
+Cortex 从不自行使用重置。在桌面端与移动端用量页面的 Codex 与 Anthropic 卡片上，账号持有的每种重置都有自己的 **重置**，用的是这张卡片所属账号的该种重置，并先请求确认；Claude 的确认会列出该重置将清空的窗口，并在账号未达限额时显示这些窗口的当前用量。同一种重置中，Cortex 使用账号下一个提供的重置，否则使用最早过期的那一个。在聊天中，`!usage` 显示同样的数量与过期时间；`!usage <账号>` 按账号 id 或名称只显示该账号。每个持有重置的账号都有自己的按钮。只有一种重置时为 **重置 Codex** 或 **重置 Claude** 按钮，非默认登录会在产品名旁注明账号，例如 **重置 Claude (Work)**；持有多种重置的 Claude 账号每种一个按钮，例如 **完整重置（Claude）** 与 **Fable 重置（Claude）**。点击按钮会在线程中发出确认提示，重置用在按钮所指的账号上。受限账号持有重置时，Codex 或 Claude 限流通知会在 **立即恢复** 旁带上该账号的按钮，且只列出能清空受限窗口的种类：所有模型共用的 7 天限额触发的限流只提供完整重置。重置后，Cortex 清除该账号的限流、恢复它暂停的工作，并在几秒内反复读取用量，直到账号显示被清空的窗口已恢复。账号拒绝时——没有可重置的内容、重置已被使用、处于冷却期，或账号当前无法使用重置——不会消耗重置，Cortex 会说明属于哪种情况。
 
 ## 费用报告 {#cost-reporting}
 

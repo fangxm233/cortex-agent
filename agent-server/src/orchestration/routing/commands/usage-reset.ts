@@ -1,4 +1,5 @@
 import { t } from '@core/i18n.js';
+import { SUBSCRIPTION_CONNECTION } from '@core/connections-file.js';
 import type { MessageKey } from '@core/locales/en.js';
 import { redeemUsageReset, type UsageResetResult } from '@domain/costs/account-reset.js';
 import {
@@ -13,7 +14,10 @@ import {
   clearedWindowLabel, filteredRecords, formatPercent, formatUsageReport, resetKindName, windowLabel,
 } from './usage-format.js';
 
-export type UsageResetRedeemer = (provider: ResetProvider, creditId?: string) => Promise<UsageResetResult>;
+/** Spends a reset of the provider's default login, or of the account `connection`. */
+export type UsageResetRedeemer = (
+  provider: ResetProvider, creditId?: string, connection?: string | null,
+) => Promise<UsageResetResult>;
 
 interface UsageStatusReader {
   getStatus(): Promise<ProviderUsage[]>;
@@ -43,81 +47,104 @@ const RESET_STATUS_KEYS: Record<ResetStatus, MessageKey> = {
   signed_out: 'cmd.usage.resetSignedOut',
 };
 
-/** The provider's subscription row, the one that carries banked resets. */
-function resetRow(records: ProviderUsage[], provider: string): ProviderUsage | undefined {
-  return records.find((record) => record.provider === provider && record.billing !== 'api');
+/** One account's subscription row, the one that carries its banked resets; no account: the
+ *  provider's default login. */
+function resetRow(records: ProviderUsage[], provider: string, account?: string): ProviderUsage | undefined {
+  return records.find((record) => record.provider === provider && record.billing !== 'api'
+    && (record.route ?? undefined) === account);
 }
 
-function hasResets(records: ProviderUsage[], provider: ResetProvider): boolean {
-  return (resetRow(records, provider)?.resetCredits?.availableCount ?? 0) > 0;
+function rowHasResets(row: ProviderUsage | undefined): boolean {
+  return (row?.resetCredits?.availableCount ?? 0) > 0;
+}
+
+/** The product name, with the account beside it for any login but the default. */
+function resetName(provider: ResetProvider, account?: string, row?: ProviderUsage): string {
+  return account ? `${RESET_NAMES[provider]} (${row?.label ?? account})` : RESET_NAMES[provider];
+}
+
+/** The account a throttle route stands for: none for the default login, whose route is
+ *  `subscription` (Claude) or the provider's own name (PI). */
+function routeAccount(provider: string, route?: string | null): string | undefined {
+  return route && route !== SUBSCRIPTION_CONNECTION && route !== provider ? route : undefined;
 }
 
 function rowKinds(row: ProviderUsage | undefined): ResetCreditKind[] {
   return row?.resetCredits ? resetCreditKinds(row.resetCredits) : [];
 }
 
-/** A reset action's value: the provider, then the credit to spend when the account holds more
- *  than one kind of reset (credit ids never contain `:`). */
+/** A reset action's value: the provider, `@account` unless it is the default login, then `:` and
+ *  the credit to spend when the account holds more than one kind of reset (account and credit ids
+ *  never contain `@` or `:`). */
 interface ResetTarget {
   provider: ResetProvider;
+  account?: string;
   creditId?: string;
 }
 
 function targetValue(target: ResetTarget): string {
-  return target.creditId ? `${target.provider}:${target.creditId}` : target.provider;
+  const base = target.account ? `${target.provider}@${target.account}` : target.provider;
+  return target.creditId ? `${base}:${target.creditId}` : base;
 }
 
 function parseTarget(value: string): ResetTarget | null {
-  const [provider, creditId] = value.split(':', 2);
+  const [head, creditId] = value.split(':', 2);
+  const [provider, account] = head.split('@', 2);
   if (!isResetProvider(provider)) return null;
-  return creditId ? { provider, creditId } : { provider };
+  return { provider, ...(account ? { account } : {}), ...(creditId ? { creditId } : {}) };
 }
 
-export function usageResetButton(provider: ResetProvider): ActionElement {
+export function usageResetButton(provider: ResetProvider, account?: string, row?: ProviderUsage): ActionElement {
   return {
     type: 'button',
-    text: t('cmd.usage.resetButton', { name: RESET_NAMES[provider] }),
+    text: t('cmd.usage.resetButton', { name: resetName(provider, account, row) }),
     actionId: USAGE_RESET_ACTION_ID,
-    value: provider,
+    value: targetValue({ provider, account }),
   };
 }
 
-function kindButton(provider: ResetProvider, row: ProviderUsage | undefined, kind: ResetCreditKind): ActionElement {
+function kindButton(
+  provider: ResetProvider, account: string | undefined, row: ProviderUsage | undefined, kind: ResetCreditKind,
+): ActionElement {
   const name = resetKindName(row, kind.clears);
-  if (!name || !kind.credit) return usageResetButton(provider);
+  if (!name || !kind.credit) return usageResetButton(provider, account, row);
   return {
     type: 'button',
-    text: t('cmd.usage.resetKindButton', { kind: name, name: RESET_NAMES[provider] }),
+    text: t('cmd.usage.resetKindButton', { kind: name, name: resetName(provider, account, row) }),
     actionId: USAGE_RESET_ACTION_ID,
-    value: targetValue({ provider, creditId: kind.credit.id }),
+    value: targetValue({ provider, account, creditId: kind.credit.id }),
   };
 }
 
 /** One button per offered kind while the account holds several kinds, else one plain button. */
-function resetButtonsFor(provider: ResetProvider, row: ProviderUsage | undefined, windowType?: string): ActionElement[] {
+function resetButtonsFor(
+  provider: ResetProvider, account: string | undefined, row: ProviderUsage | undefined, windowType?: string,
+): ActionElement[] {
   const kinds = rowKinds(row);
-  if (kinds.length <= 1) return [usageResetButton(provider)];
-  return kindsClearing(kinds, windowType).map((kind) => kindButton(provider, row, kind));
+  if (kinds.length <= 1) return [usageResetButton(provider, account, row)];
+  return kindsClearing(kinds, windowType).map((kind) => kindButton(provider, account, row, kind));
 }
 
-/** Reset buttons for each provider in the shown rows whose account holds a reset to spend. */
+/** Reset buttons for each shown subscription row — one per account — that holds a reset to spend. */
 export function usageResetButtons(records: ProviderUsage[], provider?: string): ActionElement[] {
   const shown = filteredRecords(records, provider);
-  return RESET_PROVIDERS
-    .filter((candidate) => hasResets(shown, candidate))
-    .flatMap((candidate) => resetButtonsFor(candidate, resetRow(shown, candidate)));
+  return RESET_PROVIDERS.flatMap((candidate) => shown
+    .filter((row) => row.provider === candidate && row.billing !== 'api' && rowHasResets(row))
+    .flatMap((row) => resetButtonsFor(candidate, row.route ?? undefined, row)));
 }
 
-/** A throttle notice's extra buttons, offered while the throttled account is known to hold a
- *  reset: only the kinds that lift the limited window. */
+/** A throttle notice's extra buttons, offered while the throttled account (`route`) is known to
+ *  hold a reset: only the kinds that lift the limited window. */
 export async function usageResetNoticeActions(
   provider: string,
+  route: string | null | undefined,
   windowType?: string,
   service: UsageStatusReader = usageService,
 ): Promise<ActionElement[]> {
   if (!isResetProvider(provider)) return [];
-  const records = await service.getStatus();
-  return hasResets(records, provider) ? resetButtonsFor(provider, resetRow(records, provider), windowType) : [];
+  const account = routeAccount(provider, route);
+  const row = resetRow(await service.getStatus(), provider, account);
+  return rowHasResets(row) ? resetButtonsFor(provider, account, row, windowType) : [];
 }
 
 function chosenCredit(row: ProviderUsage | undefined, creditId?: string): UsageResetCredit | null {
@@ -135,8 +162,10 @@ function notAtLimitLine(row: ProviderUsage, clears: string[]): string {
   return t('cmd.usage.resetNotAtLimit', { usage: usage || t('cmd.usage.unavailable') });
 }
 
-export function usageResetConfirmText(provider: ResetProvider, records: ProviderUsage[], creditId?: string): string {
-  const row = resetRow(records, provider);
+export function usageResetConfirmText(
+  provider: ResetProvider, records: ProviderUsage[], creditId?: string, account?: string,
+): string {
+  const row = resetRow(records, provider, account);
   const clears = chosenCredit(row, creditId)?.clears ?? [];
   const windows = clears.map((type) => clearedWindowLabel(row, type)).join(', ') || t('cmd.usage.resetAllWindows');
   const lines = [t(CONFIRM_KEYS[provider], { windows })];
@@ -157,7 +186,7 @@ async function postResetConfirm(
   await adapter.postInteractive(
     { type: 'interactive-reply', conduit: ctx.messageRef?.conduit ?? ctx.channelId, sessionId: '' },
     {
-      text: usageResetConfirmText(target.provider, await service.getStatus(), target.creditId),
+      text: usageResetConfirmText(target.provider, await service.getStatus(), target.creditId, target.account),
       actions: [
         { type: 'button', text: t('cmd.usage.resetConfirmButton'), actionId: 'cmd:usage:reset-confirm', value: ctx.value, style: 'danger' },
         { type: 'button', text: t('cmd.usage.resetCancelButton'), actionId: 'cmd:usage:reset-cancel', value: ctx.value },
@@ -168,13 +197,13 @@ async function postResetConfirm(
 }
 
 export async function usageResetOutcomeText(
-  provider: ResetProvider, redeem: UsageResetRedeemer, creditId?: string,
+  provider: ResetProvider, redeem: UsageResetRedeemer, creditId?: string, account?: string,
 ): Promise<string> {
-  const name = RESET_NAMES[provider];
+  const name = resetName(provider, account);
   try {
-    const result = await redeem(provider, creditId);
+    const result = await redeem(provider, creditId, account ?? null);
     const line = t(RESET_STATUS_KEYS[result.status], { name });
-    const row = result.status === 'reset' ? resetRow(result.usage, provider) : undefined;
+    const row = result.status === 'reset' ? resetRow(result.usage, provider, account) : undefined;
     return row ? `${line}\n\n${formatUsageReport([row])}` : line;
   } catch (error) {
     return t('cmd.usage.resetFailed', { name, error: error instanceof Error ? error.message : String(error) });
@@ -192,15 +221,18 @@ async function settlePrompt(router: CommandActionRouter, ctx: ActionContext, tex
 async function runReset(router: CommandActionRouter, redeem: UsageResetRedeemer, ctx: ActionContext): Promise<void> {
   const target = parseTarget(ctx.value);
   if (!target) return;
-  const name = RESET_NAMES[target.provider];
+  const name = resetName(target.provider, target.account);
   await settlePrompt(router, ctx, t('cmd.usage.resetRunning', { name }));
-  await settlePrompt(router, ctx, await usageResetOutcomeText(target.provider, redeem, target.creditId));
+  await settlePrompt(router, ctx, await usageResetOutcomeText(target.provider, redeem, target.creditId, target.account));
 }
+
+const redeemDefault: UsageResetRedeemer = (provider, creditId, connection) =>
+  redeemUsageReset(provider, creditId, {}, connection);
 
 export function usageResetActions(
   router: CommandActionRouter,
   service: UsageStatusReader,
-  redeem: UsageResetRedeemer = redeemUsageReset,
+  redeem: UsageResetRedeemer = redeemDefault,
 ): ActionBinding[] {
   return [
     { actionId: 'reset', handler: (ctx) => postResetConfirm(router, service, ctx) },

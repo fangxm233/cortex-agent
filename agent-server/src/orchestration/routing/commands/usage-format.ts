@@ -115,10 +115,11 @@ function formatProvider(record: ProviderUsage): string[] {
   return lines;
 }
 
+/** A provider name matches all its rows; an account's id or label matches that account's row. */
 function matchesProvider(record: ProviderUsage, provider: string): boolean {
   const normalized = provider.toLowerCase();
-  return record.provider.toLowerCase() === normalized
-    || record.displayName.toLowerCase() === normalized;
+  return [record.provider, record.displayName, record.route, record.label]
+    .some((name) => name?.toLowerCase() === normalized);
 }
 
 export function filteredRecords(records: ProviderUsage[], provider?: string): ProviderUsage[] {

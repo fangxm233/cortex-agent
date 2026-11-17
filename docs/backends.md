@@ -605,12 +605,15 @@ The policy is configured in [`config/settings.json`](./configuration.md#configse
 as `providerRateLimits`, an object keyed by provider id. Each provider can
 hold a `windows` array of `{ type, label?, enabled, threshold? }` entries, so
 5-hour, weekly, weekly-overage, Codex primary/secondary, and labeled model
-windows are independently configurable. `threshold` is a ratio greater than
+windows are independently configurable. Those entries apply to every account
+of the provider; an `accounts` object keyed by connection id (`subscription`
+for the default login) gives one account its own `windows`, which take
+precedence for that account. `threshold` is a ratio greater than
 `0` and at most `1`; an omitted value uses `0.95` for the weekly windows
 (`seven_day`, `seven_day_overage_included`) and `0.90` for every other window,
 `five_hour` included. Exact window policy takes precedence over the visible,
-clearable legacy provider fallback. Desktop and mobile Usage edit these rows;
-spend-only providers do not show quota controls.
+clearable legacy provider fallback. Desktop and mobile Usage edit these rows
+per account; spend-only providers do not show quota controls.
 
 ### Why a rate-limit signal is injected, not streamed
 
@@ -731,15 +734,19 @@ desktop and mobile Usage, each kind of reset the account holds has its own
 for confirmation first; the Claude confirmation names the windows the reset
 clears and, while the account is not at a limit, shows their current use.
 Within a kind, Cortex spends the reset the account offers next, otherwise the
-one that expires first. In chat, `!usage` shows the same counts and expiries.
-An account with one kind of reset gets a **Reset Codex** or **Reset Claude**
-button; a Claude account with several kinds gets one button per kind, such as
+one that expires first. In chat, `!usage` shows the same counts and expiries;
+`!usage <account>` narrows the report to one account by its id or label.
+Every account that holds resets gets its own buttons. One kind of reset gives a
+**Reset Codex** or **Reset Claude** button, with the account named beside the
+product for any login but the default, as in **Reset Claude (Work)**; a Claude
+account with several kinds gets one button per kind, such as
 **Full reset (Claude)** and **Fable reset (Claude)**. Each button posts a
-confirm prompt in the thread. A Codex or Claude throttle notice carries these
-buttons next to **Resume now** while the account holds a reset, limited to the
+confirm prompt in the thread and spends on the account it names. A Codex or
+Claude throttle notice carries the throttled account's buttons next to
+**Resume now** while that account holds a reset, limited to the
 kinds that clear the throttled window: a throttle on the all-models seven-day
 limit offers only the full reset. After a reset Cortex clears
-that provider's throttle, resumes the work it paused, and re-reads usage for a
+that account's throttle, resumes the work it paused, and re-reads usage for a
 few seconds until the account shows the cleared windows restored. When the
 account declines — nothing to reset, a reset already used, a cooldown, or an
 account that cannot use resets right now — no reset is spent and Cortex says

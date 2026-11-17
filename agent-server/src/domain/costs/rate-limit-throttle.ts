@@ -87,8 +87,8 @@ let _adapter: PlatformAdapter | null = null;
 let _persistence: ThrottlePersistence | null = null;
 let _onResume: ((providers: string[]) => void) | null = null;
 let _onChange: (() => void) | null = null;
-/** Extra notice buttons for a provider's throttle on one window type. */
-type NoticeActionsResolver = (provider: string, windowType: string) => Promise<ActionElement[]>;
+/** Extra notice buttons for one route's throttle on one window type. */
+type NoticeActionsResolver = (provider: string, route: string | undefined, windowType: string) => Promise<ActionElement[]>;
 let _noticeActions: NoticeActionsResolver | null = null;
 let _resumeTimer: ReturnType<typeof setTimeout> | null = null;
 let _resumeTimerGeneration = 0;
@@ -470,9 +470,9 @@ function shouldActivateQuota(info: RateLimitInfo, source: RateLimitSource): bool
   return policy.enabled && info.utilization >= thresholdFor(info.rateLimitType, policy.threshold);
 }
 
-async function extraNoticeActions(provider: string, windowType: string): Promise<ActionElement[]> {
+async function extraNoticeActions(provider: string, route: string | undefined, windowType: string): Promise<ActionElement[]> {
   try {
-    return (await _noticeActions?.(provider, windowType)) ?? [];
+    return (await _noticeActions?.(provider, route, windowType)) ?? [];
   } catch (error) {
     log.warn(`Rate-limit notice actions failed: ${(error as Error).message}`);
     return [];
@@ -484,7 +484,7 @@ async function notifyQuotaActivation(
 ): Promise<void> {
   log.info(`Throttle updated: provider=${source.provider}, type=${info.rateLimitType}, utilization=${info.utilization}, mode=${source.mode ?? '(none)'}`);
   if (!isNewProvider) return;
-  const actions = [...clearAction(entryKey(state)), ...await extraNoticeActions(source.provider, info.rateLimitType!)];
+  const actions = [...clearAction(entryKey(state)), ...await extraNoticeActions(source.provider, state.route, info.rateLimitType!)];
   sendDM(`${Icons.warning} ${t('notice.rateLimit.activated', { provider: noticeName(state), type: info.rateLimitType, pct: (info.utilization! * 100).toFixed(0), at: formatResetTime(info.resetsAt!), remaining: formatRemaining(info.resetsAt!) })}`, t('notice.rateLimit.title'), actions);
 }
 
