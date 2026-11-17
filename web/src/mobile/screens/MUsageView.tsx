@@ -433,7 +433,7 @@ function ProviderSection(props: {
 }) {
   const { provider, L } = props;
   return (
-    <section>
+    <section data-usage-row={provider.key}>
       <div
         data-usage-provider={provider.provider} data-usage-billing={provider.billing ?? ''}
         style={{ padding: `0 ${PAD_X} 2px`, display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '2px 8px' }}

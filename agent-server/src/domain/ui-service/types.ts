@@ -122,7 +122,9 @@ import type { TelemetryInfo } from '@domain/telemetry/info.js';
 export type { TelemetryInfo } from '@domain/telemetry/info.js';
 import type { ClientKind } from '@domain/telemetry/client-kind.js';
 export type { ClientKind } from '@domain/telemetry/client-kind.js';
+import type { ProviderRateLimitPolicyOverride } from '@core/settings-spec.js';
 export type {
+  ProviderRateLimitAccountPolicyOverride,
   ProviderRateLimitPolicyOverride,
   ProviderRateLimitWindowPolicyOverride,
   ProviderRateLimits,
@@ -257,6 +259,8 @@ export interface ProviderRateLimitPolicy {
   provider: string;
   windowType?: string;
   windowLabel?: string;
+  /** Set with `windowType`: the account the window policy was written for. */
+  account?: string;
   enabled: boolean;
   threshold: number | null;
 }
@@ -1647,6 +1651,8 @@ export interface ConfigSetReturn {
 export interface ConfigSetProviderRateLimitPolicyReturn {
   written: true;
   policy: ProviderRateLimitPolicy;
+  /** The provider's whole stored policy after the write; null once nothing is left. */
+  providerPolicy: ProviderRateLimitPolicyOverride | null;
 }
 
 export interface ApprovalMutateReturn {

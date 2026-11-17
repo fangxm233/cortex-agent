@@ -50,6 +50,22 @@ const policies: ProviderRateLimits = {
 };
 
 describe('buildUsageView', () => {
+  it('resolves each account\'s policy from its own entry, else the provider-wide one', () => {
+    const rows: SystemUsageStatus = [
+      { ...status[0], billing: 'subscription', windows: [{ type: 'five_hour', utilization: 0.5, resetsAt: NOW + 60 }] },
+      { ...status[0], billing: 'subscription', route: 'work', label: 'Work', windows: [{ type: 'five_hour', utilization: 0.5, resetsAt: NOW + 60 }] },
+    ];
+    const limits: ProviderRateLimits = {
+      anthropic: {
+        windows: [{ type: 'five_hour', enabled: true, threshold: 0.7 }],
+        accounts: { work: { windows: [{ type: 'five_hour', enabled: false }] } },
+      },
+    };
+    const [own, work] = buildUsageView(rows, limits, NOW, 'en').providers.map(provider => provider.windows[0].policy);
+    expect(own).toMatchObject({ target: { provider: 'anthropic', account: null }, enabled: true, thresholdPercent: 70 });
+    expect(work).toMatchObject({ target: { provider: 'anthropic', account: 'work' }, enabled: false });
+  });
+
   it('attaches per-window policy views, exact defaults, and a legacy fallback notice, dropping unknown and unlabeled buckets', () => {
     const vm = buildUsageView(status, policies, NOW, 'en');
     const anthropic = vm.providers[0] as any;
@@ -59,7 +75,7 @@ describe('buildUsageView', () => {
       'anthropic', 'openai-codex', 'deepseek', 'openrouter',
     ]);
     expect(anthropic.legacyFallback).toEqual({
-      target: { provider: 'anthropic', windowType: null, windowLabel: null },
+      target: { provider: 'anthropic', account: null, windowType: null, windowLabel: null },
       enabled: false,
       thresholdPercent: 82,
     });
@@ -91,7 +107,7 @@ describe('buildUsageView', () => {
 
     expect(window.label).toBe('7 天（Fable）');
     expect(window.policy).toMatchObject({
-      target: { provider: 'anthropic', windowType: 'seven_day_overage_included', windowLabel: null },
+      target: { provider: 'anthropic', account: null, windowType: 'seven_day_overage_included', windowLabel: null },
       thresholdPercent: 80,
     });
   });
@@ -161,7 +177,7 @@ describe('buildUsageView', () => {
 
     expect(vm.providers[0].windows).toEqual([]);
     expect(vm.providers[0].legacyFallback).toEqual({
-      target: { provider: 'openrouter', windowType: null, windowLabel: null },
+      target: { provider: 'openrouter', account: null, windowType: null, windowLabel: null },
       enabled: false,
       thresholdPercent: 80,
     });

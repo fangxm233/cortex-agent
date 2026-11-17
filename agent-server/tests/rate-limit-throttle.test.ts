@@ -622,6 +622,27 @@ test('provider policies resolve exact window overrides before legacy provider fa
   assert.equal(mod.isProviderUsageRateLimited('provider-a'), true);
 });
 
+test('each account follows its own window policy, else the provider-wide one', async (t) => {
+  await updateSettings({
+    providerRateLimits: {
+      anthropic: {
+        windows: [{ type: 'five_hour', enabled: true, threshold: 0.8 }],
+        accounts: { work: { windows: [{ type: 'five_hour', enabled: false }] } },
+      },
+    },
+  });
+  const mod = await freshModuleWithCleanup(t);
+  await mod.initRateLimitThrottle(makeAdapterStub(), makePersistenceStub() as any);
+  const now = Math.floor(Date.now() / 1000);
+  const event = { rateLimitType: 'five_hour', utilization: 0.85, resetsAt: now + 300 };
+
+  await mod.handleRateLimitEvent(event, { provider: 'anthropic', displayName: 'Anthropic', mode: 'work' });
+  await mod.handleRateLimitEvent(event, { provider: 'anthropic', displayName: 'Anthropic', mode: 'subscription' });
+
+  assert.equal(mod.isProviderModeRateLimited('anthropic', 'work'), false);
+  assert.equal(mod.isProviderModeRateLimited('anthropic', 'subscription'), true);
+});
+
 test('disabled quota policy ignores new usage windows while outage windows still activate', async (t) => {
   await updateSettings({ providerRateLimits: { 'provider-a': { enabled: false } } });
   const mod = await freshModuleWithCleanup(t);

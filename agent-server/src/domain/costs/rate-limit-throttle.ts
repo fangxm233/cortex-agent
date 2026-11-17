@@ -1,6 +1,6 @@
 import type { PlatformAdapter, ActionElement } from '@platform/index.js';
 import { emitSystemNotice } from '@domain/system/system-notice.js';
-import { getSettings } from '@core/settings.js';
+import { getSettings, rateLimitPolicyAccount } from '@core/settings.js';
 import { createLogger } from '@core/log.js';
 import { AsyncMutex } from '@core/async-mutex.js';
 import { Icons } from '../../core/icons.js';
@@ -206,13 +206,18 @@ function sameWindowIdentity(
   return candidate.type === type && (type !== MODEL_SCOPED_WINDOW_TYPE || candidate.label === label);
 }
 
+/** One account's policy for a window: its own entry, else the provider-wide one, else the legacy
+ *  provider switch, else on at the type's default threshold. */
 function resolveProviderPolicy(
   provider: string,
+  route: string | null | undefined,
   type: string,
   label?: string,
 ): { enabled: boolean; threshold: number | null } {
   const override = getSettings().providerRateLimits[provider];
-  const window = override?.windows?.find((candidate) => sameWindowIdentity(type, label, candidate));
+  const matches = (candidate: { type: string; label?: string }) => sameWindowIdentity(type, label, candidate);
+  const window = override?.accounts?.[rateLimitPolicyAccount(provider, route)]?.windows.find(matches)
+    ?? override?.windows?.find(matches);
   if (window) return { enabled: window.enabled, threshold: window.threshold ?? null };
   if (typeof override?.enabled === 'boolean') {
     return { enabled: override.enabled, threshold: override.threshold ?? null };
@@ -461,7 +466,7 @@ async function activateOutageWindow(provider: string | null, durationMs: number)
 
 function shouldActivateQuota(info: RateLimitInfo, source: RateLimitSource): boolean {
   if (typeof info.utilization !== 'number' || !info.rateLimitType) return false;
-  const policy = resolveProviderPolicy(source.provider, info.rateLimitType, info.rateLimitLabel);
+  const policy = resolveProviderPolicy(source.provider, source.mode, info.rateLimitType, info.rateLimitLabel);
   return policy.enabled && info.utilization >= thresholdFor(info.rateLimitType, policy.threshold);
 }
 
@@ -581,11 +586,13 @@ export interface QuotaReading {
 }
 
 /** A quota window is recovered once a fresh reading for it sits below its activation threshold. */
-function windowRecovered(provider: string, window: RateLimitWindowState, readings: QuotaReading[]): boolean {
+function windowRecovered(
+  state: ProviderThrottleState, window: RateLimitWindowState, readings: QuotaReading[],
+): boolean {
   if (window.type === OUTAGE_WINDOW_TYPE) return false;
   const reading = readings.find((candidate) => sameWindowIdentity(window.type, window.label, candidate));
   if (!reading) return false;
-  const policy = resolveProviderPolicy(provider, window.type, window.label);
+  const policy = resolveProviderPolicy(state.provider, state.route, window.type, window.label);
   return !policy.enabled || reading.utilization < thresholdFor(window.type, policy.threshold);
 }
 
@@ -616,7 +623,7 @@ async function releaseRecoveredQuotaLocked(provider: string, readings: QuotaRead
   let changed = false;
   for (const key of releaseTargets(candidate, provider, route)) {
     const state = candidate.get(key)!;
-    const kept = state.windows.filter((window) => !windowRecovered(provider, window, readings));
+    const kept = state.windows.filter((window) => !windowRecovered(state, window, readings));
     if (kept.length === state.windows.length) continue;
     if (kept.length > 0) state.windows = kept;
     else candidate.delete(key);

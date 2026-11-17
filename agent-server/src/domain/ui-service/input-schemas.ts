@@ -545,11 +545,17 @@ export const configSetProviderRateLimitPolicyInput = z.object({
     .refine((value) => !FORBIDDEN_PROVIDER_KEYS.has(value), 'provider key is reserved'),
   windowType: z.string().trim().min(1).nullish(),
   windowLabel: z.string().trim().min(1).nullish(),
+  /** The account (connection id) a window policy is for; absent or null: the default login. */
+  account: z.string().trim().min(1).max(MAX_PROVIDER_KEY_LENGTH)
+    .refine((value) => !FORBIDDEN_PROVIDER_KEYS.has(value), 'account key is reserved').nullish(),
   enabled: z.boolean(),
   threshold: z.union([z.number().finite().gt(0).lte(1), z.null()]).optional(),
 }).superRefine((value, ctx) => {
   if (value.windowLabel && !value.windowType) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['windowType'], message: 'windowType is required when windowLabel is set' });
+  }
+  if (value.account && !value.windowType) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['windowType'], message: 'windowType is required when account is set' });
   }
 });
 

@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  ConfigSetProviderRateLimitPolicyReturn,
   ConfigSnapshot,
-  ProviderRateLimitPolicy,
-  ProviderRateLimitPolicyOverride,
-  ProviderRateLimitWindowPolicyOverride,
   ProviderRateLimits,
   ResetProvider,
   ResetStatus,
@@ -65,14 +63,17 @@ export interface UsageFeatureState {
 
 interface PolicyMutationInput {
   provider: string;
+  account?: string;
   windowType?: string;
   windowLabel?: string;
   enabled: boolean;
   threshold?: number;
 }
 
+type PolicyMutationResult = Pick<ConfigSetProviderRateLimitPolicyReturn, 'policy' | 'providerPolicy'>;
+
 interface PolicyMutation {
-  mutateAsync: (args: PolicyMutationInput) => Promise<{ policy: ProviderRateLimitPolicy }>;
+  mutateAsync: (args: PolicyMutationInput) => Promise<PolicyMutationResult>;
 }
 
 function currentEpochSeconds(): number {
@@ -138,70 +139,10 @@ function setTargetError(
   setPolicyErrors((current) => ({ ...current, [usagePolicyTargetKey(target)]: message }));
 }
 
-function cloneWindowPolicy(window: ProviderRateLimitWindowPolicyOverride): ProviderRateLimitWindowPolicyOverride {
-  return { ...window };
-}
-
-function cloneProviderPolicy(policy: ProviderRateLimitPolicyOverride | undefined): ProviderRateLimitPolicyOverride {
-  if (!policy) return {};
-  return {
-    ...(policy.enabled === undefined ? {} : { enabled: policy.enabled }),
-    ...(policy.threshold === undefined ? {} : { threshold: policy.threshold }),
-    ...(policy.windows ? { windows: policy.windows.map(cloneWindowPolicy) } : {}),
-  };
-}
-
-function matchesWindow(
-  window: ProviderRateLimitWindowPolicyOverride,
-  patch: ProviderRateLimitPolicy,
-): boolean {
-  return window.type === patch.windowType && window.label === patch.windowLabel;
-}
-
-function nextWindowPolicy(patch: ProviderRateLimitPolicy): ProviderRateLimitWindowPolicyOverride {
-  return {
-    type: patch.windowType!,
-    ...(patch.windowLabel ? { label: patch.windowLabel } : {}),
-    enabled: patch.enabled,
-    ...(patch.threshold !== null ? { threshold: patch.threshold } : {}),
-  };
-}
-
-function cleanProviderPolicy(policy: ProviderRateLimitPolicyOverride): ProviderRateLimitPolicyOverride | null {
-  const next = cloneProviderPolicy(policy);
-  if (!next.windows?.length) delete next.windows;
-  if (next.enabled === undefined && next.threshold === undefined && !next.windows) return null;
-  return next;
-}
-
-function hasLegacyProviderOverride(policy: ProviderRateLimitPolicyOverride): boolean {
-  return policy.enabled === false || policy.threshold !== undefined;
-}
-
-function applyProviderPolicyPatch(
-  current: ProviderRateLimitPolicyOverride | undefined,
-  patch: ProviderRateLimitPolicy,
-): ProviderRateLimitPolicyOverride | null {
-  const next = cloneProviderPolicy(current);
-  if (!patch.windowType) {
-    delete next.enabled;
-    delete next.threshold;
-    if (!patch.enabled || patch.threshold !== null) next.enabled = patch.enabled;
-    if (patch.threshold !== null) next.threshold = patch.threshold;
-    return cleanProviderPolicy(next);
-  }
-  const windows = next.windows?.filter(
-    (window: ProviderRateLimitWindowPolicyOverride) => !matchesWindow(window, patch),
-  ) ?? [];
-  const mustMaskLegacy = patch.enabled && patch.threshold === null && hasLegacyProviderOverride(next);
-  if (!patch.enabled || patch.threshold !== null || mustMaskLegacy) windows.push(nextWindowPolicy(patch));
-  next.windows = windows;
-  return cleanProviderPolicy(next);
-}
-
+/** The server returns the provider's whole stored policy, so the cached snapshot takes it as is. */
 function applyPolicyToSnapshot(
   snapshot: ConfigSnapshot | undefined,
-  policy: ProviderRateLimitPolicy,
+  result: PolicyMutationResult,
 ): ConfigSnapshot | undefined {
   if (!snapshot?.settings) return snapshot;
   const index = snapshot.settings.findIndex(
@@ -210,9 +151,8 @@ function applyPolicyToSnapshot(
   if (index < 0) return snapshot;
   const current = snapshot.settings[index];
   const nextValue = isPlainObject(current.value) ? { ...current.value } as ProviderRateLimits : {};
-  const nextPolicy = applyProviderPolicyPatch(nextValue[policy.provider], policy);
-  if (nextPolicy) nextValue[policy.provider] = nextPolicy;
-  else delete nextValue[policy.provider];
+  if (result.providerPolicy) nextValue[result.policy.provider] = result.providerPolicy;
+  else delete nextValue[result.policy.provider];
   const nextSettings = [...snapshot.settings];
   nextSettings[index] = { ...current, value: nextValue };
   return { ...snapshot, settings: nextSettings };
@@ -228,6 +168,7 @@ function mutationArgs(target: UsagePolicyTarget, draft: UsagePolicyDraft): Polic
   return {
     provider: target.provider,
     enabled: draft.enabled,
+    ...(target.account && target.windowType ? { account: target.account } : {}),
     ...(target.windowType ? { windowType: target.windowType } : {}),
     ...(target.windowLabel ? { windowLabel: target.windowLabel } : {}),
     ...(threshold === null ? {} : { threshold }),
@@ -237,11 +178,11 @@ function mutationArgs(target: UsagePolicyTarget, draft: UsagePolicyDraft): Polic
 function saveCommittedPolicy(
   queryClient: ReturnType<typeof useQueryClient>,
   queryKey: readonly unknown[],
-  result: { policy: ProviderRateLimitPolicy },
+  result: PolicyMutationResult,
 ): void {
   queryClient.setQueryData(queryKey, (current: unknown) => applyPolicyToSnapshot(
     current as ConfigSnapshot | undefined,
-    result.policy,
+    result,
   ));
 }
 

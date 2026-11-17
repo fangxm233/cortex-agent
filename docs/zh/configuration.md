@@ -479,7 +479,7 @@ Web 与桌面 App、以及手机上，新对话的输入框里有一枚**干净*
 | `statusNewqButton` | boolean | `false` | 在状态消息上显示「New (quiet)」按钮（`=!newq`，跳过 pre-close 钩子） | `CORTEX_STATUS_NEWQ_BUTTON` |
 | `autoResume` | boolean | `true` | 当用量限制窗口重置后，自动继续被该限制中断的对话，并注入一条提示让其从中断处接着做。之后已经正常跑完新一轮的对话不再续跑。设为 `false` 可让被中断的工作保持暂停、由人工继续 | `CORTEX_AUTO_RESUME` |
 | `accountFailover` | boolean | `false` | 对话所用的登录被限流时，改用同一 provider 下另一个已登录的登录运行：provider 的默认登录或它的某个账号，计费方式相同（订阅不会改用 API key）、能跑当前模型、自身没被限流。不会用 key 连接。因限流结束的一轮会马上在这样的登录上续跑；所有登录都被限流时，任何一个先恢复就在它上面续跑。第一次切换时 Web 对话里会说明换到了哪个登录。会话保存的选择不变，原登录恢复后自动切回。切换后的第一次回复不走 prompt cache，用量更多。`autoResume` 与它无关：那是等同一个登录的限额重置后再续跑。也可在 **设置 → 高级** 中开关 | — |
-| `providerRateLimits` | object | `{}` | 按 provider 和额度窗口配置限流策略。Provider 条目包含由 `{ type, label?, enabled, threshold? }` 组成的 `windows` 数组；`threshold` 是大于 `0` 且不超过 `1` 的比率 | — |
+| `providerRateLimits` | object | `{}` | 按 provider、账号和额度窗口配置限流策略。Provider 条目包含由 `{ type, label?, enabled, threshold? }` 组成的 `windows` 数组，以及按账号存放 `{ windows }` 的 `accounts` 对象；`threshold` 是大于 `0` 且不超过 `1` 的比率 | — |
 | `showThinking` | boolean | `true` | 采集模型返回的思考内容，在 Web 和手机聊天中显示。关闭后停止采集新的思考，已保存的行仍可见。Claude 请求思考摘要，PI 显示 provider 返回的文本 | `CORTEX_SHOW_THINKING` |
 | `streamDeltas` | boolean | `true` | 按 token 流式输出助手文本和已采集的思考。关闭后只投递完整内容块 | `CORTEX_STREAM_DELTAS` |
 | `bgContinuation` | boolean | `true` | 后台任务结束时，把其输出转回会话 | `CORTEX_BG_CONTINUATION` |
@@ -513,9 +513,25 @@ Web 与桌面 App、以及手机上，新对话的输入框里有一枚**干净*
 
 Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）、**设置 → 高级**（`disableUserContext`、`teamEnabled`、`accountFailover`、`claudeWindowWarmupEnabled`、`cacheKeepWarmHours`、`coldResumeClearToolResults`、`maxContextTokens`、`piCompactReserveTokens`、`serverUpdateDisable`、`serverAutoUpdate`、`sessionRetentionDays`、`memoryIndexRegenEnabled`、`memoryIndexRegenIntervalMs`、`diskMonitor` 和 `eventLog`）、**设置 → 平台**（`showToolCalls`、`adminChannel`、`feishuAdminChannel`、`feishuSkillsInWeb`）、**设置 → 隐私**（`telemetryEnabled`），以及桌面端/移动端的 **用量** 页面（`providerRateLimits`）。其余键都靠手工编辑该文件。
 
-`providerRateLimits` 是 `settings.json` 中以 provider id 为键的对象。每个 provider 条目可包含 `windows` 数组，数组元素为 `{ type, label?, enabled, threshold? }`。普通额度行以 provider 上报的 `type` 为身份；模型级额度行同时使用 `type` 和 provider 上报的精确 `label`。精确的窗口条目优先于旧的 provider 级 `enabled`/`threshold` 字段。这些根字段保留为向后兼容的回退，非默认时会出现在用量页面中，并附带清除它们的操作。
+`providerRateLimits` 是 `settings.json` 中以 provider id 为键的对象。每个 provider 条目可包含 `windows` 数组，数组元素为 `{ type, label?, enabled, threshold? }`。普通额度行以 provider 上报的 `type` 为身份；模型级额度行同时使用 `type` 和 provider 上报的精确 `label`。Provider 的 `windows` 作用于该 provider 的所有账号；`accounts` 对象存放单个账号自己的 `{ windows: [...] }`，键为账号的 connection id，provider 的默认登录用 `subscription`：
 
-桌面端和移动端的用量页面会在每条显示出的 5 小时、weekly、weekly-overage、Codex 主/次窗口及带名称的模型行上分别放置控件。省略 `threshold` 时使用该行默认值：`seven_day` 与 `seven_day_overage_included` 为 `0.95`，其他行为 `0.90`。只显示花费的卡片没有额度控件。模型策略的身份取决于上报的显示名称；如果 provider 改了名称，旧条目就停止匹配。策略改动只作用于后续的额度观测；已经激活的额度或 outage 窗口保持当前状态，直到其重置时间或被手动 **立即恢复** 清除。Codex 与 Anthropic 卡片还会显示账号的可用重置以及需要确认的 **重置** 操作；见[账号用量与可用重置](./backends.md#account-usage-and-banked-resets)。
+```json
+{
+  "providerRateLimits": {
+    "anthropic": {
+      "windows": [{ "type": "five_hour", "enabled": true, "threshold": 0.9 }],
+      "accounts": {
+        "subscription": { "windows": [{ "type": "model_scoped", "label": "Fable", "enabled": false }] },
+        "work": { "windows": [{ "type": "five_hour", "enabled": true, "threshold": 0.8 }] }
+      }
+    }
+  }
+}
+```
+
+对某个账号的某个窗口，先看该账号自己的条目，再看 provider 级 `windows` 条目，最后看 provider 级 `enabled`/`threshold` 字段。这些根字段保留为向后兼容的回退，非默认时会出现在用量页面中，并附带清除它们的操作。
+
+桌面端和移动端的用量页面每个账号一张卡片，卡片上的策略改动都写入该账号自己的条目，不会影响同一 provider 的其他账号。用量页面会在每条显示出的 5 小时、weekly、weekly-overage、Codex 主/次窗口及带名称的模型行上分别放置控件。省略 `threshold` 时使用该行默认值：`seven_day` 与 `seven_day_overage_included` 为 `0.95`，其他行为 `0.90`。只显示花费的卡片没有额度控件。模型策略的身份取决于上报的显示名称；如果 provider 改了名称，旧条目就停止匹配。策略改动只作用于后续的额度观测；已经激活的额度或 outage 窗口保持当前状态，直到其重置时间或被手动 **立即恢复** 清除。Codex 与 Anthropic 卡片还会显示账号的可用重置以及需要确认的 **重置** 操作；见[账号用量与可用重置](./backends.md#account-usage-and-banked-resets)。
 
 内置作业间隔必须是 `1000` 到 `2147483647` 之间的整数毫秒，这是 Node timer 的安全范围。启用的作业会在 daemon 启动时执行一次。记忆索引重建从不重叠运行；修改后的间隔在当前运行结束后生效。
 

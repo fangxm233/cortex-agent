@@ -84,6 +84,8 @@ const harness = vi.hoisted(() => ({
   policyErrorsByTarget: {} as Record<string, Error | null>,
   sharing: { enabled: false, name: '', org: '', email: '' },
   redeemResult: null as { provider: string; status: string; cleared: string[]; usage: unknown[] } | null,
+  /** The provider policy the server reports stored after a policy save. */
+  storedPolicy: null as unknown,
 }));
 
 vi.mock('@/lib/trpc', () => ({
@@ -163,6 +165,7 @@ vi.mock('@tanstack/react-query', async importOriginal => ({
               enabled: args.enabled,
               threshold: args.threshold ?? null,
             },
+            providerPolicy: harness.storedPolicy,
           };
         },
         mutate: undefined,
@@ -230,6 +233,7 @@ function expand(renderer: ReactTestRenderer, key: string) {
 beforeEach(() => {
   currentUsage = usage;
   currentConfig = baseConfig;
+  harness.storedPolicy = null;
   harness.mutations = [];
   harness.queryWrites = [];
   harness.refreshPending = false;
@@ -307,7 +311,13 @@ describe('desktop Settings Usage panel', () => {
     expect(renderer.root.findAllByProps({ 'data-usage-threshold-input': fiveHour })).toHaveLength(0);
   });
 
-  it('saves exact row targets, clears legacy fallback, and keeps fallback resets explicit in cache', async () => {
+  it('saves exact row targets, clears legacy fallback, and caches the policy the server stored', async () => {
+    const stored = {
+      enabled: false,
+      threshold: 0.82,
+      accounts: { subscription: { windows: [{ type: 'five_hour', enabled: true, threshold: 0.83 }] } },
+    };
+    harness.storedPolicy = stored;
     const renderer = mount();
     const fiveHour = targetKey('anthropic', 'five_hour');
     const overage = targetKey('anthropic', 'seven_day_overage_included');
@@ -333,13 +343,20 @@ describe('desktop Settings Usage panel', () => {
       kind: 'config.setProviderRateLimitPolicy',
       args: { provider: 'anthropic', enabled: true },
     });
-    expect(providerRateLimitsValue(currentConfig).anthropic).toEqual({
-      windows: [
-        { type: 'seven_day', enabled: true },
-        { type: 'model_scoped', label: 'Fable', enabled: false },
-        { type: 'five_hour', enabled: true, threshold: 0.83 },
-        { type: 'seven_day_overage_included', enabled: true },
-      ],
+    expect(providerRateLimitsValue(currentConfig).anthropic).toEqual(stored);
+  });
+
+  it('saves an account row\'s policy for that account only', async () => {
+    currentUsage = [...usage, { ...usage[0], route: 'work', label: 'Work', displayName: 'Anthropic (Work)', billing: 'subscription' }];
+    const renderer = mount();
+    const workFiveHour = targetKey('anthropic@work', 'five_hour');
+    expect(renderer.root.findAllByProps({ 'data-usage-row': 'anthropic::subscription::work' }).length).toBeGreaterThan(0);
+    expand(renderer, workFiveHour);
+    await act(async () => { await toggle(renderer, workFiveHour).props.onClick(); });
+
+    expect(harness.mutations).toContainEqual({
+      kind: 'config.setProviderRateLimitPolicy',
+      args: expect.objectContaining({ provider: 'anthropic', account: 'work', windowType: 'five_hour' }),
     });
   });
 

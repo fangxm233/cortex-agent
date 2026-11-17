@@ -3,7 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { CONFIG_DIR } from '@core/paths.js';
 import { atomicWrite } from '@core/atomic-write.js';
-import { setProviderRateLimitPolicy, updateSettings } from '@core/settings.js';
+import { getSettings, setProviderRateLimitPolicy, updateSettings } from '@core/settings.js';
 import { applyLang } from '@domain/system/preferences.js';
 import { costRepo } from '@store/cost-repo.js';
 import {
@@ -118,10 +118,12 @@ export async function handleConfigSetProviderRateLimitPolicy(
       provider: parsed.data.provider,
       windowType: parsed.data.windowType ?? undefined,
       windowLabel: parsed.data.windowLabel ?? undefined,
+      account: parsed.data.account ?? null,
       enabled: parsed.data.enabled,
       threshold: parsed.data.threshold ?? null,
     });
-    return { ok: true, data: { written: true, policy } };
+    const providerPolicy = getSettings().providerRateLimits[policy.provider] ?? null;
+    return { ok: true, data: { written: true, policy, providerPolicy } };
   } catch (err: any) {
     const code = err?.code === 'invalid-args' || err instanceof TypeError ? 'invalid-args' : 'internal';
     return { ok: false, code, message: err?.message || String(err) };

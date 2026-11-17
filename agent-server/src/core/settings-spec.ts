@@ -5,10 +5,18 @@ export interface ProviderRateLimitWindowPolicyOverride {
   threshold?: number;
 }
 
+export interface ProviderRateLimitAccountPolicyOverride {
+  windows: ProviderRateLimitWindowPolicyOverride[];
+}
+
+/** A provider's throttle policy. `windows` holds for every account of the provider; an account's
+ *  own entry under `accounts` (keyed by connection id, `subscription` for the default login) takes
+ *  precedence for the windows it names. */
 export interface ProviderRateLimitPolicyOverride {
   enabled?: boolean;
   threshold?: number;
   windows?: ProviderRateLimitWindowPolicyOverride[];
+  accounts?: Record<string, ProviderRateLimitAccountPolicyOverride>;
 }
 
 export type ProviderRateLimits = Record<string, ProviderRateLimitPolicyOverride>;

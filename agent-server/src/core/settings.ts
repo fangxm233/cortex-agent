@@ -5,8 +5,10 @@ import { atomicWrite } from './atomic-write.js';
 import { createLogger } from './log.js';
 import { CONFIG_DIR } from './paths.js';
 import { createFileWatchMonitor, type WatchMonitor } from './resilient-watch.js';
+import { SUBSCRIPTION_CONNECTION } from './connections-file.js';
 import {
   SETTINGS_SPEC,
+  type ProviderRateLimitAccountPolicyOverride,
   type ProviderRateLimitPolicyOverride,
   type ProviderRateLimitWindowPolicyOverride,
   type ProviderRateLimits,
@@ -19,6 +21,7 @@ import {
 
 export {
   SETTINGS_SPEC,
+  type ProviderRateLimitAccountPolicyOverride,
   type ProviderRateLimitPolicyOverride,
   type ProviderRateLimitWindowPolicyOverride,
   type ProviderRateLimits,
@@ -34,6 +37,18 @@ export interface ProviderRateLimitPolicyPatch {
   threshold: number | null;
   windowType?: string;
   windowLabel?: string | null;
+  /** The account a window policy is for; absent or null: the provider's default login. */
+  account?: string | null;
+}
+
+/** The `accounts` key a provider's default login is filed under. */
+export const DEFAULT_RATE_LIMIT_ACCOUNT = SUBSCRIPTION_CONNECTION;
+
+/** The `accounts` key of a throttle route: an account's connection id, or — for the provider's
+ *  default login, whose route is `subscription` (Claude) or the provider's own name (PI) — the
+ *  default key. */
+export function rateLimitPolicyAccount(provider: string, route?: string | null): string {
+  return route && route !== provider ? route : DEFAULT_RATE_LIMIT_ACCOUNT;
 }
 
 const log = createLogger('settings');
@@ -122,11 +137,13 @@ function windowIdentity(type: string, label?: string): string {
   return `${type}\u0000${label ?? ''}`;
 }
 
-function validateWindowPolicies(value: unknown, provider: string): string | null {
-  if (!Array.isArray(value)) return `providerRateLimits.${provider}.windows must be an array`;
+function validateWindowPolicies(
+  value: unknown, provider: string, base = `providerRateLimits.${provider}.windows`,
+): string | null {
+  if (!Array.isArray(value)) return `${base} must be an array`;
   const seen = new Set<string>();
   for (const [index, window] of value.entries()) {
-    const path = `providerRateLimits.${provider}.windows.${index}`;
+    const path = `${base}.${index}`;
     const windowError = validateWindowPolicyOverride(window, path);
     if (windowError) return windowError;
     const key = windowIdentity((window as ProviderRateLimitWindowPolicyOverride).type, (window as ProviderRateLimitWindowPolicyOverride).label);
@@ -136,10 +153,25 @@ function validateWindowPolicies(value: unknown, provider: string): string | null
   return null;
 }
 
+function validateAccountPolicies(value: unknown, provider: string): string | null {
+  if (!isPlainObject(value)) return `providerRateLimits.${provider}.accounts must be a plain object`;
+  for (const [account, policy] of Object.entries(value)) {
+    const path = `providerRateLimits.${provider}.accounts.${account}`;
+    const keyError = validateProviderKey(account);
+    if (keyError) return `${path}: ${keyError.replace('provider keys', 'account keys')}`;
+    if (!isPlainObject(policy)) return `${path} must be a plain object`;
+    const unknown = Object.keys(policy).find((key) => key !== 'windows');
+    if (unknown) return `${path} has unknown field "${unknown}"`;
+    const windowsError = validateWindowPolicies(policy.windows, provider, `${path}.windows`);
+    if (windowsError) return windowsError;
+  }
+  return null;
+}
+
 function validateProviderPolicyOverride(value: unknown, provider: string): string | null {
   if (!isPlainObject(value)) return `providerRateLimits.${provider} must be a plain object`;
   for (const key of Object.keys(value)) {
-    if (key === 'enabled' || key === 'threshold' || key === 'windows') continue;
+    if (key === 'enabled' || key === 'threshold' || key === 'windows' || key === 'accounts') continue;
     return `providerRateLimits.${provider} has unknown field "${key}"`;
   }
   if (Object.hasOwn(value, 'enabled') && typeof value.enabled !== 'boolean') {
@@ -147,9 +179,16 @@ function validateProviderPolicyOverride(value: unknown, provider: string): strin
   }
   const thresholdError = validatePolicyThreshold(value, `providerRateLimits.${provider}`);
   if (thresholdError) return thresholdError;
-  if (Object.hasOwn(value, 'windows')) return validateWindowPolicies(value.windows, provider);
-  if (typeof value.enabled === 'boolean') return null;
-  return `providerRateLimits.${provider} must declare enabled or windows`;
+  if (Object.hasOwn(value, 'windows')) {
+    const windowsError = validateWindowPolicies(value.windows, provider);
+    if (windowsError) return windowsError;
+  }
+  if (Object.hasOwn(value, 'accounts')) {
+    const accountsError = validateAccountPolicies(value.accounts, provider);
+    if (accountsError) return accountsError;
+  }
+  if (typeof value.enabled === 'boolean' || Object.hasOwn(value, 'windows') || Object.hasOwn(value, 'accounts')) return null;
+  return `providerRateLimits.${provider} must declare enabled, windows or accounts`;
 }
 
 function validateProviderRateLimits(value: unknown): string | null {
@@ -186,7 +225,21 @@ function normalizeProviderRateLimitPatch(patch: ProviderRateLimitPolicyPatch): P
   const windowType = patch.windowType === undefined ? undefined : normalizeWindowText(patch.windowType, 'type');
   const windowLabel = normalizeWindowLabel(patch.windowLabel);
   if (windowLabel && !windowType) throw new TypeError('windowLabel requires windowType');
-  return { provider, enabled: patch.enabled, threshold: patch.threshold, ...(windowType ? { windowType } : {}), ...(windowLabel ? { windowLabel } : {}) };
+  const account = normalizeAccount(patch.account);
+  if (account && !windowType) throw new TypeError('account requires windowType');
+  return {
+    provider, enabled: patch.enabled, threshold: patch.threshold,
+    ...(windowType ? { windowType, account: account ?? DEFAULT_RATE_LIMIT_ACCOUNT } : {}),
+    ...(windowLabel ? { windowLabel } : {}),
+  };
+}
+
+function normalizeAccount(value: unknown): string | undefined {
+  if (value === null || value === undefined) return undefined;
+  if (typeof value !== 'string') throw new TypeError('account must be a string');
+  const error = validateProviderKey(value.trim());
+  if (error) throw new TypeError(error.replace('provider keys', 'account keys'));
+  return value.trim();
 }
 
 function cloneWindowPolicy(window: ProviderRateLimitWindowPolicyOverride): ProviderRateLimitWindowPolicyOverride {
@@ -198,11 +251,19 @@ function cloneWindowPolicy(window: ProviderRateLimitWindowPolicyOverride): Provi
   };
 }
 
+function cloneAccountPolicies(
+  accounts: Record<string, ProviderRateLimitAccountPolicyOverride>,
+): Record<string, ProviderRateLimitAccountPolicyOverride> {
+  return Object.fromEntries(Object.entries(accounts)
+    .map(([account, policy]) => [account, { windows: policy.windows.map(cloneWindowPolicy) }]));
+}
+
 function cloneProviderPolicy(policy: ProviderRateLimitPolicyOverride): ProviderRateLimitPolicyOverride {
   return {
     ...(typeof policy.enabled === 'boolean' ? { enabled: policy.enabled } : {}),
     ...(Object.hasOwn(policy, 'threshold') ? { threshold: policy.threshold } : {}),
     ...(policy.windows ? { windows: policy.windows.map(cloneWindowPolicy) } : {}),
+    ...(policy.accounts ? { accounts: cloneAccountPolicies(policy.accounts) } : {}),
   };
 }
 
@@ -464,7 +525,11 @@ function nextWindowPolicy(patch: ProviderRateLimitPolicyPatch): ProviderRateLimi
 function cleanProviderPolicy(policy: ProviderRateLimitPolicyOverride): ProviderRateLimitPolicyOverride | null {
   const cleaned = cloneProviderPolicy(policy);
   if (!cleaned.windows?.length) delete cleaned.windows;
-  if (cleaned.enabled === undefined && cleaned.threshold === undefined && !cleaned.windows) return null;
+  for (const [account, entry] of Object.entries(cleaned.accounts ?? {})) {
+    if (entry.windows.length === 0) delete cleaned.accounts![account];
+  }
+  if (cleaned.accounts && Object.keys(cleaned.accounts).length === 0) delete cleaned.accounts;
+  if (cleaned.enabled === undefined && cleaned.threshold === undefined && !cleaned.windows && !cleaned.accounts) return null;
   return cleaned;
 }
 
@@ -484,10 +549,16 @@ function applyProviderRateLimitPatch(
     if (patch.threshold !== null) next.threshold = patch.threshold;
     return cleanProviderPolicy(next);
   }
-  const windows = next.windows?.filter((window) => !matchesWindow(window, patch)) ?? [];
-  const mustMaskLegacy = patch.enabled && patch.threshold === null && hasLegacyProviderOverride(next);
-  if (!patch.enabled || patch.threshold !== null || mustMaskLegacy) windows.push(nextWindowPolicy(patch));
-  next.windows = windows;
+  // A window policy is the account's own; the provider-wide entries it would otherwise inherit stay
+  // as they are, masked by an explicit default when the account resets to it.
+  const account = patch.account ?? DEFAULT_RATE_LIMIT_ACCOUNT;
+  const accounts = next.accounts ?? {};
+  const windows = accounts[account]?.windows.filter((window) => !matchesWindow(window, patch)) ?? [];
+  const inherits = hasLegacyProviderOverride(next) || !!next.windows?.some((window) => matchesWindow(window, patch));
+  const mustMaskInherited = patch.enabled && patch.threshold === null && inherits;
+  if (!patch.enabled || patch.threshold !== null || mustMaskInherited) windows.push(nextWindowPolicy(patch));
+  accounts[account] = { windows };
+  next.accounts = accounts;
   return cleanProviderPolicy(next);
 }
 

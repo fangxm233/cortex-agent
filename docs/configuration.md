@@ -794,7 +794,7 @@ Unknown keys are ignored.
 | `statusNewqButton` | boolean | `false` | Show the "New (quiet)" button on status messages (`=!newq`, which skips the pre-close hook) | `CORTEX_STATUS_NEWQ_BUTTON` |
 | `autoResume` | boolean | `true` | When a usage-limit window resets, automatically continue the conversations the limit interrupted, injecting a note to pick up where they left off. A conversation that has since completed another turn is not resumed. Set to `false` to leave interrupted work paused for manual continuation | `CORTEX_AUTO_RESUME` |
 | `accountFailover` | boolean | `false` | While the login a conversation runs on is rate-limited, runs it on another signed-in login of the same provider: the provider's default login or one of its accounts, billed the same way (a subscription never moves to an API key), able to run the model, and not rate-limited itself. Key connections are never used. A run that ends on a rate limit continues at once on such a login, or, when every login is limited, as soon as any of them frees; the web chat says which login it moved to the first time it moves. The session keeps its own selection and goes back to its login once that login recovers. The first reply after a switch is sent without the prompt cache, so it costs more. `autoResume` is separate: it waits for the same login's limit to reset. Also on **Settings → Advanced** | — |
-| `providerRateLimits` | object | `{}` | Per-provider, per-quota-window throttle policy. Provider entries contain a `windows` array of `{ type, label?, enabled, threshold? }`; `threshold` is a ratio greater than `0` and at most `1` | — |
+| `providerRateLimits` | object | `{}` | Per-provider, per-account, per-quota-window throttle policy. Provider entries contain a `windows` array of `{ type, label?, enabled, threshold? }` and an `accounts` object of per-account `{ windows }`; `threshold` is a ratio greater than `0` and at most `1` | — |
 | `showThinking` | boolean | `true` | Capture model-provided thinking for Web and mobile chat. Disable to stop capturing new thinking; saved rows remain visible. Claude requests a thinking summary; PI displays the text the provider returns | `CORTEX_SHOW_THINKING` |
 | `streamDeltas` | boolean | `true` | Stream assistant text and captured thinking token by token. Disable to deliver only complete blocks | `CORTEX_STREAM_DELTAS` |
 | `bgContinuation` | boolean | `true` | Forward the output of background tasks back into the conversation when they finish | `CORTEX_BG_CONTINUATION` |
@@ -841,12 +841,33 @@ screens (`providerRateLimits`). Every other key is edited by hand in the file.
 provider entry can contain a `windows` array whose entries are
 `{ type, label?, enabled, threshold? }`. The identity of an ordinary quota row
 is its provider-reported `type`; a model-scoped row uses both `type` and its
-exact provider-reported `label`. An exact window entry takes precedence over
-older provider-level `enabled`/`threshold` fields. Those root fields remain a
-backward-compatible fallback and, when non-default, appear in Usage with an
-action to clear them.
+exact provider-reported `label`. A provider's `windows` apply to every account
+of that provider. Its `accounts` object holds one account's own
+`{ windows: [...] }`, keyed by the account's connection id, with `subscription`
+for the provider's default login:
 
-Desktop and mobile Usage place separate controls on every displayed 5-hour,
+```json
+{
+  "providerRateLimits": {
+    "anthropic": {
+      "windows": [{ "type": "five_hour", "enabled": true, "threshold": 0.9 }],
+      "accounts": {
+        "subscription": { "windows": [{ "type": "model_scoped", "label": "Fable", "enabled": false }] },
+        "work": { "windows": [{ "type": "five_hour", "enabled": true, "threshold": 0.8 }] }
+      }
+    }
+  }
+}
+```
+
+For a given account and window, the account's own entry wins, then the
+provider-wide `windows` entry, then the provider-level `enabled`/`threshold`
+fields. Those root fields are a backward-compatible fallback and, when
+non-default, appear in Usage with an action to clear them.
+
+Desktop and mobile Usage show one card per account, and every policy edit on a
+card is written to that account's own entry, so it never changes another
+account of the same provider. Usage places separate controls on every displayed 5-hour,
 weekly, weekly-overage, Codex primary/secondary, and labeled model row. Leaving
 `threshold` out uses the row default: `0.95` for `seven_day` and
 `seven_day_overage_included`, `0.90` for other rows. Spend-only cards have no

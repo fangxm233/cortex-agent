@@ -112,15 +112,15 @@ describe('MUsageView policy controls', () => {
     act(() => renderer.root.findByProps({ 'data-usage-legacy-clear': 'anthropic' }).props.onClick());
 
     expect(onSavePolicy).toHaveBeenNthCalledWith(1,
-      { provider: 'anthropic', windowType: 'five_hour', windowLabel: null },
+      { provider: 'anthropic', account: null, windowType: 'five_hour', windowLabel: null },
       { enabled: true, thresholdPercent: 83 },
     );
     expect(onSavePolicy).toHaveBeenNthCalledWith(2,
-      { provider: 'anthropic', windowType: 'seven_day_overage_included', windowLabel: null },
+      { provider: 'anthropic', account: null, windowType: 'seven_day_overage_included', windowLabel: null },
       { enabled: true, thresholdPercent: null },
     );
     expect(onSavePolicy).toHaveBeenNthCalledWith(3,
-      { provider: 'anthropic', windowType: null, windowLabel: null },
+      { provider: 'anthropic', account: null, windowType: null, windowLabel: null },
       { enabled: true, thresholdPercent: null },
     );
   });

@@ -25,6 +25,8 @@ export const USAGE_DANGER_UTILIZATION = 0.9;
 
 export interface UsagePolicyTarget {
   provider: string;
+  /** The row's account (connection id); null: the provider's default login. */
+  account: string | null;
   windowType: string | null;
   windowLabel: string | null;
 }
@@ -155,12 +157,18 @@ const WEEKLY_WINDOW_TYPES = new Set(['seven_day', 'seven_day_overage_included'])
 const ALL_MODELS_WEEKLY = 'seven_day';
 const RENDERABLE_WINDOW_TYPES = new Set(Object.keys(WINDOW_LABEL_KEYS));
 
-function target(provider: string, windowType?: string | null, windowLabel?: string | null): UsagePolicyTarget {
-  return { provider, windowType: windowType ?? null, windowLabel: windowLabel ?? null };
+/** The server files a default login's window policies under this account key. */
+const DEFAULT_POLICY_ACCOUNT = 'subscription';
+
+function target(
+  provider: string, account: string | null, windowType?: string | null, windowLabel?: string | null,
+): UsagePolicyTarget {
+  return { provider, account, windowType: windowType ?? null, windowLabel: windowLabel ?? null };
 }
 
 export function usagePolicyTargetKey(value: UsagePolicyTarget): string {
-  return [value.provider, value.windowType ?? '', value.windowLabel ?? ''].join('::');
+  const owner = value.account ? `${value.provider}@${value.account}` : value.provider;
+  return [owner, value.windowType ?? '', value.windowLabel ?? ''].join('::');
 }
 
 function percentFromRatio(value: number): number {
@@ -180,39 +188,41 @@ function policyLabel(window: Pick<UsageWindow, 'type' | 'label'>): string | unde
   return window.type === 'model_scoped' ? window.label : undefined;
 }
 
+/** The account's own entry for the window, else the provider-wide one — as the server resolves it. */
 function matchingWindowPolicy(
   policy: ProviderRateLimitPolicyOverride | undefined,
+  account: string | null,
   window: UsageWindow,
 ): ProviderRateLimitWindowPolicyOverride | undefined {
-  return policy?.windows?.find(
-    (item: ProviderRateLimitWindowPolicyOverride) => item.type === window.type
-      && (window.type !== 'model_scoped' || item.label === window.label),
-  );
+  const matches = (item: ProviderRateLimitWindowPolicyOverride) => item.type === window.type
+    && (window.type !== 'model_scoped' || item.label === window.label);
+  return policy?.accounts?.[account ?? DEFAULT_POLICY_ACCOUNT]?.windows.find(matches)
+    ?? policy?.windows?.find(matches);
 }
 
 function effectiveWindowPolicy(
-  provider: string, window: UsageWindow, providerRateLimits: ProviderRateLimits | null,
+  provider: string, account: string | null, window: UsageWindow, providerRateLimits: ProviderRateLimits | null,
 ): UsageWindowPolicyView | null {
   if (providerRateLimits === null) return null;
   const fallbackDefault = defaultThresholdPercent(window.type);
   const providerPolicy = providerRateLimits[provider];
-  const windowPolicy = matchingWindowPolicy(providerPolicy, window);
+  const windowPolicy = matchingWindowPolicy(providerPolicy, account, window);
   if (windowPolicy) return {
-    target: target(provider, window.type, policyLabel(window)),
+    target: target(provider, account, window.type, policyLabel(window)),
     enabled: windowPolicy.enabled,
     thresholdPercent: typeof windowPolicy.threshold === 'number' ? percentFromRatio(windowPolicy.threshold) : fallbackDefault,
     defaultThresholdPercent: fallbackDefault,
     usesLegacyFallback: false,
   };
   if (!hasLegacyFallback(providerPolicy)) return {
-    target: target(provider, window.type, policyLabel(window)),
+    target: target(provider, account, window.type, policyLabel(window)),
     enabled: true,
     thresholdPercent: fallbackDefault,
     defaultThresholdPercent: fallbackDefault,
     usesLegacyFallback: false,
   };
   return {
-    target: target(provider, window.type, policyLabel(window)),
+    target: target(provider, account, window.type, policyLabel(window)),
     enabled: providerPolicy?.enabled ?? true,
     thresholdPercent: typeof providerPolicy?.threshold === 'number' ? percentFromRatio(providerPolicy.threshold) : fallbackDefault,
     defaultThresholdPercent: fallbackDefault,
@@ -229,7 +239,7 @@ function legacyFallbackView(
   const policy = providerRateLimits[provider];
   if (!hasLegacyFallback(policy)) return null;
   return {
-    target: target(provider),
+    target: target(provider, null),
     enabled: policy?.enabled ?? true,
     thresholdPercent: typeof policy?.threshold === 'number'
       ? percentFromRatio(policy.threshold)
@@ -278,6 +288,7 @@ export function utilizationSeverity(utilization: number | null): UsageSeverity {
 
 function buildWindow(
   provider: string,
+  account: string | null,
   window: UsageWindow,
   showPolicy: boolean,
   providerRateLimits: ProviderRateLimits | null,
@@ -295,7 +306,7 @@ function buildWindow(
     resetsAt: window.resetsAt,
     resetIn: window.resetsAt === null || resetElapsed ? null : formatUsageDuration(window.resetsAt - nowSec, lang),
     resetElapsed,
-    policy: showPolicy ? effectiveWindowPolicy(provider, window, providerRateLimits) : null,
+    policy: showPolicy ? effectiveWindowPolicy(provider, account, window, providerRateLimits) : null,
   };
 }
 
@@ -441,7 +452,7 @@ function buildProvider(
     billing: record.billing ?? null,
     displayName: record.displayName,
     modes: [...record.modes],
-    windows: windows.map((window: UsageWindow) => buildWindow(record.provider, window, showPolicy, providerRateLimits, nowSec, lang)),
+    windows: windows.map((window: UsageWindow) => buildWindow(record.provider, record.route ?? null, window, showPolicy, providerRateLimits, nowSec, lang)),
     spend: record.spend ? spendView(record.spend) : null,
     observedAt: record.observedAt,
     observedAgo: record.observedAt === null ? null : formatUsageDuration(nowSec - record.observedAt, lang),

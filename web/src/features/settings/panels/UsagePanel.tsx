@@ -484,7 +484,7 @@ function ProviderNotices({ provider, usage }: { provider: ProviderUsageView; usa
 
 function ProviderSection({ provider, usage }: { provider: ProviderUsageView; usage: ReturnType<typeof useUsage> }) {
   return (
-    <SSection data-usage-provider={provider.provider} data-usage-billing={provider.billing ?? ''}
+    <SSection data-usage-row={provider.key} data-usage-provider={provider.provider} data-usage-billing={provider.billing ?? ''}
       label={provider.displayName} action={<ProviderMeta provider={provider} />}>
       <ProviderRows provider={provider} usage={usage} />
       <ProviderNotices provider={provider} usage={usage} />

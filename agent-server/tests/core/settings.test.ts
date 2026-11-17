@@ -472,7 +472,7 @@ describe.sequential('core settings', () => {
   test('setProviderRateLimitPolicy preserves concurrent window patches and unrelated settings', async () => {
     await updateSettings({
       eventLog: false,
-      providerRateLimits: { anthropic: { windows: [{ type: 'five_hour', enabled: false }] } },
+      providerRateLimits: { anthropic: { accounts: { subscription: { windows: [{ type: 'five_hour', enabled: false }] } } } },
     });
 
     await Promise.all([
@@ -484,12 +484,16 @@ describe.sequential('core settings', () => {
     assert.equal(parsed.eventLog, false);
     assert.deepEqual(parsed.providerRateLimits, {
       anthropic: {
-        windows: [
-          { type: 'five_hour', enabled: false },
-          { type: 'model_scoped', label: 'Sonnet', enabled: false, threshold: 0.75 },
-        ],
+        accounts: {
+          subscription: {
+            windows: [
+              { type: 'five_hour', enabled: false },
+              { type: 'model_scoped', label: 'Sonnet', enabled: false, threshold: 0.75 },
+            ],
+          },
+        },
       },
-      'openai-codex': { windows: [{ type: 'codex_primary', enabled: false }] },
+      'openai-codex': { accounts: { subscription: { windows: [{ type: 'codex_primary', enabled: false }] } } },
     });
   });
 
@@ -497,20 +501,25 @@ describe.sequential('core settings', () => {
     await updateSettings({
       providerRateLimits: {
         anthropic: {
-          windows: [
-            { type: 'model_scoped', label: 'Haiku', enabled: false },
-            { type: 'model_scoped', label: 'Sonnet', enabled: false, threshold: 0.91 },
-          ],
+          accounts: {
+            work: {
+              windows: [
+                { type: 'model_scoped', label: 'Haiku', enabled: false },
+                { type: 'model_scoped', label: 'Sonnet', enabled: false, threshold: 0.91 },
+              ],
+            },
+          },
         },
       },
     });
 
-    const first = setProviderRateLimitPolicy({ provider: 'anthropic', windowType: 'model_scoped', windowLabel: 'Sonnet', enabled: false, threshold: 0.88 });
-    const second = setProviderRateLimitPolicy({ provider: 'anthropic', windowType: 'model_scoped', windowLabel: 'Sonnet', enabled: true, threshold: null });
+    const first = setProviderRateLimitPolicy({ provider: 'anthropic', account: 'work', windowType: 'model_scoped', windowLabel: 'Sonnet', enabled: false, threshold: 0.88 });
+    const second = setProviderRateLimitPolicy({ provider: 'anthropic', account: 'work', windowType: 'model_scoped', windowLabel: 'Sonnet', enabled: true, threshold: null });
     const [, committed] = await Promise.all([first, second]);
 
     assert.deepEqual(committed, {
       provider: 'anthropic',
+      account: 'work',
       windowType: 'model_scoped',
       windowLabel: 'Sonnet',
       enabled: true,
@@ -518,7 +527,7 @@ describe.sequential('core settings', () => {
     });
     assert.deepEqual(JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8')).providerRateLimits, {
       anthropic: {
-        windows: [{ type: 'model_scoped', label: 'Haiku', enabled: false }],
+        accounts: { work: { windows: [{ type: 'model_scoped', label: 'Haiku', enabled: false }] } },
       },
     });
   });
@@ -557,9 +566,56 @@ describe.sequential('core settings', () => {
       anthropic: {
         enabled: false,
         threshold: 0.82,
-        windows: [{ type: 'seven_day', enabled: true }],
+        accounts: { subscription: { windows: [{ type: 'seven_day', enabled: true }] } },
       },
     });
+  });
+
+  test('a window policy is one account\'s own: the other account and the provider-wide entries stay put', async () => {
+    await updateSettings({
+      providerRateLimits: {
+        anthropic: {
+          windows: [{ type: 'model_scoped', label: 'Fable', enabled: false }],
+          accounts: { work: { windows: [{ type: 'five_hour', enabled: true, threshold: 0.7 }] } },
+        },
+      },
+    });
+
+    await setProviderRateLimitPolicy({ provider: 'anthropic', windowType: 'five_hour', enabled: false, threshold: null });
+    await setProviderRateLimitPolicy({
+      provider: 'anthropic', account: 'work', windowType: 'model_scoped', windowLabel: 'Fable', enabled: true, threshold: null,
+    });
+
+    assert.deepEqual(JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8')).providerRateLimits, {
+      anthropic: {
+        windows: [{ type: 'model_scoped', label: 'Fable', enabled: false }],
+        accounts: {
+          work: {
+            windows: [
+              { type: 'five_hour', enabled: true, threshold: 0.7 },
+              // Back to the default, it masks the provider-wide entry it would otherwise inherit.
+              { type: 'model_scoped', label: 'Fable', enabled: true },
+            ],
+          },
+          subscription: { windows: [{ type: 'five_hour', enabled: false }] },
+        },
+      },
+    });
+  });
+
+  test('account policies are validated like window policies', async () => {
+    await assert.rejects(
+      updateSettings({ providerRateLimits: { anthropic: { accounts: { work: { windows: {} } } } } } as any),
+      /providerRateLimits\.anthropic\.accounts\.work\.windows must be an array/,
+    );
+    await assert.rejects(
+      updateSettings({ providerRateLimits: { anthropic: { accounts: { work: { windows: [], extra: 1 } } } } } as any),
+      /accounts\.work has unknown field "extra"/,
+    );
+    await assert.rejects(
+      setProviderRateLimitPolicy({ provider: 'anthropic', account: 'work', enabled: false, threshold: null }),
+      /account requires windowType/,
+    );
   });
 
   test('deleting settings.json hot-reloads env and default fallbacks', async (t) => {
