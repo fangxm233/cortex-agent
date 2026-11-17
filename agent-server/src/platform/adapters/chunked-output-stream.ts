@@ -23,6 +23,10 @@ export interface ChunkedOutputStreamConfig {
   walAroundPostInteractive: boolean;
   /** When a failed update falls back to a new post, mark the update's WAL entry as sent. */
   afterSentOnFailedUpdate: boolean;
+  /** Whether the platform still accepts an edit to this text. One it would refuse goes out as a new message. */
+  fitsUpdate?: (text: string) => boolean;
+  /** Errors that another attempt cannot fix; they skip the remaining retries. */
+  isPermanent?: (error: unknown) => boolean;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -38,6 +42,7 @@ async function withRetries<T>(fn: () => Promise<T>, label: string, config: Chunk
       return await fn();
     } catch (e) {
       lastError = e;
+      if (config.isPermanent?.(e)) break;
       if (attempt < delays.length) {
         const delay = delays[attempt];
         config.log.warn(`${label} attempt ${attempt + 1} failed (${(e as Error).message}); retrying in ${delay}ms`);
@@ -234,7 +239,7 @@ export class ChunkedOutputStream implements OutputStream {
     }
 
     const combined = this.currentContent + SEPARATOR + text;
-    if (needsSplit(combined, this.maxChunk)) {
+    if (this._needsSplit(combined)) {
       await this._postNew(text);
       return;
     }
@@ -263,7 +268,7 @@ export class ChunkedOutputStream implements OutputStream {
       return;
     }
 
-    if (needsSplit(combined, this.maxChunk)) {
+    if (this._needsSplit(combined)) {
       await this._postNew(text);
       this.currentContent = '';
       this.mutableTail = text;
@@ -296,7 +301,7 @@ export class ChunkedOutputStream implements OutputStream {
       return;
     }
 
-    if (needsSplit(combined, this.maxChunk)) {
+    if (this._needsSplit(combined)) {
       this._sealMutableTailNow();
       await this._postNew(text);
       this.currentContent = '';
@@ -317,6 +322,11 @@ export class ChunkedOutputStream implements OutputStream {
         await this.durable?.afterSent(updateResult.walId).catch(() => {});
       }
     }
+  }
+
+  /** Whether `text` must start a new message instead of editing the current one. */
+  private _needsSplit(text: string): boolean {
+    return needsSplit(text, this.maxChunk) || this.config.fitsUpdate?.(text) === false;
   }
 
   /** Combined display = currentContent [+ SEP + mutableTail]. */

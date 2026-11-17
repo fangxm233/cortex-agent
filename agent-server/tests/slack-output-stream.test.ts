@@ -2,6 +2,7 @@ import { test, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   SlackOutputStream,
+  slackUpdateCost,
   _testSetRetryDelays,
   _testResetRetryDelays,
 } from '../src/platform/adapters/slack-output-stream.js';
@@ -449,6 +450,48 @@ test('SlackOutputStream: failed update marks its WAL entry sent after the fallba
     'beforePost:p3', 'afterSent:p3',
     'afterSent:u2',
   ]);
+});
+
+// --- Slack's chat.update size limit (msg_too_long) ---
+
+test('slackUpdateCost: counts the way chat.update does at its 4,000 limit', () => {
+  assert.equal(slackUpdateCost('a'.repeat(4000)), 4000);
+  assert.equal(slackUpdateCost('中'.repeat(1333)), 3999);
+  assert.equal(slackUpdateCost('中'.repeat(1334)), 4002);
+  assert.equal(slackUpdateCost('&'.repeat(800)), 4000);
+  assert.equal(slackUpdateCost('<>'), 8);
+  assert.ok(slackUpdateCost('✅'.repeat(223)) > 4000);
+  assert.ok(slackUpdateCost('😀'.repeat(334)) > 4000);
+});
+
+test('SlackOutputStream: an append Slack would refuse as an edit starts a new message', async () => {
+  const adapter = new MockAdapter();
+  const stream = new SlackOutputStream(adapter as unknown as SlackAdapter, testDest('C123'));
+  stream.emitText('中'.repeat(1000));
+  stream.emitText('文'.repeat(300));
+  stream.emitText('字'.repeat(400));
+  await flush(stream);
+
+  assert.equal(adapter.posted.length, 2);
+  assert.equal(adapter.updated.length, 1);
+  assert.equal(adapter.updated[0].content.text, `${'中'.repeat(1000)}\n${'文'.repeat(300)}`);
+  assert.equal(adapter.posted[1].content.text, '字'.repeat(400));
+});
+
+test('SlackOutputStream: msg_too_long is not retried; the text goes out as a new message', async () => {
+  const adapter = new MockAdapter();
+  let updateCalls = 0;
+  adapter.updateMessage = async () => {
+    updateCalls++;
+    throw Object.assign(new Error('An API error occurred: msg_too_long'), { data: { ok: false, error: 'msg_too_long' } });
+  };
+  const stream = new SlackOutputStream(adapter as unknown as SlackAdapter, testDest('C123'));
+  stream.emitText('first');
+  stream.emitText('second');
+  await flush(stream);
+
+  assert.equal(updateCalls, 2, 'one attempt: the rich update and its plain-text fallback');
+  assert.deepEqual(adapter.posted.map(p => p.content.text), ['first', 'second']);
 });
 
 /**

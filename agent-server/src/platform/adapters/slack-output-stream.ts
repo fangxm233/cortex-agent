@@ -23,6 +23,29 @@ export function _testResetRetryDelays(): void {
   retryDelaysMs = DEFAULT_RETRY_DELAYS_MS;
 }
 
+/** chat.update refuses text over 4,000 with msg_too_long (chat.postMessage takes far more). Slack
+ *  counts UTF-8 bytes after escaping &, < and > and turning emoji into :shortcodes: (checked against
+ *  the live API, 2026-11: 1,333 CJK characters pass and 1,334 fail; 223 ✅ fail as
+ *  :white_check_mark:). An emoji is charged a long shortcode's length. */
+const SLACK_UPDATE_MAX = 4000;
+const EMOJI_COST = 32;
+const EMOJI = /\p{Extended_Pictographic}/u;
+
+export function slackUpdateCost(text: string): number {
+  let cost = 0;
+  for (const ch of text) {
+    const code = ch.codePointAt(0)!;
+    if (code < 0x80) cost += ch === '&' ? 5 : ch === '<' || ch === '>' ? 4 : 1;
+    else if (EMOJI.test(ch)) cost += EMOJI_COST;
+    else cost += code < 0x800 ? 2 : code < 0x10000 ? 3 : 4;
+  }
+  return cost;
+}
+
+function isMsgTooLong(error: unknown): boolean {
+  return (error as { data?: { error?: string } } | null)?.data?.error === 'msg_too_long';
+}
+
 // Slack retries a rejected rich message as plain text, records postInteractive
 // in the WAL, and marks a failed update's WAL entry sent once its content has
 // been re-posted as a new message.
@@ -33,6 +56,8 @@ const SLACK_STREAM: ChunkedOutputStreamConfig = {
   plainTextFallback: true,
   walAroundPostInteractive: true,
   afterSentOnFailedUpdate: true,
+  fitsUpdate: (text) => slackUpdateCost(text) <= SLACK_UPDATE_MAX,
+  isPermanent: isMsgTooLong,
 };
 
 export class SlackOutputStream extends ChunkedOutputStream {
