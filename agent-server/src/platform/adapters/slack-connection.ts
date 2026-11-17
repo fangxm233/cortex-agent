@@ -64,7 +64,9 @@ function boltConsoleLogger(): BoltLogger {
 
 /** The App Bolt builds for `socketMode: true`, with the receiver built here so its client is reachable.
  *  socket-mode's own apps.connections.open retries keep its defaults, with the wait between them
- *  capped and a hung request cut off. */
+ *  capped and a hung request cut off. Initialization is deferred to start(): an App built with a
+ *  token runs auth.test in its constructor and keeps a failure (offline at boot) as an unhandled
+ *  rejection that every later event's authorization replays. */
 function buildSocketApp(config: SlackConnectionConfig, tuning: SlackConnectionTuning) {
   const logger = tuning.logger ?? boltConsoleLogger();
   const apiUrl: WebClientOptions = tuning.slackApiUrl ? { slackApiUrl: tuning.slackApiUrl } : {};
@@ -88,6 +90,7 @@ function buildSocketApp(config: SlackConnectionConfig, tuning: SlackConnectionTu
     receiver,
     logger,
     clientOptions: { ...apiUrl },
+    deferInitialization: true,
   });
   return { app, client: receiver.client };
 }
@@ -101,6 +104,7 @@ export class SlackConnection {
   private active = false;
   private retryTimer: NodeJS.Timeout | null = null;
   private attempts = 0;
+  private initialized = false;
 
   constructor(config: SlackConnectionConfig, tuning: SlackConnectionTuning = {}) {
     const { app, client } = buildSocketApp(config, tuning);
@@ -115,8 +119,14 @@ export class SlackConnection {
     return this.retryTimer !== null;
   }
 
+  /** Rejects when auth.test fails (after the Web API client's own retries); start() again to retry. */
   async start(): Promise<void> {
     this.active = true;
+    if (!this.initialized) {
+      await this.app.init();
+      this.initialized = true;
+      if (!this.active) return;
+    }
     await this.app.start();
   }
 

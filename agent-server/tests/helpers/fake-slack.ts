@@ -1,6 +1,7 @@
 // A local stand-in for Slack's socket-mode endpoints: `apps.connections.open` plus the socket it
-// hands out. Each open call follows the next scripted reply, so tests can drive a real Bolt
-// socket-mode client through drops, missing `hello`s and API errors without the network.
+// hands out, and `auth.test`. Each open or auth.test call follows the next scripted reply, so tests
+// can drive a real Bolt socket-mode client through drops, missing `hello`s and API errors without
+// the network.
 import * as http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { WebSocketServer, type WebSocket } from 'ws';
@@ -14,6 +15,7 @@ export const SLOW_REPLY_MS = 50;
 
 export interface FakeSlackStats {
   openCalls: number;
+  authCalls: number;
   hellos: number;
   openSockets: number;
   maxOpenSockets: number;
@@ -23,6 +25,8 @@ export interface FakeSlack {
   apiUrl: string;
   /** Replies for the coming open calls; once it runs out, every call gets `hello`. */
   script: OpenReply[];
+  /** Replies for the coming auth.test calls; once it runs out, every call succeeds. */
+  authScript: 'invalid_auth'[];
   sockets: WebSocket[];
   stats: FakeSlackStats;
   close(): Promise<void>;
@@ -64,13 +68,18 @@ export async function startFakeSlack(): Promise<FakeSlack> {
   const fake: FakeSlack = {
     apiUrl: '',
     script: [],
+    authScript: [],
     sockets: [],
-    stats: { openCalls: 0, hellos: 0, openSockets: 0, maxOpenSockets: 0 },
+    stats: { openCalls: 0, authCalls: 0, hellos: 0, openSockets: 0, maxOpenSockets: 0 },
     close: async () => {},
   };
   const server = http.createServer((req, res) => {
     const { port } = server.address() as AddressInfo;
     if (req.url?.endsWith('/apps.connections.open')) return answerOpen(fake, res, port);
+    if (req.url?.endsWith('/auth.test')) {
+      fake.stats.authCalls += 1;
+      if (fake.authScript.shift()) return sendJson(res, { ok: false, error: 'invalid_auth' });
+    }
     sendJson(res, { ok: true, user_id: 'U0BOT', bot_id: 'B0BOT' });
   });
   const wss = new WebSocketServer({ server });

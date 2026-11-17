@@ -113,3 +113,35 @@ test('stop() while the socket URL is being fetched opens no socket', async () =>
   expect(connection.retryPending).toBe(false);
   expect(rejections).toEqual([]);
 });
+
+test('an auth.test failure at startup rejects start() without an unhandled rejection; the next start recovers', async () => {
+  const slack = await startFakeSlack();
+  cleanups.push(slack.close);
+  slack.authScript.push('invalid_auth');
+  const connection = new SlackConnection(
+    { botToken: 'xoxb-test', signingSecret: 'secret', appToken: 'xapp-test' },
+    { slackApiUrl: slack.apiUrl, clientPingTimeout: 100, logger: silentLogger },
+  );
+  cleanups.push(() => connection.stop());
+  const received: string[] = [];
+  connection.app.event('message', async ({ event }) => { received.push((event as { text: string }).text); });
+  await sleep(50);
+  expect(slack.stats.authCalls).toBe(0);
+
+  await expect(connection.start()).rejects.toThrow(/invalid_auth/);
+  expect(slack.stats.openCalls).toBe(0);
+
+  await connection.start();
+  await expectConnected(slack, 1);
+  slack.sockets[0].send(JSON.stringify({
+    type: 'events_api',
+    envelope_id: 'env-1',
+    payload: {
+      type: 'event_callback', team_id: 'T0', api_app_id: 'A0', event_id: 'Ev1', event_time: 1,
+      event: { type: 'message', channel: 'C0', user: 'U1', text: 'after auth', ts: '1.000' },
+    },
+  }));
+  await eventually(() => expect(received).toEqual(['after auth']));
+  expect(slack.stats.authCalls).toBe(2);
+  expect(rejections).toEqual([]);
+});
