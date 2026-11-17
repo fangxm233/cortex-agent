@@ -1,6 +1,6 @@
 {
   "name": "@cortex-agent/server",
-  "version": "2026.10.28",
+  "version": "2026.11.17",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
   "description": "Agent workbench for auto research, self-improvement loops, and long-running work — multi-agent teams, persistent project memory, cross-machine GPU training.",
