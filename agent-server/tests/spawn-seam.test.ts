@@ -76,6 +76,9 @@ beforeAll(() => {
   rmSync(path.join(DATA_DIR, 'rules'), { recursive: true, force: true });
   rmSync(path.join(CONFIG_DIR, 'hooks'), { recursive: true, force: true });
   rmSync(path.join(CONFIG_DIR, 'settings.json'), { force: true });
+  // The seeded models.json (default + favorites, no delegation entry) narrows the Claude list the
+  // MCP sidecar is handed, which a home without one never writes into the spawn environment.
+  rmSync(path.join(CONFIG_DIR, 'models.json'), { force: true });
   mkdirSync(path.join(CONFIG_DIR, 'hooks'), { recursive: true });
   resetSettingsForTests();
 });
